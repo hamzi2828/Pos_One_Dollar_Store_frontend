@@ -42,7 +42,7 @@ export default function CashInHandPage() {
   );
   const [customStart, setCustomStart] = useState(searchParams.get('startDate') || '');
   const [customEnd, setCustomEnd] = useState(searchParams.get('endDate') || '');
-  const [storeName, setStoreName] = useState<string>('Hamza Mobile & Communication');
+  const [storeName, setStoreName] = useState<string>('Mirpur Mobile & Stationery');
   const [report, setReport] = useState<CashInHandReport | null>(null);
 
   // Load store name once for PDF header.

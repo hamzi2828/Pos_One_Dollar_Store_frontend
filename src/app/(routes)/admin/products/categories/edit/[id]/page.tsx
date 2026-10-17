@@ -245,7 +245,7 @@ const EditCategoryPage = () => {
                 <input
                   type="text"
                   maxLength={70}
-                  placeholder="e.g., Mobile Accessories | Hamza Mobile & Communication"
+                  placeholder="e.g., Mobile Accessories | Mirpur Mobile & Stationery"
                   className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
                   value={metaTitle}
                   onChange={(e) => setMetaTitle(e.target.value)}

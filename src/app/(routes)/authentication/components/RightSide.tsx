@@ -13,7 +13,7 @@ interface LoginContentData {
 // Previously overridable from the "login-content" CMS page. That admin section
 // went away with the storefront, so this copy is now the single source.
 const content: LoginContentData = {
-  mainTitle: "Mobiles, Accessories",
+  mainTitle: "Mirpur Mobile",
   highlightedTitle: "& Stationery",
   description:
     "Genuine handsets, accessories and stationery — sold and served over the counter every day",
@@ -73,7 +73,7 @@ export const RightSide: React.FC = () => {
               </svg>
             </div>
             <div className="inline-block px-3 py-1 rounded-full bg-white/10 border border-white/30 text-[10px] font-semibold tracking-[0.2em] text-white uppercase backdrop-blur-sm">
-              Hamza Mobile &amp; Communication
+              Point of Sale
             </div>
           </div>
 

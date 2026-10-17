@@ -56,7 +56,7 @@ export default function POSPage() {
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [recentOrders, setRecentOrders] = useState<POSOrder[]>([]);
   const [activeTab, setActiveTab] = useState<POSTab>(initialTab);
-  const [storeName, setStoreName] = useState<string>('HAMZA MOBILE & COMMUNICATION');
+  const [storeName, setStoreName] = useState<string>('MIRPUR MOBILE & STATIONERY');
 
   // Handle tab change with URL update (activity logging is handled by HK server-side audit middleware)
   const handleTabChange = useCallback((tab: POSTab) => {

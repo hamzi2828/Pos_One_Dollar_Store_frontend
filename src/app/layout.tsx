@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hamza Mobile & Communication - POS",
+  title: "Mirpur Mobile & Stationery - POS",
   description: "Point of sale and business administration panel",
 };
 

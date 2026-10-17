@@ -13,7 +13,7 @@ interface SalesHistoryProps {
   currency?: string;
 }
 
-export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'HAMZA MOBILE & COMMUNICATION', currency = 'PKR' }: SalesHistoryProps) {
+export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'MIRPUR MOBILE & STATIONERY', currency = 'PKR' }: SalesHistoryProps) {
   const symbol = getCurrencySymbol(currency);
   if (orders.length === 0) {
     return (

@@ -14,8 +14,8 @@ export default function GeneralSettings({ settings, onUpdate, isLoading }: Gener
   const { setCurrencyCode } = useCurrency();
 
   const [formData, setFormData] = useState({
-    siteName: settings?.siteName || 'Hamza Mobile & Communication',
-    siteUrl: settings?.siteUrl || 'https://hamzamobile.com',
+    siteName: settings?.siteName || 'Mirpur Mobile & Stationery',
+    siteUrl: settings?.siteUrl || 'https://mirpur-pos.vercel.app',
     mobileNumber: settings?.mobileNumber || '',
     address: settings?.address || '',
     businessHours: settings?.businessHours || '',
@@ -27,8 +27,8 @@ export default function GeneralSettings({ settings, onUpdate, isLoading }: Gener
   useEffect(() => {
     if (settings) {
       setFormData({
-        siteName: settings.siteName || 'Hamza Mobile & Communication',
-        siteUrl: settings.siteUrl || 'https://hamzamobile.com',
+        siteName: settings.siteName || 'Mirpur Mobile & Stationery',
+        siteUrl: settings.siteUrl || 'https://mirpur-pos.vercel.app',
         mobileNumber: settings.mobileNumber || '',
         address: settings.address || '',
         businessHours: settings.businessHours || '',

@@ -55,10 +55,10 @@ const AuthPage: React.FC = () => {
             </svg>
           </div>
           <div className="inline-block px-3 py-1 rounded-full bg-white/10 border border-white/30 text-[10px] font-semibold tracking-[0.2em] text-white uppercase mb-2 backdrop-blur-sm">
-            Hamza Mobile &amp; Communication
+            Point of Sale
           </div>
           <h2 className="text-xl font-black text-white leading-tight">
-            Mobiles, Accessories &amp; Stationery
+            Mirpur Mobile &amp; Stationery
           </h2>
 
           {/* Feature pills */}

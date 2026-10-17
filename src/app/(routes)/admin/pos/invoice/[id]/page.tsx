@@ -17,7 +17,7 @@ export default function InvoicePage() {
   const [order, setOrder] = useState<POSOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [storeName, setStoreName] = useState<string>('HAMZA MOBILE & COMMUNICATION');
+  const [storeName, setStoreName] = useState<string>('MIRPUR MOBILE & STATIONERY');
 
   useEffect(() => {
     const loadData = async () => {

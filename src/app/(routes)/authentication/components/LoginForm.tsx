@@ -6,11 +6,17 @@ import { Eye, EyeOff, Loader2, Lock, Mail, AlertCircle } from "lucide-react";
 import { login } from "../service/authService";
 import { setRole, setToken } from "@/helper/helper";
 
-// Seeded admin account (see backend Seeder/createAdminUser.js).
-const DEMO_CREDENTIALS = {
-  email: "admin@hamzamobile.com",
-  password: "Admin@123",
-};
+// Demo logins (backend Seeder/createDemoBranches.js). Shown only while
+// NEXT_PUBLIC_SHOW_DEMO_LOGINS=true — turn it off in Vercel before real use,
+// because anyone opening the page can read these.
+const SHOW_DEMO_LOGINS = process.env.NEXT_PUBLIC_SHOW_DEMO_LOGINS === "true";
+const DEMO_ACCOUNTS = [
+  { label: "Super Admin (all branches)", email: "superadmin@demo.local", password: "mk9hPnfGWLDH" },
+  { label: "Branch 1 · Manager", email: "manager.b1@demo.local", password: "qipHfZn4MJ6Y" },
+  { label: "Branch 1 · Cashier", email: "cashier.b1@demo.local", password: "P247kXDRJQZM" },
+  { label: "Branch 2 · Manager", email: "manager.b2@demo.local", password: "UHanJXtuZ2LC" },
+  { label: "Branch 2 · Cashier", email: "cashier.b2@demo.local", password: "PS4gDetXWzqY" },
+];
 
 // Staff-only sign in. There is no registration or password reset here on
 // purpose — accounts are created by an admin from Customers/Employees.
@@ -137,35 +143,37 @@ export const LoginForm: React.FC = () => {
         )}
       </button>
 
-      <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2.5">
-        <div className="flex items-center justify-between gap-2">
+      {SHOW_DEMO_LOGINS && (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2.5">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-            Login credentials
+            Demo logins
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              setEmail(DEMO_CREDENTIALS.email);
-              setPassword(DEMO_CREDENTIALS.password);
-              setError(null);
-            }}
-            disabled={loading}
-            className="text-[11px] font-semibold text-[#dc2626] transition-colors hover:text-[#b91c1c] disabled:opacity-60"
-          >
-            Autofill
-          </button>
+          <ul className="mt-1.5 divide-y divide-gray-200 text-xs">
+            {DEMO_ACCOUNTS.map((acc) => (
+              <li key={acc.email} className="flex items-center justify-between gap-2 py-1.5">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800">{acc.label}</p>
+                  <p className="truncate font-mono text-gray-600">
+                    {acc.email} · {acc.password}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(acc.email);
+                    setPassword(acc.password);
+                    setError(null);
+                  }}
+                  disabled={loading}
+                  className="shrink-0 text-[11px] font-semibold text-[#dc2626] transition-colors hover:text-[#b91c1c] disabled:opacity-60"
+                >
+                  Autofill
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
-        <dl className="mt-1.5 space-y-1 text-xs">
-          <div className="flex items-center justify-between gap-2">
-            <dt className="text-gray-500">Email</dt>
-            <dd className="font-mono font-medium text-gray-900">{DEMO_CREDENTIALS.email}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <dt className="text-gray-500">Password</dt>
-            <dd className="font-mono font-medium text-gray-900">{DEMO_CREDENTIALS.password}</dd>
-          </div>
-        </dl>
-      </div>
+      )}
     </form>
   );
 };
