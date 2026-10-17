@@ -1,0 +1,3152 @@
+"use client";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import Image from "next/image";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { FiPlus, FiX } from "react-icons/fi";
+import type { Product, ProductVariant } from "./AllProducts";
+import type { Category } from "./CategoriesTab";
+import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
+import { productService } from "../services/productService";
+import { carService, type CarMakeUI, type CarModelUI, type CarVariantUI } from "../services/carService";
+import { useCurrency } from "@/context/CurrencyContext";
+import RichTextEditor from "@/components/RichTextEditor";
+
+// Guideline type
+interface Guideline {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  active: boolean;
+}
+
+// Extended Product type with SEO and description fields
+interface ExtendedProduct extends Product {
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string;
+  metaSchema?: string;
+  description?: string;
+  shortDescription?: string;
+  guidelineId?: string;
+  sku?: string;
+  costPrice?: number;
+  dimensionLength?: string;
+  dimensionWidth?: string;
+  dimensionHeight?: string;
+  weight?: string;
+  relatedProducts?: string[];
+  createdAt?: string;
+}
+
+export interface ProductFormData extends Omit<Product, "id"> {
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string;
+  metaSchema?: string;
+  description?: string;
+  shortDescription?: string;
+  guidelineId?: string;
+  subCategory?: string;
+  sku?: string;
+  costPrice?: number;
+  videoUrl?: string;
+  dimensionLength?: string;
+  dimensionWidth?: string;
+  dimensionHeight?: string;
+  weight?: string;
+  relatedProducts?: string[];
+  compatibleCars?: string[];
+}
+
+interface ProductFormProps {
+  mode: "create" | "edit";
+  initialData?: Product;
+  categories: Category[];
+  colorOptions: string[];
+  sizeOptions: string[];
+  guidelines?: Guideline[];
+  onSubmit?: (data: ProductFormData) => void;
+  onCancel?: () => void;
+  onSuccess?: () => void;
+  onManageAttributes?: () => void;
+}
+
+interface ColorMediaData {
+  thumbnailUrl?: string;
+  bannerUrls: string[];
+  thumbFile?: File;
+  bannerFiles?: File[];
+  videoUrl?: string;
+  videoFile?: File;
+  modified?: boolean;
+}
+
+const META_TITLE_LIMIT = 60;
+
+// Helper to validate URLs before passing to Image component
+const isValidUrl = (url: string | undefined): url is string => {
+  if (!url) return false;
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const META_DESC_LIMIT = 155;
+
+const initialFormData: ProductFormData = {
+  name: "",
+  category: "",
+  subCategory: "",
+  price: 0,
+  discountedPrice: undefined,
+  costPrice: undefined,
+  stock: 0,
+  status: "draft",
+  thumbnailUrl: "",
+  bannerUrls: [],
+  videoUrl: "",
+  productType: "single",
+  variants: [],
+  metaTitle: "",
+  metaDescription: "",
+  metaKeywords: "",
+  metaSchema: "",
+  description: "",
+  shortDescription: "",
+  features: "",
+  preorderEnabled: false,
+  preorderMessage: "",
+  guidelineId: "",
+  sku: "",
+  dimensionLength: "",
+  dimensionWidth: "",
+  dimensionHeight: "",
+  weight: "",
+  relatedProducts: [],
+  compatibleCars: []
+};
+
+// Valid tab keys
+type TabKey = "content" | "variant" | "description" | "seo" | "related";
+const VALID_TABS: TabKey[] = ["content", "variant", "description", "seo", "related"];
+
+export default function ProductForm({
+  mode,
+  initialData,
+  categories,
+  colorOptions,
+  sizeOptions,
+  guidelines = [],
+  onSubmit,
+  onCancel,
+  onSuccess,
+  onManageAttributes
+}: ProductFormProps) {
+  const { currency } = useCurrency();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Get valid tabs based on mode (related tab only in edit mode)
+  const effectiveValidTabs = mode === "edit" ? VALID_TABS : VALID_TABS.filter(t => t !== "related");
+
+  // Get initial tab from URL or default to "content"
+  const getInitialTab = (): TabKey => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && effectiveValidTabs.includes(tabParam as TabKey)) {
+      return tabParam as TabKey;
+    }
+    return "content";
+  };
+
+  const [form, setForm] = useState<ProductFormData>(initialData ? {
+    ...initialData,
+    // Add backend URL prefix to image URLs for display (if not already present)
+    thumbnailUrl: initialData.thumbnailUrl
+      ? (initialData.thumbnailUrl.startsWith('http')
+          ? initialData.thumbnailUrl
+          : `${process.env.NEXT_PUBLIC_BACKEND_URL}${initialData.thumbnailUrl}`)
+      : initialData.thumbnailUrl,
+    bannerUrls: Array.isArray(initialData.bannerUrls)
+      ? initialData.bannerUrls.map((url: string) =>
+          url.startsWith('http')
+            ? url
+            : `${process.env.NEXT_PUBLIC_BACKEND_URL}${url}`)
+      : initialData.bannerUrls,
+    metaTitle: (initialData as ExtendedProduct)?.metaTitle || "",
+    metaDescription: (initialData as ExtendedProduct)?.metaDescription || "",
+    metaKeywords: (initialData as ExtendedProduct)?.metaKeywords || "",
+    metaSchema: (initialData as ExtendedProduct)?.metaSchema || "",
+    description: (initialData as ExtendedProduct)?.description || "",
+    shortDescription: (initialData as ExtendedProduct)?.shortDescription || "",
+    features: (initialData as ExtendedProduct)?.features || "",
+    preorderEnabled: initialData.preorderEnabled || false,
+    preorderMessage: initialData.preorderMessage || "",
+    guidelineId: (initialData as ExtendedProduct)?.guidelineId || "",
+    subCategory: (initialData as any)?.subCategory || "",
+    sku: (initialData as ExtendedProduct)?.sku || "",
+    costPrice: (initialData as ExtendedProduct)?.costPrice,
+    videoUrl: (initialData as any)?.videoUrl || "",
+    dimensionLength: (initialData as ExtendedProduct)?.dimensionLength || "",
+    dimensionWidth: (initialData as ExtendedProduct)?.dimensionWidth || "",
+    dimensionHeight: (initialData as ExtendedProduct)?.dimensionHeight || "",
+    weight: (initialData as ExtendedProduct)?.weight || "",
+    relatedProducts: (initialData as ExtendedProduct)?.relatedProducts || []
+  } : initialFormData);
+  
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Update URL when tab changes
+  const handleTabChange = useCallback((tab: TabKey) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, router, pathname]);
+
+  // Sync tab state with URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && effectiveValidTabs.includes(tabParam as TabKey) && tabParam !== activeTab) {
+      setActiveTab(tabParam as TabKey);
+    }
+  }, [searchParams, effectiveValidTabs]);
+  
+  // File handling state
+  const [thumbFile, setThumbFile] = useState<File | null>(null);
+  const [bannerFiles, setBannerFiles] = useState<File[]>([]);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  // Removed unused thumbName state
+
+  // Compatible cars state
+  const [carMakes, setCarMakes] = useState<CarMakeUI[]>([]);
+  const [carModels, setCarModels] = useState<CarModelUI[]>([]);
+  const [carVariants, setCarVariants] = useState<CarVariantUI[]>([]);
+  const [selectedMake, setSelectedMake] = useState('');
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedCarVariants, setSelectedCarVariants] = useState<string[]>(
+    (initialData as any)?.compatibleCars || []
+  );
+  const [pendingVariants, setPendingVariants] = useState<string[]>([]); // checked variants before clicking Add
+  const [carsLoading, setCarsLoading] = useState(false);
+  // Lookup map: variantId -> { make, model, variant, year } for chip labels
+  const [carLabelMap, setCarLabelMap] = useState<Record<string, { make: string; model: string; variant: string; year: string }>>({});
+  // Search states for Select2-style dropdowns
+  const [makeSearch, setMakeSearch] = useState('');
+  const [modelSearch, setModelSearch] = useState('');
+  const [variantSearch, setVariantSearch] = useState('');
+  const [makeDropdownOpen, setMakeDropdownOpen] = useState(false);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [variantDropdownOpen, setVariantDropdownOpen] = useState(false);
+  const makeDropdownRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const variantDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Variant state
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [colorMedia, setColorMedia] = useState<Record<string, ColorMediaData>>({});
+
+  // Guideline toggle state (initialize based on whether guidelineId exists)
+  const [guidelineEnabled, setGuidelineEnabled] = useState<boolean>(!!(initialData as any)?.showGuidelines);
+
+  // Load car makes on mount
+  useEffect(() => {
+    carService.listMakes().then(makes => setCarMakes(makes.filter(m => m.active))).catch(() => {});
+  }, []);
+
+  // Load models when make changes
+  useEffect(() => {
+    if (!selectedMake) { setCarModels([]); setSelectedModels([]); return; }
+    setCarsLoading(true);
+    carService.listModels(selectedMake).then(models => {
+      setCarModels(models.filter(m => m.active));
+      setSelectedModels([]);
+      setCarVariants([]);
+      setPendingVariants([]);
+    }).catch(() => {}).finally(() => setCarsLoading(false));
+  }, [selectedMake]);
+
+  // Load variants when selected models change + build label map
+  useEffect(() => {
+    if (selectedModels.length === 0) { setCarVariants([]); setPendingVariants([]); return; }
+    setCarsLoading(true);
+    // Fetch variants for all selected models
+    Promise.all(selectedModels.map(modelId => carService.listVariants(modelId)))
+      .then(results => {
+        const allVariants: CarVariantUI[] = [];
+        const makeName = carMakes.find(m => m.id === selectedMake)?.name || '';
+        const newLabels: Record<string, { make: string; model: string; variant: string; year: string }> = {};
+
+        results.forEach((variants, idx) => {
+          const modelId = selectedModels[idx];
+          const modelName = carModels.find(m => m.id === modelId)?.name || '';
+          const active = variants.filter(v => v.active);
+          active.forEach(v => {
+            allVariants.push(v);
+            const year = v.yearStart ? `${v.yearStart}${v.yearEnd ? ` - ${v.yearEnd}` : '+'}` : '';
+            newLabels[v.id] = { make: makeName, model: modelName, variant: v.name, year };
+          });
+        });
+
+        setCarVariants(allVariants);
+        setPendingVariants([]);
+        setCarLabelMap(prev => ({ ...prev, ...newLabels }));
+      })
+      .catch(() => {})
+      .finally(() => setCarsLoading(false));
+  }, [selectedModels, selectedMake, carMakes, carModels]);
+
+  // Close car dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (makeDropdownRef.current && !makeDropdownRef.current.contains(e.target as Node)) setMakeDropdownOpen(false);
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) setModelDropdownOpen(false);
+      if (variantDropdownRef.current && !variantDropdownRef.current.contains(e.target as Node)) setVariantDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleCarVariant = useCallback((variantId: string) => {
+    setSelectedCarVariants(prev =>
+      prev.includes(variantId) ? prev.filter(id => id !== variantId) : [...prev, variantId]
+    );
+  }, []);
+
+  const addAllCarVariants = useCallback(() => {
+    const available = carVariants.filter(v => !selectedCarVariants.includes(v.id)).map(v => v.id);
+    setSelectedCarVariants(prev => [...prev, ...available]);
+  }, [carVariants, selectedCarVariants]);
+
+  // Product type change confirmation modal
+  const [showTypeChangeModal, setShowTypeChangeModal] = useState<{ show: boolean; targetType: 'single' | 'variant' }>({ show: false, targetType: 'single' });
+
+  // Category dropdown state (Select2 style)
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Subcategory dropdown state (Select2 style)
+  const [subCategoryDropdownOpen, setSubCategoryDropdownOpen] = useState(false);
+  const [subCategorySearchQuery, setSubCategorySearchQuery] = useState("");
+  const subCategoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Variant colors multi-select dropdown state (Select2 style)
+  const [variantColorDropdownOpen, setVariantColorDropdownOpen] = useState(false);
+  const [variantColorSearchQuery, setVariantColorSearchQuery] = useState("");
+  const variantColorDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Variant sizes multi-select dropdown state (Select2 style)
+  const [variantSizeDropdownOpen, setVariantSizeDropdownOpen] = useState(false);
+  const [variantSizeSearchQuery, setVariantSizeSearchQuery] = useState("");
+  const variantSizeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Related products search state
+  const [relatedProductSearch, setRelatedProductSearch] = useState("");
+  const [availableProducts, setAvailableProducts] = useState<Array<{ id: string; name: string; thumbnailUrl?: string }>>([]);
+  const [relatedProductsLoading, setRelatedProductsLoading] = useState(false);
+  const [relatedProductDropdownOpen, setRelatedProductDropdownOpen] = useState(false);
+  const relatedProductDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Top-level (parent) categories for Category Select2
+  const parentCategories = useMemo(
+    () => categories.filter((c) => !c.parentId && c.active !== false),
+    [categories]
+  );
+
+  const filteredParentCategories = useMemo(() => {
+    const q = categorySearchQuery.toLowerCase().trim();
+    if (!q) return parentCategories;
+    return parentCategories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [parentCategories, categorySearchQuery]);
+
+  // Children of the currently selected Category, for Subcategory Select2
+  const childCategories = useMemo(() => {
+    if (!form.category) return [];
+    const parent = categories.find((c) => c.name === form.category);
+    if (!parent) return [];
+    return categories.filter((c) => c.parentId === parent.id && c.active !== false);
+  }, [categories, form.category]);
+
+  const filteredChildCategories = useMemo(() => {
+    const q = subCategorySearchQuery.toLowerCase().trim();
+    if (!q) return childCategories;
+    return childCategories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [childCategories, subCategorySearchQuery]);
+
+  // Filter colors for variant multi-select
+  const filteredVariantColorOptions = useMemo(() => {
+    if (!variantColorSearchQuery.trim()) return colorOptions;
+    return colorOptions.filter(color =>
+      color.toLowerCase().includes(variantColorSearchQuery.toLowerCase())
+    );
+  }, [colorOptions, variantColorSearchQuery]);
+
+  // Filter sizes for variant multi-select
+  const filteredVariantSizeOptions = useMemo(() => {
+    if (!variantSizeSearchQuery.trim()) return sizeOptions;
+    return sizeOptions.filter(size =>
+      size.toLowerCase().includes(variantSizeSearchQuery.toLowerCase())
+    );
+  }, [sizeOptions, variantSizeSearchQuery]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+        setCategoryDropdownOpen(false);
+        setCategorySearchQuery("");
+      }
+      if (subCategoryDropdownRef.current && !subCategoryDropdownRef.current.contains(event.target as Node)) {
+        setSubCategoryDropdownOpen(false);
+        setSubCategorySearchQuery("");
+      }
+      if (variantColorDropdownRef.current && !variantColorDropdownRef.current.contains(event.target as Node)) {
+        setVariantColorDropdownOpen(false);
+        setVariantColorSearchQuery("");
+      }
+      if (variantSizeDropdownRef.current && !variantSizeDropdownRef.current.contains(event.target as Node)) {
+        setVariantSizeDropdownOpen(false);
+        setVariantSizeSearchQuery("");
+      }
+      if (relatedProductDropdownRef.current && !relatedProductDropdownRef.current.contains(event.target as Node)) {
+        setRelatedProductDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Load available products for related products selector
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (mode !== "edit") return;
+      setRelatedProductsLoading(true);
+      try {
+        const products = await productService.listProducts({ limit: 100 });
+        // Exclude the current product from the list
+        const filtered = products.filter(p => p.id !== initialData?.id);
+        setAvailableProducts(filtered.map(p => ({ id: p.id, name: p.name, thumbnailUrl: p.thumbnailUrl })));
+      } catch (err) {
+        console.error("Error loading products for related products:", err);
+      } finally {
+        setRelatedProductsLoading(false);
+      }
+    };
+    loadProducts();
+  }, [mode, initialData?.id]);
+
+  // Filter available products based on search
+  const filteredAvailableProducts = useMemo(() => {
+    if (!relatedProductSearch.trim()) return availableProducts;
+    return availableProducts.filter(p =>
+      p.name.toLowerCase().includes(relatedProductSearch.toLowerCase())
+    );
+  }, [availableProducts, relatedProductSearch]);
+
+  // Get selected related products with details
+  const selectedRelatedProducts = useMemo(() => {
+    const relatedIds = form.relatedProducts || [];
+    return availableProducts.filter(p => relatedIds.includes(p.id));
+  }, [availableProducts, form.relatedProducts]);
+
+  // Handle adding a related product
+  const addRelatedProduct = (productId: string) => {
+    const current = form.relatedProducts || [];
+    if (!current.includes(productId)) {
+      setForm(prev => ({ ...prev, relatedProducts: [...current, productId] }));
+    }
+    setRelatedProductSearch("");
+    setRelatedProductDropdownOpen(false);
+  };
+
+  // Handle removing a related product
+  const removeRelatedProduct = (productId: string) => {
+    const current = form.relatedProducts || [];
+    setForm(prev => ({ ...prev, relatedProducts: current.filter(id => id !== productId) }));
+  };
+
+  // Refs
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const colorThumbRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const colorBannerRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const colorVideoRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  
+  const isVariant = form.productType === "variant";
+  const slug = useMemo(() => slugify(form.name), [form.name]);
+  
+  
+  // Helper to clean URL for sending to backend (remove domain, keep relative path)
+  const cleanUrlForBackend = (url: string): string => {
+    if (!url) return url;
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+    let cleanUrl = url;
+    if (backendUrl && cleanUrl.startsWith(backendUrl)) {
+      cleanUrl = cleanUrl.replace(backendUrl, '');
+    }
+    // Don't add '/' prefix to absolute URLs (http/https)
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      return cleanUrl;
+    }
+    return cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+  };
+  // Helper to resolve URLs from backend (handles absolute URLs and corrupted /https:// URLs)
+  const resolveBackendUrl = (url: string, backendUrl: string): string => {
+    if (!url) return url;
+    // Fix corrupted URLs that have /https:// or /http://
+    if (url.startsWith('/https://') || url.startsWith('/http://')) {
+      return url.substring(1); // Remove the leading /
+    }
+    // Don't modify absolute URLs
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // Prepend backendUrl to relative URLs
+    return backendUrl ? `${backendUrl}${url}` : url;
+  };
+
+  // Initialize form data from initialData for edit mode
+  useEffect(() => {
+    if (mode === "edit" && initialData) {
+      // Extract variants information to set selected colors and sizes
+      if (initialData.productType === "variant" && initialData.variants) {
+        const colors = Array.from(new Set((initialData.variants as ProductVariant[]).map(v => v.color)));
+        const sizes = Array.from(new Set((initialData.variants as ProductVariant[]).map(v => v.size)));
+        setSelectedColors(colors);
+        setSelectedSizes(sizes);
+
+        // Initialize colorMedia from existing product data
+        if (initialData.colorMedia && typeof initialData.colorMedia === 'object') {
+          const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+          const colorMediaData: Record<string, ColorMediaData> = {};
+          Object.entries(initialData.colorMedia).forEach(([color, media]) => {
+            if (media && typeof media === 'object') {
+              colorMediaData[color] = {
+                thumbnailUrl: media.thumbnailUrl ? resolveBackendUrl(media.thumbnailUrl, backendUrl) : undefined,
+                bannerUrls: Array.isArray(media.bannerUrls)
+                  ? media.bannerUrls.map((url: string) => resolveBackendUrl(url, backendUrl))
+                  : [],
+                bannerFiles: [], // No files initially since these are existing URLs
+                videoUrl: (media as any).videoUrl ? resolveBackendUrl((media as any).videoUrl, backendUrl) : undefined,
+                modified: false // Mark as not modified initially
+              };
+            }
+          });
+          console.log('Initializing colorMedia for edit mode:', colorMediaData);
+          setColorMedia(colorMediaData);
+        }
+      }
+    }
+  }, [mode, initialData]);
+  
+  // Build all color-size combinations
+  const variantCombos = useMemo(
+    () => buildVariantCombos(selectedColors, selectedSizes),
+    [selectedColors, selectedSizes]
+  );
+  
+  // Keep form.variants in sync with selections
+  useEffect(() => {
+    if (!isVariant) return;
+
+    // In edit mode, protect existing variant data by only syncing when actually needed
+    if (mode === "edit" && initialData?.variants && Array.isArray(initialData.variants)) {
+      const currentVariants = form.variants || [];
+
+      // If we have no current variants but should have them from initialData,
+      // or if variantCombos length is 0 (indicating initialization phase), skip
+      if (variantCombos.length === 0 || currentVariants.length === 0) {
+        return;
+      }
+
+      // Check if current variants match the variant combos exactly
+      const hasAllCombos = variantCombos.every(combo =>
+        currentVariants.some(v => v.color === combo.color && v.size === combo.size)
+      );
+      const hasExtraVariants = currentVariants.some(v =>
+        !variantCombos.some(combo => combo.color === v.color && combo.size === v.size)
+      );
+
+      // Only sync if the combinations don't match (user changed color/size selections)
+      if (!hasAllCombos || hasExtraVariants) {
+        const next = syncVariants((form.variants || []) as unknown as Variant[], variantCombos);
+        if (JSON.stringify(next) !== JSON.stringify(form.variants || [])) {
+          setField("variants", next as ProductVariant[]);
+        }
+      }
+    } else if (mode === "create") {
+      // For create mode, always sync when combinations change
+      const next = syncVariants((form.variants || []) as unknown as Variant[], variantCombos);
+      if (JSON.stringify(next) !== JSON.stringify(form.variants || [])) {
+        setField("variants", next as ProductVariant[]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variantCombos, isVariant, mode]);
+  
+  const safeRevoke = useCallback((url?: string) => {
+    if (url && url.startsWith("blob:")) {
+      try { URL.revokeObjectURL(url); } catch {}
+    }
+  }, []);
+  
+  const isValidJson = (val: string) => {
+    if (!val.trim()) return true;
+    try {
+      const parsed = JSON.parse(val);
+      return typeof parsed === "object";
+    } catch {
+      return false;
+    }
+  };
+  
+  const validate = (): { isValid: boolean; errors: Record<string, string> } => {
+    const e: Record<string, string> = {};
+
+    // Basic validations
+    if (!form.name?.trim()) e.name = "Name is required";
+    if (!form.category) e.category = "Category is required";
+
+    if (!isVariant) {
+      if (!form.price || form.price < 0) e.price = "Price must be a positive number";
+      if (form.stock < 0) e.stock = "Stock cannot be negative";
+      if (mode === "create" && !thumbFile && !form.thumbnailUrl?.trim()) {
+        e.thumbnail = "Thumbnail is required";
+      }
+      // Required fields for single products
+      if (!form.sku?.trim()) e.sku = "SKU is required";
+      if (form.costPrice === undefined || form.costPrice === null) e.costPrice = "Cost Price is required";
+      if (form.discountedPrice === undefined || form.discountedPrice === null) e.discountedPrice = "Sale Price is required";
+    } else {
+      if (selectedColors.length === 0) e.colors = "Select at least one color";
+      if (selectedSizes.length === 0) e.sizes = "Select at least one size";
+    }
+
+    // Dimensions, Weight validations (required for all products)
+    if (!form.dimensionLength?.trim()) e.dimensionLength = "Length is required";
+    if (!form.dimensionWidth?.trim()) e.dimensionWidth = "Width is required";
+    if (!form.dimensionHeight?.trim()) e.dimensionHeight = "Height is required";
+    if (!form.weight?.trim()) e.weight = "Weight is required";
+
+    // SEO validations
+    if (form.metaTitle && form.metaTitle.length > META_TITLE_LIMIT) {
+      e.metaTitle = `Keep under ${META_TITLE_LIMIT} characters`;
+    }
+    if (form.metaDescription && form.metaDescription.length > META_DESC_LIMIT) {
+      e.metaDescription = `Keep under ${META_DESC_LIMIT} characters`;
+    }
+    if (!isValidJson(form.metaSchema || "")) {
+      e.metaSchema = "Meta Schema must be valid JSON (JSON-LD).";
+    }
+
+    setErrors(e);
+    return { isValid: Object.keys(e).length === 0, errors: e };
+  };
+
+  // Navigation helpers
+  const currentTabIndex = effectiveValidTabs.indexOf(activeTab);
+  const isLastTab = mode === "edit" ? activeTab === "related" : activeTab === "seo";
+  const isFirstTab = activeTab === "content";
+
+  const goToNextTab = () => {
+    if (currentTabIndex < effectiveValidTabs.length - 1) {
+      handleTabChange(effectiveValidTabs[currentTabIndex + 1]);
+    }
+  };
+
+  const goToPreviousTab = () => {
+    if (currentTabIndex > 0) {
+      handleTabChange(effectiveValidTabs[currentTabIndex - 1]);
+    }
+  };
+  
+  const setField = useCallback(<K extends keyof ProductFormData>(key: K, value: ProductFormData[K]) => {
+    setForm((prev) => {
+      if (key === 'name' && typeof value === 'string') {
+        const metaTitle = prev.metaTitle ? prev.metaTitle : value.slice(0, META_TITLE_LIMIT);
+        return { ...prev, [key]: value, metaTitle };
+      }
+      return { ...prev, [key]: value };
+    });
+  }, []);
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: "thumbnail" | "banner") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+    
+    if (type === "thumbnail") {
+      if (form.thumbnailUrl && form.thumbnailUrl.toString().startsWith("blob:")) {
+        safeRevoke(form.thumbnailUrl.toString());
+      }
+      const url = URL.createObjectURL(file);
+      setThumbFile(file);
+      // Removed setThumbName since it was unused
+      setField("thumbnailUrl", url);
+      setErrors(prev => ({ ...prev, thumbnail: "" }));
+    } else {
+      const existing = form.bannerUrls || [];
+      if (existing.length >= 10) {
+        toast.error("Maximum 10 banner images allowed");
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      setField("bannerUrls", [...existing, url]);
+      setBannerFiles(prev => [...prev, file]);
+    }
+  };
+  
+  const handleMultipleBannerFiles = (files: FileList) => {
+    const existing = form.bannerUrls || [];
+    const spaceLeft = 5 - existing.length;
+    const filesToAdd = Array.from(files).slice(0, spaceLeft);
+    
+    if (filesToAdd.length < files.length) {
+      toast.error(`Only ${spaceLeft} more banner images can be added`);
+    }
+    
+    filesToAdd.forEach(file => {
+      if (file.type.startsWith("image/")) {
+        const url = URL.createObjectURL(file);
+        setField("bannerUrls", [...(form.bannerUrls || []), url]);
+        setBannerFiles(prev => [...prev, file]);
+      }
+    });
+  };
+  
+  const removeBanner = (index: number) => {
+    const banners = [...(form.bannerUrls || [])];
+    const [removed] = banners.splice(index, 1);
+    if (removed) safeRevoke(removed.toString());
+    setField("bannerUrls", banners);
+    setBannerFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please upload a video file");
+      return;
+    }
+
+    // Revoke old video URL if exists
+    if (form.videoUrl && form.videoUrl.toString().startsWith("blob:")) {
+      safeRevoke(form.videoUrl.toString());
+    }
+    const url = URL.createObjectURL(file);
+    setVideoFile(file);
+    setField("videoUrl", url);
+  };
+
+  const removeVideo = () => {
+    if (form.videoUrl) safeRevoke(form.videoUrl.toString());
+    setVideoFile(null);
+    setField("videoUrl", "");
+    if (videoInputRef.current) videoInputRef.current.value = "";
+  };
+
+  const handleColorVideoFile = (color: string, files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please upload a video file");
+      return;
+    }
+
+    setColorMedia((prev) => {
+      const prevUrl = prev[color]?.videoUrl;
+      if (prevUrl && prevUrl.startsWith("blob:")) {
+        safeRevoke(prevUrl);
+      }
+      const url = URL.createObjectURL(file);
+      return {
+        ...prev,
+        [color]: {
+          ...prev[color],
+          videoUrl: url,
+          videoFile: file,
+          bannerUrls: prev[color]?.bannerUrls || [],
+          modified: true
+        },
+      };
+    });
+  };
+
+  const removeColorVideo = (color: string) => {
+    setColorMedia((prev) => {
+      const curr = prev[color];
+      if (curr?.videoUrl) safeRevoke(curr.videoUrl);
+      return {
+        ...prev,
+        [color]: {
+          ...prev[color],
+          videoUrl: undefined,
+          videoFile: undefined,
+          modified: true
+        }
+      };
+    });
+    if (colorVideoRefs.current[color]) colorVideoRefs.current[color]!.value = "";
+  };
+
+  const handleColorThumbFiles = (color: string, files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+    
+    setColorMedia((prev) => {
+      const prevUrl = prev[color]?.thumbnailUrl;
+      if (prevUrl && prevUrl.startsWith("blob:")) {
+        safeRevoke(prevUrl);
+      }
+      const url = URL.createObjectURL(file);
+      return {
+        ...prev,
+        [color]: {
+          ...prev[color],
+          thumbnailUrl: url,
+          thumbFile: file,
+          bannerUrls: prev[color]?.bannerUrls || [],
+          modified: true
+        },
+      };
+    });
+  };
+  
+  const handleColorBannerFiles = (color: string, files: FileList | File[]) => {
+    const incoming = Array.from(files);
+    if (!incoming.length) return;
+    
+    setColorMedia((prev) => {
+      const curr = prev[color] || { bannerUrls: [], bannerFiles: [] };
+      const existing = curr.bannerUrls || [];
+      const existingFiles = curr.bannerFiles || [];
+      const spaceLeft = 10 - existing.length;
+      const toAdd = incoming.slice(0, Math.max(0, spaceLeft));
+      const urls = toAdd.map((f) => URL.createObjectURL(f));
+      
+      return { 
+        ...prev, 
+        [color]: { 
+          ...curr, 
+          bannerUrls: [...existing, ...urls],
+          bannerFiles: [...existingFiles, ...toAdd],
+          modified: true 
+        } 
+      };
+    });
+  };
+  
+  const removeColorBanner = (color: string, index: number) => {
+    setColorMedia((prev) => {
+      const banners = [...(prev[color]?.bannerUrls || [])];
+      const files = [...(prev[color]?.bannerFiles || [])];
+      const [removed] = banners.splice(index, 1);
+      files.splice(index, 1);
+      if (removed) safeRevoke(removed);
+      return { 
+        ...prev, 
+        [color]: { 
+          ...prev[color], 
+          bannerUrls: banners,
+          bannerFiles: files,
+          modified: true 
+        } 
+      };
+    });
+  };
+  
+  const clearColorMedia = (color: string) => {
+    setColorMedia((prev) => {
+      const curr = prev[color];
+      if (curr?.thumbnailUrl) safeRevoke(curr.thumbnailUrl);
+      (curr?.bannerUrls || []).forEach(safeRevoke);
+      if (curr?.videoUrl) safeRevoke(curr.videoUrl);
+      return {
+        ...prev,
+        [color]: { bannerUrls: [], bannerFiles: [], videoUrl: undefined, videoFile: undefined, modified: true }
+      };
+    });
+    if (colorThumbRefs.current[color]) colorThumbRefs.current[color]!.value = "";
+    if (colorBannerRefs.current[color]) colorBannerRefs.current[color]!.value = "";
+    if (colorVideoRefs.current[color]) colorVideoRefs.current[color]!.value = "";
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validation = validate();
+    if (!validation.isValid) {
+      const errs = validation.errors;
+      // Navigate to the tab with the first error
+      if (errs.name || errs.category || errs.price || errs.stock || errs.thumbnail || errs.sku || errs.costPrice || errs.discountedPrice || errs.colors || errs.sizes || errs.dimensionLength || errs.dimensionWidth || errs.dimensionHeight || errs.weight) {
+        handleTabChange("content");
+        toast.error("Please fix the errors in Product Details tab");
+      } else if (errs.metaTitle || errs.metaDescription || errs.metaSchema) {
+        handleTabChange("seo");
+        toast.error("Please fix the errors in SEO & Meta tab");
+      }
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const fallbackMetaTitle = (form.metaTitle || form.name || "").slice(0, META_TITLE_LIMIT);
+      
+      const formData = new FormData();
+      
+      // Basic fields
+      formData.append("name", form.name);
+      formData.append("slug", slug);
+      formData.append("category", form.category);
+      if (form.subCategory) {
+        formData.append("subCategory", form.subCategory);
+      }
+      formData.append("price", String(form.price ?? 0));
+      if (form.discountedPrice !== undefined && form.discountedPrice !== null) {
+        formData.append("discountedPrice", String(form.discountedPrice));
+      }
+      formData.append("stock", String(form.stock ?? 0));
+      formData.append("status", form.status);
+      formData.append("productType", form.productType || "single");
+
+      // Compatible cars (always send, even empty array, so edit can clear them)
+      formData.append("compatibleCars", JSON.stringify(selectedCarVariants));
+
+      // Description fields
+      formData.append("description", form.description || "");
+      formData.append("shortDescription", form.shortDescription || "");
+
+      // Features as a simple string
+      formData.append("features", form.features || "");
+
+      // Preorder fields
+      formData.append("preorderEnabled", String(form.preorderEnabled || false));
+      formData.append("preorderMessage", form.preorderMessage || "");
+
+      formData.append("showGuidelines", String(guidelineEnabled));
+
+      // SKU for single products
+      if (!isVariant && form.sku) {
+        formData.append("sku", form.sku);
+      }
+
+      // Cost Price for single products
+      if (!isVariant && form.costPrice !== undefined && form.costPrice !== null) {
+        formData.append("costPrice", String(form.costPrice));
+      }
+
+      // Dimensions (L x W x H) and Weight
+      if (form.dimensionLength) {
+        formData.append("dimensionLength", form.dimensionLength);
+      }
+      if (form.dimensionWidth) {
+        formData.append("dimensionWidth", form.dimensionWidth);
+      }
+      if (form.dimensionHeight) {
+        formData.append("dimensionHeight", form.dimensionHeight);
+      }
+      if (form.weight) {
+        formData.append("weight", form.weight);
+      }
+
+      // SEO fields
+      formData.append("metaTitle", fallbackMetaTitle);
+      formData.append("metaDescription", form.metaDescription || "");
+      formData.append("metaKeywords", form.metaKeywords || "");
+      formData.append("metaSchema", form.metaSchema || "");
+
+      // Related products (only in edit mode)
+      if (mode === "edit" && form.relatedProducts && form.relatedProducts.length > 0) {
+        formData.append("relatedProducts", JSON.stringify(form.relatedProducts));
+      }
+
+      if (isVariant && form.variants) {
+        // Handle variant products
+        const variantStock = form.variants.reduce((sum, v) => sum + (Number((v as ProductVariant).stock) || 0), 0);
+        const basePrice = (form.variants[0] as ProductVariant)?.price ?? 0;
+        formData.set("stock", String(variantStock));
+        formData.set("price", String(basePrice));
+        formData.append("variants", JSON.stringify(form.variants));
+        
+        // Handle color-specific media
+        console.log('Processing colorMedia for submission:', colorMedia);
+        
+        // If no colorMedia exists but we have variants, ensure each color gets processed
+        if (Object.keys(colorMedia).length === 0 && selectedColors.length > 0) {
+          console.log('No colorMedia found, but have selected colors:', selectedColors);
+          // Initialize empty colorMedia for each selected color
+          selectedColors.forEach(color => {
+            if (!colorMedia[color]) {
+              colorMedia[color] = { bannerUrls: [], modified: false };
+            }
+          });
+        }
+        
+        for (const [color, media] of Object.entries(colorMedia)) {
+          console.log(`Processing color ${color}:`, media);
+          
+          // Always process media in edit mode, regardless of modified status
+          if (mode === "edit" || media.modified) {
+            // Send new thumbnail file if uploaded
+            if (media.thumbFile) {
+              const thumbFileName = `${color}_${media.thumbFile.name}`;
+              const renamedThumbFile = new File([media.thumbFile], thumbFileName, { type: media.thumbFile.type });
+              formData.append("colorThumbnail", renamedThumbFile);
+            } else if (media.thumbnailUrl && !media.thumbnailUrl.startsWith('blob:')) {
+              // Keep existing thumbnail if no new file uploaded
+              const cleanUrl = cleanUrlForBackend(media.thumbnailUrl);
+              formData.append("existingColorThumbnails", JSON.stringify({ color, url: cleanUrl }));
+            }
+            
+            // Send new banner files if uploaded
+            if (media.bannerFiles && media.bannerFiles.length > 0) {
+              media.bannerFiles.forEach((file, index) => {
+                const bannerFileName = `${color}_${index}_${file.name}`;
+                const renamedBannerFile = new File([file], bannerFileName, { type: file.type });
+                formData.append("colorBanner", renamedBannerFile);
+              });
+            }
+
+            // Always send existing banner URLs in edit mode
+            const existingBanners = (media.bannerUrls || []).filter(url =>
+              typeof url === 'string' && !url.startsWith('blob:')
+            );
+            if (existingBanners.length > 0) {
+              const cleanUrls = existingBanners.map(cleanUrlForBackend);
+              formData.append("existingColorBanners", JSON.stringify({ color, urls: cleanUrls }));
+            }
+
+            // Send new video file if uploaded
+            if (media.videoFile) {
+              const videoFileName = `${color}_${media.videoFile.name}`;
+              const renamedVideoFile = new File([media.videoFile], videoFileName, { type: media.videoFile.type });
+              formData.append("colorVideo", renamedVideoFile);
+            } else if (media.videoUrl && !media.videoUrl.startsWith('blob:')) {
+              // Keep existing video if no new file uploaded
+              const cleanUrl = cleanUrlForBackend(media.videoUrl);
+              formData.append("existingColorVideos", JSON.stringify({ color, url: cleanUrl }));
+            }
+          }
+        }
+      } else {
+        // Handle single products
+        if (thumbFile) formData.append("thumbnail", thumbFile);
+        bannerFiles.forEach((f) => formData.append("banners", f));
+        if (videoFile) formData.append("video", videoFile);
+      }
+      
+      // For edit mode, preserve existing images and video
+      if (mode === "edit" && initialData) {
+        if (!isVariant) {
+          if (!thumbFile && initialData.thumbnailUrl) {
+            // Clean the thumbnail URL to get relative path
+            const cleanThumbUrl = cleanUrlForBackend(form.thumbnailUrl || initialData.thumbnailUrl);
+            formData.append("existingThumbnail", cleanThumbUrl);
+          }
+          // Send the current banner URLs (which may have been modified by removal)
+          // Filter out blob URLs and only keep actual server URLs
+          const existingServerBanners = (form.bannerUrls || []).filter(url =>
+            typeof url === 'string' && !url.startsWith('blob:')
+          ).map(cleanUrlForBackend);
+          if (existingServerBanners.length > 0 || bannerFiles.length > 0) {
+            formData.append("existingBanners", JSON.stringify(existingServerBanners));
+          }
+          // Preserve existing video if no new video uploaded
+          if (!videoFile && form.videoUrl && !form.videoUrl.startsWith('blob:')) {
+            const cleanVideoUrl = cleanUrlForBackend(form.videoUrl);
+            formData.append("existingVideo", cleanVideoUrl);
+          }
+        }
+      }
+      
+      if (mode === "create") {
+        await productService.createProduct(formData);
+      } else {
+        await productService.updateProduct((initialData as Product).id, formData);
+      }
+      
+      if (onSubmit) {
+        const submitData: ProductFormData = {
+          ...form,
+          slug,
+          metaTitle: fallbackMetaTitle,
+          metaDescription: form.metaDescription || "",
+          metaKeywords: form.metaKeywords || "",
+          metaSchema: form.metaSchema || ""
+        };
+        onSubmit(submitData);
+      }
+      
+      toast.success(mode === "create" ? "Product successfully added and saved." : "Product successfully updated and saved.");
+
+      if (mode === "create") {
+        // Reset form
+        setForm(initialFormData);
+        setSelectedColors([]);
+        setSelectedSizes([]);
+        setColorMedia({});
+        setThumbFile(null);
+        setBannerFiles([]);
+        setVideoFile(null);
+        // Removed setThumbName since it was unused
+        if (thumbInputRef.current) thumbInputRef.current.value = "";
+        if (bannerInputRef.current) bannerInputRef.current.value = "";
+        if (videoInputRef.current) videoInputRef.current.value = "";
+      }
+      
+      if (onSuccess) onSuccess();
+      
+    } catch (error) {
+      console.error(`Error ${mode === "create" ? "creating" : "updating"} product:`, error);
+      toast.error(`Failed to ${mode} product`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // SEO Preview
+  const previewTitle = (form.metaTitle || form.name || "").slice(0, META_TITLE_LIMIT);
+  const previewUrl = `/products/${slug || "your-slug"}`;
+  const previewDesc = (form.metaDescription || `${form.name} - ${form.category} - Starting from ${currency.symbol}${form.price}`).slice(0, META_DESC_LIMIT);
+  
+  return (
+    <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200">
+      <form onSubmit={handleSubmit}>
+        {/* Tabs Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="flex gap-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3 md:pt-4 overflow-x-auto" aria-label="Tabs">
+            {[
+              {
+                key: "content",
+                label: "Product Details",
+                icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4",
+              },
+              {
+                key: "variant",
+                label: "Product Variant",
+                icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z",
+              },
+              {
+                key: "description",
+                label: "Description",
+                icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+              },
+              {
+                key: "seo",
+                label: "SEO & Meta",
+                icon: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9",
+              },
+              ...(mode === "edit" ? [{
+                key: "related",
+                label: "Related Products",
+                icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+              }] : []),
+            ].map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => handleTabChange(t.key as TabKey)}
+                className={`group flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm font-medium rounded-t-lg transition-all duration-200 whitespace-nowrap ${
+                  activeTab === t.key
+                    ? "text-gray-900 bg-gray-100 border-b-2 border-gray-900"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <svg className={`w-4 h-4 ${activeTab === t.key ? 'text-gray-900' : 'text-gray-400 group-hover:text-gray-500'}`}
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={t.icon} />
+                </svg>
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6">
+
+        {/* CONTENT TAB */}
+        {activeTab === "content" && (
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            {/* Basic Info Section */}
+            <div>
+              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2 sm:mb-3 md:mb-4">Basic Information</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., Premium Compression T-Shirt"
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
+                    value={form.name}
+                    onChange={(e) => setField("name", e.target.value)}
+                  />
+                  {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    URL Slug
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={slug}
+                    className="block w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Auto-generated from product name</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative" ref={categoryDropdownRef}>
+                    <div
+                      className={`flex items-center justify-between w-full rounded-lg border px-3 py-2.5 cursor-pointer transition-all duration-200 ${
+                        categoryDropdownOpen
+                          ? 'border-gray-900 ring-1 ring-gray-900'
+                          : errors.category
+                            ? 'border-red-300'
+                            : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {form.category ? (
+                          <span className="text-sm text-gray-900 truncate">{form.category}</span>
+                        ) : (
+                          <span className="text-sm text-gray-400">Select a category</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {form.category && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setField("category", "");
+                              setField("subCategory", "");
+                            }}
+                            className="p-0.5 hover:bg-gray-100 rounded-full transition-colors"
+                          >
+                            <svg className="w-4 h-4 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                        <svg
+                          className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    {categoryDropdownOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
+                        <div className="p-2 border-b border-gray-100">
+                          <div className="relative">
+                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input
+                              type="text"
+                              placeholder="Search categories..."
+                              value={categorySearchQuery}
+                              onChange={(e) => setCategorySearchQuery(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto">
+                          {filteredParentCategories.length > 0 ? (
+                            filteredParentCategories.map((cat) => (
+                              <div
+                                key={cat.id}
+                                className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                                  form.category === cat.name
+                                    ? 'bg-honey-50 text-gray-900'
+                                    : 'hover:bg-gray-50 text-gray-700'
+                                }`}
+                                onClick={() => {
+                                  if (form.category !== cat.name) {
+                                    setField("category", cat.name);
+                                    setField("subCategory", "");
+                                  }
+                                  setCategoryDropdownOpen(false);
+                                  setCategorySearchQuery("");
+                                }}
+                              >
+                                <span className="text-sm flex-1">{cat.name}</span>
+                                {form.category === cat.name && (
+                                  <svg className="w-4 h-4 text-honey-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                              No categories found
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {errors.category && <p className="mt-1 text-sm text-red-600">{errors.category}</p>}
+                </div>
+
+                {form.category && childCategories.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subcategory
+                    </label>
+                    <div className="relative" ref={subCategoryDropdownRef}>
+                      <div
+                        className={`flex items-center justify-between w-full rounded-lg border px-3 py-2.5 cursor-pointer transition-all duration-200 ${
+                          subCategoryDropdownOpen
+                            ? 'border-gray-900 ring-1 ring-gray-900'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onClick={() => setSubCategoryDropdownOpen(!subCategoryDropdownOpen)}
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          {form.subCategory ? (
+                            <span className="text-sm text-gray-900 truncate">{form.subCategory}</span>
+                          ) : (
+                            <span className="text-sm text-gray-400">Select a subcategory</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {form.subCategory && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setField("subCategory", "");
+                              }}
+                              className="p-0.5 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                              <svg className="w-4 h-4 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                          <svg
+                            className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${subCategoryDropdownOpen ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {subCategoryDropdownOpen && (
+                        <div className="absolute z-50 mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
+                          <div className="p-2 border-b border-gray-100">
+                            <div className="relative">
+                              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                              <input
+                                type="text"
+                                placeholder="Search subcategories..."
+                                value={subCategorySearchQuery}
+                                onChange={(e) => setSubCategorySearchQuery(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          <div className="max-h-60 overflow-y-auto">
+                            {filteredChildCategories.length > 0 ? (
+                              filteredChildCategories.map((cat) => (
+                                <div
+                                  key={cat.id}
+                                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                                    form.subCategory === cat.name
+                                      ? 'bg-honey-50 text-gray-900'
+                                      : 'hover:bg-gray-50 text-gray-700'
+                                  }`}
+                                  onClick={() => {
+                                    setField("subCategory", cat.name);
+                                    setSubCategoryDropdownOpen(false);
+                                    setSubCategorySearchQuery("");
+                                  }}
+                                >
+                                  <span className="text-sm flex-1">{cat.name}</span>
+                                  {form.subCategory === cat.name && (
+                                    <svg className="w-4 h-4 text-honey-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                No subcategories found
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+            {/* Pricing Section */}
+            <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
+              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2 sm:mb-3 md:mb-4">Pricing & Stock</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Price ({currency.symbol}) {!isVariant && <span className="text-red-500">*</span>}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required={!isVariant}
+                      disabled={isVariant}
+                      placeholder="0.00"
+                      className={`block w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm ${
+                        isVariant
+                          ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                          : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
+                      }`}
+                      value={isVariant ? 0 : (form.price || "")}
+                      onChange={(e) => setField("price", Number(e.target.value))}
+                    />
+                  </div>
+                  {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
+                  {isVariant && <p className="mt-1 text-xs text-gray-500">Set prices per variant</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sale Price ({currency.symbol}) {!isVariant && <span className="text-red-500">*</span>}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={isVariant}
+                      placeholder="0.00"
+                      className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm ${
+                        isVariant
+                          ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-300'
+                          : errors.discountedPrice ? 'border-red-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900' : 'border-gray-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
+                      }`}
+                      value={isVariant ? "" : (form.discountedPrice ?? "")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setField("discountedPrice", val === "" ? undefined : Number(val));
+                      }}
+                    />
+                  </div>
+                  {errors.discountedPrice && <p className="mt-1 text-sm text-red-600">{errors.discountedPrice}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Stock Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    disabled={isVariant}
+                    placeholder="0"
+                    className={`block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm ${
+                      isVariant
+                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                        : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
+                    }`}
+                    value={isVariant ? 0 : form.stock}
+                    onChange={(e) => setField("stock", Number(e.target.value))}
+                  />
+                  {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
+                  {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
+                    value={form.status}
+                    onChange={(e) => setField("status", e.target.value as ProductFormData["status"])}
+                  >
+                    <option value="published">Published</option>
+                    <option value="draft">Draft</option>
+                    <option value="out_of_stock">Out of Stock</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* SKU and Cost Price Row */}
+              {!isVariant && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SKU <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., PROD-001, SKU-12345"
+                      className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.sku ? 'border-red-300' : 'border-gray-300'}`}
+                      value={form.sku || ""}
+                      onChange={(e) => setField("sku", e.target.value)}
+                    />
+                    {errors.sku && <p className="mt-1 text-sm text-red-600">{errors.sku}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cost Price ({currency.symbol}) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'}`}
+                        value={form.costPrice ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setField("costPrice", val === "" ? undefined : Number(val));
+                        }}
+                      />
+                    </div>
+                    {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Dimensions and Weight Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
+                {/* Dimensions */}
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Dimensions <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="0"
+                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors text-center ${errors.dimensionLength ? 'border-red-300' : 'border-gray-300'}`}
+                        value={form.dimensionLength || ""}
+                        onChange={(e) => setField("dimensionLength", e.target.value)}
+                      />
+                      <p className="mt-0.5 text-xs text-gray-400 text-center">L</p>
+                    </div>
+                    <span className="text-gray-400">×</span>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="0"
+                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors text-center ${errors.dimensionWidth ? 'border-red-300' : 'border-gray-300'}`}
+                        value={form.dimensionWidth || ""}
+                        onChange={(e) => setField("dimensionWidth", e.target.value)}
+                      />
+                      <p className="mt-0.5 text-xs text-gray-400 text-center">W</p>
+                    </div>
+                    <span className="text-gray-400">×</span>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="0"
+                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors text-center ${errors.dimensionHeight ? 'border-red-300' : 'border-gray-300'}`}
+                        value={form.dimensionHeight || ""}
+                        onChange={(e) => setField("dimensionHeight", e.target.value)}
+                      />
+                      <p className="mt-0.5 text-xs text-gray-400 text-center">H</p>
+                    </div>
+                  </div>
+                  {(errors.dimensionLength || errors.dimensionWidth || errors.dimensionHeight) && (
+                    <p className="mt-1 text-sm text-red-600">All dimensions are required</p>
+                  )}
+                </div>
+
+                {/* Weight */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Weight <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., 0.5 kg"
+                    className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.weight ? 'border-red-300' : 'border-gray-300'}`}
+                    value={form.weight || ""}
+                    onChange={(e) => setField("weight", e.target.value)}
+                  />
+                  {errors.weight && <p className="mt-1 text-sm text-red-600">{errors.weight}</p>}
+                </div>
+              </div>
+
+              {/* Date Added (shown only in edit mode) */}
+              {mode === "edit" && (initialData as ExtendedProduct)?.createdAt && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date Added
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    className="block w-full sm:w-1/3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+                    value={new Date((initialData as ExtendedProduct).createdAt!).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Auto-generated when product was created</p>
+                </div>
+              )}
+
+              {/* Pre-order Toggle */}
+              <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                      Enable Pre-Order
+                    </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Allow customers to reserve this product when out of stock
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={form.preorderEnabled}
+                    onClick={() => setField("preorderEnabled", !form.preorderEnabled)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 ${
+                      form.preorderEnabled ? 'bg-honey-500' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        form.preorderEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Pre-order message (shown when enabled) */}
+                {form.preorderEnabled && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Pre-Order Message <span className="text-xs text-gray-400">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Expected to ship in 2-3 weeks"
+                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-honey-500 focus:ring-1 focus:ring-honey-500 transition-colors"
+                      value={form.preorderMessage || ""}
+                      onChange={(e) => setField("preorderMessage", e.target.value)}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">This message will be shown to customers on the product page</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Show Guidelines Toggle */}
+              <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700">
+                      Show Guidelines
+                    </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Display size charts and measuring tips on product page
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={guidelineEnabled}
+                    onClick={() => setGuidelineEnabled(!guidelineEnabled)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 ${
+                      guidelineEnabled ? 'bg-honey-500' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        guidelineEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PRODUCT VARIANT TAB */}
+        {activeTab === "variant" && (
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+
+            {/* Compatible Cars Section */}
+            <div>
+              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-1">Compatible Cars</h4>
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-2 sm:mb-3">Select which vehicles this product is compatible with</p>
+
+              <div className="flex flex-col sm:flex-row gap-3 mb-3">
+                {/* Make */}
+                <div ref={makeDropdownRef} className="relative flex-1">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Make</label>
+                  <button
+                    type="button"
+                    onClick={() => { setMakeDropdownOpen(!makeDropdownOpen); setMakeSearch(''); }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-honey-500 bg-white"
+                  >
+                    <span className={selectedMake ? 'text-gray-900' : 'text-gray-400'}>
+                      {carMakes.find(m => m.id === selectedMake)?.name || 'Select Make'}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {makeDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-hidden">
+                      <div className="p-2 border-b border-gray-100">
+                        <input type="text" value={makeSearch} onChange={e => setMakeSearch(e.target.value)} placeholder="Search makes..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-honey-500" autoFocus />
+                      </div>
+                      <div className="overflow-y-auto max-h-40">
+                        {carMakes.filter(m => m.name.toLowerCase().includes(makeSearch.toLowerCase())).map(make => (
+                          <button key={make.id} type="button" onClick={() => { setSelectedMake(make.id); setMakeDropdownOpen(false); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-honey-50 ${selectedMake === make.id ? 'bg-honey-50 font-medium' : ''}`}>{make.name}</button>
+                        ))}
+                        {carMakes.filter(m => m.name.toLowerCase().includes(makeSearch.toLowerCase())).length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No makes found</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Model - multi-select with checkboxes */}
+                <div ref={modelDropdownRef} className="relative flex-1">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Model</label>
+                  <button
+                    type="button"
+                    onClick={() => { if (selectedMake) { setModelDropdownOpen(!modelDropdownOpen); setModelSearch(''); } }}
+                    disabled={!selectedMake}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-honey-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <span className={selectedModels.length > 0 ? 'text-gray-900 truncate' : 'text-gray-400'}>
+                      {selectedModels.length > 0
+                        ? `${selectedModels.length} model${selectedModels.length > 1 ? 's' : ''} selected`
+                        : 'Select Models'}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {modelDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-hidden">
+                      <div className="p-2 border-b border-gray-100">
+                        <input type="text" value={modelSearch} onChange={e => setModelSearch(e.target.value)} placeholder="Search models..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-honey-500" autoFocus />
+                      </div>
+                      <div className="overflow-y-auto max-h-40">
+                        {carModels.filter(m => m.name.toLowerCase().includes(modelSearch.toLowerCase())).map(model => {
+                          const checked = selectedModels.includes(model.id);
+                          return (
+                            <button key={model.id} type="button" onClick={() => setSelectedModels(prev => checked ? prev.filter(id => id !== model.id) : [...prev, model.id])} className={`w-full text-left px-3 py-2 text-sm hover:bg-honey-50 flex items-center gap-2 ${checked ? 'bg-honey-50' : ''}`}>
+                              <div className={`w-4 h-4 border-2 rounded flex items-center justify-center flex-shrink-0 ${checked ? 'bg-honey-500 border-honey-500' : 'border-gray-300'}`}>
+                                {checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                              </div>
+                              {model.name}
+                            </button>
+                          );
+                        })}
+                        {carModels.filter(m => m.name.toLowerCase().includes(modelSearch.toLowerCase())).length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No models found</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Variant - multi-select with checkboxes */}
+                <div ref={variantDropdownRef} className="relative flex-1">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Variant</label>
+                  <button
+                    type="button"
+                    onClick={() => { if (selectedModels.length > 0 && carVariants.length > 0) { setVariantDropdownOpen(!variantDropdownOpen); setVariantSearch(''); } }}
+                    disabled={selectedModels.length === 0 || carVariants.length === 0}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-honey-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                  >
+                    <span className={pendingVariants.length > 0 ? 'text-gray-900 truncate' : 'text-gray-400'}>
+                      {pendingVariants.length > 0
+                        ? `${pendingVariants.length} variant${pendingVariants.length > 1 ? 's' : ''} selected`
+                        : 'Select Variants'}
+                    </span>
+                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  {variantDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-hidden">
+                      <div className="p-2 border-b border-gray-100">
+                        <input type="text" value={variantSearch} onChange={e => setVariantSearch(e.target.value)} placeholder="Search variants..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-honey-500" autoFocus />
+                      </div>
+                      <div className="overflow-y-auto max-h-40">
+                        {carVariants
+                          .filter(v => !selectedCarVariants.includes(v.id))
+                          .filter(v => `${v.name} ${v.yearStart || ''}`.toLowerCase().includes(variantSearch.toLowerCase()))
+                          .map(v => {
+                            const checked = pendingVariants.includes(v.id);
+                            const year = v.yearStart ? ` (${v.yearStart}${v.yearEnd ? `-${v.yearEnd}` : '+'})` : '';
+                            const modelName = carModels.find(m => m.id === v.modelId)?.name || '';
+                            return (
+                              <button key={v.id} type="button" onClick={() => setPendingVariants(prev => checked ? prev.filter(id => id !== v.id) : [...prev, v.id])} className={`w-full text-left px-3 py-2 text-sm hover:bg-honey-50 flex items-center gap-2 ${checked ? 'bg-honey-50' : ''}`}>
+                                <div className={`w-4 h-4 border-2 rounded flex items-center justify-center flex-shrink-0 ${checked ? 'bg-honey-500 border-honey-500' : 'border-gray-300'}`}>
+                                  {checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                                </div>
+                                <span className="truncate">{modelName && <span className="text-gray-400 mr-1">{modelName} ›</span>}{v.name}{year}</span>
+                              </button>
+                            );
+                          })}
+                        {carVariants.filter(v => !selectedCarVariants.includes(v.id)).filter(v => `${v.name} ${v.yearStart || ''}`.toLowerCase().includes(variantSearch.toLowerCase())).length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No variants found</div>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Add button */}
+                <div className="flex gap-2 items-end">
+                  <button
+                    type="button"
+                    disabled={pendingVariants.length === 0}
+                    onClick={() => {
+                      setSelectedCarVariants(prev => [...prev, ...pendingVariants.filter(id => !prev.includes(id))]);
+                      setPendingVariants([]);
+                      setVariantSearch('');
+                      setSelectedMake('');
+                      setSelectedModels([]);
+                      setCarModels([]);
+                      setCarVariants([]);
+                    }}
+                    className="px-4 py-2 text-sm font-medium bg-honey-500 hover:bg-honey-600 text-white rounded-lg transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    Add {pendingVariants.length > 0 ? `(${pendingVariants.length})` : ''}
+                  </button>
+                  {selectedModels.length > 0 && carVariants.filter(v => !selectedCarVariants.includes(v.id)).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addAllCarVariants();
+                        setPendingVariants([]);
+                        setVariantSearch('');
+                        setSelectedMake('');
+                        setSelectedModels([]);
+                        setCarModels([]);
+                        setCarVariants([]);
+                      }}
+                      className="px-3 py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      Add All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {carsLoading && (
+                <div className="text-xs text-gray-400 mb-2">Loading...</div>
+              )}
+
+              {/* Selected cars list */}
+              {selectedCarVariants.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-600">{selectedCarVariants.length} vehicle{selectedCarVariants.length > 1 ? 's' : ''} selected</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCarVariants([])}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-100 max-h-60 overflow-y-auto">
+                    {selectedCarVariants.map(variantId => {
+                      const info = carLabelMap[variantId];
+                      return (
+                        <div
+                          key={variantId}
+                          className="flex items-center justify-between px-3 py-2 hover:bg-white transition-colors group"
+                        >
+                          {info ? (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-200 text-[10px] font-semibold text-gray-700 uppercase tracking-wider flex-shrink-0">
+                                {info.make}
+                              </span>
+                              <span className="text-gray-400 text-xs flex-shrink-0">›</span>
+                              <span className="text-xs font-medium text-gray-700 flex-shrink-0">{info.model}</span>
+                              <span className="text-gray-400 text-xs flex-shrink-0">›</span>
+                              <span className="text-xs text-gray-900 font-semibold truncate">{info.variant}</span>
+                              {info.year && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-honey-100 text-[10px] font-medium text-honey-700 flex-shrink-0">
+                                  {info.year}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">ID: {variantId.slice(-8)}</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleCarVariant(variantId)}
+                            className="text-gray-300 hover:text-red-500 transition-colors ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100"
+                          >
+                            <FiX className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200"></div>
+
+            {/* Product Type Section */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-900 mb-4">Product Type</h4>
+              {mode === 'edit' && (
+                <p className="mb-3 text-xs text-amber-600">
+                  {isVariant
+                    ? 'Switching to single product will remove all variants'
+                    : 'Switching to variant product will require adding color/size variants'}
+                </p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className={`relative flex rounded-lg border p-3 transition-all cursor-pointer ${
+                  !isVariant
+                    ? 'border-gray-900 bg-gray-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                  <input
+                    type="radio"
+                    name="productType"
+                    value="single"
+                    checked={!isVariant}
+                    onChange={() => {
+                      if (mode === 'edit' && isVariant) {
+                        setShowTypeChangeModal({ show: true, targetType: 'single' });
+                      } else {
+                        setField("productType", "single");
+                        setSelectedColors([]);
+                        setSelectedSizes([]);
+                        setField("variants", []);
+                      }
+                    }}
+                    className="sr-only"
+                  />
+                  <div className="flex items-center">
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                      !isVariant ? 'border-gray-900' : 'border-gray-300'
+                    }`}>
+                      {!isVariant && <div className="w-2 h-2 bg-gray-900 rounded-full" />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Single Product</div>
+                      <div className="text-xs text-gray-500">One price, one stock level</div>
+                    </div>
+                  </div>
+                </label>
+                <label className={`relative flex rounded-lg border p-3 transition-all cursor-pointer ${
+                  isVariant
+                    ? 'border-gray-900 bg-gray-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                  <input
+                    type="radio"
+                    name="productType"
+                    value="variant"
+                    checked={isVariant}
+                    onChange={() => {
+                      if (mode === 'edit' && !isVariant) {
+                        setShowTypeChangeModal({ show: true, targetType: 'variant' });
+                      } else {
+                        setField("productType", "variant");
+                      }
+                    }}
+                    className="sr-only"
+                  />
+                  <div className="flex items-center">
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                      isVariant ? 'border-gray-900' : 'border-gray-300'
+                    }`}>
+                      {isVariant && <div className="w-2 h-2 bg-gray-900 rounded-full" />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Variant Product</div>
+                      <div className="text-xs text-gray-500">Multiple colors & sizes</div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Variant Configuration */}
+            {isVariant && (
+              <div className="border-t border-gray-200 pt-6 space-y-4">
+                <h4 className="text-sm font-medium text-gray-900">Variant Options</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-700">Colors <span className="text-red-500">*</span></label>
+                      {onManageAttributes && (
+                        <button
+                          type="button"
+                          onClick={onManageAttributes}
+                          className="text-xs text-gray-600 hover:text-gray-900"
+                        >
+                          Manage
+                        </button>
+                      )}
+                    </div>
+                    {/* Select2-style multi-select for colors */}
+                    <div className="relative" ref={variantColorDropdownRef}>
+                      <div
+                        className={`min-h-[42px] flex flex-wrap items-center gap-1.5 w-full rounded-lg border px-2 py-1.5 cursor-pointer transition-all duration-200 ${
+                          variantColorDropdownOpen
+                            ? 'border-gray-900 ring-1 ring-gray-900'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onClick={() => setVariantColorDropdownOpen(!variantColorDropdownOpen)}
+                      >
+                        {selectedColors.length > 0 ? (
+                          <>
+                            {selectedColors.map((color) => (
+                              <span
+                                key={color}
+                                className="inline-flex items-center gap-1.5 px-2 py-1 bg-honey-100 text-charcoal text-sm rounded-md"
+                              >
+                                <span
+                                  className="w-3 h-3 rounded-full border border-gray-200 flex-shrink-0"
+                                  style={{ backgroundColor: color.toLowerCase() }}
+                                />
+                                {color}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedColors(selectedColors.filter(c => c !== color));
+                                  }}
+                                  className="hover:text-red-600 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </span>
+                            ))}
+                          </>
+                        ) : (
+                          <span className="text-sm text-gray-400 py-1">Select colors...</span>
+                        )}
+                        <svg
+                          className={`w-5 h-5 text-gray-400 ml-auto flex-shrink-0 transition-transform duration-200 ${variantColorDropdownOpen ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+
+                      {/* Dropdown menu */}
+                      {variantColorDropdownOpen && (
+                        <div className="absolute z-50 mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
+                          {/* Search input */}
+                          <div className="p-2 border-b border-gray-100">
+                            <div className="relative">
+                              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                              <input
+                                type="text"
+                                placeholder="Search colors..."
+                                value={variantColorSearchQuery}
+                                onChange={(e) => setVariantColorSearchQuery(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+
+                          {/* Options list */}
+                          <div className="max-h-60 overflow-y-auto">
+                            {filteredVariantColorOptions.length > 0 ? (
+                              filteredVariantColorOptions.map((color) => (
+                                <div
+                                  key={color}
+                                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                                    selectedColors.includes(color)
+                                      ? 'bg-honey-50 text-gray-900'
+                                      : 'hover:bg-gray-50 text-gray-700'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (selectedColors.includes(color)) {
+                                      setSelectedColors(selectedColors.filter(c => c !== color));
+                                    } else {
+                                      setSelectedColors([...selectedColors, color]);
+                                    }
+                                  }}
+                                >
+                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                    selectedColors.includes(color) ? 'border-honey-500 bg-honey-500' : 'border-gray-300'
+                                  }`}>
+                                    {selectedColors.includes(color) && (
+                                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span
+                                    className="w-5 h-5 rounded-full border border-gray-200 flex-shrink-0"
+                                    style={{ backgroundColor: color.toLowerCase() }}
+                                  />
+                                  <span className="text-sm">{color}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                No colors found
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {errors.colors && <p className="mt-1 text-sm text-red-600">{errors.colors}</p>}
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-700">Sizes <span className="text-red-500">*</span></label>
+                      {onManageAttributes && (
+                        <button
+                          type="button"
+                          onClick={onManageAttributes}
+                          className="text-xs text-gray-600 hover:text-gray-900"
+                        >
+                          Manage
+                        </button>
+                      )}
+                    </div>
+                    {/* Select2-style multi-select for sizes */}
+                    <div className="relative" ref={variantSizeDropdownRef}>
+                      <div
+                        className={`min-h-[42px] flex flex-wrap items-center gap-1.5 w-full rounded-lg border px-2 py-1.5 cursor-pointer transition-all duration-200 ${
+                          variantSizeDropdownOpen
+                            ? 'border-gray-900 ring-1 ring-gray-900'
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onClick={() => setVariantSizeDropdownOpen(!variantSizeDropdownOpen)}
+                      >
+                        {selectedSizes.length > 0 ? (
+                          <>
+                            {selectedSizes.map((size) => (
+                              <span
+                                key={size}
+                                className="inline-flex items-center gap-1.5 px-2 py-1 bg-honey-100 text-charcoal text-sm rounded-md"
+                              >
+                                {size}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedSizes(selectedSizes.filter(s => s !== size));
+                                  }}
+                                  className="hover:text-red-600 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </span>
+                            ))}
+                          </>
+                        ) : (
+                          <span className="text-sm text-gray-400 py-1">Select sizes...</span>
+                        )}
+                        <svg
+                          className={`w-5 h-5 text-gray-400 ml-auto flex-shrink-0 transition-transform duration-200 ${variantSizeDropdownOpen ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+
+                      {/* Dropdown menu */}
+                      {variantSizeDropdownOpen && (
+                        <div className="absolute z-50 mt-1 w-full bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
+                          {/* Search input */}
+                          <div className="p-2 border-b border-gray-100">
+                            <div className="relative">
+                              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                              <input
+                                type="text"
+                                placeholder="Search sizes..."
+                                value={variantSizeSearchQuery}
+                                onChange={(e) => setVariantSizeSearchQuery(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+
+                          {/* Options list */}
+                          <div className="max-h-60 overflow-y-auto">
+                            {filteredVariantSizeOptions.length > 0 ? (
+                              filteredVariantSizeOptions.map((size) => (
+                                <div
+                                  key={size}
+                                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                                    selectedSizes.includes(size)
+                                      ? 'bg-honey-50 text-gray-900'
+                                      : 'hover:bg-gray-50 text-gray-700'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (selectedSizes.includes(size)) {
+                                      setSelectedSizes(selectedSizes.filter(s => s !== size));
+                                    } else {
+                                      setSelectedSizes([...selectedSizes, size]);
+                                    }
+                                  }}
+                                >
+                                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                    selectedSizes.includes(size) ? 'border-honey-500 bg-honey-500' : 'border-gray-300'
+                                  }`}>
+                                    {selectedSizes.includes(size) && (
+                                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span className="text-sm">{size}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                                No sizes found
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {errors.sizes && <p className="mt-1 text-sm text-red-600">{errors.sizes}</p>}
+                  </div>
+                </div>
+
+                {/* Variants Table */}
+                {variantCombos.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Variant Pricing & Stock</label>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost ({currency.symbol})</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price ({currency.symbol})</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount %</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Price ({currency.symbol})</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {(form.variants as ProductVariant[] || []).map((variant: ProductVariant, index: number) => {
+                            const discountPercent = variant.price && variant.discountedPrice
+                              ? Math.round((1 - variant.discountedPrice / variant.price) * 100)
+                              : 0;
+                            return (
+                            <tr key={`${variant.color}-${variant.size}`}>
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{variant.color}</td>
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{variant.size}</td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <input
+                                  type="text"
+                                  placeholder="SKU-001"
+                                  value={variant.sku || ""}
+                                  onChange={(e) => {
+                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
+                                    newVariants[index] = { ...variant, sku: e.target.value };
+                                    setField("variants", newVariants);
+                                  }}
+                                  className="w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={(variant as any).costPrice ?? ""}
+                                  onChange={(e) => {
+                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
+                                    newVariants[index] = { ...variant, costPrice: e.target.value ? Number(e.target.value) : undefined } as ProductVariant;
+                                    setField("variants", newVariants);
+                                  }}
+                                  className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={variant.price || ""}
+                                  onChange={(e) => {
+                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
+                                    const newPrice = Number(e.target.value);
+                                    const newDiscountedPrice = discountPercent > 0
+                                      ? Number((newPrice * (1 - discountPercent / 100)).toFixed(2))
+                                      : undefined;
+                                    newVariants[index] = { ...variant, price: newPrice, discountedPrice: newDiscountedPrice };
+                                    setField("variants", newVariants);
+                                  }}
+                                  className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={discountPercent || ""}
+                                  onChange={(e) => {
+                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
+                                    const percent = Number(e.target.value);
+                                    const discountedPrice = percent > 0 && variant.price
+                                      ? Number((variant.price * (1 - percent / 100)).toFixed(2))
+                                      : undefined;
+                                    newVariants[index] = { ...variant, discountedPrice };
+                                    setField("variants", newVariants);
+                                  }}
+                                  className="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={variant.discountedPrice || ""}
+                                  onChange={(e) => {
+                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
+                                    const newDiscountedPrice = e.target.value ? Number(e.target.value) : undefined;
+                                    newVariants[index] = { ...variant, discountedPrice: newDiscountedPrice };
+                                    setField("variants", newVariants);
+                                  }}
+                                  className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={variant.stock || ""}
+                                  onChange={(e) => {
+                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
+                                    newVariants[index] = { ...variant, stock: Number(e.target.value) };
+                                    setField("variants", newVariants);
+                                  }}
+                                  className="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                {index === 0 && (form.variants as ProductVariant[] || []).length > 1 && (
+                                  <button
+                                    type="button"
+                                    title="Apply all values to other variants"
+                                    onClick={() => {
+                                      const firstVariant = (form.variants as ProductVariant[])[0] as any;
+                                      const newVariants = (form.variants as ProductVariant[]).map((v) => ({
+                                        ...v,
+                                        price: firstVariant.price,
+                                        costPrice: firstVariant.costPrice,
+                                        discountedPrice: firstVariant.discountedPrice,
+                                        stock: firstVariant.stock,
+                                      }));
+                                      setField("variants", newVariants);
+                                    }}
+                                    className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-md transition-colors"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                                      <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Color-specific images for variant products */}
+                {selectedColors.length > 0 && (
+                  <div className="border-t border-gray-200 pt-6 space-y-4">
+                    <h4 className="text-sm font-medium text-gray-900">Color-Specific Images</h4>
+                    {selectedColors.map((color) => (
+                      <div key={color} className="border border-gray-200 rounded-lg p-4 bg-white">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-medium text-gray-700 flex items-center gap-2 text-sm">
+                            <span className="w-4 h-4 rounded-full border border-gray-200 flex-shrink-0" style={{ backgroundColor: color.toLowerCase() }}></span>
+                            {color}
+                          </h5>
+                          <button
+                            type="button"
+                            onClick={() => clearColorMedia(color)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium"
+                          >
+                            Clear all
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-[110px_1fr] gap-4">
+                          {/* Thumbnail */}
+                          <div>
+                            <label className="text-xs font-medium text-gray-600 mb-1 block">Thumbnail</label>
+                            <input
+                              ref={(el) => { colorThumbRefs.current[color] = el; }}
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => { if (e.target.files) handleColorThumbFiles(color, e.target.files); }}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => colorThumbRefs.current[color]?.click()}
+                              className="relative w-full aspect-[4/5] rounded-lg border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white transition-colors overflow-hidden group"
+                            >
+                              {isValidUrl(colorMedia[color]?.thumbnailUrl) ? (
+                                <>
+                                  <Image src={colorMedia[color].thumbnailUrl!} alt={`${color} thumbnail`} fill className="object-cover" unoptimized />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                    <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Change</span>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 group-hover:text-gray-900 transition-colors">
+                                  <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  <span className="text-xs">Upload</span>
+                                </div>
+                              )}
+                            </button>
+                            <p className="mt-1 text-[11px] text-gray-400">380 × 480px</p>
+                          </div>
+
+                          {/* Gallery */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-medium text-gray-600">Gallery</label>
+                              <span className="text-[11px] text-gray-400">{colorMedia[color]?.bannerUrls?.length || 0} / 5</span>
+                            </div>
+                            <input
+                              ref={(el) => { colorBannerRefs.current[color] = el; }}
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => { if (e.target.files) handleColorBannerFiles(color, e.target.files); }}
+                              className="hidden"
+                            />
+                            <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
+                              {colorMedia[color]?.bannerUrls?.filter(isValidUrl).map((url, index) => (
+                                <div key={index} className="relative group aspect-square rounded-md border border-gray-200 overflow-hidden bg-gray-50">
+                                  <Image src={url} alt={`${color} banner ${index + 1}`} fill className="object-cover" unoptimized />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeColorBanner(color, index)}
+                                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-white/90 hover:bg-red-500 text-gray-600 hover:text-white rounded-full flex items-center justify-center shadow-sm transition-colors opacity-0 group-hover:opacity-100"
+                                    aria-label={`Remove ${color} banner ${index + 1}`}
+                                  >
+                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ))}
+                              {(colorMedia[color]?.bannerUrls?.length || 0) < 5 && (
+                                <button
+                                  type="button"
+                                  onClick={() => colorBannerRefs.current[color]?.click()}
+                                  className="aspect-square rounded-md border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                            <p className="mt-1 text-[11px] text-gray-400">380 × 480px · up to 5 images</p>
+
+                            {/* Video */}
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-medium text-gray-600">Video</label>
+                                <span className="text-[11px] text-gray-400">Optional</span>
+                              </div>
+                              <input
+                                ref={(el) => { colorVideoRefs.current[color] = el; }}
+                                type="file"
+                                accept="video/mp4,video/webm,video/quicktime,video/*"
+                                onChange={(e) => { if (e.target.files) handleColorVideoFile(color, e.target.files); }}
+                                className="hidden"
+                              />
+                              {colorMedia[color]?.videoUrl ? (
+                                <div className="relative bg-gray-100 rounded-lg overflow-hidden max-w-[200px]">
+                                  <video src={colorMedia[color].videoUrl} controls className="w-full h-28 object-contain bg-black" />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeColorVideo(color)}
+                                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow transition-colors"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => colorVideoRefs.current[color]?.click()}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white text-gray-400 hover:text-gray-900 transition-colors text-xs"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  Upload video
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Single Product Images */}
+            {!isVariant && (
+              <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6 space-y-3 sm:space-y-4 md:space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-[110px_1fr] gap-4">
+                  {/* Thumbnail */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium text-gray-700">
+                        Thumbnail <span className="text-red-500">*</span>
+                      </label>
+                    </div>
+                    <input
+                      ref={thumbInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileChange(e, "thumbnail")}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => thumbInputRef.current?.click()}
+                      className={`relative w-full aspect-[4/5] rounded-lg border border-dashed transition-colors overflow-hidden group ${
+                        errors.thumbnail
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white'
+                      }`}
+                    >
+                      {isValidUrl(form.thumbnailUrl?.toString()) ? (
+                        <>
+                          <Image
+                            src={form.thumbnailUrl!.toString()}
+                            alt="Thumbnail"
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                            <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                              Change
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 group-hover:text-gray-900 transition-colors">
+                          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-xs">Upload</span>
+                        </div>
+                      )}
+                    </button>
+                    <p className="mt-1 text-[11px] text-gray-400">380 × 480px</p>
+                    {errors.thumbnail && <p className="mt-1 text-xs text-red-600">{errors.thumbnail}</p>}
+                  </div>
+
+                  {/* Gallery */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium text-gray-700">Gallery</label>
+                      <span className="text-[11px] text-gray-400">{form.bannerUrls?.length || 0} / 10</span>
+                    </div>
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          handleMultipleBannerFiles(e.target.files);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5">
+                      {form.bannerUrls?.filter(url => isValidUrl(url?.toString())).map((url, index) => (
+                        <div key={index} className="relative group aspect-square rounded-md border border-gray-200 overflow-hidden bg-gray-50">
+                          <Image
+                            src={url.toString()}
+                            alt={`Gallery ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeBanner(index)}
+                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-white/90 hover:bg-red-500 text-gray-600 hover:text-white rounded-full flex items-center justify-center shadow-sm transition-colors opacity-0 group-hover:opacity-100"
+                            aria-label={`Remove image ${index + 1}`}
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      {(form.bannerUrls?.length || 0) < 10 && (
+                        <button
+                          type="button"
+                          onClick={() => bannerInputRef.current?.click()}
+                          className="aspect-square rounded-md border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
+                          aria-label="Add gallery images"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-400">380 × 480px · up to 10 images</p>
+                  </div>
+                </div>
+
+                {/* Product Video Upload */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Product Video</label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Optional: Upload a video to showcase your product. <span className="font-semibold">MP4, WebM, MOV</span> formats supported.
+                  </p>
+
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-purple-400 transition-colors duration-200">
+                    <input
+                      ref={videoInputRef}
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,video/*"
+                      onChange={handleVideoChange}
+                      className="hidden"
+                    />
+                    <svg className="w-8 h-8 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-gray-500 mb-3">Add a product video</p>
+                    <button
+                      type="button"
+                      onClick={() => videoInputRef.current?.click()}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors duration-200 font-medium"
+                    >
+                      Upload Video
+                    </button>
+                    <p className="text-xs text-gray-400 mt-2">Max file size: 100MB</p>
+                  </div>
+
+                  {form.videoUrl && (
+                    <div className="mt-4">
+                      <h5 className="text-sm font-semibold text-gray-700 mb-3">Uploaded Video</h5>
+                      <div className="relative bg-gray-100 rounded-lg overflow-hidden max-w-md">
+                        <video
+                          src={form.videoUrl}
+                          controls
+                          className="w-full h-48 object-contain bg-black"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                        <button
+                          type="button"
+                          onClick={removeVideo}
+                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-colors duration-200"
+                          aria-label="Remove video"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DESCRIPTION TAB */}
+        {activeTab === "description" && (
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Short Description
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Brief summary for product cards and search results</p>
+              <textarea
+                rows={3}
+                placeholder="Enter a brief, compelling summary (2-3 sentences)"
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-none"
+                value={form.shortDescription || ""}
+                onChange={(e) => setField("shortDescription", e.target.value)}
+                maxLength={500}
+              />
+              <p className="mt-1 text-xs text-gray-500 text-right">{(form.shortDescription || "").length}/500</p>
+            </div>
+
+            <div className="border-t border-gray-200 pt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Key Features
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Highlight what makes your product special (one per line)</p>
+              <textarea
+                value={form.features || ""}
+                onChange={(e) => setField("features", e.target.value)}
+                placeholder="• Moisture-wicking fabric&#10;• Four-way stretch&#10;• Reinforced seams&#10;• UPF 50+ protection"
+                rows={5}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-y"
+              />
+            </div>
+
+            <div className="border-t border-gray-200 pt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Description
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Comprehensive product details for the product page</p>
+              <RichTextEditor
+                value={form.description || ""}
+                onChange={(content) => setField("description", content)}
+                placeholder="Enter comprehensive product details: materials, fit, sizing, care instructions, key benefits..."
+              />
+            </div>
+          </div>
+        )}
+
+        {/* SEO & META TAB */}
+        {activeTab === "seo" && (
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700">Meta Title</label>
+                <span className="text-xs text-gray-500">{(form.metaTitle || "").length}/{META_TITLE_LIMIT}</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Keep it under ~60 characters"
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                value={form.metaTitle || ""}
+                onChange={(e) => setField("metaTitle", e.target.value)}
+                maxLength={120}
+              />
+              {errors.metaTitle && <p className="mt-1 text-sm text-red-600">{errors.metaTitle}</p>}
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700">Meta Description</label>
+                <span className="text-xs text-gray-500">{(form.metaDescription || "").length}/{META_DESC_LIMIT}</span>
+              </div>
+              <textarea
+                rows={3}
+                placeholder="Write a compelling summary (under 155 characters)"
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-none"
+                value={form.metaDescription || ""}
+                onChange={(e) => setField("metaDescription", e.target.value)}
+                maxLength={320}
+              />
+              {errors.metaDescription && <p className="mt-1 text-sm text-red-600">{errors.metaDescription}</p>}
+            </div>
+
+            <div className="border-t border-gray-200 pt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Meta Keywords</label>
+              <input
+                type="text"
+                placeholder="e.g., compression shirt, athletic wear, gym clothing"
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                value={form.metaKeywords || ""}
+                onChange={(e) => setField("metaKeywords", e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">Separate keywords with commas</p>
+            </div>
+
+            <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Structured Data (JSON-LD) <span className="text-xs text-gray-400">Optional</span>
+              </label>
+              <textarea
+                rows={6}
+                placeholder='{"@context": "https://schema.org", "@type": "Product", ...}'
+                className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 font-mono resize-y ${
+                  errors.metaSchema
+                    ? "border-red-300 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                    : "border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                }`}
+                value={form.metaSchema || ""}
+                onChange={(e) => setField("metaSchema", e.target.value)}
+              />
+              {errors.metaSchema && <p className="mt-1 text-sm text-red-600">{errors.metaSchema}</p>}
+            </div>
+
+            {/* Search Engine Preview */}
+            <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
+              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2 sm:mb-3">Search Engine Preview</h4>
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 sm:p-4">
+                <h3 className="text-sm sm:text-base text-blue-700 leading-snug font-medium truncate">
+                  {previewTitle || "Your Product Title"}
+                </h3>
+                <p className="text-xs text-green-700 mt-1">{previewUrl}</p>
+                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                  {previewDesc || "Your meta description will appear here..."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RELATED PRODUCTS TAB */}
+        {activeTab === "related" && mode === "edit" && (
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            <div>
+              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-1.5 sm:mb-2">Related Products</h4>
+              <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
+                Select products that are related to this product. These will be displayed as suggestions to customers.
+              </p>
+
+              {/* Search and Select Products */}
+              <div ref={relatedProductDropdownRef} className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Search Products
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Type to search products..."
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                    value={relatedProductSearch}
+                    onChange={(e) => {
+                      setRelatedProductSearch(e.target.value);
+                      setRelatedProductDropdownOpen(true);
+                    }}
+                    onFocus={() => setRelatedProductDropdownOpen(true)}
+                  />
+                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+
+                {/* Dropdown */}
+                {relatedProductDropdownOpen && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {relatedProductsLoading ? (
+                      <div className="p-3 text-center text-sm text-gray-500">Loading products...</div>
+                    ) : filteredAvailableProducts.length === 0 ? (
+                      <div className="p-3 text-center text-sm text-gray-500">
+                        {relatedProductSearch ? "No products found" : "No products available"}
+                      </div>
+                    ) : (
+                      filteredAvailableProducts
+                        .filter(p => !(form.relatedProducts || []).includes(p.id))
+                        .slice(0, 10)
+                        .map((product) => (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => addRelatedProduct(product.id)}
+                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left"
+                          >
+                            {product.thumbnailUrl ? (
+                              <Image
+                                src={product.thumbnailUrl}
+                                alt={product.name}
+                                width={32}
+                                height={32}
+                                className="rounded object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
+                            <span className="text-sm text-gray-900 truncate">{product.name}</span>
+                          </button>
+                        ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected Related Products */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Selected Products ({selectedRelatedProducts.length})
+                </label>
+                {selectedRelatedProducts.length === 0 ? (
+                  <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <svg className="mx-auto w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <p className="text-sm text-gray-500">No related products selected</p>
+                    <p className="text-xs text-gray-400 mt-1">Use the search above to add products</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {selectedRelatedProducts.map((product) => (
+                      <div
+                        key={product.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg group"
+                      >
+                        {product.thumbnailUrl ? (
+                          <Image
+                            src={product.thumbnailUrl}
+                            alt={product.name}
+                            width={40}
+                            height={40}
+                            className="rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                        <span className="text-sm text-gray-900 truncate flex-1">{product.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeRelatedProduct(product.id)}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                          title="Remove"
+                        >
+                          <FiX className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        </div>
+
+        {/* Actions */}
+        <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sm:rounded-b-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 md:gap-4">
+            <p className="text-xs sm:text-sm text-gray-500">
+              {isLastTab
+                ? (mode === "create" ? "Fill in the details and create your product" : "Update the product information")
+                : `Step ${currentTabIndex + 1} of ${effectiveValidTabs.length}: ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
+            </p>
+            <div className="flex items-center gap-2 sm:gap-3">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+              {/* Previous Button */}
+              {!isFirstTab && (
+                <button
+                  type="button"
+                  onClick={goToPreviousTab}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Previous
+                </button>
+              )}
+              {/* Next Button - shown when not on last tab (create mode only) */}
+              {!isLastTab && mode === "create" && (
+                <button
+                  type="button"
+                  onClick={goToNextTab}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 transition-all duration-200 shadow-md hover:shadow-lg"
+                >
+                  Next
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+              {/* Create/Update Button - shown on last tab (create) or every tab (edit) */}
+              {(isLastTab || mode === "edit") && (
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 transition-all duration-200 shadow-md hover:shadow-lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {mode === "create" ? "Creating..." : "Updating..."}
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mode === "create" ? "M12 6v6m0 0v6m0-6h6m-6 0H6" : "M5 13l4 4L19 7"} />
+                      </svg>
+                      {mode === "create" ? "Create Product" : "Update Product"}
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </form>
+
+      {/* Product Type Change Confirmation Modal */}
+      {showTypeChangeModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowTypeChangeModal({ show: false, targetType: 'single' })}
+          />
+          <div className="relative bg-white rounded-lg sm:rounded-xl shadow-2xl max-w-md w-full mx-4 p-3 sm:p-4 md:p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                {showTypeChangeModal.targetType === 'single' ? 'Switch to Single Product?' : 'Switch to Variant Product?'}
+              </h3>
+            </div>
+            <p className="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">
+              {showTypeChangeModal.targetType === 'single'
+                ? 'This will permanently remove all color/size variants and their associated images. This action cannot be undone.'
+                : 'This will convert the product to a variant product. You will need to add color and size options.'}
+            </p>
+            <div className="flex gap-2 sm:gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowTypeChangeModal({ show: false, targetType: 'single' })}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (showTypeChangeModal.targetType === 'single') {
+                    setField("productType", "single");
+                    setSelectedColors([]);
+                    setSelectedSizes([]);
+                    setField("variants", []);
+                    setColorMedia({});
+                  } else {
+                    setField("productType", "variant");
+                  }
+                  setShowTypeChangeModal({ show: false, targetType: 'single' });
+                }}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+                  showTypeChangeModal.targetType === 'single'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {showTypeChangeModal.targetType === 'single' ? 'Yes, Remove Variants' : 'Yes, Switch to Variant'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
