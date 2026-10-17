@@ -19,10 +19,15 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
-import { type Role, PERMISSION_GROUPS } from './rolesStore';
+import { type Role } from './rolesStore';
 import { roleService } from './service/roleService';
+import { usePermissionCatalogue } from './useCatalogue';
+import { useAccess } from '@/context/AccessContext';
 
 export default function RolesPage() {
+  const { isSuperAdmin } = useAccess();
+  const { groups: catalogueGroups } = usePermissionCatalogue();
+  const totalPossible = catalogueGroups.reduce((a, g) => a + g.actions.length, 0);
   const [roles, setRoles] = useState<Role[]>([]);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -129,9 +134,14 @@ export default function RolesPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Roles & Permissions</h1>
             <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-              Create a role first, then click it to configure its permissions.
+              A role is a set of things a staff login may do (for example Cashier or Branch Manager). Create a role,
+              click it to tick its permissions, then give it to staff on the Staff Logins page.
             </p>
+            {!isSuperAdmin && (
+              <p className="mt-1 text-xs text-amber-700">Only the super admin can change roles. You can only look.</p>
+            )}
           </div>
+          {isSuperAdmin && (
           <button
             onClick={openCreate}
             className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
@@ -139,6 +149,7 @@ export default function RolesPage() {
             <Plus className="h-4 w-4" />
             <span>Create Role</span>
           </button>
+          )}
         </div>
 
         {/* Stats */}
@@ -215,6 +226,8 @@ export default function RolesPage() {
               <RoleCard
                 key={role.id}
                 role={role}
+                totalPossible={totalPossible}
+                canManage={isSuperAdmin}
                 deleting={deletingId === role.id}
                 onEdit={() => openEdit(role)}
                 onDelete={() => handleDelete(role)}
@@ -249,16 +262,17 @@ export default function RolesPage() {
 /* ---------------- Role Card ---------------- */
 const RoleCard: React.FC<{
   role: Role;
+  totalPossible: number;
+  canManage: boolean;
   deleting: boolean;
   onEdit: () => void;
   onDelete: () => void;
-}> = ({ role, deleting, onEdit, onDelete }) => {
+}> = ({ role, totalPossible, canManage, deleting, onEdit, onDelete }) => {
   const permCount = Object.values(role.permissions).reduce((a, b) => a + b.length, 0);
   const moduleCount = Object.keys(role.permissions).filter(
     (k) => role.permissions[k]?.length > 0,
   ).length;
-  const totalPossible = PERMISSION_GROUPS.reduce((a, g) => a + g.actions.length, 0);
-  const coverage = totalPossible === 0 ? 0 : Math.round((permCount / totalPossible) * 100);
+  const coverage = totalPossible === 0 ? 0 : Math.min(100, Math.round((permCount / totalPossible) * 100));
 
   return (
     <div className="group bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md hover:border-honey-300 transition-all">
@@ -324,9 +338,10 @@ const RoleCard: React.FC<{
           href={`/admin/roles/${role.id}`}
           className="text-xs font-medium text-honey-700 hover:text-honey-800 inline-flex items-center gap-1"
         >
-          Manage permissions
+          {canManage && !role.isSystem ? 'Manage permissions' : 'View permissions'}
           <ChevronRight className="h-3.5 w-3.5" />
         </Link>
+        {canManage && (
         <div className="flex items-center gap-0.5">
           <button
             onClick={(e) => {
@@ -353,6 +368,7 @@ const RoleCard: React.FC<{
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
           </button>
         </div>
+        )}
       </div>
     </div>
   );

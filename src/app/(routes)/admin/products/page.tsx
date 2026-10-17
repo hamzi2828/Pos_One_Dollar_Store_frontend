@@ -166,6 +166,7 @@ const ProductsPage = () => {
         loading={prodLoading}
         error={prodError}
         copyingProduct={copyingProduct}
+        onStockChanged={() => loadProducts(filters)}
       />
     </div>
   );

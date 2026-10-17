@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
-import { RefreshCw, Package, AlertTriangle, Search, ShoppingCart } from 'lucide-react';
+import Link from 'next/link';
+import { RefreshCw, Package, AlertTriangle, Search, ShoppingCart, Printer, PackagePlus } from 'lucide-react';
 import { productService } from '../services/productService';
+import ReceiveStockModal from '../components/stock/ReceiveStockModal';
+import { useCodeSummaries } from '../components/stock/useCodeSummaries';
 import { getPOSOrders } from '../../pos/services/posOrderService';
 import toast from 'react-hot-toast';
 
@@ -13,6 +16,8 @@ interface ProductVariant {
   stock: number;
   price: number;
   discountedPrice?: number;
+  variantId?: string;
+  shortCode?: string;
 }
 
 interface Product {
@@ -42,6 +47,10 @@ interface StockRow {
   imageUrl: string;
   price: number;
   discountedPrice?: number;
+  variantId?: string;
+  shortCode?: string | null;
+  piecesPerBox: number;
+  hasBatches: boolean;
 }
 
 // Type for tracking sold quantities
@@ -58,6 +67,8 @@ const StockPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
+  const [receiveFor, setReceiveFor] = useState<{ id: string; name: string; variantId?: string } | null>(null);
+  const codeSummaries = useCodeSummaries(products);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -123,6 +134,9 @@ const StockPage = () => {
 
   // Flatten products and variants into rows
   const stockRows: StockRow[] = products.flatMap((product): StockRow[] => {
+    const codes = codeSummaries[product.id];
+    const piecesPerBox = codes?.piecesPerBox ?? 1;
+    const hasBatches = !!codes?.hasBatches;
     if (product.productType === 'variant' && product.variants && product.variants.length > 0) {
       return product.variants.map((variant): StockRow => {
         // Get color-specific image if available
@@ -146,6 +160,10 @@ const StockPage = () => {
           imageUrl: getImageUrl(imageUrl),
           price: variant.price,
           discountedPrice: variant.discountedPrice,
+          variantId: variant.variantId,
+          shortCode: variant.shortCode || null,
+          piecesPerBox,
+          hasBatches,
         };
       });
     }
@@ -164,6 +182,9 @@ const StockPage = () => {
       imageUrl: getImageUrl(product.thumbnailUrl),
       price: product.price,
       discountedPrice: product.discountedPrice,
+      shortCode: codes?.shortCode ?? null,
+      piecesPerBox,
+      hasBatches,
     }];
   });
 
@@ -174,6 +195,7 @@ const StockPage = () => {
     const matchesSearch = !searchQuery ||
       row.productName.toLowerCase().includes(searchLower) ||
       row.category.toLowerCase().includes(searchLower) ||
+      (row.shortCode?.toLowerCase().includes(searchLower)) ||
       (row.color?.toLowerCase().includes(searchLower)) ||
       (row.size?.toLowerCase().includes(searchLower));
 
@@ -292,7 +314,7 @@ const StockPage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by product, category, color, size..."
+              placeholder="Search by product, code, category, color, size..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-honey-500"
@@ -364,6 +386,9 @@ const StockPage = () => {
                     Product
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Code
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Category
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -384,6 +409,9 @@ const StockPage = () => {
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -402,6 +430,23 @@ const StockPage = () => {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900">{row.productName}</span>
+                      {(row.piecesPerBox > 1 || row.hasBatches) && (
+                        <div className="mt-0.5 flex gap-1">
+                          {row.piecesPerBox > 1 && (
+                            <span className="px-1.5 py-px rounded bg-amber-50 text-amber-700 text-[10px] font-medium">Box of {row.piecesPerBox}</span>
+                          )}
+                          {row.hasBatches && (
+                            <span className="px-1.5 py-px rounded bg-blue-50 text-blue-700 text-[10px] font-medium">Batches</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {row.shortCode ? (
+                        <span className="px-1.5 py-0.5 rounded bg-gray-100 font-mono text-xs font-semibold text-gray-800">{row.shortCode}</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="text-sm text-gray-600">{row.category}</span>
@@ -439,6 +484,26 @@ const StockPage = () => {
                     <td className="px-4 py-3 whitespace-nowrap text-center">
                       {getStockBadge(row.stock)}
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <Link
+                          href={`/admin/products/stickers/${row.productId}${row.variantId ? `?variantId=${encodeURIComponent(row.variantId)}` : ''}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-honey-600 bg-honey-50 rounded-lg hover:bg-honey-100 transition-colors"
+                          title="Print barcode stickers"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          Stickers
+                        </Link>
+                        <button
+                          onClick={() => setReceiveFor({ id: row.productId, name: row.productName, variantId: row.variantId })}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                          title="Add new stock (a delivery)"
+                        >
+                          <PackagePlus className="h-3.5 w-3.5" />
+                          Receive stock
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -452,6 +517,18 @@ const StockPage = () => {
         <div className="text-xs sm:text-sm text-gray-500 text-center">
           Showing {filteredRows.length} of {totalItems} items
         </div>
+      )}
+
+      {receiveFor && (
+        <ReceiveStockModal
+          productId={receiveFor.id}
+          productName={receiveFor.name}
+          initialVariantId={receiveFor.variantId}
+          onClose={(changed) => {
+            setReceiveFor(null);
+            if (changed) loadProducts();
+          }}
+        />
       )}
     </div>
   );

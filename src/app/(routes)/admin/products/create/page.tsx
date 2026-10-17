@@ -98,9 +98,9 @@ const CreateProductPage = () => {
         sizeOptions={sizeOptions}
         guidelines={guidelines}
         onManageAttributes={() => router.push('/admin/products/attributes')}
-        onSuccess={() => {
-          toast.success('Product created successfully');
-          setTimeout(() => router.push('/admin/products'), 1000);
+        onSuccess={(created) => {
+          // Next step: print stickers for the new product
+          router.push(created?.id ? `/admin/products/stickers/${created.id}?new=1` : '/admin/products');
         }}
       />
     </div>

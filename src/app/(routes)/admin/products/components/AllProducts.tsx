@@ -8,9 +8,12 @@ import {
   ProductPagination,
   EmptyState,
   LoadingState,
-  ErrorState
+  ErrorState,
+  CodeFinder
 } from "./all_products";
 import { categoryService } from "../services/categoryService";
+import ReceiveStockModal from "./stock/ReceiveStockModal";
+import { useCodeSummaries } from "./stock/useCodeSummaries";
 
 export interface ProductVariant {
   color: string;
@@ -89,6 +92,8 @@ interface AllProductsProps {
   loading?: boolean;
   error?: string | null;
   copyingProduct?: Set<string>;
+  /** called after stock was received, to reload the list */
+  onStockChanged?: () => void;
 }
 
 export default function AllProducts({
@@ -100,7 +105,8 @@ export default function AllProducts({
   onToggleFeatured,
   loading = false,
   error = null,
-  copyingProduct = new Set()
+  copyingProduct = new Set(),
+  onStockChanged
 }: AllProductsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -115,6 +121,34 @@ export default function AllProducts({
 
   const [togglingStatus, setTogglingStatus] = useState<Set<string>>(new Set());
   const productsPerPage = 12;
+
+  // Stickers / receive stock
+  const codeSummaries = useCodeSummaries(products);
+  const [receiveFor, setReceiveFor] = useState<{ id: string; variantId?: string | null } | null>(null);
+  const openStickers = useCallback(
+    (id: string, opts?: { variantId?: string | null; batchNo?: string | null }) => {
+      const q = new URLSearchParams();
+      if (opts?.variantId) q.set("variantId", opts.variantId);
+      if (opts?.batchNo) {
+        q.set("type", "batch");
+        q.set("batchNo", opts.batchNo);
+      }
+      const qs = q.toString();
+      router.push(`/admin/products/stickers/${id}${qs ? `?${qs}` : ""}`);
+    },
+    [router]
+  );
+  const receiveModal = receiveFor && (
+    <ReceiveStockModal
+      productId={receiveFor.id}
+      productName={products.find((p) => p.id === receiveFor.id)?.name}
+      initialVariantId={receiveFor.variantId}
+      onClose={(changed) => {
+        setReceiveFor(null);
+        if (changed) onStockChanged?.();
+      }}
+    />
+  );
 
   // Update URL params
   const updateUrlParams = useCallback((updates: Record<string, string | null>) => {
@@ -261,6 +295,13 @@ export default function AllProducts({
         onClearFilters={handleClearAllFilters}
       />
 
+      {/* Find by code */}
+      <CodeFinder
+        onStickers={openStickers}
+        onEdit={(id) => (onEdit ? onEdit(id) : router.push(`/admin/products/edit/${id}`))}
+        onReceiveStock={(id, variantId) => setReceiveFor({ id, variantId })}
+      />
+
       {/* Products Grid */}
       {currentProducts.length > 0 ? (
         <div className="grid grid-cols-6 gap-2">
@@ -276,6 +317,9 @@ export default function AllProducts({
               togglingStatus={togglingStatus}
               copyingProduct={copyingProduct}
               handleToggleStatus={handleToggleStatus}
+              codeSummary={codeSummaries[product.id]}
+              onStickers={(id) => openStickers(id)}
+              onReceiveStock={(id) => setReceiveFor({ id })}
             />
           ))}
         </div>
@@ -297,6 +341,8 @@ export default function AllProducts({
         indexOfFirstProduct={indexOfFirstProduct}
         indexOfLastProduct={indexOfLastProduct}
       />
+
+      {receiveModal}
     </div>
   );
 }

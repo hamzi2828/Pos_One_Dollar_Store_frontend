@@ -22,6 +22,12 @@ export interface Variant {
   stock: number;
   sku?: string;
   discountedPrice?: number;
+  // Barcode / option fields (kept as-is when the color/size selection changes)
+  variantId?: string;
+  attributes?: Record<string, string>;
+  shortCode?: string;
+  barcodes?: Array<{ code: string; qty: number; label?: string }>;
+  [key: string]: unknown;
 }
 
 // Common type that can be used for Product
@@ -36,16 +42,27 @@ export function slugify(str: string): string {
     .replace(/-+/g, '-');
 }
 
+// Color x size combinations. If only colors (or only sizes) are picked, one
+// variant per color (or size) — e.g. a phone with colors only, and Storage/RAM
+// set per variant as free options.
 export function buildVariantCombos(colors: string[], sizes: string[]): Array<Pick<Variant, 'color' | 'size'>> {
   if (!Array.isArray(colors) || !Array.isArray(sizes)) return [];
-  return colors.flatMap((color) => sizes.map((size) => ({ color, size })));
+  const c = colors.filter(Boolean);
+  const s = sizes.filter(Boolean);
+  if (c.length === 0 && s.length === 0) return [];
+  if (s.length === 0) return c.map((color) => ({ color, size: '' }));
+  if (c.length === 0) return s.map((size) => ({ color: '', size }));
+  return c.flatMap((color) => s.map((size) => ({ color, size })));
 }
 
 export function syncVariants(existing: Variant[] | undefined, combos: Array<Pick<Variant, 'color' | 'size'>>): Variant[] {
   const prev = existing ?? [];
   return combos.map(({ color, size }) => {
-    const match = prev.find((v) => v.color === color && v.size === size);
+    const match = prev.find((v) => (v.color || '') === color && (v.size || '') === size);
+    // Keep everything the variant already had (variantId, costPrice, short code,
+    // barcodes, batches, options...) so editing the selection never loses codes.
     return {
+      ...(match || {}),
       color,
       size,
       price: match?.price ?? 0,
@@ -70,8 +87,8 @@ export function validateProduct(form: ProductFormLike, isVariant: boolean, selec
       else if (form.discountedPrice > form.price) errors.discountedPrice = 'Discounted price must be ≤ price';
     }
   } else {
-    if (selectedColors.length === 0 || selectedSizes.length === 0) {
-      errors.variants = 'Select at least one color and one size';
+    if (selectedColors.length === 0 && selectedSizes.length === 0) {
+      errors.variants = 'Select at least one color or one size';
     }
     if (!form.variants || form.variants.length === 0) {
       errors.variants = errors.variants || 'Add at least one variant';

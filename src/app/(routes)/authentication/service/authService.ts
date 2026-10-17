@@ -1,3 +1,5 @@
+import type { AccessInfo } from '@/helper/access';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 export interface LoginPayload {
@@ -15,6 +17,8 @@ export interface LoginResponse {
     email: string;
     role: 'user' | 'admin' | 'moderator';
   };
+  /** Branch + role + permissions of a staff login (see helper/access.ts). */
+  access?: AccessInfo;
 }
 
 export async function login(payload: LoginPayload): Promise<LoginResponse> {

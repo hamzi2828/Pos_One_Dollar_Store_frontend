@@ -89,6 +89,9 @@ export interface JwtBasePayload {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ROLE_KEY);
+    // Branch access (see helper/access.ts): forget role/branch + picked branch.
+    localStorage.removeItem('auth_access');
+    localStorage.removeItem('selected_branch');
     try {
       document.cookie = `${TOKEN_KEY}=; Max-Age=0; path=/; samesite=lax`;
       document.cookie = `${ROLE_KEY}=; Max-Age=0; path=/; samesite=lax`;

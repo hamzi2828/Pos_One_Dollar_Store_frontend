@@ -1,9 +1,10 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import Image from "next/image";
-import { Edit2, Trash2, Star, Layers, Package, AlertTriangle, ChevronLeft, ChevronRight, Tag, Copy, Eye, X } from "lucide-react";
+import { Edit2, Trash2, Star, Layers, Package, AlertTriangle, ChevronLeft, ChevronRight, Tag, Copy, Eye, X, Printer, PackagePlus, Barcode } from "lucide-react";
 import { Product } from "../AllProducts";
 import { useCurrency } from "@/context/CurrencyContext";
+import type { CodeSummary } from "../../services/labelService";
 
 interface ProductCardProps {
   product: Product;
@@ -15,6 +16,10 @@ interface ProductCardProps {
   togglingStatus: Set<string>;
   copyingProduct?: Set<string>;
   handleToggleStatus: (productId: string, currentStatus: 'published' | 'draft' | 'out_of_stock') => Promise<void>;
+  /** short code / box / batches info for the badges */
+  codeSummary?: CodeSummary;
+  onStickers?: (id: string) => void;
+  onReceiveStock?: (id: string) => void;
 }
 
 export default function ProductCard({
@@ -26,7 +31,10 @@ export default function ProductCard({
   onToggleFeatured,
   togglingStatus,
   copyingProduct = new Set(),
-  handleToggleStatus
+  handleToggleStatus,
+  codeSummary,
+  onStickers,
+  onReceiveStock
 }: ProductCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showStockModal, setShowStockModal] = useState(false);
@@ -151,6 +159,22 @@ export default function ProductCard({
           <span className="text-[8px] text-gray-500 truncate max-w-[60%]">{product.category}</span>
           <span className="text-[8px] text-gray-400">{product.stock}</span>
         </div>
+        {codeSummary && (codeSummary.shortCode || codeSummary.piecesPerBox > 1 || codeSummary.hasBatches) && (
+          <div className="flex flex-wrap items-center gap-0.5 mt-0.5">
+            {codeSummary.shortCode && (
+              <span className="inline-flex items-center gap-0.5 px-1 py-px rounded bg-gray-100 text-gray-700 font-mono text-[8px] font-semibold" title="Short code (type or scan this at the till)">
+                <Barcode className="h-2 w-2" />
+                {codeSummary.shortCode}
+              </span>
+            )}
+            {codeSummary.piecesPerBox > 1 && (
+              <span className="px-1 py-px rounded bg-amber-50 text-amber-700 text-[8px] font-medium">Box of {codeSummary.piecesPerBox}</span>
+            )}
+            {codeSummary.hasBatches && (
+              <span className="px-1 py-px rounded bg-blue-50 text-blue-700 text-[8px] font-medium">Batches</span>
+            )}
+          </div>
+        )}
         <div className="mt-0.5">
           {product.productType === "variant" && product.variants && product.variants.length > 0 ? (
             <span className="text-[10px] font-semibold text-gray-900">{formatPrice(Math.min(...product.variants.map(v => v.price)))}</span>
@@ -213,6 +237,32 @@ export default function ProductCard({
             </button>
           </div>
         </div>
+
+        {/* Stickers / stock */}
+        {(onStickers || onReceiveStock) && (
+          <div className="grid grid-cols-2 gap-0.5 mt-1">
+            {onStickers && (
+              <button
+                onClick={() => onStickers(product.id)}
+                className="inline-flex items-center justify-center gap-0.5 py-0.5 text-[8px] font-medium text-honey-600 bg-honey-50 hover:bg-honey-100 rounded transition-colors"
+                title="Print barcode stickers"
+              >
+                <Printer className="h-2.5 w-2.5" />
+                Stickers
+              </button>
+            )}
+            {onReceiveStock && (
+              <button
+                onClick={() => onReceiveStock(product.id)}
+                className="inline-flex items-center justify-center gap-0.5 py-0.5 text-[8px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                title="Add new stock (a delivery)"
+              >
+                <PackagePlus className="h-2.5 w-2.5" />
+                Receive
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Variant Stock Modal */}

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getAuthHeader } from '@/helper/helper';
 import { cleanParams, EMPTY_PAGINATION, type PagedResponse, type BasePagingParams } from '@/helper/pagination';
-import type { Role, PermissionAction } from '../rolesStore';
+import type { Role, PermissionAction, PermissionSection, PermissionGroup } from '../rolesStore';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const ROLES_URL = `${API_BASE_URL}/admin/roles`;
@@ -22,6 +22,14 @@ export interface UpdateRolePayload {
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeader() });
 
 export const roleService = {
+  /** Permission catalogue (sections -> groups -> allowed actions) from the backend. */
+  async getCatalogue(signal?: AbortSignal): Promise<{ sections: PermissionSection[]; groups: PermissionGroup[] }> {
+    const response = await axios.get(`${ROLES_URL}/catalogue`, { headers: headers(), signal });
+    const sections: PermissionSection[] = response.data?.data?.sections ?? [];
+    const groups: PermissionGroup[] = response.data?.data?.groups ?? sections.flatMap((s) => s.groups);
+    return { sections, groups };
+  },
+
   async getRoles(params: RoleListParams = {}, signal?: AbortSignal): Promise<PagedResponse<Role>> {
     const response = await axios.get(ROLES_URL, {
       headers: headers(),

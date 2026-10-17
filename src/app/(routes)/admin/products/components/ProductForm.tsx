@@ -7,10 +7,25 @@ import { FiPlus, FiX } from "react-icons/fi";
 import type { Product, ProductVariant } from "./AllProducts";
 import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
-import { productService } from "../services/productService";
+import { productService, type ProductUI } from "../services/productService";
 import { carService, type CarMakeUI, type CarModelUI, type CarVariantUI } from "../services/carService";
 import { useCurrency } from "@/context/CurrencyContext";
 import RichTextEditor from "@/components/RichTextEditor";
+import { ChevronDown, Hash } from "lucide-react";
+import PackagingStockCard from "./packaging/PackagingStockCard";
+import VariantCodesRow from "./packaging/VariantCodesRow";
+import {
+  type PackagingState,
+  type ProductCodeFields,
+  type VariantCodeFields,
+  appendPackagingFields,
+  computedStock,
+  initPackaging,
+  normalizeCode,
+  readBackendError,
+  validatePackaging,
+  variantPayload,
+} from "./packaging/packagingUtils";
 
 // Guideline type
 interface Guideline {
@@ -69,9 +84,12 @@ interface ProductFormProps {
   guidelines?: Guideline[];
   onSubmit?: (data: ProductFormData) => void;
   onCancel?: () => void;
-  onSuccess?: () => void;
+  // Gets the saved product (create: use its id to open the stickers page)
+  onSuccess?: (product?: ProductUI) => void;
   onManageAttributes?: () => void;
 }
+
+type VariantWithCodes = ProductVariant & VariantCodeFields;
 
 interface ColorMediaData {
   thumbnailUrl?: string;
@@ -201,6 +219,17 @@ export default function ProductForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Packaging / barcodes / batches (single products). Edit: loaded from the product.
+  const [packaging, setPackaging] = useState<PackagingState>(() =>
+    initPackaging(initialData && initialData.productType !== "variant" ? (initialData as unknown as ProductCodeFields) : null)
+  );
+  // Errors from the backend for a code (409 duplicate / 400 invalid short code)
+  const [codeErrors, setCodeErrors] = useState<Record<string, string>>({});
+  // Variant rows with the "options & barcodes" row open (key = color|size)
+  const [openVariantRows, setOpenVariantRows] = useState<Record<string, boolean>>({});
+  const productId = mode === "edit" ? (initialData as Product | undefined)?.id : undefined;
+  const savedStock = Number((initialData as Product | undefined)?.stock) || 0;
 
   // Update URL when tab changes
   const handleTabChange = useCallback((tab: TabKey) => {
@@ -519,8 +548,8 @@ export default function ProductForm({
     if (mode === "edit" && initialData) {
       // Extract variants information to set selected colors and sizes
       if (initialData.productType === "variant" && initialData.variants) {
-        const colors = Array.from(new Set((initialData.variants as ProductVariant[]).map(v => v.color)));
-        const sizes = Array.from(new Set((initialData.variants as ProductVariant[]).map(v => v.size)));
+        const colors = Array.from(new Set((initialData.variants as ProductVariant[]).map(v => v.color).filter(Boolean)));
+        const sizes = Array.from(new Set((initialData.variants as ProductVariant[]).map(v => v.size).filter(Boolean)));
         setSelectedColors(colors);
         setSelectedSizes(sizes);
 
@@ -619,23 +648,19 @@ export default function ProductForm({
     if (!isVariant) {
       if (!form.price || form.price < 0) e.price = "Price must be a positive number";
       if (form.stock < 0) e.stock = "Stock cannot be negative";
-      if (mode === "create" && !thumbFile && !form.thumbnailUrl?.trim()) {
-        e.thumbnail = "Thumbnail is required";
-      }
-      // Required fields for single products
-      if (!form.sku?.trim()) e.sku = "SKU is required";
+      // Thumbnail is optional so simple items (pens, cables) can be added quickly.
+      // Required fields for single products (SKU is optional: the short code is the main code)
       if (form.costPrice === undefined || form.costPrice === null) e.costPrice = "Cost Price is required";
       if (form.discountedPrice === undefined || form.discountedPrice === null) e.discountedPrice = "Sale Price is required";
+      // Boxes / batches / short code
+      Object.assign(e, validatePackaging(packaging, mode));
     } else {
-      if (selectedColors.length === 0) e.colors = "Select at least one color";
-      if (selectedSizes.length === 0) e.sizes = "Select at least one size";
+      if (selectedColors.length === 0 && selectedSizes.length === 0 && (form.variants || []).length === 0) {
+        e.colors = "Select at least one color or one size";
+      }
     }
 
-    // Dimensions, Weight validations (required for all products)
-    if (!form.dimensionLength?.trim()) e.dimensionLength = "Length is required";
-    if (!form.dimensionWidth?.trim()) e.dimensionWidth = "Width is required";
-    if (!form.dimensionHeight?.trim()) e.dimensionHeight = "Height is required";
-    if (!form.weight?.trim()) e.weight = "Weight is required";
+    // Dimensions and weight are optional
 
     // SEO validations
     if (form.metaTitle && form.metaTitle.length > META_TITLE_LIMIT) {
@@ -678,6 +703,26 @@ export default function ProductForm({
       return { ...prev, [key]: value };
     });
   }, []);
+
+  // Box / batch mode: stock is computed (boxes x pieces + loose, or sum of batches)
+  useEffect(() => {
+    if (isVariant) return;
+    const c = computedStock(packaging);
+    if (c !== null && c !== form.stock) setField("stock", c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packaging, isVariant]);
+
+  const updatePackaging = useCallback((next: PackagingState) => {
+    setPackaging(next);
+    setCodeErrors((prev) => (prev.shortCode || prev.barcodes ? { ...prev, shortCode: "", barcodes: "" } : prev));
+  }, []);
+
+  const updateVariantAt = (index: number, patch: Partial<VariantWithCodes>) => {
+    const newVariants = [...((form.variants as VariantWithCodes[]) || [])];
+    newVariants[index] = { ...newVariants[index], ...patch };
+    setField("variants", newVariants as ProductVariant[]);
+    if (codeErrors[`variant-${index}`]) setCodeErrors((prev) => ({ ...prev, [`variant-${index}`]: "" }));
+  };
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: "thumbnail" | "banner") => {
     const file = e.target.files?.[0];
@@ -893,9 +938,15 @@ export default function ProductForm({
     if (!validation.isValid) {
       const errs = validation.errors;
       // Navigate to the tab with the first error
-      if (errs.name || errs.category || errs.price || errs.stock || errs.thumbnail || errs.sku || errs.costPrice || errs.discountedPrice || errs.colors || errs.sizes || errs.dimensionLength || errs.dimensionWidth || errs.dimensionHeight || errs.weight) {
+      if (errs.colors || errs.sizes) {
+        handleTabChange("variant");
+        toast.error(errs.colors || errs.sizes);
+      } else if (errs.name || errs.category || errs.price || errs.stock || errs.costPrice || errs.discountedPrice || errs.piecesPerBox || errs.boxes || errs.batches || errs.shortCode) {
         handleTabChange("content");
         toast.error("Please fix the errors in Product Details tab");
+      } else if (errs.thumbnail) {
+        handleTabChange("variant");
+        toast.error(errs.thumbnail);
       } else if (errs.metaTitle || errs.metaDescription || errs.metaSchema) {
         handleTabChange("seo");
         toast.error("Please fix the errors in SEO & Meta tab");
@@ -940,9 +991,15 @@ export default function ProductForm({
 
       formData.append("showGuidelines", String(guidelineEnabled));
 
-      // SKU for single products
-      if (!isVariant && form.sku) {
-        formData.append("sku", form.sku);
+      // SKU for single products (optional)
+      if (!isVariant && form.sku?.trim()) {
+        formData.append("sku", form.sku.trim());
+      }
+
+      // Boxes / batches / barcodes / short code (single products).
+      // Overrides `stock` when it is computed from boxes or batches.
+      if (!isVariant) {
+        appendPackagingFields(formData, packaging, mode);
       }
 
       // Cost Price for single products
@@ -981,7 +1038,8 @@ export default function ProductForm({
         const basePrice = (form.variants[0] as ProductVariant)?.price ?? 0;
         formData.set("stock", String(variantStock));
         formData.set("price", String(basePrice));
-        formData.append("variants", JSON.stringify(form.variants));
+        // Drop view-only fields (branchStock / totalStock) and clean options + barcodes
+        formData.append("variants", JSON.stringify((form.variants as VariantWithCodes[]).map((v) => variantPayload(v as unknown as Record<string, unknown>))));
         
         // Handle color-specific media
         console.log('Processing colorMedia for submission:', colorMedia);
@@ -1074,10 +1132,11 @@ export default function ProductForm({
         }
       }
       
+      let saved: ProductUI;
       if (mode === "create") {
-        await productService.createProduct(formData);
+        saved = await productService.createProduct(formData);
       } else {
-        await productService.updateProduct((initialData as Product).id, formData);
+        saved = await productService.updateProduct((initialData as Product).id, formData);
       }
       
       if (onSubmit) {
@@ -1107,13 +1166,50 @@ export default function ProductForm({
         if (thumbInputRef.current) thumbInputRef.current.value = "";
         if (bannerInputRef.current) bannerInputRef.current.value = "";
         if (videoInputRef.current) videoInputRef.current.value = "";
+        setPackaging(initPackaging(null));
       }
+      setCodeErrors({});
       
-      if (onSuccess) onSuccess();
+      if (onSuccess) onSuccess(saved);
       
     } catch (error) {
       console.error(`Error ${mode === "create" ? "creating" : "updating"} product:`, error);
-      toast.error(`Failed to ${mode} product`);
+      const be = readBackendError(error);
+      if (be && (be.status === 409 || be.code === "INVALID_SHORT_CODE") && (be.duplicateCode || be.code === "INVALID_SHORT_CODE")) {
+        // Show the message next to the field that holds the code
+        const dup = normalizeCode(be.duplicateCode);
+        const next: Record<string, string> = {};
+        let tab: TabKey = "content";
+        if (be.code === "INVALID_SHORT_CODE") {
+          next.shortCode = be.message || "Short code must be 3 to 8 digits";
+        } else if (!isVariant) {
+          if (dup && normalizeCode(packaging.shortCode) === dup) next.shortCode = be.message;
+          else if (packaging.barcodes.some((b) => normalizeCode(b.code) === dup)) next.barcodes = be.message;
+          else if (dup && normalizeCode(form.sku) === dup) next.sku = be.message;
+          else if (packaging.trackBatches) next.batches = be.message;
+          else next.barcodes = be.message;
+        } else {
+          tab = "variant";
+          const idx = ((form.variants as VariantWithCodes[]) || []).findIndex(
+            (v) =>
+              normalizeCode(v.shortCode) === dup ||
+              normalizeCode(v.sku) === dup ||
+              (v.barcodes || []).some((b) => normalizeCode(b.code) === dup)
+          );
+          if (idx >= 0) {
+            next[`variant-${idx}`] = be.message;
+            const v = (form.variants as VariantWithCodes[])[idx];
+            setOpenVariantRows((prev) => ({ ...prev, [`${v.color}|${v.size}`]: true }));
+          }
+        }
+        setCodeErrors(next);
+        handleTabChange(tab);
+        toast.error(be.message || "This code is already used by another product");
+      } else if (be && be.message && be.status && be.status < 500) {
+        toast.error(be.message);
+      } else {
+        toast.error(`Failed to ${mode} product`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1485,21 +1581,37 @@ export default function ProductForm({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Stock Quantity
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    disabled={isVariant}
-                    placeholder="0"
-                    className={`block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm ${
-                      isVariant
-                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                        : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
-                    }`}
-                    value={isVariant ? 0 : form.stock}
-                    onChange={(e) => setField("stock", Number(e.target.value))}
-                  />
-                  {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
-                  {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
+                  {(() => {
+                    // Box / batch mode: stock is calculated in "Packaging & Stock" below
+                    const stockLocked = isVariant || computedStock(packaging) !== null;
+                    return (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          disabled={stockLocked}
+                          placeholder="0"
+                          className={`block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm ${
+                            stockLocked
+                              ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                              : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
+                          }`}
+                          value={isVariant ? 0 : form.stock}
+                          onChange={(e) => setField("stock", Number(e.target.value))}
+                        />
+                        {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
+                        {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
+                        {!isVariant && stockLocked && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {packaging.trackBatches ? "Total of the batches below" : "Calculated from boxes below"}
+                          </p>
+                        )}
+                        {!isVariant && !stockLocked && mode === "edit" && (
+                          <p className="mt-1 text-xs text-gray-500">Pieces in the branch you are working in</p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div>
@@ -1524,16 +1636,21 @@ export default function ProductForm({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      SKU <span className="text-red-500">*</span>
+                      SKU <span className="text-xs text-gray-400">(Optional)</span>
                     </label>
                     <input
                       type="text"
                       placeholder="e.g., PROD-001, SKU-12345"
-                      className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.sku ? 'border-red-300' : 'border-gray-300'}`}
+                      className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${(errors.sku || codeErrors.sku) ? 'border-red-300' : 'border-gray-300'}`}
                       value={form.sku || ""}
-                      onChange={(e) => setField("sku", e.target.value)}
+                      onChange={(e) => {
+                        setField("sku", e.target.value);
+                        if (codeErrors.sku) setCodeErrors((prev) => ({ ...prev, sku: "" }));
+                      }}
                     />
-                    {errors.sku && <p className="mt-1 text-sm text-red-600">{errors.sku}</p>}
+                    {(errors.sku || codeErrors.sku)
+                      ? <p className="mt-1 text-sm text-red-600">{errors.sku || codeErrors.sku}</p>
+                      : <p className="mt-1 text-xs text-gray-500">Your own product code. Not needed if you use the short code.</p>}
                   </div>
 
                   <div>
@@ -1560,12 +1677,34 @@ export default function ProductForm({
                 </div>
               )}
 
+              {/* Packaging & Stock: boxes, batches, barcodes, short code (single products) */}
+              {!isVariant && (
+                <div className="mt-3 sm:mt-4 md:mt-6">
+                  <PackagingStockCard
+                    value={packaging}
+                    onChange={updatePackaging}
+                    mode={mode}
+                    productId={productId}
+                    errors={{
+                      piecesPerBox: errors.piecesPerBox || "",
+                      boxes: errors.boxes || "",
+                      batches: errors.batches || codeErrors.batches || "",
+                      shortCode: errors.shortCode || codeErrors.shortCode || "",
+                      barcodes: codeErrors.barcodes || "",
+                    }}
+                    currencySymbol={currency.symbol}
+                    defaultCostPrice={form.costPrice}
+                    savedStock={savedStock}
+                  />
+                </div>
+              )}
+
               {/* Dimensions and Weight Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
                 {/* Dimensions */}
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Dimensions <span className="text-red-500">*</span>
+                    Dimensions <span className="text-xs text-gray-400">(Optional)</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
@@ -1601,15 +1740,12 @@ export default function ProductForm({
                       <p className="mt-0.5 text-xs text-gray-400 text-center">H</p>
                     </div>
                   </div>
-                  {(errors.dimensionLength || errors.dimensionWidth || errors.dimensionHeight) && (
-                    <p className="mt-1 text-sm text-red-600">All dimensions are required</p>
-                  )}
                 </div>
 
                 {/* Weight */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Weight <span className="text-red-500">*</span>
+                    Weight <span className="text-xs text-gray-400">(Optional)</span>
                   </label>
                   <input
                     type="text"
@@ -2025,11 +2161,14 @@ export default function ProductForm({
             {/* Variant Configuration */}
             {isVariant && (
               <div className="border-t border-gray-200 pt-6 space-y-4">
-                <h4 className="text-sm font-medium text-gray-900">Variant Options</h4>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">Variant Options</h4>
+                  <p className="mt-0.5 text-xs text-gray-500">Pick colors, sizes, or both. Phones: pick colors, then set Storage / RAM per variant with the options button.</p>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700">Colors <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700">Colors</label>
                       {onManageAttributes && (
                         <button
                           type="button"
@@ -2161,7 +2300,7 @@ export default function ProductForm({
 
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700">Sizes <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700">Sizes</label>
                       {onManageAttributes && (
                         <button
                           type="button"
@@ -2300,6 +2439,7 @@ export default function ProductForm({
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount %</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Price ({currency.symbol})</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Options &amp; Codes</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
                           </tr>
                         </thead>
@@ -2308,10 +2448,24 @@ export default function ProductForm({
                             const discountPercent = variant.price && variant.discountedPrice
                               ? Math.round((1 - variant.discountedPrice / variant.price) * 100)
                               : 0;
+                            const vc = variant as VariantWithCodes;
+                            const rowKey = `${variant.color}|${variant.size}`;
+                            const rowOpen = !!openVariantRows[rowKey] || !!codeErrors[`variant-${index}`];
+                            const hasBatches = (vc.batches || []).length > 0;
+                            const optionText = Object.values(vc.attributes || {}).filter(Boolean).join(" / ");
+                            const extraCount = (vc.barcodes || []).filter((b) => b.label !== "full-box").length;
                             return (
-                            <tr key={`${variant.color}-${variant.size}`}>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{variant.color}</td>
-                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{variant.size}</td>
+                            <React.Fragment key={rowKey}>
+                            <tr>
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                                {variant.color || <span className="text-gray-400">—</span>}
+                                {vc.shortCode && (
+                                  <span className="mt-1 flex w-fit items-center gap-0.5 rounded bg-honey-50 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-honey-600">
+                                    <Hash className="h-3 w-3" />{vc.shortCode}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{variant.size || <span className="text-gray-400">—</span>}</td>
                               <td className="px-3 py-3 whitespace-nowrap">
                                 <input
                                   type="text"
@@ -2396,13 +2550,29 @@ export default function ProductForm({
                                   type="number"
                                   min="0"
                                   value={variant.stock || ""}
+                                  disabled={hasBatches}
+                                  title={hasBatches ? "Stock comes from this variant's batches" : undefined}
                                   onChange={(e) => {
                                     const newVariants = [...(form.variants as ProductVariant[] || [])];
                                     newVariants[index] = { ...variant, stock: Number(e.target.value) };
                                     setField("variants", newVariants);
                                   }}
-                                  className="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                  className={`w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm ${hasBatches ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
                                 />
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenVariantRows((prev) => ({ ...prev, [rowKey]: !rowOpen }))}
+                                  className={`inline-flex max-w-[180px] items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors ${
+                                    rowOpen ? 'border-gray-900 bg-gray-50 text-gray-900' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <span className="truncate">
+                                    {optionText || (extraCount ? `${extraCount} barcode${extraCount > 1 ? 's' : ''}` : 'Add')}
+                                  </span>
+                                  <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${rowOpen ? 'rotate-180' : ''}`} />
+                                </button>
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap">
                                 {index === 0 && (form.variants as ProductVariant[] || []).length > 1 && (
@@ -2430,6 +2600,20 @@ export default function ProductForm({
                                 )}
                               </td>
                             </tr>
+                            {rowOpen && (
+                              <VariantCodesRow
+                                colSpan={10}
+                                variant={vc}
+                                productId={productId}
+                                error={codeErrors[`variant-${index}`]}
+                                otherCodesInForm={((form.variants as VariantWithCodes[]) || [])
+                                  .filter((_, i) => i !== index)
+                                  .flatMap((o) => [o.shortCode || "", o.sku || "", ...(o.barcodes || []).map((b) => b.code)])
+                                  .filter(Boolean)}
+                                onChange={(patch) => updateVariantAt(index, patch)}
+                              />
+                            )}
+                            </React.Fragment>
                             );
                           })}
                         </tbody>
@@ -2593,7 +2777,7 @@ export default function ProductForm({
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-sm font-medium text-gray-700">
-                        Thumbnail <span className="text-red-500">*</span>
+                        Thumbnail <span className="text-gray-400 font-normal">(Optional)</span>
                       </label>
                     </div>
                     <input

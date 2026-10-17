@@ -45,7 +45,12 @@ import {
   AlertCircle,
   Car,
   Signal,
+  ArrowLeftRight,
+  UserCog,
 } from 'lucide-react';
+import { useAccess } from '@/context/AccessContext';
+import { describeAccess } from '@/helper/access';
+import { getCurrentUser } from '@/helper/helper';
 
 interface MenuItem {
   name: string;
@@ -53,6 +58,10 @@ interface MenuItem {
   icon: React.ReactNode;
   badge?: string;
   notificationCount?: number;
+  /** Permission key(s) needed to see this item ('view'); any one is enough. */
+  perm?: string | string[];
+  /** Only the super admin sees it. */
+  superOnly?: boolean;
 }
 
 interface AdminSidebarProps {
@@ -64,6 +73,11 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onToggleCollapse }: AdminSidebarProps) {
   const pathname = usePathname();
+  const { access, can, isSuperAdmin, currentBranch } = useAccess();
+  const tokenUser = getCurrentUser();
+  const footerName =
+    `${access?.user?.firstName || tokenUser?.firstName || ''} ${access?.user?.lastName || tokenUser?.lastName || ''}`.trim() || 'Admin';
+  const footerRole = describeAccess(access, currentBranch?.name);
   const [siteName, setSiteName] = useState<string>('');
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -143,50 +157,57 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
   // Main Section
   const mainMenuItems: MenuItem[] = [
-    { name: 'Dashboard', path: '/admin', icon: <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'POS', path: '/admin/pos', icon: <Store className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'POS Orders', path: '/admin/pos-orders', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Load', path: '/admin/load', icon: <Signal className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { name: 'Dashboard', path: '/admin', icon: <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'dashboard' },
+    { name: 'POS', path: '/admin/pos', icon: <Store className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'pos' },
+    { name: 'POS Orders', path: '/admin/pos-orders', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'pos_orders' },
+    { name: 'Load', path: '/admin/load', icon: <Signal className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'networks' },
   ];
 
   // Reports Section — all business analytics reports in one place.
   const reportsMenuItems: MenuItem[] = [
-    { name: 'Sales Reports', path: '/admin/reports/sales', icon: <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Purchase Reports', path: '/admin/reports/purchases', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Cost Analysis', path: '/admin/reports/cost-analysis', icon: <LineChart className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Stock', path: '/admin/reports/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Expenses', path: '/admin/reports/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Vendor Payments', path: '/admin/reports/vendor-payments', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Receivables', path: '/admin/reports/receivables', icon: <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Cash in Hand', path: '/admin/reports/cash-in-hand', icon: <Wallet className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { name: 'Sales Reports', path: '/admin/reports/sales', icon: <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_sales' },
+    { name: 'Purchase Reports', path: '/admin/reports/purchases', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_purchases' },
+    { name: 'Cost Analysis', path: '/admin/reports/cost-analysis', icon: <LineChart className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cost_analysis' },
+    { name: 'Stock', path: '/admin/reports/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_stock' },
+    { name: 'Expenses', path: '/admin/reports/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_expenses' },
+    { name: 'Vendor Payments', path: '/admin/reports/vendor-payments', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_vendor_payments' },
+    { name: 'Receivables', path: '/admin/reports/receivables', icon: <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_receivables' },
+    { name: 'Cash in Hand', path: '/admin/reports/cash-in-hand', icon: <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cash_in_hand' },
   ];
 
   // Product Management Section
   const productMenuItems: MenuItem[] = [
-    { name: 'Products', path: '/admin/products', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Categories', path: '/admin/products/categories', icon: <Layers className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Attributes', path: '/admin/products/attributes', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Stock', path: '/admin/products/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { name: 'Products', path: '/admin/products', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'products' },
+    { name: 'Categories', path: '/admin/products/categories', icon: <Layers className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_categories' },
+    { name: 'Attributes', path: '/admin/products/attributes', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_attributes' },
+    { name: 'Stock', path: '/admin/products/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['product_stock', 'stock_receive'] },
   ];
 
   // Customer Management Section
   const customerMenuItems: MenuItem[] = [
-    { name: 'Customers', path: '/admin/users', icon: <Users className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { name: 'Customers', path: '/admin/users', icon: <Users className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'customers' },
   ];
 
   // Finance Section
   const financeMenuItems: MenuItem[] = [
-    { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Procurement', path: '/admin/procurement', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'banks' },
+    { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'expenses' },
+    { name: 'Procurement', path: '/admin/procurement', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'procurement' },
+    { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
+  ];
+
+  // Branches & Staff Section — shops, staff logins, what each role may do, moving stock.
+  const branchMenuItems: MenuItem[] = [
+    { name: 'Branches', path: '/admin/branches', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'branches' },
+    { name: 'Staff Logins', path: '/admin/staff', icon: <UserCog className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'staff' },
+    { name: 'Roles & Permissions', path: '/admin/roles', icon: <Shield className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'roles' },
+    { name: 'Stock Transfers', path: '/admin/stock-transfers', icon: <ArrowLeftRight className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'stock_transfers' },
   ];
 
   // System Settings Section
   const systemMenuItems: MenuItem[] = [
-    { name: 'Roles & Permissions', path: '/admin/roles', icon: <Shield className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Activity Log', path: '/admin/activity-log', icon: <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" /> },
-    { name: 'Settings', path: '/admin/settings', icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" /> },
+    { name: 'Activity Log', path: '/admin/activity-log', icon: <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'activity_log' },
+    { name: 'Settings', path: '/admin/settings', icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'settings' },
   ];
 
   const renderMenuItem = (item: MenuItem) => {
@@ -197,7 +218,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     // But exclude cases where another menu item has a more specific match
     if (!isActive && item.path !== '/admin' && pathname?.startsWith(item.path)) {
       // Check if there's a more specific menu item that matches
-      const allItems = [...mainMenuItems, ...reportsMenuItems, ...productMenuItems, ...customerMenuItems, ...financeMenuItems, ...systemMenuItems];
+      const allItems = [...mainMenuItems, ...reportsMenuItems, ...productMenuItems, ...customerMenuItems, ...financeMenuItems, ...branchMenuItems, ...systemMenuItems];
       const hasMoreSpecificMatch = allItems.some(
         other => other.path !== item.path &&
                  other.path.startsWith(item.path) &&
@@ -311,8 +332,11 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
             {(() => {
               const q = sidebarSearch.toLowerCase().trim();
+              // Hide what this login may not open (super admin sees everything).
+              const allowed = (item: MenuItem) =>
+                item.superOnly ? isSuperAdmin || !access : !item.perm || can(item.perm, 'view');
               const filterItems = (items: MenuItem[]) =>
-                q ? items.filter((item) => item.name.toLowerCase().includes(q)) : items;
+                items.filter(allowed).filter((item) => !q || item.name.toLowerCase().includes(q));
 
               const sections = [
                 { label: 'Main', icon: <LayoutDashboard className="w-3.5 h-3.5" />, items: filterItems(mainMenuItems) },
@@ -320,6 +344,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                 { label: 'Product Management', icon: <Package className="w-3.5 h-3.5" />, items: filterItems(productMenuItems) },
                 { label: 'Customer Management', icon: <Users className="w-3.5 h-3.5" />, items: filterItems(customerMenuItems) },
                 { label: 'Finance', icon: <Wallet className="w-3.5 h-3.5" />, items: filterItems(financeMenuItems) },
+                { label: 'Branches & Staff', icon: <Building2 className="w-3.5 h-3.5" />, items: filterItems(branchMenuItems) },
                 { label: 'System Settings', icon: <Settings className="w-3.5 h-3.5" />, items: filterItems(systemMenuItems) },
               ];
 
@@ -410,13 +435,13 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
           {/* Footer */}
           <div className="p-2 sm:p-3 md:p-4 border-t border-gray-200">
-            <div className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 rounded-md sm:rounded-lg ${isCollapsed ? 'lg:justify-center lg:px-1' : ''}`} title={isCollapsed ? 'Admin' : undefined}>
+            <div className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 rounded-md sm:rounded-lg ${isCollapsed ? 'lg:justify-center lg:px-1' : ''}`} title={isCollapsed ? `${footerName} — ${footerRole}` : undefined}>
               <div className="flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-gray-200 rounded-full flex-shrink-0">
                 <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-gray-600" />
               </div>
               <div className={`flex-1 min-w-0 ${isCollapsed ? 'lg:hidden' : ''}`}>
-                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">Admin</p>
-                <p className="text-[10px] sm:text-xs text-gray-500 truncate">Administrator</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{footerName}</p>
+                <p className="text-[10px] sm:text-xs text-gray-500 truncate">{footerRole}</p>
               </div>
             </div>
           </div>

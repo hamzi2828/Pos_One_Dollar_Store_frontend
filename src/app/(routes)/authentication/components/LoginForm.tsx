@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Lock, Mail, AlertCircle } from "lucide-react";
 import { login } from "../service/authService";
 import { setRole, setToken } from "@/helper/helper";
+import { accessCan, setSelectedBranchId, setStoredAccess } from "@/helper/access";
 
 // Demo logins (backend Seeder/createDemoBranches.js). Shown only while
 // NEXT_PUBLIC_SHOW_DEMO_LOGINS=true — turn it off in Vercel before real use,
@@ -48,9 +49,15 @@ export const LoginForm: React.FC = () => {
       // Persist to localStorage + cookie so middleware can gate /admin.
       setToken(res.token);
       if (res.data?.role) setRole(res.data.role);
+      // Branch + role + permissions (refreshed by the admin layout via /me/access).
+      // A new login never keeps the previous user's picked branch.
+      setSelectedBranchId(null);
+      setStoredAccess(res.access ?? null);
 
       if (res.data?.role === "admin") {
-        router.replace("/admin/pos");
+        // Staff without the POS permission start on the dashboard instead.
+        const canPos = !res.access || accessCan(res.access, "pos", "view");
+        router.replace(canPos ? "/admin/pos" : "/admin");
       } else {
         // Only admins have anywhere to go in a POS-only app.
         setError("This account does not have admin access.");

@@ -3,14 +3,49 @@ import { getAuthHeader } from '@/helper/helper';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+// Extra code on a unit (maker's EAN, full-box code...). qty = pieces sold per scan.
+export interface ProductBarcodeDTO {
+  code: string;
+  qty: number;
+  label?: string;
+}
+
+// A received lot. Stock of a unit with batches = sum of batch quantities.
+export interface ProductBatchDTO {
+  _id?: string;
+  batchNo?: string;
+  barcode?: string;
+  quantity: number;
+  initialQuantity?: number;
+  costPrice?: number;
+  expiryDate?: string;
+  receivedAt?: string;
+  note?: string;
+  branch?: string | null;
+}
+
 export interface ProductVariantDTO {
+  variantId?: string;
   color: string;
   size: string;
+  attributes?: Record<string, string>;
   price: number;
   stock: number;
   sku?: string;
   costPrice?: number;
   discountedPrice?: number;
+  shortCode?: string;
+  barcodes?: ProductBarcodeDTO[];
+  batches?: ProductBatchDTO[];
+  totalStock?: number;
+  branchStock?: Array<{ branch: string; stock: number }>;
+}
+
+// GET /products/codes/check
+export interface CodeCheckResult {
+  code: string;
+  available: boolean;
+  usedBy?: { productId: string; name: string };
 }
 
 export interface ColorMediaData {
@@ -56,6 +91,12 @@ export interface ProductDTO {
   weight?: string;
   relatedProducts?: string[];
   createdAt?: string;
+  // Barcodes / boxes / batches (single products; variant products keep them per variant)
+  shortCode?: string;
+  barcodes?: ProductBarcodeDTO[];
+  batches?: ProductBatchDTO[];
+  piecesPerBox?: number;
+  totalStock?: number;
 }
 
 export interface ProductUI {
@@ -94,6 +135,12 @@ export interface ProductUI {
   weight?: string;
   relatedProducts?: string[];
   createdAt?: string;
+  // Barcodes / boxes / batches (single products; variant products keep them per variant)
+  shortCode?: string;
+  barcodes?: ProductBarcodeDTO[];
+  batches?: ProductBatchDTO[];
+  piecesPerBox?: number;
+  totalStock?: number;
 }
 
 function mapToUI(dto: ProductDTO): ProductUI {
@@ -157,6 +204,11 @@ function mapToUI(dto: ProductDTO): ProductUI {
     weight: dto.weight,
     relatedProducts: dto.relatedProducts,
     createdAt: dto.createdAt,
+    shortCode: dto.shortCode,
+    barcodes: dto.barcodes ?? [],
+    batches: dto.batches ?? [],
+    piecesPerBox: dto.piecesPerBox,
+    totalStock: dto.totalStock,
   };
 }
 
@@ -234,9 +286,24 @@ export const productService = {
       throw err;
     }
   },
+  // Is this code (short code / barcode) free? excludeId = product being edited.
+  async checkCode(code: string, excludeId?: string): Promise<CodeCheckResult> {
+    const params = new URLSearchParams({ code });
+    if (excludeId) params.append('excludeId', excludeId);
+    const res = await axios.get(`${API_BASE_URL}/products/codes/check?${params.toString()}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    const data = res.data?.data ?? res.data;
+    return {
+      code: data?.code ?? code,
+      available: data?.available !== false,
+      usedBy: data?.usedBy,
+    };
+  },
   async createProduct(formData: FormData): Promise<ProductUI> {
-    console.log("formData", formData);
-    
     const res = await axios.post(`${API_BASE_URL}/products`, formData, {
       headers: {
         ...getAuthHeader(),

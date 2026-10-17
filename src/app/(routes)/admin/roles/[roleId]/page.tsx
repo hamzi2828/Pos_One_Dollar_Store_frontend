@@ -28,11 +28,11 @@ import {
   type Role,
   type PermissionAction,
   type PermissionSection,
-  PERMISSION_SECTIONS,
-  PERMISSION_GROUPS,
   ACTION_COLORS,
 } from '../rolesStore';
 import { roleService } from '../service/roleService';
+import { usePermissionCatalogue } from '../useCatalogue';
+import { useAccess } from '@/context/AccessContext';
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
   main: <LayoutDashboard className="h-4 w-4" />,
@@ -49,6 +49,9 @@ export default function RolePermissionsPage() {
   const params = useParams();
   const router = useRouter();
   const roleId = String(params?.roleId ?? '');
+  const { isSuperAdmin } = useAccess();
+  // Live catalogue (sections -> groups -> actions) from the backend.
+  const { sections: PERMISSION_SECTIONS, groups: PERMISSION_GROUPS } = usePermissionCatalogue();
 
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,12 +101,18 @@ export default function RolePermissionsPage() {
     [permissions, initialSnapshot],
   );
 
-  const totalSelected = Object.values(permissions).reduce((a, b) => a + b.length, 0);
+  // Count only keys/actions that exist in the catalogue.
+  const totalSelected = PERMISSION_GROUPS.reduce(
+    (a, g) => a + (permissions[g.key] || []).filter((x) => g.actions.includes(x)).length,
+    0,
+  );
   const totalPossible = PERMISSION_GROUPS.reduce((a, g) => a + g.actions.length, 0);
   const coverage = totalPossible === 0 ? 0 : Math.round((totalSelected / totalPossible) * 100);
 
+  const locked = !!role?.isSystem || !isSuperAdmin;
+
   const toggleAction = (groupKey: string, action: PermissionAction) => {
-    if (role?.isSystem) return;
+    if (locked) return;
     setPermissions((prev) => {
       const current = prev[groupKey] || [];
       const exists = current.includes(action);
@@ -113,7 +122,7 @@ export default function RolePermissionsPage() {
   };
 
   const toggleAllInGroup = (groupKey: string) => {
-    if (role?.isSystem) return;
+    if (locked) return;
     const group = PERMISSION_GROUPS.find((g) => g.key === groupKey);
     if (!group) return;
     setPermissions((prev) => {
@@ -124,7 +133,7 @@ export default function RolePermissionsPage() {
   };
 
   const toggleAllInSection = (section: PermissionSection) => {
-    if (role?.isSystem) return;
+    if (locked) return;
     setPermissions((prev) => {
       const allFull = section.groups.every((g) => {
         const cur = prev[g.key] || [];
@@ -143,7 +152,7 @@ export default function RolePermissionsPage() {
   };
 
   const selectAll = () => {
-    if (role?.isSystem) return;
+    if (locked) return;
     setPermissions(
       PERMISSION_GROUPS.reduce<Record<string, PermissionAction[]>>((acc, g) => {
         acc[g.key] = [...g.actions];
@@ -153,7 +162,7 @@ export default function RolePermissionsPage() {
   };
 
   const clearAll = () => {
-    if (role?.isSystem) return;
+    if (locked) return;
     setPermissions({});
   };
 
@@ -166,7 +175,7 @@ export default function RolePermissionsPage() {
   };
 
   const handleSave = async () => {
-    if (!role || role.isSystem || saving) return;
+    if (!role || locked || saving) return;
     try {
       setSaving(true);
       setSaveError(null);
@@ -238,7 +247,7 @@ export default function RolePermissionsPage() {
     );
   }
 
-  const readOnly = !!role.isSystem;
+  const readOnly = locked;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -327,9 +336,18 @@ export default function RolePermissionsPage() {
             <div className="mt-4 flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
               <Lock className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-purple-700">
-                This is a system role — its permissions are locked and cannot be edited.
+                {role.isSystem
+                  ? 'This is the built-in Admin role. It can do everything and cannot be changed.'
+                  : 'Only the super admin can change permissions. You can only look.'}
               </p>
             </div>
+          )}
+          {!readOnly && (
+            <p className="mt-3 text-[11px] sm:text-xs text-gray-500">
+              Tick what staff with this role may do. <strong>View</strong> = open the page,{' '}
+              <strong>Create</strong> = add new, <strong>Edit</strong> = change, <strong>Delete</strong> = remove,{' '}
+              <strong>Export</strong> = download. Changes apply to everyone with this role within about a minute.
+            </p>
           )}
 
           {saveError && (

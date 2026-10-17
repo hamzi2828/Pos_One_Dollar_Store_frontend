@@ -2,6 +2,7 @@
 import React from "react";
 import ProductForm from "./ProductForm";
 import type { Category } from "./CategoriesTab";
+import type { ProductUI } from "../services/productService";
 
 interface Guideline {
   id: string;
@@ -17,7 +18,8 @@ interface CreateProductProps {
   sizeOptions: string[];
   guidelines?: Guideline[];
   onManageAttributes?: () => void;
-  onSuccess?: () => void;
+  // Gets the created product (used to open its stickers page)
+  onSuccess?: (product?: ProductUI) => void;
 }
 
 export default function CreateProduct({

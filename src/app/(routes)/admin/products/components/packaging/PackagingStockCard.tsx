@@ -1,0 +1,421 @@
+"use client";
+import React, { useState } from "react";
+import { CheckCircle2, Hash, Info, Layers, LayoutGrid, Loader2, Package, Plus, Trash2 } from "lucide-react";
+import BarcodeChipsInput from "./BarcodeChipsInput";
+import { productService } from "../../services/productService";
+import {
+  type PackagingState,
+  type SoldAs,
+  batchStockOf,
+  boxStockOf,
+  emptyBatchRow,
+  normalizeCode,
+  piecesPerBoxOf,
+} from "./packagingUtils";
+
+interface PackagingStockCardProps {
+  value: PackagingState;
+  onChange: (next: PackagingState) => void;
+  mode: "create" | "edit";
+  productId?: string;
+  errors?: Record<string, string>;
+  currencySymbol: string;
+  // Product cost price: default cost for a new batch row
+  defaultCostPrice?: number;
+  // Stock currently saved (edit): kept as "Opening stock" when batches are turned on
+  savedStock?: number;
+}
+
+const inputClass = (hasError?: boolean) =>
+  `block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${
+    hasError ? "border-red-300" : "border-gray-300"
+  }`;
+
+const cellInputClass =
+  "block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900";
+
+export default function PackagingStockCard({
+  value,
+  onChange,
+  mode,
+  productId,
+  errors = {},
+  currencySymbol,
+  defaultCostPrice,
+  savedStock = 0,
+}: PackagingStockCardProps) {
+  const [shortCodeCheck, setShortCodeCheck] = useState<{ state: "idle" | "checking" | "ok" | "used"; text?: string }>({ state: "idle" });
+
+  const set = (patch: Partial<PackagingState>) => onChange({ ...value, ...patch });
+  const isBox = value.soldAs === "box";
+  const hasSavedBatches = value.batches.some((b) => !!b.saved);
+  const ppb = piecesPerBoxOf(value);
+
+  const setSoldAs = (soldAs: SoldAs) => {
+    if (soldAs === value.soldAs) return;
+    set({ soldAs, addFullBoxBarcode: soldAs === "box" ? value.addFullBoxBarcode : false });
+  };
+
+  const toggleBatches = () => {
+    if (value.trackBatches) {
+      if (hasSavedBatches) return; // saved batches cannot be switched off here
+      set({ trackBatches: false, batches: [] });
+    } else {
+      set({ trackBatches: true, batches: value.batches.length ? value.batches : [emptyBatchRow(defaultCostPrice)] });
+    }
+  };
+
+  const updateBatch = (key: string, patch: Partial<PackagingState["batches"][number]>) =>
+    set({ batches: value.batches.map((b) => (b.key === key ? { ...b, ...patch } : b)) });
+
+  const removeBatch = (key: string) => {
+    const row = value.batches.find((b) => b.key === key);
+    if (row?.saved) {
+      const label = row.saved.batchNo ? `batch ${row.saved.batchNo}` : "this batch";
+      if (!window.confirm(`Remove ${label}? Its ${row.quantity || 0} pieces will be removed from stock.`)) return;
+    }
+    set({ batches: value.batches.filter((b) => b.key !== key) });
+  };
+
+  const checkShortCode = async () => {
+    const code = value.shortCode.trim();
+    if (!code || !/^\d{3,8}$/.test(code)) {
+      setShortCodeCheck({ state: "idle" });
+      return;
+    }
+    setShortCodeCheck({ state: "checking" });
+    try {
+      const res = await productService.checkCode(code, productId);
+      setShortCodeCheck(
+        res.available
+          ? { state: "ok", text: "Available" }
+          : { state: "used", text: `Already used by ${res.usedBy?.name ? `"${res.usedBy.name}"` : "another product"}` }
+      );
+    } catch {
+      setShortCodeCheck({ state: "idle" });
+    }
+  };
+
+  const shortCodeError =
+    errors.shortCode || (value.shortCode.trim() && !/^\d{3,8}$/.test(value.shortCode.trim()) ? "Numbers only, 3 to 8 digits" : "");
+
+  const batchTotal = batchStockOf(value);
+  const boxTotal = boxStockOf(value);
+
+  return (
+    <div
+      className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6"
+      // A barcode scanner presses Enter after the code: never submit the form from here.
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault();
+      }}
+    >
+      <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-1">Packaging &amp; Stock</h4>
+      <p className="text-xs text-gray-500 mb-3 sm:mb-4">Stock is always counted in pieces.</p>
+
+      {/* How is it sold? */}
+      <label className="block text-sm font-medium text-gray-700 mb-2">How is it sold?</label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {([
+          { key: "loose", title: "Loose pieces", desc: "Sold one by one (pens, cables, covers)", icon: LayoutGrid },
+          { key: "box", title: "Box", desc: "Comes in boxes, sold by piece or full box", icon: Package },
+        ] as const).map((opt) => {
+          const active = value.soldAs === opt.key;
+          const Icon = opt.icon;
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSoldAs(opt.key)}
+              className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-all ${
+                active ? "border-gray-900 bg-gray-50" : "border-gray-200 hover:border-gray-300"
+              }`}
+            >
+              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${active ? "bg-honey-50 text-honey-500" : "bg-gray-100 text-gray-400"}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-medium text-gray-900">{opt.title}</span>
+                <span className="block text-xs text-gray-500">{opt.desc}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Box fields */}
+      {isBox && (
+        <div className="mt-3 sm:mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-3 sm:p-4">
+          <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${value.trackBatches ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Pieces in one box <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min="2"
+                step="1"
+                placeholder="e.g., 12"
+                className={inputClass(!!errors.piecesPerBox)}
+                value={value.piecesPerBox}
+                onChange={(e) => set({ piecesPerBox: e.target.value })}
+              />
+              {errors.piecesPerBox && <p className="mt-1 text-xs text-red-600">{errors.piecesPerBox}</p>}
+            </div>
+            {!value.trackBatches && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Boxes in stock</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    className={inputClass(!!errors.boxes)}
+                    value={value.boxes}
+                    onChange={(e) => set({ boxes: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Loose pieces</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    className={inputClass(!!errors.boxes)}
+                    value={value.loosePieces}
+                    onChange={(e) => set({ loosePieces: e.target.value })}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Pieces from an open box</p>
+                </div>
+              </>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Total stock</label>
+              <div className="flex h-[38px] items-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900">
+                {value.trackBatches ? batchTotal : boxTotal} pieces
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {value.trackBatches ? "From the batches below" : `${Number(value.boxes) || 0} × ${ppb} + ${Number(value.loosePieces) || 0}`}
+              </p>
+            </div>
+          </div>
+          {errors.boxes && <p className="mt-2 text-xs text-red-600">{errors.boxes}</p>}
+
+          <label className="mt-3 sm:mt-4 flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-honey-500 focus:ring-honey-500"
+              checked={value.addFullBoxBarcode}
+              onChange={(e) => set({ addFullBoxBarcode: e.target.checked })}
+            />
+            <span>
+              <span className="block text-sm text-gray-800">Also create a full-box barcode (one scan sells the whole box)</span>
+              <span className="block text-xs text-gray-500">
+                {value.shortCode ? `Code ${value.shortCode}-BOX` : "Code will be <short code>-BOX"} sells {ppb > 1 ? ppb : "all"} pieces in one scan.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* Batches */}
+      <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-1.5">
+              <Layers className="h-4 w-4 text-gray-400" />
+              Track batches (expiry / different cost)
+            </label>
+            <p className="text-xs text-gray-500 mt-0.5">Stock = total of all batches. Oldest/expiring batch sells first.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={value.trackBatches}
+            onClick={toggleBatches}
+            disabled={value.trackBatches && hasSavedBatches}
+            title={value.trackBatches && hasSavedBatches ? "This product already has batches" : undefined}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+              value.trackBatches ? "bg-honey-500" : "bg-gray-200"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                value.trackBatches ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {value.trackBatches && (
+          <div className="mt-3 sm:mt-4">
+            {mode === "edit" && !hasSavedBatches && savedStock > 0 && (
+              <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                <Info className="h-4 w-4 flex-shrink-0" />
+                The {savedStock} pieces already in stock will be kept as an &quot;Opening stock&quot; batch.
+              </p>
+            )}
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (pieces)</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost price ({currencySymbol})</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry date</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                    <th className="px-3 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {value.batches.map((b, i) => (
+                    <tr key={b.key}>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {b.saved?.batchNo ? (
+                          <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-700">{b.saved.batchNo}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">New {i + 1}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 min-w-[110px]">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          className={cellInputClass}
+                          value={b.quantity}
+                          onChange={(e) => updateBatch(b.key, { quantity: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-3 py-2 min-w-[110px]">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Optional"
+                          className={cellInputClass}
+                          value={b.costPrice}
+                          onChange={(e) => updateBatch(b.key, { costPrice: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-3 py-2 min-w-[140px]">
+                        <input
+                          type="date"
+                          className={cellInputClass}
+                          value={b.expiryDate}
+                          onChange={(e) => updateBatch(b.key, { expiryDate: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-3 py-2 min-w-[140px]">
+                        <input
+                          type="text"
+                          placeholder="Optional"
+                          className={cellInputClass}
+                          value={b.note}
+                          onChange={(e) => updateBatch(b.key, { note: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeBatch(b.key)}
+                          className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                          aria-label="Remove batch"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => set({ batches: [...value.batches, emptyBatchRow(defaultCostPrice)] })}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Add batch
+              </button>
+              <span className="text-sm text-gray-600">
+                Total stock: <span className="font-semibold text-gray-900">{batchTotal} pieces</span>
+              </span>
+            </div>
+            {errors.batches && <p className="mt-1 text-xs text-red-600">{errors.batches}</p>}
+            {hasSavedBatches && (
+              <p className="mt-1 text-xs text-gray-500">To add new stock later, use &quot;Receive stock&quot; on the product list.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Codes */}
+      <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Short code <span className="text-xs text-gray-400">(Optional)</span>
+          </label>
+          {mode === "edit" && value.shortCode ? (
+            <div className="flex h-[38px] items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2.5 py-1 text-sm font-mono font-semibold text-honey-600">
+                <Hash className="h-3.5 w-3.5" />
+                {value.shortCode}
+              </span>
+              <span className="text-xs text-gray-500">Printed on stickers</span>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={8}
+                placeholder="Auto (5 digits)"
+                className={inputClass(!!shortCodeError || shortCodeCheck.state === "used")}
+                value={value.shortCode}
+                onChange={(e) => {
+                  set({ shortCode: e.target.value.replace(/\D/g, "") });
+                  setShortCodeCheck({ state: "idle" });
+                }}
+                onBlur={() => void checkShortCode()}
+              />
+              {shortCodeCheck.state === "checking" && (
+                <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-400" />
+              )}
+              {shortCodeCheck.state === "ok" && (
+                <CheckCircle2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-green-600" />
+              )}
+            </div>
+          )}
+          {shortCodeError ? (
+            <p className="mt-1 text-xs text-red-600">{shortCodeError}</p>
+          ) : shortCodeCheck.state === "used" ? (
+            <p className="mt-1 text-xs text-red-600">{shortCodeCheck.text}</p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">Small number the cashier can type if scanning fails</p>
+          )}
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Extra barcodes <span className="text-xs text-gray-400">(Optional)</span>
+          </label>
+          <BarcodeChipsInput
+            codes={value.barcodes.map((b) => b.code)}
+            excludeId={productId}
+            otherCodesInForm={[value.shortCode].filter(Boolean)}
+            error={errors.barcodes}
+            onAdd={(code) => set({ barcodes: [...value.barcodes, { code, qty: 1, label: "manufacturer" }] })}
+            onRemove={(code) => set({ barcodes: value.barcodes.filter((b) => normalizeCode(b.code) !== normalizeCode(code)) })}
+          />
+          <p className="mt-1 text-xs text-gray-500">The barcode printed on the item by the maker. Each scan sells 1 piece.</p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,735 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
+import {
+  UserCog,
+  Plus,
+  Search,
+  X,
+  Edit2,
+  Trash2,
+  KeyRound,
+  Loader2,
+  AlertCircle,
+  Crown,
+  Building2,
+  Shield,
+  Check,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
+import TablePagination from '@/components/admin/TablePagination';
+import { useAccess } from '@/context/AccessContext';
+import { apiErrorMessage } from '@/helper/access';
+import {
+  Modal,
+  Field,
+  Toggle,
+  ErrorBox,
+  HelpBox,
+  LoadingCard,
+  NoAccessCard,
+  inputClass,
+  primaryBtn,
+  secondaryBtn,
+} from '@/components/admin/FormBits';
+import { staffService, type StaffUser, type StaffPayload } from './services/staffService';
+import { branchService, type Branch } from '../branches/services/branchService';
+import { roleService } from '../roles/service/roleService';
+import type { Role } from '../roles/rolesStore';
+
+const ESCALATION_KEYS = ['staff', 'branches', 'roles'];
+const MIN_PASSWORD = 8;
+
+const formatDate = (iso: string | null | undefined) => {
+  if (!iso) return 'Never';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+export default function StaffPage() {
+  const { access, isSuperAdmin, can, branch: ownBranch, currentBranchId } = useAccess();
+  const myId = access?.user?.id;
+  const canView = can('staff', 'view');
+  const canCreate = can('staff', 'create');
+  const canEdit = can('staff', 'edit');
+  const canDelete = can('staff', 'delete');
+
+  const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [branchFilter, setBranchFilter] = useState<string>(() => currentBranchId || 'all');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'true' | 'false'>('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+
+  const [editing, setEditing] = useState<{ open: boolean; user: StaffUser | null }>({ open: false, user: null });
+  const [resetFor, setResetFor] = useState<StaffUser | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debounced, branchFilter, roleFilter, statusFilter, limit]);
+
+  // Lookups: branches + roles (for filters and the form).
+  useEffect(() => {
+    if (!canView) return;
+    branchService
+      .list(isSuperAdmin ? {} : { isActive: 'true' })
+      .then(setBranches)
+      .catch(() => setBranches([]));
+    roleService
+      .getRoles({ limit: 200 })
+      .then(({ items }) => setRoles(items))
+      .catch(() => setRoles([]));
+  }, [canView, isSuperAdmin]);
+
+  const load = useCallback(async () => {
+    if (!canView) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const { items, pagination: p } = await staffService.list({
+        search: debounced,
+        staffRole: roleFilter,
+        isActive: statusFilter,
+        page,
+        limit,
+        branchId: isSuperAdmin ? branchFilter : null,
+      });
+      setStaff(items);
+      setPagination({ page: p.page || page, limit: p.limit || limit, total: p.total || 0, totalPages: p.totalPages || 0 });
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not load staff logins.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [canView, debounced, roleFilter, statusFilter, page, limit, isSuperAdmin, branchFilter]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  /** Roles this user may hand out (the backend checks again). */
+  const assignableRoles = useMemo(() => {
+    if (isSuperAdmin) return roles;
+    const mine = access?.permissions || {};
+    return roles.filter((r) => {
+      if (r.isSystem) return false;
+      const perms = r.permissions || {};
+      if (ESCALATION_KEYS.some((k) => (perms[k] || []).length > 0)) return false;
+      return Object.entries(perms).every(([k, acts]) => (acts || []).every((a) => (mine[k] || []).includes(a)));
+    });
+  }, [roles, isSuperAdmin, access]);
+
+  const activeBranches = useMemo(() => branches.filter((b) => b.isActive), [branches]);
+
+  const handleDelete = async (u: StaffUser) => {
+    if (!window.confirm(`Delete the login of ${u.name} (${u.email})?\n\nThey will not be able to sign in any more.`)) return;
+    try {
+      setBusyId(u.id);
+      await staffService.remove(u.id);
+      toast.success('Staff login deleted');
+      await load();
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not delete the staff login.'), { duration: 6000 });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleToggleActive = async (u: StaffUser) => {
+    try {
+      setBusyId(u.id);
+      await staffService.update(u.id, { isActive: !u.isActive });
+      toast.success(u.isActive ? 'Login turned off' : 'Login turned on');
+      await load();
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not change the status.'), { duration: 6000 });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!canView) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <NoAccessCard />
+      </div>
+    );
+  }
+
+  const thClass = 'px-3 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs font-medium tracking-wider text-left text-gray-500 uppercase';
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Header */}
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Staff Logins</h1>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
+              {isSuperAdmin
+                ? 'Each staff member gets their own email + password, one branch and one role.'
+                : `Staff logins of ${ownBranch?.name || 'your branch'}.`}
+            </p>
+          </div>
+          {canCreate && (
+            <button onClick={() => setEditing({ open: true, user: null })} className={primaryBtn}>
+              <Plus className="h-4 w-4" />
+              <span>Add Staff Login</span>
+            </button>
+          )}
+        </div>
+
+        <div className="mb-4 sm:mb-6">
+          <HelpBox>
+            A staff login only sees <strong>its own branch</strong> (stock, sales, orders). What it can do comes from its{' '}
+            <Link href="/admin/roles" className="font-semibold underline">
+              role
+            </Link>
+            . A <strong>super admin</strong> sees every branch and can do everything — give this only to the owner.
+          </HelpBox>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-3">
+            <div className="relative md:col-span-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search name, email, phone..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className={`${inputClass} pl-8 pr-8`}
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {isSuperAdmin ? (
+              <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className={inputClass} aria-label="Branch">
+                <option value="all">All branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.isActive ? '' : ' (inactive)'}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className={`${inputClass} flex items-center gap-2 bg-gray-50`}>
+                <Building2 className="h-4 w-4 text-honey-500" />
+                {ownBranch?.name || 'My branch'}
+              </div>
+            )}
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={inputClass} aria-label="Role">
+              <option value="">All roles</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as '' | 'true' | 'false')}
+              className={inputClass}
+              aria-label="Status"
+            >
+              <option value="">Active and inactive</option>
+              <option value="true">Active only</option>
+              <option value="false">Inactive only</option>
+            </select>
+          </div>
+        </div>
+
+        {loading && staff.length === 0 ? (
+          <LoadingCard text="Loading staff logins…" />
+        ) : error ? (
+          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-red-200 text-center py-10 px-4">
+            <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
+            <p className="text-sm text-red-700 mb-4">{error}</p>
+            <button onClick={load} className={primaryBtn}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-hidden bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className={thClass}>Staff</th>
+                    <th className={thClass}>Branch</th>
+                    <th className={thClass}>Role</th>
+                    <th className={thClass}>Status</th>
+                    <th className={thClass}>Last sign in</th>
+                    <th className={`${thClass} text-right`}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {staff.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                        <UserCog className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                        No staff logins found.
+                      </td>
+                    </tr>
+                  ) : (
+                    staff.map((u) => {
+                      const isMe = !!myId && u.id === myId;
+                      const busy = busyId === u.id;
+                      return (
+                        <tr key={u.id} className={`hover:bg-gray-50 ${u.isActive ? '' : 'bg-gray-50/60'}`}>
+                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-semibold flex-shrink-0 ${
+                                  u.isSuperAdmin ? 'bg-purple-600' : 'bg-honey-500'
+                                }`}
+                              >
+                                {(u.firstName?.charAt(0) || u.email.charAt(0)).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                                  {u.name || u.email}
+                                  {isMe && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded">You</span>}
+                                </div>
+                                <div className="text-xs text-gray-500">{u.email}</div>
+                                {u.phone && <div className="text-[11px] text-gray-400">{u.phone}</div>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                            {u.isSuperAdmin ? (
+                              <span className="text-xs text-purple-700 font-medium">All branches</span>
+                            ) : u.branch ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <Building2 className="h-3.5 w-3.5 text-gray-400" />
+                                {u.branch.name || '—'}
+                                {u.branch.code && <span className="text-[10px] font-mono text-gray-400">{u.branch.code}</span>}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-amber-700">No branch</span>
+                            )}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                            {u.isSuperAdmin ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-purple-100 text-purple-700 rounded-full">
+                                <Crown className="h-3 w-3" /> Super admin
+                              </span>
+                            ) : u.staffRole ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-honey-50 text-honey-700 border border-honey-200 rounded-full">
+                                <Shield className="h-3 w-3" /> {u.staffRole.name || 'Role'}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-amber-700">No role</span>
+                            )}
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleActive(u)}
+                              disabled={!canEdit || isMe || busy}
+                              className={`px-2 py-0.5 text-xs font-semibold rounded-full transition-colors disabled:cursor-not-allowed ${
+                                u.isActive ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                              title={canEdit && !isMe ? 'Click to turn this login on/off' : undefined}
+                            >
+                              {u.isActive ? 'Active' : 'Inactive'}
+                            </button>
+                          </td>
+                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-500">{formatDate(u.lastLogin)}</td>
+                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right">
+                            <div className="inline-flex items-center gap-0.5">
+                              {canEdit && (isSuperAdmin || !isMe) && (
+                                <>
+                                  <button
+                                    onClick={() => setEditing({ open: true, user: u })}
+                                    className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setResetFor(u)}
+                                    className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    title="Set a new password"
+                                  >
+                                    <KeyRound className="h-4 w-4" />
+                                  </button>
+                                </>
+                              )}
+                              {canDelete && !isMe && (
+                                <button
+                                  onClick={() => handleDelete(u)}
+                                  disabled={busy}
+                                  className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                                  title="Delete login"
+                                >
+                                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <TablePagination
+              page={pagination.page}
+              pages={Math.max(1, pagination.totalPages)}
+              total={pagination.total}
+              limit={limit}
+              onPageChange={setPage}
+              onLimitChange={setLimit}
+              label="staff logins"
+            />
+          </div>
+        )}
+      </div>
+
+      {editing.open && (
+        <StaffFormModal
+          user={editing.user}
+          isSuperAdmin={isSuperAdmin}
+          branches={isSuperAdmin ? activeBranches : activeBranches.filter((b) => b.id === ownBranch?.id)}
+          ownBranchId={ownBranch?.id ?? null}
+          defaultBranchId={isSuperAdmin ? (branchFilter !== 'all' ? branchFilter : null) : ownBranch?.id ?? null}
+          roles={assignableRoles}
+          onClose={() => setEditing({ open: false, user: null })}
+          onSaved={async (msg) => {
+            toast.success(msg);
+            setEditing({ open: false, user: null });
+            await load();
+          }}
+        />
+      )}
+
+      {resetFor && (
+        <ResetPasswordModal
+          user={resetFor}
+          onClose={() => setResetFor(null)}
+          onDone={() => {
+            toast.success('New password saved. Tell the staff member their new password.');
+            setResetFor(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Add / edit staff ---------------- */
+function StaffFormModal({
+  user,
+  isSuperAdmin,
+  branches,
+  ownBranchId,
+  defaultBranchId,
+  roles,
+  onClose,
+  onSaved,
+}: {
+  user: StaffUser | null;
+  isSuperAdmin: boolean;
+  branches: Branch[];
+  ownBranchId: string | null;
+  defaultBranchId: string | null;
+  roles: Role[];
+  onClose: () => void;
+  onSaved: (message: string) => Promise<void>;
+}) {
+  const isEdit = !!user;
+  const defaultRole =
+    roles.find((r) => r.name.toLowerCase() === 'cashier')?.id || roles.find((r) => !r.isSystem)?.id || '';
+
+  const [firstName, setFirstName] = useState(user?.firstName ?? '');
+  const [lastName, setLastName] = useState(user?.lastName ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [phone, setPhone] = useState(user?.phone ?? '');
+  const [branchId, setBranchId] = useState<string>(
+    user?.branch?.id ?? defaultBranchId ?? (branches.length === 1 ? branches[0].id : ''),
+  );
+  const [roleId, setRoleId] = useState<string>(user?.staffRole?.id ?? defaultRole);
+  const [isActive, setIsActive] = useState(user?.isActive ?? true);
+  const [makeSuper, setMakeSuper] = useState(user?.isSuperAdmin ?? false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // If the role list arrives after the modal opened, pick a default.
+  useEffect(() => {
+    if (!roleId && defaultRole && !isEdit) setRoleId(defaultRole);
+  }, [defaultRole, roleId, isEdit]);
+
+  const submit = async () => {
+    if (!firstName.trim() || !lastName.trim()) return setError('Please enter first and last name.');
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.');
+    if (!isEdit && password.length < MIN_PASSWORD) return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
+    if (!makeSuper) {
+      if (!branchId && isSuperAdmin) return setError('Please choose the branch this person works in.');
+      if (!roleId) return setError('Please choose a role.');
+    }
+
+    const payload: StaffPayload = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      isActive,
+    };
+    if (!isEdit) payload.password = password;
+    if (makeSuper) {
+      payload.isSuperAdmin = true;
+    } else {
+      payload.staffRole = roleId;
+      if (isSuperAdmin) {
+        payload.branch = branchId;
+        payload.isSuperAdmin = false;
+      } else if (!isEdit && ownBranchId) {
+        payload.branch = ownBranchId;
+      }
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      if (isEdit && user) {
+        await staffService.update(user.id, payload);
+        await onSaved('Staff login saved');
+      } else {
+        await staffService.create(payload);
+        await onSaved('Staff login created. They can now sign in with this email and password.');
+      }
+    } catch (e) {
+      // e.g. "Email already in use", "Only the super admin can assign a role with staff permission",
+      // "This is the last active super admin..."
+      setError(apiErrorMessage(e, 'Could not save the staff login.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={isEdit ? 'Edit Staff Login' : 'Add Staff Login'}
+      subtitle={isEdit ? user?.email : 'Create a sign-in for a staff member'}
+      icon={<UserCog className="h-5 w-5" />}
+      onClose={onClose}
+      busy={saving}
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={saving} className={primaryBtn}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {isEdit ? 'Save' : 'Create Login'}
+          </button>
+        </>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+        className="space-y-4"
+      >
+        <ErrorBox message={error} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="First name" required>
+            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} autoFocus />
+          </Field>
+          <Field label="Last name" required>
+            <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
+          </Field>
+        </div>
+        <Field label="Email (used to sign in)" required>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className={inputClass} autoComplete="off" />
+        </Field>
+        {!isEdit && (
+          <Field label="Password" required hint={`At least ${MIN_PASSWORD} characters. Tell it to the staff member.`}>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${inputClass} pr-10`}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </Field>
+        )}
+        <Field label="Phone">
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="03xx xxxxxxx" className={inputClass} />
+        </Field>
+
+        {!makeSuper && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Branch" required hint="This person only sees this branch.">
+              {isSuperAdmin ? (
+                <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={inputClass}>
+                  <option value="">Choose a branch…</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                  {user?.branch && !branches.some((b) => b.id === user.branch?.id) && (
+                    <option value={user.branch.id}>{user.branch.name} (inactive)</option>
+                  )}
+                </select>
+              ) : (
+                <input value={branches[0]?.name || user?.branch?.name || 'My branch'} disabled className={inputClass} />
+              )}
+            </Field>
+            <Field label="Role" required hint="What this person may do.">
+              <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass}>
+                <option value="">Choose a role…</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+                {user?.staffRole && !roles.some((r) => r.id === user.staffRole?.id) && (
+                  <option value={user.staffRole.id}>{user.staffRole.name}</option>
+                )}
+              </select>
+            </Field>
+          </div>
+        )}
+
+        <div className="space-y-3 pt-1">
+          <Toggle
+            checked={isActive}
+            onChange={setIsActive}
+            label="Login is active"
+            hint="Turn off to stop this person signing in (their history stays)."
+          />
+          {isSuperAdmin && (
+            <Toggle
+              checked={makeSuper}
+              onChange={setMakeSuper}
+              label="Super admin"
+              hint="Sees ALL branches and can do everything, including managing staff and roles. Only for the owner."
+            />
+          )}
+        </div>
+        <button type="submit" className="hidden" />
+      </form>
+    </Modal>
+  );
+}
+
+/* ---------------- Reset password ---------------- */
+function ResetPasswordModal({ user, onClose, onDone }: { user: StaffUser; onClose: () => void; onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (password.length < MIN_PASSWORD) return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
+    if (password !== confirm) return setError('The two passwords are not the same.');
+    try {
+      setSaving(true);
+      setError(null);
+      await staffService.resetPassword(user.id, password);
+      onDone();
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not change the password.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Set New Password"
+      subtitle={`${user.name} · ${user.email}`}
+      icon={<KeyRound className="h-5 w-5" />}
+      onClose={onClose}
+      busy={saving}
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={saving} className={primaryBtn}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Save Password
+          </button>
+        </>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+        className="space-y-4"
+      >
+        <ErrorBox message={error} />
+        <Field label="New password" required hint={`At least ${MIN_PASSWORD} characters.`}>
+          <div className="relative">
+            <input
+              type={show ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`${inputClass} pr-10`}
+              autoComplete="new-password"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => setShow((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600"
+              aria-label={show ? 'Hide password' : 'Show password'}
+            >
+              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </Field>
+        <Field label="Type it again" required>
+          <input type={show ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputClass} autoComplete="new-password" />
+        </Field>
+        <button type="submit" className="hidden" />
+      </form>
+    </Modal>
+  );
+}

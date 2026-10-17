@@ -7,6 +7,12 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { getRole, isAuthenticated } from '@/helper/helper';
 import { CurrencyProvider } from '@/context/CurrencyContext';
+import { AccessProvider } from '@/context/AccessContext';
+import { installBranchHeader } from '@/helper/access';
+
+// Send the super admin's picked branch (`x-branch-id`) on every backend
+// request (axios + fetch). Registered once, before any admin page fetches.
+if (typeof window !== 'undefined') installBranchHeader();
 
 export default function AdminLayout({
   children,
@@ -71,6 +77,7 @@ export default function AdminLayout({
   if (!ready) return null;
 
   return (
+    <AccessProvider>
     <CurrencyProvider>
       <div className="admin-layout flex h-screen bg-gray-100 overflow-hidden">
         <AdminSidebar
@@ -93,5 +100,6 @@ export default function AdminLayout({
         </div>
       </div>
     </CurrencyProvider>
+    </AccessProvider>
   );
 }
