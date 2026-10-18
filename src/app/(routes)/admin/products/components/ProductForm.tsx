@@ -1468,10 +1468,10 @@ export default function ProductForm({
                       type="number"
                       step="0.01"
                       min="0"
-                      disabled={isVariant}
+                      disabled={isVariant || packaging.soldAs === "box"}
                       placeholder="0.00"
                       className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm ${
-                        isVariant
+                        isVariant || packaging.soldAs === "box"
                           ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-300'
                           : errors.discountedPrice ? 'border-red-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900' : 'border-gray-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
                       }`}
@@ -1485,6 +1485,7 @@ export default function ProductForm({
                   </div>
                   {errors.discountedPrice && <p className="mt-1 text-sm text-red-600">{errors.discountedPrice}</p>}
                   {isVariant && <p className="mt-1 text-xs text-gray-500">Set prices per variant</p>}
+                  {!isVariant && packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set per piece in the Box section below</p>}
                 </div>
 
                 {!isVariant && (
@@ -1499,7 +1500,8 @@ export default function ProductForm({
                         step="0.01"
                         min="0"
                         placeholder="0.00"
-                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'}`}
+                        disabled={packaging.soldAs === "box"}
+                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-900'}`}
                         value={form.costPrice ?? ""}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -1508,6 +1510,7 @@ export default function ProductForm({
                       />
                     </div>
                     {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                    {packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set per piece in the Box section below</p>}
                   </div>
                 )}
 
@@ -1647,6 +1650,12 @@ export default function ProductForm({
                     currencySymbol={currency.symbol}
                     defaultCostPrice={form.costPrice}
                     savedStock={savedStock}
+                    salePrice={form.discountedPrice}
+                    costPrice={form.costPrice}
+                    onPricesChange={({ salePrice, costPrice }) =>
+                      setForm((prev) => ({ ...prev, discountedPrice: salePrice, price: salePrice ?? 0, costPrice }))
+                    }
+                    priceErrors={{ salePrice: errors.discountedPrice, costPrice: errors.costPrice }}
                   />
                 </div>
               )}

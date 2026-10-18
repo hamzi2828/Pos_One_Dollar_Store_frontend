@@ -21,6 +21,11 @@ interface PackagingStockCardProps {
   defaultCostPrice?: number;
   // Stock currently saved (edit): kept as "Opening stock" when batches are turned on
   savedStock?: number;
+  // Box items: prices are typed here, per piece (the top price fields are locked)
+  salePrice?: number;
+  costPrice?: number;
+  onPricesChange?: (prices: { salePrice?: number; costPrice?: number }) => void;
+  priceErrors?: { salePrice?: string; costPrice?: string };
 }
 
 const inputClass = (hasError?: boolean) =>
@@ -40,7 +45,12 @@ export default function PackagingStockCard({
   currencySymbol,
   defaultCostPrice,
   savedStock = 0,
+  salePrice,
+  costPrice,
+  onPricesChange,
+  priceErrors = {},
 }: PackagingStockCardProps) {
+  const toNum = (v: string) => (v === "" ? undefined : Number(v));
 
   const set = (patch: Partial<PackagingState>) => onChange({ ...value, ...patch });
   const isBox = value.soldAs === "box";
@@ -176,6 +186,53 @@ export default function PackagingStockCard({
             </div>
           </div>
           {errors.boxes && <p className="mt-2 text-xs text-red-600">{errors.boxes}</p>}
+
+          {/* Prices per piece */}
+          {onPricesChange && (
+            <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sale price per piece ({currencySymbol}) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className={inputClass(!!priceErrors.salePrice)}
+                  value={salePrice ?? ""}
+                  onChange={(e) => onPricesChange({ salePrice: toNum(e.target.value), costPrice })}
+                />
+                {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cost price per piece ({currencySymbol}) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className={inputClass(!!priceErrors.costPrice)}
+                  value={costPrice ?? ""}
+                  onChange={(e) => onPricesChange({ salePrice, costPrice: toNum(e.target.value) })}
+                />
+                {priceErrors.costPrice && <p className="mt-1 text-xs text-red-600">{priceErrors.costPrice}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">One full box</label>
+                <div className="flex h-[38px] items-center rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900">
+                  {ppb > 1 && salePrice
+                    ? `Sells for ${currencySymbol}${(salePrice * ppb).toLocaleString()}`
+                    : "-"}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {ppb > 1 && costPrice ? `Costs ${currencySymbol}${(costPrice * ppb).toLocaleString()}` : `${ppb > 1 ? ppb : "?"} pieces × price per piece`}
+                </p>
+              </div>
+            </div>
+          )}
 
           <label className="mt-3 sm:mt-4 flex items-start gap-2 cursor-pointer">
             <input
