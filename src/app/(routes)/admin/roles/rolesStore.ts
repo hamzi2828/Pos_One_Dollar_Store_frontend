@@ -119,6 +119,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'banks', label: 'Banks', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'expenses', label: 'Expenses', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'assets', label: 'Assets', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'investments', label: 'Investment', actions: ['view', 'create', 'edit', 'delete', 'export'] },
     ],
   },
   {
@@ -127,6 +128,11 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     iconKey: 'hr',
     groups: [
       { key: 'employees', label: 'Employees', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'shifts', label: 'Shifts & Roster', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'hr_policies', label: 'HR Policies', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'attendance', label: 'Attendance', actions: ['view', 'create', 'edit', 'export'] },
+      { key: 'attendance_kiosk', label: 'Attendance desktop app', actions: ['view', 'create'] },
+      { key: 'payroll', label: 'Payroll & Advances', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'category_assignments', label: 'Category Staff', actions: ['view', 'edit'] },
     ],
   },

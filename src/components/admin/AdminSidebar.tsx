@@ -52,6 +52,11 @@ import {
   Tags,
   Contact,
   UsersRound,
+  CalendarClock,
+  ScrollText,
+  Clock3,
+  WalletCards,
+  PiggyBank,
   Monitor,
   Banknote,
   MessageCircle,
@@ -89,22 +94,18 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   const footerRole = describeAccess(access);
   const [siteName, setSiteName] = useState<string>('');
   const [sidebarSearch, setSidebarSearch] = useState('');
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  // Accordion: every section starts closed and only ONE is open at a time
+  // (opening a section closes the others). The section of the current page
+  // stays highlighted while closed, so you always see where you are.
+  const [openSection, setOpenSection] = useState<string | null>(null);
 
-  // Restore collapsed sections from localStorage
+  // Forget the old "remember each section" setting.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('adminSidebarCollapsedSections');
-      if (stored) setCollapsedSections(JSON.parse(stored));
-    } catch {}
+    try { localStorage.removeItem('adminSidebarCollapsedSections'); } catch {}
   }, []);
 
   const toggleSection = (label: string) => {
-    setCollapsedSections((prev) => {
-      const next = { ...prev, [label]: !prev[label] };
-      try { localStorage.setItem('adminSidebarCollapsedSections', JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setOpenSection((prev) => (prev === label ? null : label));
   };
 
   const fetchSettings = async () => {
@@ -229,11 +230,17 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'banks' },
     { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'expenses' },
     { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
+    { name: 'Investment', path: '/admin/investments', icon: <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'investments' },
   ];
 
   // HR — employees (full details, contract letter) and who looks after which category.
   const hrMenuItems: MenuItem[] = [
     { name: 'Employees', path: '/admin/hr/employees', icon: <Contact className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'employees' },
+    { name: 'Shifts & Roster', path: '/admin/hr/roster', icon: <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'shifts' },
+    { name: 'Attendance', path: '/admin/hr/attendance', icon: <Clock3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'attendance' },
+    { name: 'Payroll', path: '/admin/hr/payroll', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
+    { name: 'Advances & Deductions', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
+    { name: 'HR Policies', path: '/admin/hr/policies', icon: <ScrollText className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'hr_policies' },
     { name: 'Category Staff', path: '/admin/hr/category-staff', icon: <UsersRound className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'category_assignments' },
   ];
 
@@ -406,7 +413,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
               return visibleSections.map((section, idx) => {
                 // Auto-expand if search is active; otherwise honor user's collapsed preference
-                const isSectionCollapsed = !q && !isCollapsed && !!collapsedSections[section.label];
+                const isSectionCollapsed = !q && !isCollapsed && openSection !== section.label;
                 const itemCount = section.items.length;
                 // Total notification count for this section's items
                 const sectionNotifs = section.items.reduce((sum, item) => sum + (item.notificationCount || 0), 0);
@@ -426,7 +433,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                       <button
                         type="button"
                         onClick={() => toggleSection(section.label)}
-                        className={`relative w-full flex items-center gap-2 sm:gap-2.5 pl-2.5 sm:pl-3 pr-2 sm:pr-2.5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.06em] rounded-lg transition-all duration-200 group overflow-hidden ${
+                        className={`relative w-full flex items-center gap-2 sm:gap-2.5 pl-2.5 sm:pl-3 pr-2 sm:pr-2.5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.04em] rounded-lg transition-all duration-200 group overflow-hidden ${
                           isSectionCollapsed
                             ? `${sectionHasActive ? 'text-charcoal bg-honey-50/60 border border-honey-200' : 'text-gray-500 bg-gray-50/70 border border-gray-100 hover:bg-white hover:border-honey-200 hover:text-charcoal hover:shadow-sm'}`
                             : 'text-gray-400 hover:text-charcoal mb-1 sm:mb-1.5'
@@ -452,7 +459,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                           </span>
                         )}
 
-                        <span className="truncate flex-1 text-left">{section.label}</span>
+                        <span className="flex-1 min-w-0 text-left leading-snug whitespace-normal break-words">{section.label}</span>
 
                         <span className="flex items-center gap-1.5 flex-shrink-0">
                           {isSectionCollapsed && sectionNotifs > 0 && (

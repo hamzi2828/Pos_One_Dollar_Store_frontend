@@ -32,6 +32,7 @@ import { apiErrorMessage, formatDate, formatRs, storeApi } from '@/lib/storeApi'
 import { ErrorBox, Field, LoadingCard, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { Avatar, InfoRow, SectionCard, StatusBadge } from '../components/EmployeeBits';
 import EmployeeLoginCard from '../components/EmployeeLoginCard';
+import TimePayCard from '../components/TimePayCard';
 import {
   DAYS,
   DOCUMENT_LABEL,
@@ -253,6 +254,9 @@ export default function EmployeeProfilePage() {
         </div>
 
         <EmployeeLoginCard employee={emp} onChange={setEmp} />
+
+        {/* Default shift, weekly off, pay type, HR policy, fingerprint status (refreshes the profile after a save). */}
+        <TimePayCard employeeId={emp._id} onSaved={load} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <SectionCard title="Personal" icon={<User className="h-4 w-4" />}>

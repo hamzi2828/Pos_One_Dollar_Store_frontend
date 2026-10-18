@@ -94,12 +94,14 @@ export default function RolesPage() {
     defaultsLockRef.current = true;
     setAddingDefaults(true);
     try {
-      const { created, skipped } = await roleService.createDefaultRoles();
-      if (created.length) {
-        toast.success(
-          `Added: ${created.join(', ')}${skipped.length ? `. Already there: ${skipped.join(', ')}` : ''}.`,
-          { duration: 6000 },
-        );
+      const { created, skipped, updated } = await roleService.createDefaultRoles();
+      if (created.length || updated.length) {
+        const parts = [
+          created.length ? `Added: ${created.join(', ')}` : '',
+          updated.length ? `New permissions given to: ${updated.map((u) => u.name).join(', ')}` : '',
+          skipped.length ? `Already up to date: ${skipped.join(', ')}` : '',
+        ].filter(Boolean);
+        toast.success(`${parts.join('. ')}.`, { duration: 7000 });
       } else {
         toast.success(
           skipped.length ? `All default roles are already there (${skipped.join(', ')}).` : 'Nothing to add.',

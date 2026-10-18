@@ -23,6 +23,8 @@ export interface UpdateRolePayload {
 export interface DefaultRolesResult {
   created: string[];
   skipped: string[];
+  /** Existing default roles that received permissions added after they were made. */
+  updated: { name: string; keys: string[] }[];
 }
 
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeader() });
@@ -82,6 +84,7 @@ export const roleService = {
     return {
       created: Array.isArray(data.created) ? data.created : [],
       skipped: Array.isArray(data.skipped) ? data.skipped : [],
+      updated: Array.isArray(data.updated) ? data.updated : [],
     };
   },
 
