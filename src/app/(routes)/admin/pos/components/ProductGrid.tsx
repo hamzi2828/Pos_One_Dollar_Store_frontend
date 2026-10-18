@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { POSProduct } from '../types';
-import { LayoutGrid, ChevronLeft, Package, Plus, ShoppingCart } from 'lucide-react';
+import { LayoutGrid, ChevronLeft, Package, Plus, ShoppingCart, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface ProductGridProps {
@@ -12,6 +12,8 @@ interface ProductGridProps {
   loading?: boolean;
   currency?: string;
   searchQuery?: string;
+  /** Search text the products on screen belong to (can lag while searching). */
+  resultsQuery?: string;
 }
 
 export default function ProductGrid({
@@ -20,7 +22,9 @@ export default function ProductGrid({
   loading = false,
   currency = 'PKR',
   searchQuery = '',
+  resultsQuery,
 }: ProductGridProps) {
+  const shownQuery = resultsQuery ?? searchQuery;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const symbol = getCurrencySymbol(currency);
@@ -142,15 +146,35 @@ export default function ProductGrid({
     </div>
   );
 
-  // Loading state
-  if (loading) {
+  // Loading with nothing on screen yet (first load, or after "no results")
+  if (loading && products.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden" role="status" aria-live="polite">
+        <div className="flex items-center justify-center gap-2 py-6 text-sm font-medium text-[#DC2626]">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          {searchQuery ? <>Searching for &ldquo;{searchQuery}&rdquo;…</> : 'Loading products…'}
+        </div>
         <div className="animate-pulse">
-          <div className="h-10 bg-gray-100" />
-          {[...Array(8)].map((_, i) => (
+          {[...Array(6)].map((_, i) => (
             <div key={i} className="h-14 bg-gray-50 border-t border-gray-100" />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Loading while old results are showing: keep them, faded, under a banner
+  if (loading) {
+    return (
+      <div className="relative" aria-busy="true">
+        <div className="sticky top-0 z-10 mb-3 flex justify-center">
+          <div role="status" className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-[#DC2626] shadow-md ring-1 ring-red-100">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {searchQuery ? <>Searching for &ldquo;{searchQuery}&rdquo;…</> : 'Loading products…'}
+          </div>
+        </div>
+        <div className="pointer-events-none select-none opacity-40 transition-opacity">
+          {renderResults()}
         </div>
       </div>
     );
@@ -160,16 +184,21 @@ export default function ProductGrid({
     return (
       <div className="text-center py-12 bg-white rounded-lg">
         <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500 text-lg">No products found</p>
+        <p className="text-gray-500 text-lg">
+          {shownQuery ? <>No products found for &ldquo;{shownQuery}&rdquo;</> : 'No products found'}
+        </p>
         <p className="text-gray-400 text-sm mt-2">
-          Try adjusting your search or filters
+          Try another name, the short code, or scan the barcode
         </p>
       </div>
     );
   }
 
+  return renderResults();
+
+  function renderResults() {
   // If user is searching, show flat product table (no category grouping)
-  if (searchQuery) {
+  if (shownQuery) {
     return <ProductsTable productsList={products} />;
   }
 
@@ -258,4 +287,5 @@ export default function ProductGrid({
       </div>
     </div>
   );
+  }
 }

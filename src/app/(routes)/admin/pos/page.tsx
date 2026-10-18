@@ -1,7 +1,7 @@
 // POS Page - Point of Sale System
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { POSProduct, POSCart, CartItem, POSCustomer, POSVariant, PaymentMethodType, POSOrderData, POSOrder, POSTax, AppliedTax, CustomerInfo } from './types';
@@ -52,7 +52,9 @@ export default function POSPage() {
   const [serviceVehicle, setServiceVehicle] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  // Search text whose results are on screen (null = nothing loaded yet).
+  const [loadedQuery, setLoadedQuery] = useState<string | null>(null);
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [recentOrders, setRecentOrders] = useState<POSOrder[]>([]);
   const [activeTab, setActiveTab] = useState<POSTab>(initialTab);
@@ -100,19 +102,28 @@ export default function POSPage() {
     }
   }, []);
 
-  // Load products
-  const loadProducts = useCallback(async () => {
+  // Load products. Only the newest request may update the list: older ones
+  // are cancelled so a slow reply can't overwrite newer results.
+  const productsRequest = useRef<AbortController | null>(null);
+  const loadProducts = useCallback(async (query: string) => {
+    productsRequest.current?.abort();
+    const controller = new AbortController();
+    productsRequest.current = controller;
     try {
       setLoading(true);
-      const data = await getPOSProducts(searchQuery);
+      const data = await getPOSProducts(query, undefined, undefined, controller.signal);
+      if (controller.signal.aborted) return;
       setProducts(data);
+      setLoadedQuery(query);
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('Failed to load products:', error);
       toast.error('Failed to load products');
+      setLoadedQuery(query);
     } finally {
-      setLoading(false);
+      if (productsRequest.current === controller) setLoading(false);
     }
-  }, [searchQuery]);
+  }, []);
 
   // Load recent orders
   const loadRecentOrders = useCallback(async () => {
@@ -134,13 +145,12 @@ export default function POSPage() {
     }
   }, []);
 
-  // Initial load
+  // Initial load (products load through the search effect below)
   useEffect(() => {
-    loadProducts();
     loadRecentOrders();
     loadSettings();
     loadHeldCarts();
-  }, [loadProducts, loadRecentOrders, loadSettings, loadHeldCarts]);
+  }, [loadRecentOrders, loadSettings, loadHeldCarts]);
 
   // Memoized cart signature for detecting changes
   const cartSignature = useMemo(() => {
@@ -181,13 +191,22 @@ export default function POSPage() {
     });
   }, [cartSignature, cart.discount, selectedTaxIds, availableTaxes]);
 
-  // Search products (debounced)
+  // Search products (debounced; first load runs straight away)
+  const trimmedQuery = searchQuery.trim();
   useEffect(() => {
+    const delay = loadedQuery === null ? 0 : 300;
     const debounce = setTimeout(() => {
-      loadProducts();
-    }, 300);
+      loadProducts(trimmedQuery);
+    }, delay);
     return () => clearTimeout(debounce);
-  }, [loadProducts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trimmedQuery, loadProducts]);
+
+  useEffect(() => () => productsRequest.current?.abort(), []);
+
+  // "Searching" from the first key press until results for that text arrive,
+  // so the cashier sees something is happening during the debounce wait too.
+  const isSearching = loading || trimmedQuery !== (loadedQuery ?? '');
 
   const handleProductSelect = (product: POSProduct) => {
     if (product.productType === 'variant') {
@@ -569,6 +588,8 @@ export default function POSPage() {
             <ProductSearch
               value={searchQuery}
               onChange={setSearchQuery}
+              searching={isSearching && trimmedQuery !== ''}
+              resultCount={!isSearching && trimmedQuery ? products.length : undefined}
               onBarcodeScanned={(barcode) => {
                 // TODO: Implement barcode scanning
                 console.log('Barcode scanned:', barcode);
@@ -583,9 +604,10 @@ export default function POSPage() {
             <ProductGrid
               products={products}
               onSelectProduct={handleProductSelect}
-              loading={loading}
+              loading={isSearching}
               currency={'PKR'}
-              searchQuery={searchQuery}
+              searchQuery={trimmedQuery}
+              resultsQuery={loadedQuery ?? ''}
             />
           )}
 

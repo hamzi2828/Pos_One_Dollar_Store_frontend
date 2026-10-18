@@ -10,7 +10,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 export async function getPOSProducts(
   search?: string,
   category?: string,
-  limit?: number
+  limit?: number,
+  signal?: AbortSignal
 ): Promise<POSProduct[]> {
   if (!API_BASE_URL) {
     throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
@@ -30,6 +31,7 @@ export async function getPOSProducts(
       ...getAuthHeader(),
     },
     cache: 'no-store',
+    signal,
   });
 
   if (!res.ok) {
