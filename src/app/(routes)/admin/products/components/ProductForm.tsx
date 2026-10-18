@@ -171,7 +171,9 @@ export default function ProductForm({
   const pathname = usePathname();
 
   // Get valid tabs based on mode (related tab only in edit mode)
-  const effectiveValidTabs = mode === "edit" ? VALID_TABS : VALID_TABS.filter(t => t !== "related");
+  const wasVariant = mode === "edit" && (initialData as { productType?: string } | undefined)?.productType === "variant";
+  const effectiveValidTabs: TabKey[] =
+    mode === "edit" ? (wasVariant ? VALID_TABS : VALID_TABS.filter((t) => t !== "variant")) : ["content"];
 
   // Get initial tab from URL or default to "content"
   const getInitialTab = (): TabKey => {
@@ -623,7 +625,7 @@ export default function ProductForm({
 
   // Navigation helpers
   const currentTabIndex = effectiveValidTabs.indexOf(activeTab);
-  const isLastTab = mode === "edit" ? activeTab === "related" : activeTab === "variant";
+  const isLastTab = currentTabIndex === effectiveValidTabs.length - 1;
   const isFirstTab = activeTab === "content";
 
   const goToNextTab = () => {
@@ -890,7 +892,7 @@ export default function ProductForm({
         handleTabChange("content");
         toast.error("Please fix the errors in Product Details tab");
       } else if (errs.thumbnail) {
-        handleTabChange("variant");
+        handleTabChange(isVariant ? "variant" : "content");
         toast.error(errs.thumbnail);
       }
       return;
@@ -1167,7 +1169,8 @@ export default function ProductForm({
       <form onSubmit={handleSubmit} aria-busy={isLoading}>
        {/* While saving, every field / tab / button in the form is disabled */}
        <fieldset disabled={isLoading} className="min-w-0">
-        {/* Tabs Navigation */}
+        {/* Tabs Navigation (hidden when there is only one step) */}
+        {effectiveValidTabs.length > 1 && (
         <div className="border-b border-gray-200">
           <nav className="flex gap-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3 md:pt-4 overflow-x-auto" aria-label="Tabs">
             {[
@@ -1186,7 +1189,7 @@ export default function ProductForm({
                 label: "Related Products",
                 icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
               }] : []),
-            ].map((t) => (
+            ].filter((t) => effectiveValidTabs.includes(t.key as TabKey)).map((t) => (
               <button
                 key={t.key}
                 type="button"
@@ -1206,6 +1209,7 @@ export default function ProductForm({
             ))}
           </nav>
         </div>
+        )}
 
         <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6">
 
@@ -1657,6 +1661,66 @@ export default function ProductForm({
                     }
                     priceErrors={{ salePrice: errors.discountedPrice, costPrice: errors.costPrice }}
                   />
+                </div>
+              )}
+
+              {/* Single Product Images */}
+              {!isVariant && (
+                <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6 space-y-3 sm:space-y-4 md:space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-[110px_1fr] gap-4">
+                    {/* Thumbnail */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-sm font-medium text-gray-700">
+                          Thumbnail <span className="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                      </div>
+                      <input
+                        ref={thumbInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChange(e, "thumbnail")}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => thumbInputRef.current?.click()}
+                        className={`relative w-full aspect-[4/5] rounded-lg border border-dashed transition-colors overflow-hidden group ${
+                          errors.thumbnail
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white'
+                        }`}
+                      >
+                        {isValidUrl(form.thumbnailUrl?.toString()) ? (
+                          <>
+                            <Image
+                              src={form.thumbnailUrl!.toString()}
+                              alt="Thumbnail"
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                              <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                Change
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 group-hover:text-gray-900 transition-colors">
+                            <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-xs">Upload</span>
+                          </div>
+                        )}
+                      </button>
+                      <p className="mt-1 text-[11px] text-gray-400">380 × 480px</p>
+                      {errors.thumbnail && <p className="mt-1 text-xs text-red-600">{errors.thumbnail}</p>}
+                    </div>
+
+                  </div>
+
                 </div>
               )}
 
@@ -2245,65 +2309,6 @@ export default function ProductForm({
               </div>
             )}
 
-            {/* Single Product Images */}
-            {!isVariant && (
-              <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6 space-y-3 sm:space-y-4 md:space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-[110px_1fr] gap-4">
-                  {/* Thumbnail */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-sm font-medium text-gray-700">
-                        Thumbnail <span className="text-gray-400 font-normal">(Optional)</span>
-                      </label>
-                    </div>
-                    <input
-                      ref={thumbInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, "thumbnail")}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => thumbInputRef.current?.click()}
-                      className={`relative w-full aspect-[4/5] rounded-lg border border-dashed transition-colors overflow-hidden group ${
-                        errors.thumbnail
-                          ? 'border-red-300 bg-red-50'
-                          : 'border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white'
-                      }`}
-                    >
-                      {isValidUrl(form.thumbnailUrl?.toString()) ? (
-                        <>
-                          <Image
-                            src={form.thumbnailUrl!.toString()}
-                            alt="Thumbnail"
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                            <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                              Change
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 group-hover:text-gray-900 transition-colors">
-                          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span className="text-xs">Upload</span>
-                        </div>
-                      )}
-                    </button>
-                    <p className="mt-1 text-[11px] text-gray-400">380 × 480px</p>
-                    {errors.thumbnail && <p className="mt-1 text-xs text-red-600">{errors.thumbnail}</p>}
-                  </div>
-
-                </div>
-
-              </div>
-            )}
           </div>
         )}
 
