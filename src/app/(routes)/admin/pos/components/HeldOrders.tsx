@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { HeldCart } from '../types';
-import { Archive, Trash2, Clock, Eye, X, User, Phone, Car, Package, Wrench, Tag, Loader2 } from 'lucide-react';
+import { Archive, Trash2, Clock, Eye, X, User, Phone, Package, Wrench, Tag, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface HeldOrdersProps {
@@ -230,18 +230,6 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Phone className="h-4 w-4 text-gray-400" />
                     {customer.phone}
-                  </div>
-                )}
-                {customer.carDetails && Array.isArray(customer.carDetails) && customer.carDetails.length > 0 && (
-                  <div className="flex items-start gap-2 text-sm text-gray-600">
-                    <Car className="h-4 w-4 text-gray-400 mt-0.5" />
-                    <div className="flex flex-wrap gap-1">
-                      {customer.carDetails.map((c, i) => (
-                        <span key={i} className="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded">
-                          {[c.brand, c.model, c.numberPlate].filter(Boolean).join(' ') || '—'}
-                        </span>
-                      ))}
-                    </div>
                   </div>
                 )}
               </div>

@@ -92,7 +92,6 @@ export interface CreateCustomerData {
   lastName?: string;
   email?: string;
   phone: string;
-  vehicleName: string;
 }
 
 export interface CreateCustomerResponse {
@@ -100,24 +99,6 @@ export interface CreateCustomerResponse {
   data: POSCustomer;
   message: string;
   isNew: boolean;
-}
-
-export async function addCarToCustomer(
-  customerId: string,
-  car: { brand: string; model: string; numberPlate?: string }
-): Promise<POSCustomer> {
-  if (!API_BASE_URL) throw new Error('Missing NEXT_PUBLIC_BACKEND_URL');
-  const res = await fetch(`${API_BASE_URL}/api/pos/customers/${customerId}/cars`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify(car),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Failed to add car' }));
-    throw new Error(err.message || 'Failed to add car');
-  }
-  const json = await res.json();
-  return json.data as POSCustomer;
 }
 
 export async function createOrFindCustomer(data: CreateCustomerData): Promise<CreateCustomerResponse> {

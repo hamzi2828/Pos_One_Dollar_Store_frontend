@@ -78,7 +78,7 @@ export interface SalesSummaryReport {
     orderStatus: string;
     createdAt: string;
     items: unknown[];
-    customerInfo?: { name?: string; phone?: string; vehicleName?: string };
+    customerInfo?: { name?: string; phone?: string };
     customer?: { firstName?: string; lastName?: string; phone?: string };
     source: 'pos' | 'online';
   }>;
@@ -126,7 +126,6 @@ export interface LabourRevenueReport {
     total: number;
     customerName: string;
     customerPhone: string;
-    vehicle: string;
     cashier: string;
     performedBy: string;
   }>;
@@ -160,59 +159,6 @@ export interface StockReport {
     inventoryValue: number;
     stockStatus: StockStatus;
     updatedAt: string;
-  }>;
-}
-
-export interface VehicleDirectoryEntry {
-  vehicleName: string;
-  brand?: string;
-  brandLogoUrl?: string;
-  jobCount: number;
-  lastVisit: string;
-  totalRevenue: number;
-  customerName?: string;
-  customerPhone?: string;
-}
-
-export interface VehicleHistoryReport {
-  mode: 'directory' | 'detail';
-  vehicles?: VehicleDirectoryEntry[];
-  vehicleName?: string | null;
-  brand?: string;
-  brandLogoUrl?: string;
-  customerId?: string | null;
-  summary?: {
-    jobCount: number;
-    totalRevenue: number;
-    labourCount: number;
-    partsCount: number;
-    outsourceCount: number;
-  };
-  orders?: Array<{
-    _id: string;
-    orderNumber: string;
-    createdAt: string;
-    total: number;
-    subtotal: number;
-    tax: number;
-    discount: number;
-    paymentMethod: string;
-    paymentStatus: string;
-    customerInfo?: { name?: string; phone?: string; vehicleName?: string };
-    customer?: { firstName?: string; lastName?: string; phone?: string };
-    cashier?: { firstName?: string; lastName?: string };
-    items: Array<{
-      quantity: number;
-      price: number;
-      discount?: number;
-      isLabour?: boolean;
-      labourDescription?: string;
-      isOutsource?: boolean;
-      outsourceDescription?: string;
-      color?: string;
-      size?: string;
-      product?: { name?: string } | string | null;
-    }>;
   }>;
 }
 
@@ -449,18 +395,6 @@ export function fetchStockReport(
   if (opts.limit) p.limit = String(opts.limit);
   if (opts.search) p.search = opts.search;
   return requestWithPagination<StockReport>('/api/reports/stock', p, signal);
-}
-export function fetchVehicleHistory(
-  params: { vehicle?: string; customerId?: string; page?: number; limit?: number; search?: string },
-  signal?: AbortSignal,
-) {
-  const p: Record<string, string> = {};
-  if (params.vehicle) p.vehicle = params.vehicle;
-  if (params.customerId) p.customerId = params.customerId;
-  if (params.page) p.page = String(params.page);
-  if (params.limit) p.limit = String(params.limit);
-  if (params.search) p.search = params.search;
-  return requestWithPagination<VehicleHistoryReport>('/api/reports/vehicle-history', p, signal);
 }
 export function fetchExpenseReport(
   startDate: string,

@@ -86,12 +86,6 @@ export interface POSCart {
   customer?: POSCustomer;
 }
 
-export interface POSCarDetails {
-  brand: string;
-  model: string;
-  numberPlate: string;
-}
-
 export interface POSAddress {
   street?: string;
   city?: string;
@@ -106,7 +100,6 @@ export interface POSCustomer {
   lastName: string;
   email?: string;
   phone?: string;
-  carDetails?: POSCarDetails | POSCarDetails[];
   address?: POSAddress;
   customerType?: 'online' | 'walk-in';
   source?: 'facebook' | 'tiktok' | 'instagram' | 'word-of-mouth' | '';
@@ -170,7 +163,6 @@ export interface POSOrderItem {
 export interface CustomerInfo {
   name: string;
   phone: string;
-  vehicleName: string;
   customerType?: 'online' | 'walk-in';
   source?: 'facebook' | 'tiktok' | 'instagram' | 'word-of-mouth' | '';
 }

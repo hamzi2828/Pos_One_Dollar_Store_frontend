@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { colorService, mapColor } from "../services/colorService";
 import { sizeService, mapSize } from "../services/sizeService";
-import CarsTab from "./CarsTab";
 
 const slugify = (str: string) =>
   str
@@ -22,7 +21,6 @@ type AttributeTab = { key: string; label: string };
 const attributeTabs: AttributeTab[] = [
   { key: "colors", label: "Colors" },
   { key: "sizes", label: "Sizes" },
-  { key: "cars", label: "Cars" },
 ];
 
 export default function ColorsSizesTab() {
@@ -30,7 +28,7 @@ export default function ColorsSizesTab() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Read initial tab from URL (?tab=colors|sizes|cars), default to "colors"
+  // Read initial tab from URL (?tab=colors|sizes), default to "colors"
   const urlTab = searchParams.get("tab");
   const initialTab = attributeTabs.some((t) => t.key === urlTab) ? urlTab! : "colors";
   const [activeTab, setActiveTab] = useState<string>(initialTab);
@@ -505,9 +503,6 @@ export default function ColorsSizesTab() {
         </div>
       </div>
       )}
-
-      {/* Cars panel */}
-      {activeTab === "cars" && <CarsTab />}
     </div>
   );
 }

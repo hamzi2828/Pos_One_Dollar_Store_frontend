@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { PaymentMethodType, POSCart, POSCustomer, CustomerInfo } from '../types';
-import { X, CreditCard, Banknote, Building2, Upload, Loader2, Check, AlertCircle, User, Phone, Car } from 'lucide-react';
+import { X, CreditCard, Banknote, Building2, Upload, Loader2, Check, AlertCircle, User, Phone } from 'lucide-react';
 import { uploadBankTransferScreenshot } from '../services/posUploadService';
 import { getCurrencySymbol } from '../utils/currency';
 
@@ -11,7 +11,6 @@ interface PaymentModalProps {
   isOpen: boolean;
   cart: POSCart;
   customer?: POSCustomer | null;
-  serviceVehicle?: string;
   onClose: () => void;
   onConfirm: (
     paymentMethod: PaymentMethodType,
@@ -30,7 +29,6 @@ export default function PaymentModal({
   isOpen,
   cart,
   customer,
-  serviceVehicle,
   onClose,
   onConfirm,
   currency = 'PKR',
@@ -95,15 +93,9 @@ export default function PaymentModal({
       // Build customer info from selected customer if available
       let customerInfo: CustomerInfo | undefined;
       if (customer) {
-        const cars = Array.isArray(customer.carDetails) ? customer.carDetails : customer.carDetails ? [customer.carDetails] : [];
-        // Prefer the explicitly-picked service vehicle; fall back to the first car on file.
-        const vehicleName =
-          (serviceVehicle && serviceVehicle.trim()) ||
-          (cars.length > 0 ? `${cars[0].brand || ''} ${cars[0].model || ''}`.trim() : '');
         customerInfo = {
           name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
           phone: customer.phone || '',
-          vehicleName,
           customerType: customer.customerType,
           source: customer.source
         };
@@ -189,24 +181,6 @@ export default function PaymentModal({
                     <span className="text-gray-700">{customer.phone}</span>
                   </div>
                 )}
-                {(() => {
-                  const cars = Array.isArray(customer.carDetails) ? customer.carDetails : customer.carDetails ? [customer.carDetails] : [];
-                  if (cars.length === 0) return null;
-                  return (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Car className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-700">
-                        {cars.map((car, idx) => (
-                          <span key={idx}>
-                            {car.brand} {car.model}
-                            {car.numberPlate && <span className="text-gray-500 ml-1">({car.numberPlate})</span>}
-                            {idx < cars.length - 1 && ', '}
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  );
-                })()}
               </div>
             </div>
           ) : (

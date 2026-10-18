@@ -15,7 +15,7 @@ import type { POSOrder } from '../pos/types';
 
 interface UserOrderStats { count: number; total: number; }
 
-type SortKey = 'name' | 'status' | 'cars' | 'orders' | 'spent' | 'lastLogin' | 'createdAt';
+type SortKey = 'name' | 'status' | 'orders' | 'spent' | 'lastLogin' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -166,7 +166,6 @@ const UsersPage = () => {
             lastLogin,
             createdAt: String(u.createdAt ?? new Date().toISOString()),
             updatedAt: String(u.updatedAt ?? new Date().toISOString()),
-            carsCount: Array.isArray(u.cars) ? u.cars.length : 0,
           };
         });
         if (!cancelled) setUsers(typed);
@@ -265,8 +264,6 @@ const UsersPage = () => {
           return (a.name || '').localeCompare(b.name || '') * dir;
         case 'status':
           return ((a.isActive ? 1 : 0) - (b.isActive ? 1 : 0)) * dir;
-        case 'cars':
-          return ((a.carsCount || 0) - (b.carsCount || 0)) * dir;
         case 'orders':
           return ((orderStats[a._id]?.count ?? 0) - (orderStats[b._id]?.count ?? 0)) * dir;
         case 'spent':
@@ -307,7 +304,7 @@ const UsersPage = () => {
   // ---- Mutations ----
   const handleSort = (field: SortKey) => {
     if (field === sortKey) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(field); setSortDir(field === 'createdAt' || field === 'orders' || field === 'spent' || field === 'cars' || field === 'lastLogin' ? 'desc' : 'asc'); }
+    else { setSortKey(field); setSortDir(field === 'createdAt' || field === 'orders' || field === 'spent' || field === 'lastLogin' ? 'desc' : 'asc'); }
   };
 
   // Per-row lock: only the row being saved spins, and its buttons can't be
@@ -479,8 +476,7 @@ const UsersPage = () => {
                           <p className="text-sm font-medium text-gray-900 truncate">{user.name || 'Unknown'}</p>
                           <p className="text-xs text-gray-500 truncate">{user.email}</p>
                           <p className="text-[10px] text-gray-600 mt-0.5">
-                            <span className="font-semibold text-blue-700">{user.carsCount ?? 0}</span> cars ·
-                            <span className="font-semibold text-honey-700"> {stats?.count ?? 0}</span> orders ·
+                            <span className="font-semibold text-honey-700">{stats?.count ?? 0}</span> orders ·
                             <span className="font-semibold text-gray-900"> {formatCurrency(stats?.total ?? 0)}</span>
                           </p>
                         </div>
@@ -523,7 +519,6 @@ const UsersPage = () => {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <SortHeader label="Customer"   field="name"       current={sortKey} dir={sortDir} onSort={handleSort} />
                       <SortHeader label="Status"     field="status"     current={sortKey} dir={sortDir} onSort={handleSort} />
-                      <SortHeader label="Cars"       field="cars"       current={sortKey} dir={sortDir} onSort={handleSort} align="right" className="hidden md:table-cell" />
                       <SortHeader label="Orders"     field="orders"     current={sortKey} dir={sortDir} onSort={handleSort} align="right" className="hidden md:table-cell" />
                       <SortHeader label="Spent"      field="spent"      current={sortKey} dir={sortDir} onSort={handleSort} align="right" className="hidden md:table-cell" />
                       <SortHeader label="Last Login" field="lastLogin"  current={sortKey} dir={sortDir} onSort={handleSort} className="hidden lg:table-cell" />
@@ -561,11 +556,6 @@ const UsersPage = () => {
                               {rowBusy?.id === user._id && rowBusy.kind === 'status' && <Loader2 className="h-3 w-3 animate-spin" />}
                               {user.isActive ? 'Active' : 'Inactive'}
                             </button>
-                          </td>
-                          <td className="px-4 py-3 hidden md:table-cell text-right">
-                            <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-full">
-                              {user.carsCount ?? 0}
-                            </span>
                           </td>
                           <td className="px-4 py-3 hidden md:table-cell text-right">
                             <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 text-xs font-semibold text-honey-700 bg-honey-50 border border-honey-500/20 rounded-full">

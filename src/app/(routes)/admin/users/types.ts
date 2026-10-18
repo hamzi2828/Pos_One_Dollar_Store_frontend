@@ -9,7 +9,6 @@ export interface User {
   lastLogin?: string | null;
   createdAt: string;
   updatedAt: string;
-  carsCount?: number;
 }
 
 // Raw user shape coming from backend before mapping to UI-safe User
@@ -24,5 +23,4 @@ export interface RawUser {
   lastLogin?: string | Date | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;
-  cars?: unknown[];
 }

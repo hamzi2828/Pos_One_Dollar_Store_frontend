@@ -76,8 +76,6 @@ export interface Product {
   dimensionWidth?: string;
   dimensionHeight?: string;
   weight?: string;
-  // Compatible cars
-  compatibleCars?: string[];
   // Date added
   createdAt?: string;
 }

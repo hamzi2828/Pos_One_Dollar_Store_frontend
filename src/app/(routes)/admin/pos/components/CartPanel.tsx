@@ -3,17 +3,10 @@
 
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { POSCart, POSCustomer, POSTax, POSCarDetails } from '../types';
+import { POSCart, POSCustomer, POSTax } from '../types';
 import CartItem from './CartItem';
-import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Car, Percent, X, Wrench, Loader2 } from 'lucide-react';
+import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Percent, X, Wrench, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
-
-// Helper to get cars array
-const getCarsArray = (carDetails?: POSCarDetails | POSCarDetails[]): POSCarDetails[] => {
-  if (!carDetails) return [];
-  if (Array.isArray(carDetails)) return carDetails;
-  return [carDetails];
-};
 
 interface CartPanelProps {
   cart: POSCart;
@@ -35,8 +28,6 @@ interface CartPanelProps {
     salePrice: number,
     costPrice?: number
   ) => void;
-  serviceVehicle?: string;
-  onSelectVehicle?: (vehicle: string) => void;
   /** Hold Order is saving. */
   holding?: boolean;
   /** Payment window is open / payment is going through. */
@@ -59,8 +50,6 @@ export default function CartPanel({
   onTaxSelectionChange,
   onApplyDiscount,
   onAddCustomItem,
-  serviceVehicle,
-  onSelectVehicle,
   holding = false,
   paying = false,
 }: CartPanelProps) {
@@ -124,64 +113,10 @@ export default function CartPanel({
               ? `${customer.firstName} ${customer.lastName}`
               : 'Walk-in Customer (Guest)'}
           </div>
-          {(() => {
-            if (!customer) return null;
-            const cars = getCarsArray(customer.carDetails);
-            if (cars.length === 0) return null;
-            return (
-              <div className="space-y-0.5 mt-1">
-                {cars.map((car, index) => (
-                  <div key={index} className="flex items-center gap-1 text-xs text-[#DC2626]">
-                    <Car className="h-3 w-3 flex-shrink-0" />
-                    <span>
-                      {car.brand} {car.model}
-                      {car.numberPlate && (
-                        <span className="ml-1 text-gray-600">({car.numberPlate})</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
           {customer?.phone && (
             <div className="text-xs text-gray-500 mt-0.5">{customer.phone}</div>
           )}
         </button>
-
-        {/* Service Vehicle selector — tags the sale (and every item on
-            it) to a specific car. Shows when the customer has known cars. */}
-        {customer && onSelectVehicle && (() => {
-          const cars = getCarsArray(customer.carDetails);
-          if (cars.length === 0) return null;
-          const options = cars.map((c) => ({
-            key: [c.brand, c.model, c.numberPlate].filter(Boolean).join(' | '),
-            label: `${c.brand || ''} ${c.model || ''}`.trim() + (c.numberPlate ? ` (${c.numberPlate})` : ''),
-            value: `${c.brand || ''} ${c.model || ''}`.trim(),
-          }));
-          return (
-            <div className="mt-2">
-              <label className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                <Car className="h-3 w-3 text-[#DC2626]" /> Service Vehicle
-              </label>
-              <select
-                value={serviceVehicle || ''}
-                onChange={(e) => onSelectVehicle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
-              >
-                <option value="">— pick a vehicle —</option>
-                {options.map((o) => (
-                  <option key={o.key} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-gray-400 mt-1">
-                Items on this order will be tagged to this vehicle.
-              </p>
-            </div>
-          );
-        })()}
       </div>
 
       {/* Add Custom Item */}
@@ -239,13 +174,6 @@ export default function CartPanel({
                 />
               </div>
               <p className="text-xs text-gray-500">Cost price is optional — used for margin reporting</p>
-
-
-              {customer && getCarsArray(customer.carDetails).length > 0 && !serviceVehicle && (
-                <p className="text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded px-2 py-1">
-                  Pick a Service Vehicle above so this item is tracked in history.
-                </p>
-              )}
               <button
                 onClick={() => {
                   const salePrice = parseFloat(customSalePrice);

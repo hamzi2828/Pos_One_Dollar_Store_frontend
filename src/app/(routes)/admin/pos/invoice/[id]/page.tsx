@@ -192,7 +192,7 @@ export default function InvoicePage() {
 
         {/* Customer Info Section */}
         <div className="p-6 border-b bg-gray-50">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-[#DC2626] rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-sm">
@@ -211,15 +211,6 @@ export default function InvoicePage() {
               <h3 className="text-xs font-medium text-gray-500 uppercase">Mobile</h3>
               <p className="text-gray-900 font-semibold">
                 {order.customerInfo?.phone || order.customer?.phone || '-'}
-              </p>
-            </div>
-            <div>
-              <h3 className="text-xs font-medium text-gray-500 uppercase">Vehicle</h3>
-              <p className="text-gray-900 font-semibold">
-                {order.customerInfo?.vehicleName ||
-                 (order.customer?.carDetails && Array.isArray(order.customer.carDetails) && order.customer.carDetails.length > 0
-                   ? `${order.customer.carDetails[0].brand || ''} ${order.customer.carDetails[0].model || ''}`.trim() || '-'
-                   : '-')}
               </p>
             </div>
           </div>
@@ -582,18 +573,12 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
   const customerName = order.customerInfo?.name ||
     (order.customer ? `${order.customer.firstName} ${order.customer.lastName}` : 'Walk-in Customer');
   const phone = order.customerInfo?.phone || order.customer?.phone || '-';
-  const vehicle = order.customerInfo?.vehicleName ||
-    (order.customer?.carDetails && Array.isArray(order.customer.carDetails) && order.customer.carDetails.length > 0
-      ? `${order.customer.carDetails[0].brand || ''} ${order.customer.carDetails[0].model || ''}`.trim() || '-'
-      : '-');
 
   writeLine('CUSTOMER', margin, y, { bold: true, size: 9 });
   writeLine('MOBILE', margin + 180, y, { bold: true, size: 9 });
-  writeLine('VEHICLE', margin + 340, y, { bold: true, size: 9 });
   y += 14;
   writeLine(customerName, margin, y, { size: 10 });
   writeLine(phone, margin + 180, y, { size: 10 });
-  writeLine(vehicle, margin + 340, y, { size: 10 });
   y += 20;
 
   doc.setDrawColor(229, 231, 235);

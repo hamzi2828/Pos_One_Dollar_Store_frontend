@@ -49,7 +49,6 @@ export default function POSPage() {
     total: 0,
   });
   const [customer, setCustomer] = useState<POSCustomer | null>(null);
-  const [serviceVehicle, setServiceVehicle] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -349,7 +348,6 @@ export default function POSPage() {
         total: 0,
       });
       setCustomer(null);
-      setServiceVehicle('');
     }
   };
 
@@ -381,7 +379,6 @@ export default function POSPage() {
         total: 0,
       });
       setCustomer(null);
-      setServiceVehicle('');
 
       toast.success('Order held successfully');
       handleTabChange('held');
@@ -468,7 +465,6 @@ export default function POSPage() {
             firstName,
             lastName,
             phone: customerInfo.phone,
-            vehicleName: customerInfo.vehicleName
           });
           customerId = customerResult.data._id;
         } catch (customerError) {
@@ -536,7 +532,6 @@ export default function POSPage() {
         total: 0,
       });
       setCustomer(null);
-      setServiceVehicle('');
       setShowPaymentModal(false);
 
       // Reload recent orders
@@ -687,8 +682,6 @@ export default function POSPage() {
           selectedTaxIds={selectedTaxIds}
           onTaxSelectionChange={setSelectedTaxIds}
           onAddCustomItem={addCustomItemToCart}
-          serviceVehicle={serviceVehicle}
-          onSelectVehicle={setServiceVehicle}
           onApplyDiscount={(discount, discountType, discountReason) => {
             setCart(prev => {
               const total = prev.subtotal + prev.tax - discount;
@@ -702,27 +695,7 @@ export default function POSPage() {
       <CustomerSelector
         isOpen={showCustomerSelector}
         onClose={() => setShowCustomerSelector(false)}
-        onSelect={(c, vehicle) => {
-          setCustomer(c);
-          // The modal now returns an explicit vehicle pick. Fall back to the
-          // single-car auto-pick if it wasn't chosen.
-          if (!c) {
-            setServiceVehicle('');
-          } else if (vehicle) {
-            setServiceVehicle(vehicle);
-          } else {
-            const cars = Array.isArray(c.carDetails)
-              ? c.carDetails
-              : c.carDetails
-              ? [c.carDetails]
-              : [];
-            if (cars.length === 1) {
-              setServiceVehicle(`${cars[0].brand || ''} ${cars[0].model || ''}`.trim());
-            } else {
-              setServiceVehicle('');
-            }
-          }
-        }}
+        onSelect={setCustomer}
         currentCustomer={customer}
       />
 
@@ -740,7 +713,6 @@ export default function POSPage() {
         isOpen={showPaymentModal}
         cart={cart}
         customer={customer}
-        serviceVehicle={serviceVehicle}
         onClose={() => { if (!paying) setShowPaymentModal(false); }}
         onConfirm={handlePaymentConfirm}
         processing={paying}

@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Wrench,
   Boxes,
-  Car,
   Receipt,
   Building2,
   Briefcase,
