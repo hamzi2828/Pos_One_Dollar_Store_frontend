@@ -310,7 +310,15 @@ const UsersPage = () => {
     else { setSortKey(field); setSortDir(field === 'createdAt' || field === 'orders' || field === 'spent' || field === 'cars' || field === 'lastLogin' ? 'desc' : 'asc'); }
   };
 
+  // Per-row lock: only the row being saved spins, and its buttons can't be
+  // clicked again until the request settles.
+  const rowLockRef = useRef<Set<string>>(new Set());
+  const [rowBusy, setRowBusy] = useState<{ id: string; kind: 'status' | 'delete' } | null>(null);
+
   const handleStatusUpdate = async (userId: string, isActive: boolean) => {
+    if (rowLockRef.current.has(userId)) return;
+    rowLockRef.current.add(userId);
+    setRowBusy({ id: userId, kind: 'status' });
     const prev = userIndex.get(userId)?.isActive;
     setUsers((all) => all.map((u) => (u._id === userId ? { ...u, isActive } : u)));
     try {
@@ -321,11 +329,18 @@ const UsersPage = () => {
       if (prev !== undefined) {
         setUsers((all) => all.map((u) => (u._id === userId ? { ...u, isActive: prev } : u)));
       }
+    } finally {
+      rowLockRef.current.delete(userId);
+      setRowBusy((b) => (b?.id === userId ? null : b));
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
+    if (rowLockRef.current.has(userId)) return;
     if (typeof window !== 'undefined' && window.confirm('Are you sure you want to delete this user?')) {
+      if (rowLockRef.current.has(userId)) return;
+      rowLockRef.current.add(userId);
+      setRowBusy({ id: userId, kind: 'delete' });
       const prev = users;
       setUsers((all) => all.filter((u) => u._id !== userId));
       try {
@@ -334,6 +349,9 @@ const UsersPage = () => {
         console.error('Error deleting user:', err);
         setError('Failed to delete user');
         setUsers(prev);
+      } finally {
+        rowLockRef.current.delete(userId);
+        setRowBusy((b) => (b?.id === userId ? null : b));
       }
     }
   };
@@ -468,10 +486,13 @@ const UsersPage = () => {
                         </div>
                         <button
                           onClick={() => handleStatusUpdate(user._id, !user.isActive)}
-                          className={`px-2 py-0.5 text-[10px] font-medium rounded-full flex-shrink-0 ${
+                          disabled={rowBusy?.id === user._id}
+                          aria-busy={rowBusy?.id === user._id && rowBusy.kind === 'status'}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed ${
                             user.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                           }`}
                         >
+                          {rowBusy?.id === user._id && rowBusy.kind === 'status' && <Loader2 className="h-3 w-3 animate-spin" />}
                           {user.isActive ? 'Active' : 'Inactive'}
                         </button>
                         <button onClick={() => { setActivityUserId(user._id); setActivityUserName(user.name || 'Unknown'); }} className="p-1 text-gray-400 hover:text-blue-500 flex-shrink-0" title="Activity log">
@@ -480,8 +501,16 @@ const UsersPage = () => {
                         <button onClick={() => setOrdersUser({ id: user._id, name: user.name || 'Unknown', email: user.email })} className="p-1 text-gray-400 hover:text-honey-600 flex-shrink-0" title="Order history">
                           <History className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteUser(user._id)} className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0" title="Delete customer">
-                          <Trash2 className="h-3.5 w-3.5" />
+                        <button
+                          onClick={() => handleDeleteUser(user._id)}
+                          disabled={rowBusy?.id === user._id}
+                          aria-busy={rowBusy?.id === user._id && rowBusy.kind === 'delete'}
+                          className="p-1 text-gray-400 hover:text-red-500 flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                          title="Delete customer"
+                        >
+                          {rowBusy?.id === user._id && rowBusy.kind === 'delete'
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Trash2 className="h-3.5 w-3.5" />}
                         </button>
                       </div>
                     );
@@ -521,12 +550,15 @@ const UsersPage = () => {
                           <td className="px-4 py-3">
                             <button
                               onClick={() => handleStatusUpdate(user._id, !user.isActive)}
-                              className={`px-2.5 py-1 text-xs font-medium rounded-full transition-colors ${
+                              disabled={rowBusy?.id === user._id}
+                              aria-busy={rowBusy?.id === user._id && rowBusy.kind === 'status'}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                                 user.isActive
                                   ? 'bg-green-100 text-green-700 hover:bg-green-200'
                                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                               }`}
                             >
+                              {rowBusy?.id === user._id && rowBusy.kind === 'status' && <Loader2 className="h-3 w-3 animate-spin" />}
                               {user.isActive ? 'Active' : 'Inactive'}
                             </button>
                           </td>
@@ -568,10 +600,14 @@ const UsersPage = () => {
                               <ActionTip label="Delete customer">
                                 <button
                                   onClick={() => handleDeleteUser(user._id)}
-                                  className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                  disabled={rowBusy?.id === user._id}
+                                  aria-busy={rowBusy?.id === user._id && rowBusy.kind === 'delete'}
+                                  className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                   aria-label="Delete customer"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  {rowBusy?.id === user._id && rowBusy.kind === 'delete'
+                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                    : <Trash2 className="h-4 w-4" />}
                                 </button>
                               </ActionTip>
                             </div>

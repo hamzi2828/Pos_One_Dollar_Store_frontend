@@ -1,7 +1,7 @@
 // Cost Analysis report — revenue vs COGS vs expenses → profit estimate.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { LineChart, RefreshCw, Loader2, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import ReportsNav from '../components/ReportsNav';
@@ -24,18 +24,26 @@ export default function CostAnalysisPage() {
   const [loading, setLoading] = useState(false);
 
   const range = useMemo(() => rangeFromFilter(filter, cs, ce), [filter, cs, ce]);
+  // Counts in-flight fetches so Refresh can't be re-fired while one is running.
+  const inFlightRef = useRef(0);
   const load = useCallback(async () => {
     if (!range) return;
     try {
+      inFlightRef.current += 1;
       setLoading(true);
       setData(await fetchCostAnalysis(range.start, range.end));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load cost analysis');
     } finally {
-      setLoading(false);
+      inFlightRef.current -= 1;
+      if (inFlightRef.current === 0) setLoading(false);
     }
   }, [range]);
   useEffect(() => { load(); }, [load]);
+  const handleRefresh = () => {
+    if (inFlightRef.current > 0) return;
+    load();
+  };
 
   const fmt = (n: number) => `${symbol}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   const profitable = (data?.netProfit ?? 0) >= 0;
@@ -53,12 +61,17 @@ export default function CostAnalysisPage() {
           </p>
         </div>
         <button
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+            onClick={handleRefresh}
+            disabled={loading}
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+            ) : (
+              <><RefreshCw className="h-4 w-4" /> Refresh</>
+            )}
+          </button>
       </div>
 
       <ReportsNav />

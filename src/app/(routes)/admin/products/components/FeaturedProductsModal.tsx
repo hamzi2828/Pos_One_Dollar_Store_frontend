@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { X, Loader2, Search, Package, Check } from "lucide-react";
 import { categoryService } from "../services/categoryService";
@@ -34,6 +34,8 @@ export default function FeaturedProductsModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  // Synchronous lock so a double click can't send the save twice
+  const savingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +78,8 @@ export default function FeaturedProductsModal({
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await categoryService.setFeaturedProducts(categoryId, Array.from(selected));
@@ -85,6 +89,7 @@ export default function FeaturedProductsModal({
       console.error(e);
       alert("Failed to save featured products");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -105,7 +110,8 @@ export default function FeaturedProductsModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+            disabled={saving}
+            className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <X className="h-5 w-5" />
           </button>
@@ -154,7 +160,8 @@ export default function FeaturedProductsModal({
                     <button
                       type="button"
                       onClick={() => toggle(p._id)}
-                      className={`w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left ${
+                      disabled={saving}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all text-left disabled:opacity-60 disabled:cursor-not-allowed ${
                         isSelected
                           ? "border-honey-500 bg-honey-50"
                           : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
@@ -205,17 +212,18 @@ export default function FeaturedProductsModal({
           <button
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || loading}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-md hover:bg-honey-600 disabled:opacity-50"
+            aria-busy={saving}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-md hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save Featured Products
+            {saving ? "Saving…" : "Save Featured Products"}
           </button>
         </div>
       </div>

@@ -35,6 +35,8 @@ export default function EditExpensePage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous submit lock — Enter-key + double-click can't double-submit.
+  const submitLockRef = useRef(false);
 
   // Fetch expense data
   useEffect(() => {
@@ -101,6 +103,7 @@ export default function EditExpensePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
     setError(null);
 
     // Validation
@@ -117,6 +120,7 @@ export default function EditExpensePage() {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     try {
       const expenseData: UpdateExpenseData = {
@@ -136,6 +140,7 @@ export default function EditExpensePage() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update expense';
       setError(errorMessage);
     } finally {
+      submitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -316,7 +321,8 @@ export default function EditExpensePage() {
                 <button
                   type="button"
                   onClick={handleRemoveExistingReceipt}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                  disabled={loading}
+                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -336,7 +342,8 @@ export default function EditExpensePage() {
                 <button
                   type="button"
                   onClick={handleRemoveFile}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                  disabled={loading}
+                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -346,8 +353,9 @@ export default function EditExpensePage() {
             {/* Show upload area if no receipt */}
             {!existingReceipt && !receiptPreview && (
               <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-[#dc2626] transition-colors"
+                onClick={() => { if (!loading) fileInputRef.current?.click(); }}
+                aria-disabled={loading}
+                className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-[#dc2626]'}`}
               >
                 <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm text-gray-600">Click to upload receipt image</p>
@@ -360,7 +368,8 @@ export default function EditExpensePage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="text-sm text-[#dc2626] hover:underline"
+                disabled={loading}
+                className="text-sm text-[#dc2626] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Change receipt image
               </button>
@@ -398,19 +407,22 @@ export default function EditExpensePage() {
         <div className="flex justify-end gap-3">
           <Link
             href="/admin/expenses"
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            aria-disabled={loading}
+            tabIndex={loading ? -1 : undefined}
+            className={`px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors ${loading ? 'opacity-60 pointer-events-none' : ''}`}
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            aria-busy={loading}
+            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
+                Saving…
               </>
             ) : (
               'Save Changes'

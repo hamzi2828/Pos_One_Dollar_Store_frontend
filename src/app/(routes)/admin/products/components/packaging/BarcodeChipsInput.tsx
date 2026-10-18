@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Barcode, Loader2, X } from "lucide-react";
 import { productService } from "../../services/productService";
 import { normalizeCode } from "./packagingUtils";
@@ -35,8 +35,11 @@ export default function BarcodeChipsInput({
   const [text, setText] = useState("");
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState("");
+  // Synchronous lock: a scanner's Enter followed by blur must not check/add the same code twice
+  const checkingRef = useRef(false);
 
   const tryAdd = async () => {
+    if (checkingRef.current) return;
     const code = normalizeCode(text);
     if (!code) return;
     if (codes.map(normalizeCode).includes(code)) {
@@ -48,6 +51,7 @@ export default function BarcodeChipsInput({
       setMessage(`"${code}" is already used in this product`);
       return;
     }
+    checkingRef.current = true;
     setChecking(true);
     try {
       const res = await productService.checkCode(code, excludeId);
@@ -58,6 +62,7 @@ export default function BarcodeChipsInput({
     } catch {
       // Check failed (offline / no permission): add it, the save will check again.
     } finally {
+      checkingRef.current = false;
       setChecking(false);
     }
     onAdd(code);
@@ -110,9 +115,15 @@ export default function BarcodeChipsInput({
           onBlur={() => {
             if (text.trim()) void tryAdd();
           }}
+          aria-busy={checking}
           className={`flex-1 min-w-[140px] border-0 bg-transparent px-1 ${compact ? "py-0.5" : "py-1"} text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0`}
         />
-        {checking && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+        {checking && (
+          <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Checking…
+          </span>
+        )}
       </div>
       {shownError && <p className="mt-1 text-xs text-red-600">{shownError}</p>}
     </div>

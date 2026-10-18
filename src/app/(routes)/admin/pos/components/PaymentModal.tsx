@@ -1,7 +1,7 @@
 // Payment Modal Component
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PaymentMethodType, POSCart, POSCustomer, CustomerInfo } from '../types';
 import { X, CreditCard, Banknote, Building2, Upload, Loader2, Check, AlertCircle, User, Phone, Car } from 'lucide-react';
 import { uploadBankTransferScreenshot } from '../services/posUploadService';
@@ -20,8 +20,10 @@ interface PaymentModalProps {
     isPartialPayment?: boolean,
     paidAmount?: number,
     customerInfo?: CustomerInfo
-  ) => void;
+  ) => void | Promise<void>;
   currency?: string;
+  /** Payment is being saved by the page (keeps the window locked). */
+  processing?: boolean;
 }
 
 export default function PaymentModal({
@@ -32,11 +34,15 @@ export default function PaymentModal({
   onClose,
   onConfirm,
   currency = 'PKR',
+  processing: processingFromPage = false,
 }: PaymentModalProps) {
   const symbol = getCurrencySymbol(currency);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
   const [cashReceived, setCashReceived] = useState<string>('');
-  const [processing, setProcessing] = useState(false);
+  const [localProcessing, setProcessing] = useState(false);
+  const processing = localProcessing || processingFromPage;
+  // Blocks a second click before React has re-rendered the disabled button.
+  const confirmLock = useRef(false);
   const [bankScreenshotFile, setBankScreenshotFile] = useState<File | null>(null);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
 
@@ -66,7 +72,8 @@ export default function PaymentModal({
   const canProceed = isValidCard || isValidCash || isValidBankTransfer;
 
   const handleConfirm = async () => {
-    if (!canProceed) return;
+    if (!canProceed || confirmLock.current) return;
+    confirmLock.current = true;
     setProcessing(true);
     setScreenshotError(null);
 
@@ -80,6 +87,7 @@ export default function PaymentModal({
           const msg = err instanceof Error ? err.message : 'Failed to upload screenshot';
           setScreenshotError(msg);
           setProcessing(false);
+          confirmLock.current = false;
           return;
         }
       }
@@ -110,6 +118,7 @@ export default function PaymentModal({
         customerInfo
       );
     } finally {
+      confirmLock.current = false;
       setProcessing(false);
     }
   };
@@ -137,7 +146,7 @@ export default function PaymentModal({
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <fieldset disabled={processing} aria-busy={processing} className="p-4 space-y-4 min-w-0 disabled:[&_button]:cursor-not-allowed">
           {/* Customer Details (Read-only) */}
           {customer ? (
             <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -374,19 +383,22 @@ export default function PaymentModal({
             onClick={handleConfirm}
             disabled={!canProceed || processing}
             className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-colors ${
-              canProceed && !processing
-                ? isPartialPayment
+              canProceed
+                ? (processing ? 'cursor-wait opacity-80 ' : '') + (isPartialPayment
                   ? 'bg-orange-600 text-white hover:bg-orange-700'
                   : paymentMethod === 'bank_transfer'
                   ? 'bg-purple-600 text-white hover:bg-purple-700'
                   : paymentMethod === 'cash'
                   ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-blue-600 text-white hover:bg-blue-700')
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
             {processing ? (
-              <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Processing payment… please wait
+              </span>
             ) : isPartialPayment ? (
               `Pay ${symbol}${cashAmount.toFixed(0)} (Pending: ${symbol}${pendingAmount.toFixed(0)})`
             ) : paymentMethod === 'card' ? (
@@ -395,7 +407,7 @@ export default function PaymentModal({
               `Complete Payment`
             )}
           </button>
-        </div>
+        </fieldset>
       </div>
     </div>
   );

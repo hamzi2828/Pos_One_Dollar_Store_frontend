@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RefreshCw, Package, AlertTriangle, Search, ShoppingCart, Printer, PackagePlus } from 'lucide-react';
@@ -119,10 +119,18 @@ const StockPage = () => {
     loadProducts();
   }, [loadProducts]);
 
+  // Synchronous lock so a double click can't start two reloads
+  const refreshLockRef = useRef(false);
   const handleRefresh = async () => {
+    if (refreshLockRef.current) return;
+    refreshLockRef.current = true;
     setRefreshing(true);
-    await loadProducts();
-    setRefreshing(false);
+    try {
+      await loadProducts();
+    } finally {
+      refreshLockRef.current = false;
+      setRefreshing(false);
+    }
   };
 
   // Helper to get image URL
@@ -240,10 +248,11 @@ const StockPage = () => {
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+          aria-busy={refreshing}
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">Refresh</span>
+          <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
         </button>
       </div>
 

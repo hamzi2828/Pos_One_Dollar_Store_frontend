@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FiMenu, FiX, FiLogOut } from 'react-icons/fi';
@@ -7,7 +8,7 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { clearAllAuth, getCurrentUser } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
-import { Building2, ChevronDown } from 'lucide-react';
+import { Building2, ChevronDown, Loader2 } from 'lucide-react';
 
 interface AdminHeaderProps {
   isSidebarOpen: boolean;
@@ -25,9 +26,25 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
   const displayName = `${firstName} ${lastName}`.trim() || 'Admin';
   const subtitle = describeAccess(access, currentBranch?.name);
 
+  // Sign out / branch switch navigate away (router.replace / full reload), which
+  // can take a moment: lock the control and show a spinner until the page goes.
+  const [signingOut, setSigningOut] = useState(false);
+  const [switchingBranch, setSwitchingBranch] = useState(false);
+  const navLockRef = useRef(false);
+
   const handleLogout = () => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
+    setSigningOut(true);
     clearAllAuth();
     router.replace('/authentication');
+  };
+
+  const handleSwitchBranch = (value: string) => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
+    setSwitchingBranch(true);
+    switchBranch(value === 'all' ? null : value);
   };
 
   return (
@@ -51,11 +68,17 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
             className="relative flex items-center gap-1.5 pl-2 pr-1 sm:pl-2.5 py-1 sm:py-1.5 bg-white border border-gray-200 rounded-md sm:rounded-lg hover:border-honey-500/50 transition-colors"
             title="Choose which branch you are working on"
           >
-            <Building2 className="w-4 h-4 text-honey-500 flex-shrink-0" />
+            {switchingBranch ? (
+              <Loader2 className="w-4 h-4 text-honey-500 flex-shrink-0 animate-spin" />
+            ) : (
+              <Building2 className="w-4 h-4 text-honey-500 flex-shrink-0" />
+            )}
             <select
               value={currentBranchId || 'all'}
-              onChange={(e) => switchBranch(e.target.value === 'all' ? null : e.target.value)}
-              className="appearance-none bg-transparent pr-5 text-xs sm:text-sm font-medium text-gray-700 focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[200px] truncate"
+              onChange={(e) => handleSwitchBranch(e.target.value)}
+              disabled={switchingBranch || signingOut}
+              aria-busy={switchingBranch}
+              className="appearance-none bg-transparent pr-5 text-xs sm:text-sm font-medium text-gray-700 focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[200px] truncate disabled:opacity-60 disabled:cursor-not-allowed"
               aria-label="Branch"
             >
               <option value="all">All branches</option>
@@ -105,12 +128,18 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-gray-500 rounded-md sm:rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors duration-200"
+          disabled={signingOut || switchingBranch}
+          aria-busy={signingOut}
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-gray-500 rounded-md sm:rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
           title="Sign out"
           aria-label="Sign out"
         >
-          <FiLogOut className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-          <span className="hidden sm:inline text-xs sm:text-sm font-medium">Sign out</span>
+          {signingOut ? (
+            <Loader2 className="w-4 h-4 sm:w-[18px] sm:h-[18px] animate-spin" />
+          ) : (
+            <FiLogOut className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+          )}
+          <span className="hidden sm:inline text-xs sm:text-sm font-medium">{signingOut ? 'Signing out…' : 'Sign out'}</span>
         </button>
       </div>
     </header>

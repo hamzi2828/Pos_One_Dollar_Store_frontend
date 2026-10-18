@@ -1,14 +1,14 @@
 // POS Invoice Page
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { POSOrder } from '../../types';
 import { getPOSOrderById, getSettings } from '../../services/posOrderService';
 import { getCurrencySymbol } from '../../utils/currency';
-import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function InvoicePage() {
   const params = useParams();
@@ -51,14 +51,25 @@ export default function InvoicePage() {
   const currency = 'PKR';
   const symbol = getCurrencySymbol(currency);
 
+  const [downloading, setDownloading] = useState(false);
+  const downloadLock = useRef(false);
+
   const handleDownload = () => {
-    if (!order) return;
-    try {
-      generateInvoicePdf(order, storeName, symbol);
-    } catch (err) {
-      console.error('PDF generation failed:', err);
-      toast.error('Failed to generate PDF');
-    }
+    if (!order || downloadLock.current) return;
+    downloadLock.current = true;
+    setDownloading(true);
+    // jsPDF blocks the main thread — yield briefly so the spinner paints first.
+    setTimeout(() => {
+      try {
+        generateInvoicePdf(order, storeName, symbol);
+      } catch (err) {
+        console.error('PDF generation failed:', err);
+        toast.error('Failed to generate PDF');
+      } finally {
+        downloadLock.current = false;
+        setDownloading(false);
+      }
+    }, 50);
   };
 
   if (loading) {
@@ -144,10 +155,21 @@ export default function InvoicePage() {
           </button>
           <button
             onClick={handleDownload}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+            disabled={downloading}
+            aria-busy={downloading}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Download className="h-4 w-4" />
-            Download
+            {downloading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generating…
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                Download
+              </>
+            )}
           </button>
         </div>
       </div>

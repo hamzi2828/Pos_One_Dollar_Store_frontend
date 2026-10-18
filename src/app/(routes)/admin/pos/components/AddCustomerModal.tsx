@@ -3,7 +3,7 @@
 // slot into the same data model as self-signup users.
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Loader2, Car, User, Plus, Trash2, Mail } from 'lucide-react';
 import Select, { type SingleValue, type StylesConfig } from 'react-select';
 import toast from 'react-hot-toast';
@@ -93,6 +93,7 @@ export default function AddCustomerModal({
   const [variantsByModel, setVariantsByModel] = useState<Record<string, CarVariant[]>>({});
 
   const [loading, setLoading] = useState(false);
+  const submitLock = useRef(false);
   const [makesLoading, setMakesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -185,6 +186,7 @@ export default function AddCustomerModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLock.current) return;
     setError(null);
 
     if (!firstName.trim()) return setError('First name is required');
@@ -198,6 +200,7 @@ export default function AddCustomerModal({
     if (!firstCar.makeName) return setError('Car 1: Brand is required');
     if (!firstCar.modelName) return setError('Car 1: Model is required');
 
+    submitLock.current = true;
     setLoading(true);
     try {
       const vehicleName = [firstCar.makeName, firstCar.modelName, firstCar.variantName]
@@ -239,6 +242,7 @@ export default function AddCustomerModal({
       setError(msg);
       toast.error(msg);
     } finally {
+      submitLock.current = false;
       setLoading(false);
     }
   };
@@ -252,7 +256,7 @@ export default function AddCustomerModal({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
           <h2 className="text-xl font-bold text-gray-900">Add New Customer</h2>
-          <button onClick={onClose} disabled={loading} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} disabled={loading} className="text-gray-400 hover:text-gray-600 disabled:opacity-60 disabled:cursor-not-allowed">
             <X className="h-6 w-6" />
           </button>
         </div>
@@ -395,7 +399,7 @@ export default function AddCustomerModal({
                 type="button"
                 onClick={addCar}
                 disabled={loading}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#DC2626] bg-red-50 rounded hover:bg-red-100 disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#DC2626] bg-red-50 rounded hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Plus className="h-3 w-3" /> Add Car
               </button>
@@ -427,7 +431,7 @@ export default function AddCustomerModal({
                           type="button"
                           onClick={() => removeCar(car.id)}
                           disabled={loading}
-                          className="flex items-center gap-1 px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50 rounded"
+                          className="flex items-center gap-1 px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="h-3 w-3" /> Remove
                         </button>
@@ -502,18 +506,19 @@ export default function AddCustomerModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-4 py-2 bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] disabled:opacity-50 flex items-center gap-2"
+            aria-busy={loading}
+            className="px-4 py-2 bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Creating...
+                <Loader2 className="h-4 w-4 animate-spin" /> Creating…
               </>
             ) : (
               <>

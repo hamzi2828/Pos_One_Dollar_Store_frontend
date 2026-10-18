@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, RefreshCw, Globe } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, RefreshCw, Globe, Loader2 } from 'lucide-react';
+import type { SettingsBusyAction } from '../services/settingsService';
 import Image from 'next/image';
 
 interface LogoSettingsProps {
@@ -23,6 +24,8 @@ interface LogoSettingsProps {
   onRemoveFavicon: () => void;
   // Common
   isLoading?: boolean;
+  /** Which settings action is in flight, so only the matching button spins. */
+  busyAction?: SettingsBusyAction | null;
   onSaveDimensions: (dims: Record<string, number>) => void;
 }
 
@@ -44,6 +47,8 @@ function ImageUploader({
   onUpload,
   onRemove,
   isLoading,
+  isUploading,
+  isRemoving,
   accept,
   maxSizeMB,
   validateType,
@@ -55,6 +60,8 @@ function ImageUploader({
   onUpload: (file: File) => void;
   onRemove: () => void;
   isLoading?: boolean;
+  isUploading?: boolean;
+  isRemoving?: boolean;
   accept: string;
   maxSizeMB: number;
   validateType: (file: File) => boolean;
@@ -73,10 +80,12 @@ function ImageUploader({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    if (isLoading) return;
     if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
   };
 
   const handleFile = (file: File) => {
+    if (isLoading) return;
     if (!validateType(file)) { alert('Invalid file type'); return; }
     if (file.size > maxSizeMB * 1024 * 1024) { alert(`File size must be less than ${maxSizeMB}MB`); return; }
     const reader = new FileReader();
@@ -86,6 +95,7 @@ function ImageUploader({
   };
 
   const handleRemove = () => {
+    if (isLoading) return;
     setPreview(null);
     onRemove();
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -122,27 +132,43 @@ function ImageUploader({
             )}
           </div>
           <div className="flex gap-2 sm:gap-3">
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-50">
-              <RefreshCw className="h-4 w-4" /> Replace
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLoading} aria-busy={isUploading}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+              {isUploading ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Uploading…</>
+              ) : (
+                <><RefreshCw className="h-4 w-4" /> Replace</>
+              )}
             </button>
-            <button type="button" onClick={handleRemove} disabled={isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-50">
-              <X className="h-4 w-4" /> Remove
+            <button type="button" onClick={handleRemove} disabled={isLoading} aria-busy={isRemoving}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+              {isRemoving ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Removing…</>
+              ) : (
+                <><X className="h-4 w-4" /> Remove</>
+              )}
             </button>
           </div>
         </div>
       ) : (
         <div
-          className={`relative border-2 border-dashed rounded-lg sm:rounded-xl p-6 sm:p-8 text-center transition-all cursor-pointer ${
+          className={`relative border-2 border-dashed rounded-lg sm:rounded-xl p-6 sm:p-8 text-center transition-all ${
+            isLoading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+          } ${
             dragActive ? 'border-gray-900 bg-gray-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
           }`}
+          aria-busy={isUploading}
+          aria-disabled={isLoading}
           onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => { if (!isLoading) fileInputRef.current?.click(); }}
         >
           <div className="space-y-3">
             <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-full bg-gray-100">
-              <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+              )}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">
@@ -156,7 +182,7 @@ function ImageUploader({
         </div>
       )}
 
-      <input ref={fileInputRef} type="file" accept={accept} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} className="hidden" />
+      <input ref={fileInputRef} type="file" accept={accept} disabled={isLoading} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} className="hidden" />
     </div>
   );
 }
@@ -167,8 +193,9 @@ export default function LogoSettings(props: LogoSettingsProps) {
     currentLogo, onUploadLogo, onRemoveLogo, headerLogoWidth, headerLogoHeight,
     currentFooterLogo, onUploadFooterLogo, onRemoveFooterLogo, footerLogoWidth, footerLogoHeight,
     currentFavicon, onUploadFavicon, onRemoveFavicon,
-    isLoading, onSaveDimensions,
+    isLoading, busyAction, onSaveDimensions,
   } = props;
+  const savingDimensions = busyAction === 'dimensions';
 
   const [hWidth, setHWidth] = useState(headerLogoWidth);
   const [hHeight, setHHeight] = useState(headerLogoHeight);
@@ -190,6 +217,8 @@ export default function LogoSettings(props: LogoSettingsProps) {
         onUpload={onUploadLogo}
         onRemove={onRemoveLogo}
         isLoading={isLoading}
+        isUploading={busyAction === 'uploadLogo'}
+        isRemoving={busyAction === 'removeLogo'}
         accept="image/*"
         maxSizeMB={5}
         validateType={(f) => f.type.startsWith('image/')}
@@ -224,6 +253,8 @@ export default function LogoSettings(props: LogoSettingsProps) {
         onUpload={onUploadFooterLogo}
         onRemove={onRemoveFooterLogo}
         isLoading={isLoading}
+        isUploading={busyAction === 'uploadFooterLogo'}
+        isRemoving={busyAction === 'removeFooterLogo'}
         accept="image/*"
         maxSizeMB={5}
         validateType={(f) => f.type.startsWith('image/')}
@@ -258,6 +289,8 @@ export default function LogoSettings(props: LogoSettingsProps) {
         onUpload={onUploadFavicon}
         onRemove={onRemoveFavicon}
         isLoading={isLoading}
+        isUploading={busyAction === 'uploadFavicon'}
+        isRemoving={busyAction === 'removeFavicon'}
         accept=".ico,.png,.svg,.jpg,.jpeg,.webp,image/*"
         maxSizeMB={2}
         validateType={(f) => f.type.startsWith('image/') || f.name.endsWith('.ico')}
@@ -267,14 +300,22 @@ export default function LogoSettings(props: LogoSettingsProps) {
       <div className="flex justify-end pt-2">
         <button
           type="button"
-          onClick={() => onSaveDimensions({
-            headerLogoWidth: hWidth, headerLogoHeight: hHeight,
-            footerLogoWidth: fWidth, footerLogoHeight: fHeight,
-          })}
+          onClick={() => {
+            if (isLoading) return;
+            onSaveDimensions({
+              headerLogoWidth: hWidth, headerLogoHeight: hHeight,
+              footerLogoWidth: fWidth, footerLogoHeight: fHeight,
+            });
+          }}
           disabled={isLoading || !hasChanges}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-busy={savingDimensions}
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Save Changes
+          {savingDimensions ? (
+            <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+          ) : (
+            'Save Changes'
+          )}
         </button>
       </div>
     </div>

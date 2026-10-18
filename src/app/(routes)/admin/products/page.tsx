@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, RefreshCw } from 'lucide-react';
@@ -18,6 +18,19 @@ const ProductsPage = () => {
   const [prodError, setProdError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [copyingProduct, setCopyingProduct] = useState<Set<string>>(new Set());
+  const [deletingProduct, setDeletingProduct] = useState<Set<string>>(new Set());
+  const [featuringProduct, setFeaturingProduct] = useState<Set<string>>(new Set());
+  // Synchronous locks so a fast double click can't fire the same request twice
+  const refreshLockRef = useRef(false);
+  const busyIdsRef = useRef<Set<string>>(new Set());
+  const addId = (setter: Dispatch<SetStateAction<Set<string>>>, id: string) =>
+    setter((prev) => new Set([...prev, id]));
+  const removeId = (setter: Dispatch<SetStateAction<Set<string>>>, id: string) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
   // Get filters from URL
   const filters: ProductFilters = {
@@ -47,9 +60,15 @@ const ProductsPage = () => {
   }, [searchParams]);
 
   const handleRefresh = async () => {
+    if (refreshLockRef.current) return;
+    refreshLockRef.current = true;
     setRefreshing(true);
-    await loadProducts(filters);
-    setRefreshing(false);
+    try {
+      await loadProducts(filters);
+    } finally {
+      refreshLockRef.current = false;
+      setRefreshing(false);
+    }
   };
 
   // Edit product handler - navigate to edit page
@@ -59,7 +78,11 @@ const ProductsPage = () => {
 
   // Delete product with confirm, optimistic UI, and refetch
   const handleDeleteProduct = async (id: string) => {
+    const lockKey = `delete:${id}`;
+    if (busyIdsRef.current.has(lockKey)) return;
     if (!confirm('Are you sure you want to delete this product?')) return;
+    busyIdsRef.current.add(lockKey);
+    addId(setDeletingProduct, id);
     const prev = products;
     setProducts((p) => p.filter((x) => x.id !== id));
     try {
@@ -70,6 +93,9 @@ const ProductsPage = () => {
       console.error('Failed to delete product', e);
       setProducts(prev);
       toast.error('Failed to delete product');
+    } finally {
+      busyIdsRef.current.delete(lockKey);
+      removeId(setDeletingProduct, id);
     }
   };
 
@@ -89,8 +115,12 @@ const ProductsPage = () => {
 
   // Toggle product featured handler
   const handleToggleFeaturedProduct = async (id: string) => {
+    const lockKey = `featured:${id}`;
+    if (busyIdsRef.current.has(lockKey)) return;
     const target = products.find((p) => p.id === id);
     if (!target) return;
+    busyIdsRef.current.add(lockKey);
+    addId(setFeaturingProduct, id);
     const nextFeatured = !target.featured;
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, featured: nextFeatured } : p)));
     try {
@@ -100,11 +130,17 @@ const ProductsPage = () => {
       console.error('Failed to toggle product featured status', e);
       setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, featured: !nextFeatured } : p)));
       toast.error('Failed to update product featured status');
+    } finally {
+      busyIdsRef.current.delete(lockKey);
+      removeId(setFeaturingProduct, id);
     }
   };
 
   // Copy/Duplicate product handler
   const handleCopyProduct = async (id: string) => {
+    const lockKey = `copy:${id}`;
+    if (busyIdsRef.current.has(lockKey)) return;
+    busyIdsRef.current.add(lockKey);
     setCopyingProduct((prev) => new Set([...prev, id]));
     try {
       const duplicated = await productService.duplicateProduct(id);
@@ -117,6 +153,7 @@ const ProductsPage = () => {
       console.error('Failed to duplicate product', e);
       toast.error('Failed to duplicate product');
     } finally {
+      busyIdsRef.current.delete(lockKey);
       setCopyingProduct((prev) => {
         const newSet = new Set(prev);
         newSet.delete(id);
@@ -139,11 +176,12 @@ const ProductsPage = () => {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+            aria-busy={refreshing}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
             title="Refresh"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
           <Link
             href="/admin/products/create"
@@ -166,6 +204,8 @@ const ProductsPage = () => {
         loading={prodLoading}
         error={prodError}
         copyingProduct={copyingProduct}
+        deletingProduct={deletingProduct}
+        featuringProduct={featuringProduct}
         onStockChanged={() => loadProducts(filters)}
       />
     </div>

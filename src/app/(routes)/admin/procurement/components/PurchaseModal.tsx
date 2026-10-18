@@ -41,6 +41,7 @@ export default function PurchaseModal({ open, onClose, onSaved, purchase, vendor
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   // Product search state (per-row dropdown)
   const [searchIdx, setSearchIdx] = useState<number | null>(null);
@@ -146,10 +147,12 @@ export default function PurchaseModal({ open, onClose, onSaved, purchase, vendor
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (!vendorId) { toast.error('Please select a vendor'); return; }
     const clean = items.filter((it) => it.description.trim() && it.quantity > 0);
     if (clean.length === 0) { toast.error('Add at least one line item'); return; }
 
+    savingRef.current = true;
     setSaving(true);
     try {
       const payload = {
@@ -171,22 +174,23 @@ export default function PurchaseModal({ open, onClose, onSaved, purchase, vendor
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save purchase');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => { if (!saving) onClose(); }}>
       <div
         className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-900">{purchase ? 'Edit Purchase' : 'New Purchase'}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-4 h-4 text-gray-500" /></button>
+          <button onClick={onClose} disabled={saving} className="p-1 hover:bg-gray-100 rounded disabled:opacity-60 disabled:cursor-not-allowed"><X className="w-4 h-4 text-gray-500" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <fieldset disabled={saving} className="min-w-0 flex-1 overflow-y-auto p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Vendor *</label>
@@ -401,17 +405,17 @@ export default function PurchaseModal({ open, onClose, onSaved, purchase, vendor
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-honey-400 resize-none"
             />
           </div>
-        </div>
+        </fieldset>
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-white">Cancel</button>
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-honey-500 text-white text-sm font-semibold rounded-lg hover:bg-honey-600 disabled:opacity-60"
+            aria-busy={saving}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-honey-500 text-white text-sm font-semibold rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {purchase ? 'Save Changes' : 'Create Purchase'}
+            {saving ? (<><Loader2 className="w-4 h-4 animate-spin" />{purchase ? 'Saving…' : 'Creating…'}</>) : (purchase ? 'Save Changes' : 'Create Purchase')}
           </button>
         </div>
       </div>

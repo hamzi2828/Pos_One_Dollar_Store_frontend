@@ -1,8 +1,9 @@
 // Sales History Component
 'use client';
 
+import { useRef, useState } from 'react';
 import { POSOrder } from '../types';
-import { Receipt, Clock, Eye, Image as ImageIcon, Printer } from 'lucide-react';
+import { Receipt, Clock, Eye, Image as ImageIcon, Printer, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface SalesHistoryProps {
@@ -15,6 +16,9 @@ interface SalesHistoryProps {
 
 export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'MIRPUR MOBILE & STATIONERY', currency = 'PKR' }: SalesHistoryProps) {
   const symbol = getCurrencySymbol(currency);
+  // Brief lock while the print dialog spins up, so a double click doesn't queue two prints.
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const printLock = useRef(false);
   if (orders.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -43,6 +47,14 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
 
   // Print thermal receipt
   const printThermalReceipt = (order: POSOrder) => {
+    if (printLock.current) return;
+    printLock.current = true;
+    setPrintingId(order._id);
+    setTimeout(() => {
+      printLock.current = false;
+      setPrintingId(null);
+    }, 1500);
+
     const receiptDate = new Date(order.createdAt);
     const formattedDate = receiptDate.toLocaleDateString('en-US', {
       month: 'short',
@@ -365,10 +377,16 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
               )}
               <button
                 onClick={() => printThermalReceipt(order)}
-                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                title="Print Receipt"
+                disabled={!!printingId}
+                aria-busy={printingId === order._id}
+                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                title={printingId === order._id ? 'Printing…' : 'Print Receipt'}
               >
-                <Printer className="h-4 w-4" />
+                {printingId === order._id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4" />
+                )}
               </button>
               <button
                 onClick={() => window.open(`/admin/pos/invoice/${order._id}`, '_blank')}

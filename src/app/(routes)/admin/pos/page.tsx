@@ -59,6 +59,12 @@ export default function POSPage() {
   const [recentOrders, setRecentOrders] = useState<POSOrder[]>([]);
   const [activeTab, setActiveTab] = useState<POSTab>(initialTab);
   const [storeName, setStoreName] = useState<string>('MIRPUR MOBILE & STATIONERY');
+  // Button busy states: show a spinner and block a second click while saving.
+  const [holding, setHolding] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const payLock = useRef(false);
+  const [heldBusy, setHeldBusy] = useState<{ id: string; action: 'retrieve' | 'delete' } | null>(null);
+  const actionLock = useRef(false);
 
   // Handle tab change with URL update (activity logging is handled by HK server-side audit middleware)
   const handleTabChange = useCallback((tab: POSTab) => {
@@ -348,11 +354,14 @@ export default function POSPage() {
   };
 
   const handleHoldCart = async () => {
+    if (actionLock.current) return;
     if (cart.items.length === 0) {
       toast.error('Cart is empty');
       return;
     }
 
+    actionLock.current = true;
+    setHolding(true);
     try {
       const customerName = customer
         ? `${customer.firstName} ${customer.lastName}`
@@ -379,10 +388,16 @@ export default function POSPage() {
     } catch (error) {
       console.error('Failed to hold cart:', error);
       toast.error('Failed to hold order. Please try again.');
+    } finally {
+      actionLock.current = false;
+      setHolding(false);
     }
   };
 
   const handleRetrieveCart = async (cartId: string) => {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setHeldBusy({ id: cartId, action: 'retrieve' });
     try {
       const held = await retrieveHeldCart(cartId);
       if (held) {
@@ -394,22 +409,32 @@ export default function POSPage() {
     } catch (error) {
       console.error('Failed to retrieve cart:', error);
       toast.error('Failed to retrieve order. Please try again.');
+    } finally {
+      actionLock.current = false;
+      setHeldBusy(null);
     }
   };
 
   const handleDeleteHeldCart = async (cartId: string) => {
+    if (actionLock.current) return;
     if (confirm('Are you sure you want to delete this held order?')) {
+      actionLock.current = true;
+      setHeldBusy({ id: cartId, action: 'delete' });
       try {
         await clearHeldCart(cartId);
         await loadHeldCarts();
       } catch (error) {
         console.error('Failed to delete held cart:', error);
         toast.error('Failed to delete held order. Please try again.');
+      } finally {
+        actionLock.current = false;
+        setHeldBusy(null);
       }
     }
   };
 
   const handleCheckout = () => {
+    if (holding) return;
     if (cart.items.length === 0) {
       toast.error('Cart is empty');
       return;
@@ -425,6 +450,10 @@ export default function POSPage() {
     paidAmount?: number,
     customerInfo?: CustomerInfo
   ) => {
+    // One payment at a time: a double click must never create two orders.
+    if (payLock.current) return;
+    payLock.current = true;
+    setPaying(true);
     try {
       // Create or find customer based on customerInfo
       let customerId = customer?._id;
@@ -516,6 +545,9 @@ export default function POSPage() {
     } catch (error) {
       console.error('Order creation failed:', error);
       toast.error(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      payLock.current = false;
+      setPaying(false);
     }
   };
 
@@ -616,6 +648,7 @@ export default function POSPage() {
               heldCarts={heldCarts}
               onRetrieve={handleRetrieveCart}
               onDelete={handleDeleteHeldCart}
+              busy={heldBusy}
               currency={'PKR'}
             />
           )}
@@ -646,6 +679,8 @@ export default function POSPage() {
           onClearCart={clearCart}
           onHoldCart={handleHoldCart}
           onCheckout={handleCheckout}
+          holding={holding}
+          paying={paying}
           onSelectCustomer={() => setShowCustomerSelector(true)}
           currency={'PKR'}
           availableTaxes={availableTaxes}
@@ -706,8 +741,9 @@ export default function POSPage() {
         cart={cart}
         customer={customer}
         serviceVehicle={serviceVehicle}
-        onClose={() => setShowPaymentModal(false)}
+        onClose={() => { if (!paying) setShowPaymentModal(false); }}
         onConfirm={handlePaymentConfirm}
+        processing={paying}
         currency={'PKR'}
       />
     </div>

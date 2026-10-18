@@ -64,6 +64,7 @@ export default function RolePermissionsPage() {
   const [saveFlash, setSaveFlash] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const abortRef = useRef<AbortController | null>(null);
+  const saveLockRef = useRef(false);
 
   const fetchRole = useCallback(async () => {
     if (!roleId) return;
@@ -112,7 +113,7 @@ export default function RolePermissionsPage() {
   const locked = !!role?.isSystem || !isSuperAdmin;
 
   const toggleAction = (groupKey: string, action: PermissionAction) => {
-    if (locked) return;
+    if (locked || saveLockRef.current) return;
     setPermissions((prev) => {
       const current = prev[groupKey] || [];
       const exists = current.includes(action);
@@ -175,7 +176,8 @@ export default function RolePermissionsPage() {
   };
 
   const handleSave = async () => {
-    if (!role || locked || saving) return;
+    if (!role || locked || saving || saveLockRef.current) return;
+    saveLockRef.current = true;
     try {
       setSaving(true);
       setSaveError(null);
@@ -190,6 +192,7 @@ export default function RolePermissionsPage() {
       const msg = axios.isAxiosError(e) ? e.response?.data?.message : undefined;
       setSaveError(msg || 'Failed to save permissions.');
     } finally {
+      saveLockRef.current = false;
       setSaving(false);
     }
   };
@@ -311,7 +314,7 @@ export default function RolePermissionsPage() {
               )}
               <button
                 onClick={resetChanges}
-                disabled={!dirty || readOnly}
+                disabled={!dirty || readOnly || saving}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -320,6 +323,7 @@ export default function RolePermissionsPage() {
               <button
                 onClick={handleSave}
                 disabled={!dirty || readOnly || saving}
+                aria-busy={saving}
                 className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
               >
                 {saving ? (
@@ -375,14 +379,14 @@ export default function RolePermissionsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={selectAll}
-                disabled={readOnly}
+                disabled={readOnly || saving}
                 className="px-2.5 py-1 text-[11px] font-medium text-honey-700 bg-honey-50 rounded-md hover:bg-honey-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Select all
               </button>
               <button
                 onClick={clearAll}
-                disabled={readOnly}
+                disabled={readOnly || saving}
                 className="px-2.5 py-1 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-md hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Clear
@@ -461,7 +465,7 @@ export default function RolePermissionsPage() {
                   <button
                     type="button"
                     onClick={() => toggleAllInSection(section)}
-                    disabled={readOnly}
+                    disabled={readOnly || saving}
                     className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                       allFull
                         ? 'bg-honey-500 text-white hover:bg-honey-600'
@@ -515,7 +519,7 @@ export default function RolePermissionsPage() {
                             <button
                               type="button"
                               onClick={() => toggleAllInGroup(group.key)}
-                              disabled={readOnly}
+                              disabled={readOnly || saving}
                               className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                                 allSelected
                                   ? 'bg-honey-500 text-white hover:bg-honey-600'
@@ -537,7 +541,7 @@ export default function RolePermissionsPage() {
                                   key={action}
                                   type="button"
                                   onClick={() => toggleAction(group.key, action)}
-                                  disabled={readOnly}
+                                  disabled={readOnly || saving}
                                   className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-md border capitalize transition-all disabled:cursor-not-allowed ${
                                     active
                                       ? ACTION_COLORS[action] + ' shadow-sm'
@@ -578,14 +582,16 @@ export default function RolePermissionsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={resetChanges}
-                className="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white transition-colors"
+                disabled={saving}
+                className="px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Discard
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-900 bg-white rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-60"
+                aria-busy={saving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-900 bg-white rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {saving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

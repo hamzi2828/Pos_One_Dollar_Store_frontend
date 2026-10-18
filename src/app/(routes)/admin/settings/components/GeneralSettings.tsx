@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Store, Globe, DollarSign, Check, Phone, MapPin, Percent, Clock } from 'lucide-react';
+import { Store, Globe, DollarSign, Check, Phone, MapPin, Percent, Clock, Loader2 } from 'lucide-react';
 import { useCurrency, CurrencyCode } from '@/context/CurrencyContext';
 
 interface GeneralSettingsProps {
   settings: any;
   onUpdate: (data: any) => void;
   isLoading?: boolean;
+  /** True only while this form's own save is in flight (drives the spinner). */
+  isSaving?: boolean;
 }
 
-export default function GeneralSettings({ settings, onUpdate, isLoading }: GeneralSettingsProps) {
+export default function GeneralSettings({ settings, onUpdate, isLoading, isSaving }: GeneralSettingsProps) {
   const { setCurrencyCode } = useCurrency();
 
   const [formData, setFormData] = useState({
@@ -40,6 +42,8 @@ export default function GeneralSettings({ settings, onUpdate, isLoading }: Gener
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Enter-key submits must respect the parent's in-flight lock too.
+    if (isLoading) return;
 
     // Ensure taxRate is sent as a number
     const dataToSend = {
@@ -79,7 +83,7 @@ export default function GeneralSettings({ settings, onUpdate, isLoading }: Gener
   ];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6 md:space-y-8">
+    <form onSubmit={handleSubmit} aria-busy={isSaving} className="space-y-5 sm:space-y-6 md:space-y-8">
       {/* Site Information Section */}
       <div>
         <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
@@ -247,12 +251,13 @@ export default function GeneralSettings({ settings, onUpdate, isLoading }: Gener
         <button
           type="submit"
           disabled={isLoading}
-          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 focus:ring-2 focus:ring-offset-2 focus:ring-honey-500 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-busy={isSaving}
+          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 focus:ring-2 focus:ring-offset-2 focus:ring-honey-500 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {isLoading ? (
+          {isSaving ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              Saving...
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving…
             </>
           ) : (
             <>

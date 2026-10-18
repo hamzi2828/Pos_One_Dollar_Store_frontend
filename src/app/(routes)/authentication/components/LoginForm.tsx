@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Lock, Mail, AlertCircle } from "lucide-react";
 import { login } from "../service/authService";
@@ -29,10 +29,12 @@ export const LoginForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sync lock: a double Enter / double click can't send two sign-in requests.
+  const submitLockRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (loading || submitLockRef.current) return;
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) {
@@ -40,6 +42,7 @@ export const LoginForm: React.FC = () => {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -61,10 +64,12 @@ export const LoginForm: React.FC = () => {
       } else {
         // Only admins have anywhere to go in a POS-only app.
         setError("This account does not have admin access.");
+        submitLockRef.current = false;
         setLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      submitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -138,6 +143,7 @@ export const LoginForm: React.FC = () => {
       <button
         type="submit"
         disabled={loading}
+        aria-busy={loading}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#dc2626] py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#b91c1c] focus:outline-none focus:ring-2 focus:ring-[#dc2626] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
       >
         {loading ? (

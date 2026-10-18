@@ -26,8 +26,12 @@ const AdminDashboardClient = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  // Synchronous locks so a fast double click can't start two refreshes / PDFs.
+  const refreshLockRef = useRef(false);
+  const reportLockRef = useRef(false);
 
   const fetchDashboardData = async () => {
+    refreshLockRef.current = true;
     try {
       setRefreshing(true);
       const data = await dashboardService.getDashboardData(timeRange);
@@ -37,6 +41,7 @@ const AdminDashboardClient = () => {
       setError('Failed to load dashboard data');
       console.error('Dashboard error:', err);
     } finally {
+      refreshLockRef.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -55,11 +60,13 @@ const AdminDashboardClient = () => {
   }, [timeRange]);
 
   const handleRefresh = () => {
+    if (refreshLockRef.current) return;
     fetchDashboardData();
   };
 
   const handleGenerateReport = async () => {
-    if (!contentRef.current) return;
+    if (!contentRef.current || reportLockRef.current) return;
+    reportLockRef.current = true;
 
     try {
       setIsDownloading(true);
@@ -104,6 +111,7 @@ const AdminDashboardClient = () => {
     } catch (err) {
       console.error("Failed to generate report:", err);
     } finally {
+      reportLockRef.current = false;
       setIsDownloading(false);
     }
   };
@@ -135,9 +143,12 @@ const AdminDashboardClient = () => {
                 <p className="mt-1 text-xs sm:text-sm text-red-600">{error}</p>
                 <button
                   onClick={handleRefresh}
-                  className="mt-2 text-xs sm:text-sm font-medium text-red-700 hover:text-red-800 underline"
+                  disabled={refreshing}
+                  aria-busy={refreshing}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-red-700 hover:text-red-800 underline disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Try again
+                  {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {refreshing ? 'Retrying…' : 'Try again'}
                 </button>
               </div>
             </div>
@@ -268,11 +279,12 @@ const AdminDashboardClient = () => {
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+                aria-busy={refreshing}
+                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
                 title="Refresh"
               >
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
+                <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
               </button>
               <select
                 value={timeRange}
@@ -287,15 +299,16 @@ const AdminDashboardClient = () => {
               <button
                 onClick={handleGenerateReport}
                 disabled={isDownloading}
-                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 whitespace-nowrap"
+                aria-busy={isDownloading}
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 {isDownloading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Download className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline">{isDownloading ? "Generating..." : "Generate Report"}</span>
-                <span className="sm:hidden">{isDownloading ? "..." : "Report"}</span>
+                <span className="hidden sm:inline">{isDownloading ? "Generating…" : "Generate Report"}</span>
+                <span className="sm:hidden">{isDownloading ? "Generating…" : "Report"}</span>
               </button>
             </div>
           </div>

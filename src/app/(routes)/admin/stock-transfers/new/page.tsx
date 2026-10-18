@@ -79,6 +79,8 @@ export default function NewStockTransferPage() {
   const searchSeq = useRef(0);
 
   const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
+  const addLockRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateTransferResult | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -162,7 +164,8 @@ export default function NewStockTransferPage() {
   };
 
   const pickProduct = async (p: BranchProduct, variantId?: string | null, batchNo?: string | null) => {
-    if (!fromId) return;
+    if (!fromId || addLockRef.current) return;
+    addLockRef.current = true;
     try {
       setAdding(true);
       // Fresh copy with this branch's stock, variants and batches.
@@ -174,6 +177,7 @@ export default function NewStockTransferPage() {
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not load this product.'));
     } finally {
+      addLockRef.current = false;
       setAdding(false);
     }
   };
@@ -181,7 +185,8 @@ export default function NewStockTransferPage() {
   // Enter in the search box: try it as a scanned code first, else take the first result.
   const onSearchEnter = async () => {
     const code = query.trim();
-    if (!code || !fromId) return;
+    if (!code || !fromId || addLockRef.current) return;
+    addLockRef.current = true;
     try {
       setAdding(true);
       const found = await transferService.lookupCode(code, fromId);
@@ -195,6 +200,7 @@ export default function NewStockTransferPage() {
     } catch {
       // fall through to the search results
     } finally {
+      addLockRef.current = false;
       setAdding(false);
     }
     if (results.length) pickProduct(results[0]);
@@ -207,6 +213,7 @@ export default function NewStockTransferPage() {
   const tooMany = lines.some((l) => l.quantity > availableFor(l));
 
   const submit = async () => {
+    if (submitLockRef.current) return;
     setError(null);
     if (!fromId) return setError('Choose the branch to send stock from.');
     if (!toId) return setError('Choose the branch to send stock to.');
@@ -217,6 +224,8 @@ export default function NewStockTransferPage() {
     const noVariant = lines.find((l) => l.product.productType === 'variant' && !l.variantId);
     if (noVariant) return setError(`Choose a variant for ${noVariant.product.name}.`);
     if (tooMany && !window.confirm(`Some quantities are more than what ${fromName} has. Those lines will fail. Send anyway?`)) return;
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
 
     try {
       setSubmitting(true);
@@ -236,6 +245,7 @@ export default function NewStockTransferPage() {
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not save the transfer.'));
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
@@ -352,7 +362,8 @@ export default function NewStockTransferPage() {
           </div>
         </div>
 
-        <div className="space-y-4 sm:space-y-5">
+        {/* While saving, every control in the form is disabled. */}
+        <fieldset disabled={submitting} className="min-w-0 space-y-4 sm:space-y-5">
           <ErrorBox message={branchesError} />
 
           {/* Branches */}
@@ -431,7 +442,8 @@ export default function NewStockTransferPage() {
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pickProduct(p)}
-                        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-honey-50 border-b border-gray-50 last:border-0"
+                        disabled={adding}
+                        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-honey-50 border-b border-gray-50 last:border-0 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <span className="flex items-center gap-2 min-w-0">
                           <Package className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -561,16 +573,21 @@ export default function NewStockTransferPage() {
               {lines.length} product{lines.length === 1 ? '' : 's'} · <span className="font-semibold tabular-nums">{totalPieces}</span> pieces
             </p>
             <div className="flex gap-2">
-              <Link href="/admin/stock-transfers" className={secondaryBtn}>
+              <Link
+                href="/admin/stock-transfers"
+                aria-disabled={submitting}
+                tabIndex={submitting ? -1 : undefined}
+                className={`${secondaryBtn} ${submitting ? 'pointer-events-none opacity-50' : ''}`}
+              >
                 Cancel
               </Link>
-              <button type="button" onClick={submit} disabled={submitting || !lines.length} className={primaryBtn}>
+              <button type="button" onClick={submit} disabled={submitting || !lines.length} aria-busy={submitting} className={primaryBtn}>
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeftRight className="h-4 w-4" />}
                 {submitting ? 'Moving stock…' : 'Move Stock'}
               </button>
             </div>
           </div>
-        </div>
+        </fieldset>
       </div>
     </div>
   );

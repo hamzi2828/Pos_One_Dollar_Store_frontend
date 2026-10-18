@@ -36,6 +36,7 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const deleteLockRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchRoles = useCallback(async () => {
@@ -93,8 +94,10 @@ export default function RolesPage() {
   };
 
   const handleDelete = async (role: Role) => {
-    if (role.isSystem) return;
+    if (role.isSystem || deleteLockRef.current) return;
     if (typeof window === 'undefined' || !window.confirm(`Delete role "${role.name}"?`)) return;
+    if (deleteLockRef.current) return;
+    deleteLockRef.current = true;
     try {
       setDeletingId(role.id);
       await roleService.deleteRole(role.id);
@@ -104,6 +107,7 @@ export default function RolesPage() {
       const msg = axios.isAxiosError(e) ? e.response?.data?.message : undefined;
       alert(msg || 'Failed to delete role.');
     } finally {
+      deleteLockRef.current = false;
       setDeletingId(null);
     }
   };
@@ -349,7 +353,7 @@ const RoleCard: React.FC<{
               e.stopPropagation();
               onEdit();
             }}
-            disabled={role.isSystem}
+            disabled={role.isSystem || deleting}
             className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title={role.isSystem ? 'System role cannot be edited' : 'Rename role'}
           >
@@ -362,8 +366,9 @@ const RoleCard: React.FC<{
               onDelete();
             }}
             disabled={role.isSystem || deleting}
+            aria-busy={deleting}
             className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            title={role.isSystem ? 'System role cannot be deleted' : 'Delete role'}
+            title={role.isSystem ? 'System role cannot be deleted' : deleting ? 'Deleting…' : 'Delete role'}
           >
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
           </button>
@@ -384,13 +389,16 @@ const RoleFormModal: React.FC<{
   const [description, setDescription] = useState(role?.description ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saveLockRef.current) return;
     if (!name.trim()) {
       setError('Role name is required.');
       return;
     }
+    saveLockRef.current = true;
     try {
       setSaving(true);
       setError(null);
@@ -398,6 +406,7 @@ const RoleFormModal: React.FC<{
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save role.');
     } finally {
+      saveLockRef.current = false;
       setSaving(false);
     }
   };
@@ -428,7 +437,8 @@ const RoleFormModal: React.FC<{
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5">
+          <fieldset disabled={saving} className="min-w-0 space-y-4">
           {error && (
             <div className="px-3 py-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg">
               {error}
@@ -475,16 +485,18 @@ const RoleFormModal: React.FC<{
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60"
+              aria-busy={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              {role ? 'Save' : 'Create Role'}
+              {saving ? (role ? 'Saving…' : 'Creating…') : role ? 'Save' : 'Create Role'}
             </button>
           </div>
+          </fieldset>
         </form>
       </div>
     </div>

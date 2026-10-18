@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -46,6 +46,9 @@ export default function BranchesPage() {
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<{ open: boolean; branch: Branch | null }>({ open: false, branch: null });
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyKind, setBusyKind] = useState<'main' | 'delete' | null>(null);
+  // Synchronous lock so a fast double click can't fire the same action twice.
+  const rowLockRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -106,28 +109,38 @@ export default function BranchesPage() {
   };
 
   const handleSetMain = async (b: Branch) => {
+    if (rowLockRef.current) return;
     if (
       !window.confirm(
         `Make "${b.name}" the main branch?\n\nThe main branch is used when "All branches" is selected and you sell or receive stock.`,
       )
     )
       return;
+    if (rowLockRef.current) return;
+    rowLockRef.current = true;
     try {
       setBusyId(b.id);
+      setBusyKind('main');
       await branchService.setMain(b.id);
       toast.success(`${b.name} is now the main branch`);
       await afterChange();
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not change the main branch.'));
     } finally {
+      rowLockRef.current = false;
       setBusyId(null);
+      setBusyKind(null);
     }
   };
 
   const handleDelete = async (b: Branch) => {
+    if (rowLockRef.current) return;
     if (!window.confirm(`Delete branch "${b.name}"?\n\nThis only works when the branch has no stock and no staff.`)) return;
+    if (rowLockRef.current) return;
+    rowLockRef.current = true;
     try {
       setBusyId(b.id);
+      setBusyKind('delete');
       await branchService.remove(b.id);
       toast.success('Branch deleted');
       await afterChange();
@@ -135,7 +148,9 @@ export default function BranchesPage() {
       // Backend explains why (main branch / still has stock / still has staff).
       toast.error(apiErrorMessage(e, 'Could not delete the branch.'), { duration: 6000 });
     } finally {
+      rowLockRef.current = false;
       setBusyId(null);
+      setBusyKind(null);
     }
   };
 
@@ -281,9 +296,18 @@ export default function BranchesPage() {
                       <button
                         onClick={() => handleSetMain(b)}
                         disabled={busyId === b.id}
-                        className="text-xs font-medium text-honey-700 hover:text-honey-800 inline-flex items-center gap-1 disabled:opacity-50"
+                        aria-busy={busyId === b.id && busyKind === 'main'}
+                        className="text-xs font-medium text-honey-700 hover:text-honey-800 inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <Star className="h-3.5 w-3.5" /> Make main
+                        {busyId === b.id && busyKind === 'main' ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+                          </>
+                        ) : (
+                          <>
+                            <Star className="h-3.5 w-3.5" /> Make main
+                          </>
+                        )}
                       </button>
                     ) : (
                       <span className="text-[11px] text-gray-400">{b.isMain ? 'Main branch' : 'Inactive branch'}</span>
@@ -291,7 +315,8 @@ export default function BranchesPage() {
                     <div className="flex items-center gap-0.5">
                       <button
                         onClick={() => setModal({ open: true, branch: b })}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors"
+                        disabled={busyId === b.id}
+                        className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Edit branch"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -299,10 +324,11 @@ export default function BranchesPage() {
                       <button
                         onClick={() => handleDelete(b)}
                         disabled={b.isMain || busyId === b.id}
+                        aria-busy={busyId === b.id && busyKind === 'delete'}
                         className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        title={b.isMain ? 'The main branch cannot be deleted' : 'Delete branch'}
+                        title={b.isMain ? 'The main branch cannot be deleted' : busyId === b.id && busyKind === 'delete' ? 'Deleting…' : 'Delete branch'}
                       >
-                        {busyId === b.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {busyId === b.id && busyKind === 'delete' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </div>
@@ -343,12 +369,15 @@ function BranchFormModal({
   const [isActive, setIsActive] = useState(branch?.isActive ?? true);
   const [isMain, setIsMain] = useState(false);
   const [saving, setSaving] = useState(false);
+  const saveLockRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (saveLockRef.current) return;
     if (!name.trim()) return setError('Please enter the branch name.');
     if (!code.trim()) return setError('Please enter a short code, e.g. B2.');
+    saveLockRef.current = true;
     try {
       setSaving(true);
       setError(null);
@@ -363,6 +392,7 @@ function BranchFormModal({
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save the branch.'));
     } finally {
+      saveLockRef.current = false;
       setSaving(false);
     }
   };
@@ -379,14 +409,15 @@ function BranchFormModal({
           <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={() => submit()} disabled={saving} className={primaryBtn}>
+          <button type="button" onClick={() => submit()} disabled={saving} aria-busy={saving} className={primaryBtn}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {branch ? 'Save' : 'Add Branch'}
+            {saving ? (branch ? 'Saving…' : 'Adding…') : branch ? 'Save' : 'Add Branch'}
           </button>
         </>
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit}>
+        <fieldset disabled={saving} className="min-w-0 space-y-4">
         <ErrorBox message={error} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2">
@@ -433,6 +464,7 @@ function BranchFormModal({
           </p>
         )}
         <button type="submit" className="hidden" />
+        </fieldset>
       </form>
     </Modal>
   );

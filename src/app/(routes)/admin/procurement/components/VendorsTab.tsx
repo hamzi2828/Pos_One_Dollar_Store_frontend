@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Search, Edit3, Trash2, Power, Loader2, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { procurementService, type Vendor, type Pagination as PaginationType } from '../services/procurementService';
@@ -26,6 +26,11 @@ export default function VendorsTab() {
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Synchronous locks so a fast double-click can't fire a second request
+  // before React has re-rendered the disabled button.
+  const deletingRef = useRef<string | null>(null);
+  const togglingRef = useRef<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -51,7 +56,10 @@ export default function VendorsTab() {
   }, [debouncedSearch, statusFilter]);
 
   const handleDelete = async (id: string) => {
+    if (deletingRef.current) return;
     if (!window.confirm('Soft-delete this vendor?')) return;
+    if (deletingRef.current) return;
+    deletingRef.current = id;
     setDeletingId(id);
     try {
       await procurementService.deleteVendor(id);
@@ -60,16 +68,23 @@ export default function VendorsTab() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete');
     } finally {
+      deletingRef.current = null;
       setDeletingId(null);
     }
   };
 
   const handleToggleStatus = async (id: string) => {
+    if (togglingRef.current) return;
+    togglingRef.current = id;
+    setTogglingId(id);
     try {
       const v = await procurementService.toggleVendorStatus(id);
       setVendors((prev) => prev.map((x) => x._id === v._id ? { ...x, isActive: v.isActive } : x));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
+    } finally {
+      togglingRef.current = null;
+      setTogglingId(null);
     }
   };
 
@@ -153,19 +168,25 @@ export default function VendorsTab() {
                     <td className="px-3 py-2 text-center">
                       <button
                         onClick={() => handleToggleStatus(v._id)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        disabled={!!togglingId || deletingId === v._id}
+                        aria-busy={togglingId === v._id}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold disabled:opacity-60 disabled:cursor-not-allowed ${
                           v.isActive ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
-                        <Power className="w-2.5 h-2.5" />
-                        {v.isActive ? 'Active' : 'Inactive'}
+                        {togglingId === v._id ? (
+                          <><Loader2 className="w-2.5 h-2.5 animate-spin" />Updating…</>
+                        ) : (
+                          <><Power className="w-2.5 h-2.5" />{v.isActive ? 'Active' : 'Inactive'}</>
+                        )}
                       </button>
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
                         <button
                           onClick={() => { setEditing(v); setModalOpen(true); }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                          disabled={deletingId === v._id}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                           title="Edit vendor"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -173,12 +194,13 @@ export default function VendorsTab() {
                         </button>
                         <button
                           onClick={() => handleDelete(v._id)}
-                          disabled={deletingId === v._id}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                          disabled={!!deletingId || togglingId === v._id}
+                          aria-busy={deletingId === v._id}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                           title="Delete vendor"
                         >
                           {deletingId === v._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                          <span>Delete</span>
+                          <span>{deletingId === v._id ? 'Deleting…' : 'Delete'}</span>
                         </button>
                       </div>
                     </td>
@@ -196,6 +218,7 @@ export default function VendorsTab() {
           limit={pagination.limit}
           onPageChange={(p) => fetchList(p, pagination.limit)}
           onLimitChange={(l) => fetchList(1, l)}
+          disabled={loading}
         />
       </div>
 

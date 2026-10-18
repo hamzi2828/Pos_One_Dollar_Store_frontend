@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { procurementService, type Purchase } from '../services/procurementService';
@@ -22,6 +22,8 @@ const STATUS_STYLES: Record<Purchase['paymentStatus'], string> = {
 export default function PurchaseDetailModal({ open, onClose, purchaseId, onChange }: Props) {
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const removingRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open || !purchaseId) { setPurchase(null); return; }
@@ -33,7 +35,11 @@ export default function PurchaseDetailModal({ open, onClose, purchaseId, onChang
   }, [open, purchaseId]);
 
   const handleRemovePayment = async (paymentId: string) => {
+    if (removingRef.current) return;
     if (!purchase || !window.confirm('Remove this payment?')) return;
+    if (removingRef.current) return;
+    removingRef.current = paymentId;
+    setRemovingId(paymentId);
     try {
       const updated = await procurementService.removePayment(purchase._id, paymentId);
       setPurchase(updated);
@@ -41,13 +47,16 @@ export default function PurchaseDetailModal({ open, onClose, purchaseId, onChang
       toast.success('Payment removed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove');
+    } finally {
+      removingRef.current = null;
+      setRemovingId(null);
     }
   };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => { if (!removingId) onClose(); }}>
       <div
         className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -57,7 +66,7 @@ export default function PurchaseDetailModal({ open, onClose, purchaseId, onChang
             Purchase Details
             {purchase && <span className="ml-2 font-mono text-xs text-gray-500">{purchase.invoiceNumber}</span>}
           </h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-4 h-4 text-gray-500" /></button>
+          <button onClick={onClose} disabled={!!removingId} className="p-1 hover:bg-gray-100 rounded disabled:opacity-60 disabled:cursor-not-allowed"><X className="w-4 h-4 text-gray-500" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
@@ -163,10 +172,14 @@ export default function PurchaseDetailModal({ open, onClose, purchaseId, onChang
                             <td className="px-2 py-2">
                               <button
                                 onClick={() => pay._id && handleRemovePayment(pay._id)}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                aria-label="Remove payment"
+                                disabled={!!removingId}
+                                aria-busy={removingId === pay._id}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
+                                aria-label={removingId === pay._id ? 'Removing payment…' : 'Remove payment'}
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                {removingId === pay._id
+                                  ? <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
+                                  : <Trash2 className="w-3.5 h-3.5" />}
                               </button>
                             </td>
                           </tr>

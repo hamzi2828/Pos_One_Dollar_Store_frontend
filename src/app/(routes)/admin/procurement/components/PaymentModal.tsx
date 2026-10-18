@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { procurementService, type Purchase } from '../services/procurementService';
@@ -19,6 +19,7 @@ export default function PaymentModal({ open, onClose, onSaved, purchase }: Props
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (open && purchase) {
@@ -33,7 +34,9 @@ export default function PaymentModal({ open, onClose, onSaved, purchase }: Props
   if (!open || !purchase) return null;
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (!(amount > 0)) { toast.error('Amount must be greater than zero'); return; }
+    savingRef.current = true;
     setSaving(true);
     try {
       const updated = await procurementService.addPayment(purchase._id, {
@@ -45,22 +48,23 @@ export default function PaymentModal({ open, onClose, onSaved, purchase }: Props
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => { if (!saving) onClose(); }}>
       <div
         className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-900">Record Payment</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-4 h-4 text-gray-500" /></button>
+          <button onClick={onClose} disabled={saving} className="p-1 hover:bg-gray-100 rounded disabled:opacity-60 disabled:cursor-not-allowed"><X className="w-4 h-4 text-gray-500" /></button>
         </div>
 
-        <div className="p-5 space-y-3">
+        <fieldset disabled={saving} className="min-w-0 p-5 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-1">
             <div className="flex justify-between"><span className="text-gray-500">Invoice</span><span className="font-semibold">{purchase.invoiceNumber}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Vendor</span><span className="font-semibold">{purchase.vendorName}</span></div>
@@ -131,17 +135,17 @@ export default function PaymentModal({ open, onClose, onSaved, purchase }: Props
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-honey-400 resize-none"
             />
           </div>
-        </div>
+        </fieldset>
 
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100 bg-gray-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-white">Cancel</button>
+          <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-honey-500 text-white text-sm font-semibold rounded-lg hover:bg-honey-600 disabled:opacity-60"
+            aria-busy={saving}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-honey-500 text-white text-sm font-semibold rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Record Payment
+            {saving ? (<><Loader2 className="w-4 h-4 animate-spin" />Recording…</>) : 'Record Payment'}
           </button>
         </div>
       </div>

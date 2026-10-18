@@ -9,6 +9,7 @@ import {
   Layers,
   ArrowLeft,
   ChevronRight,
+  Loader2,
   X,
 } from "lucide-react";
 import {
@@ -139,6 +140,25 @@ export default function CarsTab() {
   // Modal state + drafts
   const [modal, setModal] = useState<ModalState>(null);
   const [saving, setSaving] = useState(false);
+  // Synchronous lock for the modal save (a double click must not create twice)
+  const savingRef = useRef(false);
+  // Per-row request in progress (make/model/variant id -> action). The ref is the sync lock.
+  const [rowBusy, setRowBusy] = useState<Record<string, "featured" | "delete">>({});
+  const rowBusyRef = useRef<Set<string>>(new Set());
+  const lockRow = (id: string, action: "featured" | "delete") => {
+    if (rowBusyRef.current.has(id)) return false;
+    rowBusyRef.current.add(id);
+    setRowBusy((p) => ({ ...p, [id]: action }));
+    return true;
+  };
+  const unlockRow = (id: string) => {
+    rowBusyRef.current.delete(id);
+    setRowBusy((p) => {
+      const n = { ...p };
+      delete n[id];
+      return n;
+    });
+  };
   const [formError, setFormError] = useState<string | null>(null);
   const [makeDraft, setMakeDraft] = useState<MakeDraft>({
     name: "",
@@ -311,6 +331,7 @@ export default function CarsTab() {
   // ─────────────── Form submit ───────────────
 
   const submitMake = async () => {
+    if (savingRef.current) return;
     const name = makeDraft.name.trim();
     if (!name) {
       setFormError("Make name is required");
@@ -327,6 +348,7 @@ export default function CarsTab() {
     }
 
     try {
+      savingRef.current = true;
       setSaving(true);
       if (modal?.kind === "make-create") {
         const created = await carService.createMake({
@@ -370,17 +392,20 @@ export default function CarsTab() {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
       setFormError(e?.response?.data?.message || e?.message || "Failed to save make");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const submitModel = async () => {
+    if (savingRef.current) return;
     const name = modelDraft.name.trim();
     if (!name) {
       setFormError("Model name is required");
       return;
     }
     try {
+      savingRef.current = true;
       setSaving(true);
       if (modal?.kind === "model-create") {
         const created = await carService.createModel({
@@ -402,11 +427,13 @@ export default function CarsTab() {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
       setFormError(e?.response?.data?.message || e?.message || "Failed to save model");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const submitVariant = async () => {
+    if (savingRef.current) return;
     const name = variantDraft.name.trim();
     const ys = variantDraft.yearStart.trim() ? Number(variantDraft.yearStart) : null;
     const ye = variantDraft.yearEnd.trim() ? Number(variantDraft.yearEnd) : null;
@@ -433,6 +460,7 @@ export default function CarsTab() {
     }
 
     try {
+      savingRef.current = true;
       setSaving(true);
       if (modal?.kind === "variant-create") {
         const created = await carService.createVariant({
@@ -476,6 +504,7 @@ export default function CarsTab() {
       const e = err as { response?: { data?: { message?: string } }; message?: string };
       setFormError(e?.response?.data?.message || e?.message || "Failed to save variant");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -483,24 +512,29 @@ export default function CarsTab() {
   // ─────────────── Toggle featured ───────────────
 
   const toggleFeatured = async (make: CarMakeUI) => {
+    if (!lockRow(make.id, "featured")) return;
     try {
       const updated = await carService.toggleFeatured(make.id);
       setMakes((p) => p.map((m) => (m.id === make.id ? updated : m)));
     } catch (e) {
       console.error("Failed to toggle featured", e);
       alert("Failed to toggle featured");
+    } finally {
+      unlockRow(make.id);
     }
   };
 
   // ─────────────── Delete handlers ───────────────
 
   const deleteMake = async (make: CarMakeUI) => {
+    if (rowBusyRef.current.has(make.id)) return;
     if (
       !confirm(
         `Delete "${make.name}" and ALL its models and variants? This cannot be undone.`
       )
     )
       return;
+    if (!lockRow(make.id, "delete")) return;
     try {
       await carService.deleteMake(make.id);
       const modelIds = models.filter((m) => m.makeId === make.id).map((m) => m.id);
@@ -510,10 +544,14 @@ export default function CarsTab() {
     } catch (e) {
       console.error("Failed to delete make", e);
       alert("Failed to delete make");
+    } finally {
+      unlockRow(make.id);
     }
   };
   const deleteModel = async (model: CarModelUI) => {
+    if (rowBusyRef.current.has(model.id)) return;
     if (!confirm(`Delete "${model.name}" and all its variants?`)) return;
+    if (!lockRow(model.id, "delete")) return;
     try {
       await carService.deleteModel(model.id);
       setModels((p) => p.filter((m) => m.id !== model.id));
@@ -521,16 +559,22 @@ export default function CarsTab() {
     } catch (e) {
       console.error("Failed to delete model", e);
       alert("Failed to delete model");
+    } finally {
+      unlockRow(model.id);
     }
   };
   const deleteVariant = async (variant: CarVariantUI) => {
+    if (rowBusyRef.current.has(variant.id)) return;
     if (!confirm(`Delete this variant?`)) return;
+    if (!lockRow(variant.id, "delete")) return;
     try {
       await carService.deleteVariant(variant.id);
       setVariants((p) => p.filter((v) => v.id !== variant.id));
     } catch (e) {
       console.error("Failed to delete variant", e);
       alert("Failed to delete variant");
+    } finally {
+      unlockRow(variant.id);
     }
   };
 
@@ -797,15 +841,19 @@ export default function CarsTab() {
                       <button
                         type="button"
                         onClick={() => deleteMake(make)}
-                        className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                        disabled={!!rowBusy[make.id]}
+                        aria-busy={rowBusy[make.id] === "delete"}
+                        className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Delete
+                        {rowBusy[make.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                       </button>
                       <button
                         type="button"
                         onClick={() => toggleFeatured(make)}
+                        disabled={!!rowBusy[make.id]}
+                        aria-busy={rowBusy[make.id] === "featured"}
                         title={make.featuredOnHome ? "Remove from homepage" : "Show on homepage"}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                           make.featuredOnHome ? "bg-honey-500" : "bg-gray-300"
                         }`}
                       >
@@ -814,6 +862,7 @@ export default function CarsTab() {
                             make.featuredOnHome ? "translate-x-4" : "translate-x-0"
                           }`}
                         />
+                        {rowBusy[make.id] === "featured" && <Loader2 className="pointer-events-none absolute inset-0 m-auto h-3 w-3 animate-spin text-gray-700" />}
                       </button>
                     </div>
                   </div>
@@ -886,9 +935,11 @@ export default function CarsTab() {
                                   <button
                                     type="button"
                                     onClick={() => deleteModel(model)}
-                                    className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                                    disabled={!!rowBusy[model.id]}
+                                    aria-busy={rowBusy[model.id] === "delete"}
+                                    className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
                                   >
-                                    Delete
+                                    {rowBusy[model.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                                   </button>
                                 </div>
                               </div>
@@ -961,9 +1012,11 @@ export default function CarsTab() {
                                             <button
                                               type="button"
                                               onClick={() => deleteVariant(variant)}
-                                              className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                                              disabled={!!rowBusy[variant.id]}
+                                              aria-busy={rowBusy[variant.id] === "delete"}
+                                              className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
                                             >
-                                              Delete
+                                              {rowBusy[variant.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                                             </button>
                                           </div>
                                         </div>
@@ -1104,9 +1157,11 @@ export default function CarsTab() {
                                 <button
                                   type="button"
                                   onClick={() => deleteVariant(variant)}
-                                  className="flex-1 text-[11px] text-red-600 hover:text-red-700 py-1 rounded hover:bg-red-50 text-center"
+                                  disabled={!!rowBusy[variant.id]}
+                                  aria-busy={rowBusy[variant.id] === "delete"}
+                                  className="flex-1 text-[11px] text-red-600 hover:text-red-700 py-1 rounded hover:bg-red-50 text-center disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                  Delete
+                                  {rowBusy[variant.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                                 </button>
                               </div>
                             </div>
@@ -1219,9 +1274,11 @@ export default function CarsTab() {
                                 tabIndex={0}
                                 onClick={(e) => { e.stopPropagation(); deleteModel(model); }}
                                 onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); deleteModel(model); } }}
-                                className="flex-1 text-[11px] text-red-600 hover:text-red-700 py-1 rounded hover:bg-red-50 text-center cursor-pointer"
+                                aria-disabled={!!rowBusy[model.id]}
+                                aria-busy={rowBusy[model.id] === "delete"}
+                                className={`flex-1 text-[11px] text-red-600 hover:text-red-700 py-1 rounded hover:bg-red-50 text-center ${rowBusy[model.id] ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
                               >
-                                Delete
+                                {rowBusy[model.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                               </span>
                             </div>
                           </button>
@@ -1399,15 +1456,19 @@ export default function CarsTab() {
                       <button
                         type="button"
                         onClick={() => deleteMake(make)}
-                        className="flex-1 text-[11px] text-red-600 hover:text-red-700 py-1 rounded hover:bg-red-50 text-center"
+                        disabled={!!rowBusy[make.id]}
+                        aria-busy={rowBusy[make.id] === "delete"}
+                        className="flex-1 text-[11px] text-red-600 hover:text-red-700 py-1 rounded hover:bg-red-50 text-center disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Delete
+                        {rowBusy[make.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                       </button>
                       <button
                         type="button"
                         onClick={() => toggleFeatured(make)}
+                        disabled={!!rowBusy[make.id]}
+                        aria-busy={rowBusy[make.id] === "featured"}
                         title={make.featuredOnHome ? "Remove from homepage" : "Show on homepage"}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                           make.featuredOnHome ? "bg-honey-500" : "bg-gray-300"
                         }`}
                       >
@@ -1416,6 +1477,7 @@ export default function CarsTab() {
                             make.featuredOnHome ? "translate-x-4" : "translate-x-0"
                           }`}
                         />
+                        {rowBusy[make.id] === "featured" && <Loader2 className="pointer-events-none absolute inset-0 m-auto h-3 w-3 animate-spin text-gray-700" />}
                       </button>
                     </div>
                   </div>
@@ -1515,8 +1577,10 @@ export default function CarsTab() {
                           <button
                             type="button"
                             onClick={() => toggleFeatured(make)}
+                            disabled={!!rowBusy[make.id]}
+                            aria-busy={rowBusy[make.id] === "featured"}
                             title={make.featuredOnHome ? "Remove from homepage" : "Show on homepage"}
-                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                               make.featuredOnHome ? "bg-honey-500" : "bg-gray-300"
                             }`}
                           >
@@ -1525,6 +1589,7 @@ export default function CarsTab() {
                                 make.featuredOnHome ? "translate-x-4" : "translate-x-0"
                               }`}
                             />
+                            {rowBusy[make.id] === "featured" && <Loader2 className="pointer-events-none absolute inset-0 m-auto h-3 w-3 animate-spin text-gray-700" />}
                           </button>
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap text-right">
@@ -1546,9 +1611,11 @@ export default function CarsTab() {
                             <button
                               type="button"
                               onClick={() => deleteMake(make)}
-                              className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                              disabled={!!rowBusy[make.id]}
+                              aria-busy={rowBusy[make.id] === "delete"}
+                              className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                              Delete
+                              {rowBusy[make.id] === "delete" ? (<><Loader2 className="inline-block h-3 w-3 mr-1 align-[-2px] animate-spin" />Deleting…</>) : "Delete"}
                             </button>
                           </div>
                         </td>
@@ -1589,14 +1656,15 @@ export default function CarsTab() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-500 flex items-center justify-center"
+                disabled={saving}
+                className="w-8 h-8 rounded-lg hover:bg-gray-100 text-gray-500 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 ✕
               </button>
             </div>
 
-            {/* ─── Body ─── */}
-            <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 space-y-3 sm:space-y-4">
+            {/* ─── Body ─── (inputs are disabled while saving) */}
+            <fieldset disabled={saving} className="min-w-0 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-5 space-y-3 sm:space-y-4">
               {/* Make form */}
               {(modal.kind === "make-create" || modal.kind === "make-edit") && (
                 <>
@@ -1981,7 +2049,7 @@ export default function CarsTab() {
                   {formError}
                 </div>
               )}
-            </div>
+            </fieldset>
 
             {/* ─── Footer ─── */}
             <div className="flex items-center justify-end gap-2 px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-gray-100 bg-gray-50">
@@ -1989,7 +2057,7 @@ export default function CarsTab() {
                 type="button"
                 onClick={closeModal}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-60"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -2002,8 +2070,10 @@ export default function CarsTab() {
                   else submitVariant();
                 }}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                aria-busy={saving}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {saving
                   ? "Saving…"
                   : modal.kind.endsWith("edit")

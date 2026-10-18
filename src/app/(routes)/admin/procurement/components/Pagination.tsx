@@ -10,9 +10,11 @@ interface Props {
   limit: number;
   onPageChange: (page: number) => void;
   onLimitChange?: (limit: number) => void;
+  /** Disable all controls while a page fetch is in flight. */
+  disabled?: boolean;
 }
 
-export default function Pagination({ page, pages, total, limit, onPageChange, onLimitChange }: Props) {
+export default function Pagination({ page, pages, total, limit, onPageChange, onLimitChange, disabled = false }: Props) {
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
   const to = Math.min(total, page * limit);
 
@@ -32,7 +34,8 @@ export default function Pagination({ page, pages, total, limit, onPageChange, on
           <select
             value={limit}
             onChange={(e) => onLimitChange(Number(e.target.value))}
-            className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs bg-white"
+            disabled={disabled}
+            className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs bg-white disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {[10, 20, 50, 100].map((n) => (
               <option key={n} value={n}>{n} / page</option>
@@ -41,19 +44,19 @@ export default function Pagination({ page, pages, total, limit, onPageChange, on
         )}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" aria-busy={disabled}>
         <button
           type="button"
           onClick={() => onPageChange(Math.max(1, page - 1))}
-          disabled={page <= 1}
-          className="p-1.5 rounded-md border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+          disabled={disabled || page <= 1}
+          className="p-1.5 rounded-md border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
           aria-label="Previous"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         {start > 1 && (
           <>
-            <button type="button" onClick={() => onPageChange(1)} className="px-2 py-1 text-xs rounded-md hover:bg-gray-100">1</button>
+            <button type="button" onClick={() => onPageChange(1)} disabled={disabled} className="px-2 py-1 text-xs rounded-md hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">1</button>
             {start > 2 && <span className="text-xs text-gray-400 px-1">…</span>}
           </>
         )}
@@ -62,7 +65,8 @@ export default function Pagination({ page, pages, total, limit, onPageChange, on
             key={n}
             type="button"
             onClick={() => onPageChange(n)}
-            className={`px-2 py-1 text-xs rounded-md ${
+            disabled={disabled}
+            className={`px-2 py-1 text-xs rounded-md disabled:opacity-60 disabled:cursor-not-allowed ${
               n === page ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
@@ -72,14 +76,14 @@ export default function Pagination({ page, pages, total, limit, onPageChange, on
         {end < pages && (
           <>
             {end < pages - 1 && <span className="text-xs text-gray-400 px-1">…</span>}
-            <button type="button" onClick={() => onPageChange(pages)} className="px-2 py-1 text-xs rounded-md hover:bg-gray-100">{pages}</button>
+            <button type="button" onClick={() => onPageChange(pages)} disabled={disabled} className="px-2 py-1 text-xs rounded-md hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">{pages}</button>
           </>
         )}
         <button
           type="button"
           onClick={() => onPageChange(Math.min(pages, page + 1))}
-          disabled={page >= pages}
-          className="p-1.5 rounded-md border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+          disabled={disabled || page >= pages}
+          className="p-1.5 rounded-md border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
           aria-label="Next"
         >
           <ChevronRight className="w-4 h-4" />

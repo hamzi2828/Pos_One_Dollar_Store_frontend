@@ -1,7 +1,7 @@
 // Purchases report — vendor invoices and outgoing payments.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Package, RefreshCw, Loader2, Calendar } from 'lucide-react';
 import ReportsNav from '../components/ReportsNav';
@@ -29,6 +29,12 @@ export default function PurchasesReportPage() {
   const pg = useServerPagination(25);
   const [reloadTick, setReloadTick] = useState(0);
   const load = useCallback(() => setReloadTick((n) => n + 1), []);
+  // Counts in-flight fetches so Refresh can't be re-fired while one is running.
+  const inFlightRef = useRef(0);
+  const handleRefresh = () => {
+    if (inFlightRef.current > 0) return;
+    load();
+  };
 
   useEffect(() => {
     pg.resetToFirstPage();
@@ -38,6 +44,7 @@ export default function PurchasesReportPage() {
   useEffect(() => {
     if (!range) return;
     const ctl = new AbortController();
+    inFlightRef.current += 1;
     setLoading(true);
     fetchPurchasesSummary(
       range.start,
@@ -53,7 +60,10 @@ export default function PurchasesReportPage() {
         if ((err as Error).name === 'AbortError') return;
         toast.error(err instanceof Error ? err.message : 'Failed to load purchases');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        inFlightRef.current -= 1;
+        if (inFlightRef.current === 0) setLoading(false);
+      });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, pg.page, pg.pageSize, reloadTick]);
@@ -71,12 +81,17 @@ export default function PurchasesReportPage() {
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">Vendor invoices and payment flow.</p>
         </div>
         <button
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+            onClick={handleRefresh}
+            disabled={loading}
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+            ) : (
+              <><RefreshCw className="h-4 w-4" /> Refresh</>
+            )}
+          </button>
       </div>
 
       <ReportsNav />
@@ -156,6 +171,7 @@ export default function PurchasesReportPage() {
               limit={pg.pageSize}
               onPageChange={pg.setPage}
               onLimitChange={pg.setPageSize}
+              loading={loading}
               label="purchases"
             />
           </div>

@@ -1,7 +1,7 @@
 // POS Orders — all counter sales with filters, summary, and detail view.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -48,6 +48,7 @@ export default function POSOrdersPage() {
   const [endDate, setEndDate] = useState<string>('');
   const [viewing, setViewing] = useState<POSOrder | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const deleteLock = useRef(false);
   const [paying, setPaying] = useState<POSOrder | null>(null);
 
   const pg = useServerPagination(25);
@@ -118,7 +119,9 @@ export default function POSOrdersPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (deleteLock.current) return;
     if (!confirm('Delete this POS order? This action can be reversed only manually from DB.')) return;
+    deleteLock.current = true;
     try {
       setDeletingId(id);
       await deletePOSOrder(id);
@@ -128,6 +131,7 @@ export default function POSOrdersPage() {
       console.error(err);
       toast.error('Failed to delete order');
     } finally {
+      deleteLock.current = false;
       setDeletingId(null);
     }
   };
@@ -149,10 +153,11 @@ export default function POSOrdersPage() {
           <button
             onClick={loadOrders}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {loading ? 'Refreshing…' : 'Refresh'}
           </button>
           <Link
             href="/admin/pos"
@@ -303,6 +308,7 @@ export default function POSOrdersPage() {
                     onDelete={() => handleDelete(o._id)}
                     onPay={() => setPaying(o)}
                     deleting={deletingId === o._id}
+                    anyDeleting={!!deletingId}
                   />
                 ))
               )}
@@ -425,6 +431,7 @@ function OrderRow({
   onDelete,
   onPay,
   deleting,
+  anyDeleting,
 }: {
   order: POSOrder;
   symbol: string;
@@ -432,6 +439,7 @@ function OrderRow({
   onDelete: () => void;
   onPay: () => void;
   deleting: boolean;
+  anyDeleting: boolean;
 }) {
   const hasOpenBalance =
     (order.paymentStatus === 'partial' || order.paymentStatus === 'pending') &&
@@ -497,7 +505,8 @@ function OrderRow({
           {hasOpenBalance && (
             <button
               onClick={onPay}
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded"
+              disabled={deleting}
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded disabled:opacity-60 disabled:cursor-not-allowed"
               title={`Record payment (${symbol}${(order.pendingAmount || 0).toFixed(2)} pending)`}
             >
               <DollarSign className="h-3.5 w-3.5" />
@@ -506,11 +515,13 @@ function OrderRow({
           )}
           <button
             onClick={onDelete}
-            disabled={deleting}
-            className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
-            title="Delete order"
+            disabled={anyDeleting}
+            aria-busy={deleting}
+            aria-label={deleting ? 'Deleting order' : 'Delete order'}
+            className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
+            title={deleting ? 'Deleting…' : 'Delete order'}
           >
-            <Trash2 className="h-4 w-4" />
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
           </button>
         </div>
       </td>
@@ -732,6 +743,7 @@ function AddPaymentModal({
   const [note, setNote] = useState('');
   const [discount, setDiscount] = useState('');
   const [processing, setProcessing] = useState(false);
+  const submitLock = useRef(false);
 
   const fmt = (n: number) => `${symbol}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   const amt = parseFloat(amount) || 0;
@@ -743,8 +755,10 @@ function AddPaymentModal({
     (order.customer ? `${order.customer.firstName ?? ''} ${order.customer.lastName ?? ''}`.trim() : 'Walk-in');
 
   const submit = async () => {
+    if (submitLock.current) return;
     if (amt <= 0) return toast.error('Enter a payment amount greater than 0');
     if (amt > pending - disc + 0.01) return toast.error('Amount exceeds pending balance');
+    submitLock.current = true;
     try {
       setProcessing(true);
       const updated = await addPaymentToOrder(order._id, {
@@ -757,14 +771,19 @@ function AddPaymentModal({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
     } finally {
+      submitLock.current = false;
       setProcessing(false);
     }
+  };
+
+  const handleClose = () => {
+    if (!submitLock.current) onClose();
   };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="bg-white rounded-lg shadow-2xl w-full max-w-md"
@@ -779,12 +798,16 @@ function AddPaymentModal({
               {order.orderNumber} · {customerName}
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded">
+          <button
+            onClick={handleClose}
+            disabled={processing}
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded disabled:opacity-60 disabled:cursor-not-allowed"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
+        <fieldset disabled={processing} className="min-w-0 p-4 space-y-3">
           <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 rounded-lg p-3 border border-gray-100">
             <div>
               <div className="text-[10px] text-gray-500 uppercase">Total</div>
@@ -894,20 +917,21 @@ function AddPaymentModal({
               {remainingAfter === 0 ? 'Fully paid' : `${fmt(remainingAfter)} still pending`}
             </span>
           </div>
-        </div>
+        </fieldset>
 
         <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={processing}
-            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50"
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={processing || amt <= 0}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 disabled:opacity-50"
+            aria-busy={processing}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {processing ? (
               <>
@@ -940,7 +964,7 @@ function MethodOption({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex flex-col items-center justify-center gap-1 py-2 rounded border transition-colors ${
+      className={`inline-flex flex-col items-center justify-center gap-1 py-2 rounded border transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
         active
           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
           : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'

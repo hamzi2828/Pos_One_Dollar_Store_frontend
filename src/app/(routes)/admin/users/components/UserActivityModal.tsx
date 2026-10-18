@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   X, Loader2, LogIn, ShoppingCart, Heart, Package, Star,
   UserCog, Trash2, MapPin, Car, MessageSquare, Mail, Ticket,
@@ -133,10 +133,16 @@ export default function UserActivityModal({ userId, userName, onClose }: Props) 
     fetchData(1, actionFilter);
   }, [userId, actionFilter]);
 
-  const loadMore = () => {
-    if (page >= totalPages) return;
+  const loadMoreLockRef = useRef(false);
+  const loadMore = async () => {
+    if (loadMoreLockRef.current || page >= totalPages) return;
+    loadMoreLockRef.current = true;
     setLoadingMore(true);
-    fetchData(page + 1, actionFilter);
+    try {
+      await fetchData(page + 1, actionFilter);
+    } finally {
+      loadMoreLockRef.current = false;
+    }
   };
 
   // Get unique actions for filter dropdown
@@ -270,10 +276,11 @@ export default function UserActivityModal({ userId, userName, onClose }: Props) 
                     <button
                       onClick={loadMore}
                       disabled={loadingMore}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      aria-busy={loadingMore}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {loadingMore ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                      Load More
+                      {loadingMore ? 'Loading…' : 'Load More'}
                     </button>
                   </div>
                 )}

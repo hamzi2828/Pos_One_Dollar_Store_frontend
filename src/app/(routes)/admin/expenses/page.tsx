@@ -45,6 +45,10 @@ const ExpensesPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
+  const deleteLockRef = useRef(false);
+  // Per-row status toggle in flight (only that row's pill spins).
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const togglingRef = useRef<string | null>(null);
 
   // Categories state
   const [categories, setCategories] = useState<ExpenseCategoryItem[]>([]);
@@ -189,6 +193,9 @@ const ExpensesPage = () => {
 
   // Handlers
   const handleStatusToggle = async (expenseId: string, isActive: boolean) => {
+    if (togglingRef.current) return;
+    togglingRef.current = expenseId;
+    setTogglingId(expenseId);
     try {
       // Optimistic UI
       setExpenses((prev) => prev.map((e) => (e._id === expenseId ? { ...e, isActive } : e)));
@@ -198,6 +205,9 @@ const ExpensesPage = () => {
       setError('Failed to update expense status');
       // Rollback
       setExpenses((prev) => prev.map((e) => (e._id === expenseId ? { ...e, isActive: !isActive } : e)));
+    } finally {
+      togglingRef.current = null;
+      setTogglingId(null);
     }
   };
 
@@ -214,8 +224,9 @@ const ExpensesPage = () => {
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deletingExpense) return;
+    if (!deletingExpense || deleteLockRef.current) return;
 
+    deleteLockRef.current = true;
     setDeleteLoading(true);
     try {
       await expenseService.deleteExpense(deletingExpense._id);
@@ -227,6 +238,7 @@ const ExpensesPage = () => {
       console.error('Error deleting expense:', err);
       setError('Failed to delete expense');
     } finally {
+      deleteLockRef.current = false;
       setDeleteLoading(false);
     }
   };
@@ -480,25 +492,30 @@ const ExpensesPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleStatusToggle(expense._id, !expense.isActive)}
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        disabled={!!togglingId}
+                        aria-busy={togglingId === expense._id}
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full disabled:opacity-60 disabled:cursor-not-allowed ${
                           expense.isActive
                             ? 'bg-green-100 text-green-700'
                             : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        {expense.isActive ? 'Active' : 'Inactive'}
+                        {togglingId === expense._id && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {togglingId === expense._id ? 'Updating…' : expense.isActive ? 'Active' : 'Inactive'}
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => handleEdit(expense)}
-                        className="text-gray-600 hover:text-[#dc2626] mr-3"
+                        disabled={togglingId === expense._id}
+                        className="text-gray-600 hover:text-[#dc2626] mr-3 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteClick(expense._id)}
-                        className="text-gray-600 hover:text-red-600"
+                        disabled={togglingId === expense._id}
+                        className="text-gray-600 hover:text-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -520,17 +537,20 @@ const ExpensesPage = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={clampedPage === 1}
+            disabled={loading || clampedPage === 1}
+            aria-busy={loading}
             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 inline-flex items-center gap-1.5">
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Page {clampedPage} of {totalPages}
           </span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={clampedPage === totalPages}
+            disabled={loading || clampedPage === totalPages}
+            aria-busy={loading}
             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronRight className="h-4 w-4" />
@@ -541,7 +561,7 @@ const ExpensesPage = () => {
       {/* Delete Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setIsDeleteModalOpen(false)} />
+          <div className="fixed inset-0 bg-black/50" onClick={() => { if (!deleteLoading) setIsDeleteModalOpen(false); }} />
           <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Expense</h3>
             <p className="text-gray-600 mb-6">
@@ -553,17 +573,19 @@ const ExpensesPage = () => {
                   setIsDeleteModalOpen(false);
                   setDeletingExpense(null);
                 }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                disabled={deleteLoading}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 disabled={deleteLoading}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                aria-busy={deleteLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {deleteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Delete
+                {deleteLoading ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

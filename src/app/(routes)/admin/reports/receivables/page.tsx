@@ -3,7 +3,7 @@
 // to record a payment.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import ReportsNav from '../components/ReportsNav';
+import { usePdfExport } from '../components/usePdfExport';
 import { getPendingOrders } from '../../pos/services/posOrderService';
 import type { POSOrder } from '../../pos/types';
 import { getCurrencySymbol } from '../../pos/utils/currency';
@@ -44,8 +45,11 @@ export default function ReceivablesPage() {
   const [tab, setTab] = useState<TabType>('all');
   const [search, setSearch] = useState('');
 
+  // Counts in-flight fetches so Refresh can't be re-fired while one is running.
+  const inFlightRef = useRef(0);
   const load = useCallback(async () => {
     try {
+      inFlightRef.current += 1;
       setLoading(true);
       const resp = await getPendingOrders();
       setOrders(resp.data || []);
@@ -56,13 +60,18 @@ export default function ReceivablesPage() {
       console.error(err);
       toast.error(err instanceof Error ? err.message : 'Failed to load receivables');
     } finally {
-      setLoading(false);
+      inFlightRef.current -= 1;
+      if (inFlightRef.current === 0) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+  const handleRefresh = () => {
+    if (inFlightRef.current > 0) return;
+    load();
+  };
 
   const filtered = useMemo(() => {
     let list = orders;
@@ -157,6 +166,7 @@ export default function ReceivablesPage() {
 
     doc.save(`Receivables_${new Date().toISOString().split('T')[0]}.pdf`);
   };
+  const pdfExport = usePdfExport(handleDownloadPdf);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -172,18 +182,28 @@ export default function ReceivablesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleDownloadPdf}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+            onClick={pdfExport.run}
+            disabled={loading || pdfExport.exporting}
+            aria-busy={pdfExport.exporting}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Download className="h-4 w-4" /> PDF
+            {pdfExport.exporting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+            ) : (
+              <><Download className="h-4 w-4" /> PDF</>
+            )}
           </button>
           <button
-            onClick={load}
+            onClick={handleRefresh}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+            ) : (
+              <><RefreshCw className="h-4 w-4" /> Refresh</>
+            )}
           </button>
         </div>
       </div>

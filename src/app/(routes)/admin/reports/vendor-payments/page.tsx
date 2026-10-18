@@ -1,12 +1,13 @@
 // Vendor Payments Report — every outgoing payment against a vendor invoice.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Building2, RefreshCw, Loader2, Calendar, Download, Search, AlertCircle, FileText } from 'lucide-react';
 import Link from 'next/link';
 import jsPDF from 'jspdf';
 import ReportsNav from '../components/ReportsNav';
+import { usePdfExport } from '../components/usePdfExport';
 import {
   fetchVendorPayments,
   rangeFromFilter,
@@ -36,6 +37,12 @@ export default function VendorPaymentsPage() {
   const paymentsPg = useServerPagination(25);
   const [reloadTick, setReloadTick] = useState(0);
   const load = useCallback(() => setReloadTick((n) => n + 1), []);
+  // Counts in-flight fetches so Refresh can't be re-fired while one is running.
+  const inFlightRef = useRef(0);
+  const handleRefresh = () => {
+    if (inFlightRef.current > 0) return;
+    load();
+  };
 
   // Debounce the search input so typing doesn't re-hit the API every keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -53,6 +60,7 @@ export default function VendorPaymentsPage() {
   useEffect(() => {
     if (!range) return;
     const ctl = new AbortController();
+    inFlightRef.current += 1;
     setLoading(true);
     fetchVendorPayments(
       range.start,
@@ -72,7 +80,10 @@ export default function VendorPaymentsPage() {
         if ((err as Error).name === 'AbortError') return;
         toast.error(err instanceof Error ? err.message : 'Failed to load vendor payments');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        inFlightRef.current -= 1;
+        if (inFlightRef.current === 0) setLoading(false);
+      });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, debouncedSearch, paymentsPg.page, paymentsPg.pageSize, reloadTick]);
@@ -151,6 +162,7 @@ export default function VendorPaymentsPage() {
     });
     doc.save(`Vendor_Payments_${range?.label.replace(/\s|\//g, '_')}.pdf`);
   };
+  const pdfExport = usePdfExport(handleDownloadPdf);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -163,11 +175,29 @@ export default function VendorPaymentsPage() {
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">Outgoing payments against vendor invoices.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleDownloadPdf} disabled={loading || !data} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
-            <Download className="h-4 w-4" /> PDF
+          <button
+            onClick={pdfExport.run}
+            disabled={loading || !data || pdfExport.exporting}
+            aria-busy={pdfExport.exporting}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {pdfExport.exporting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+            ) : (
+              <><Download className="h-4 w-4" /> PDF</>
+            )}
           </button>
-          <button onClick={load} disabled={loading} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+            ) : (
+              <><RefreshCw className="h-4 w-4" /> Refresh</>
+            )}
           </button>
         </div>
       </div>
@@ -305,6 +335,7 @@ export default function VendorPaymentsPage() {
                   limit={paymentsPg.pageSize}
                   onPageChange={paymentsPg.setPage}
                   onLimitChange={paymentsPg.setPageSize}
+                  loading={loading}
                   label="payments"
                 />
               )}

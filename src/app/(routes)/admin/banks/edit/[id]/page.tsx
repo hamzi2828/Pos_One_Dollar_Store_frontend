@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Loader2, Building2, FileText } from 'lucide-react';
 import Link from 'next/link';
@@ -25,6 +25,7 @@ export default function EditBankPage() {
 
   // UI State
   const [loading, setLoading] = useState(false);
+  const submitLockRef = useRef(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +58,7 @@ export default function EditBankPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
     setError(null);
 
     // Validation
@@ -73,7 +75,9 @@ export default function EditBankPage() {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
+    let navigating = false;
     try {
       const bankData: UpdateBankData = {
         name: name.trim(),
@@ -86,12 +90,17 @@ export default function EditBankPage() {
       };
 
       await bankService.updateBank(bankId, bankData);
+      // Stay locked while we navigate away so the button can't be pressed again.
+      navigating = true;
       router.push('/admin/banks');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update bank';
       setError(errorMessage);
     } finally {
-      setLoading(false);
+      if (!navigating) {
+        submitLockRef.current = false;
+        setLoading(false);
+      }
     }
   };
 
@@ -238,19 +247,22 @@ export default function EditBankPage() {
         <div className="flex justify-end gap-3">
           <Link
             href="/admin/banks"
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            aria-disabled={loading}
+            tabIndex={loading ? -1 : undefined}
+            className={`px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors ${loading ? 'pointer-events-none opacity-60' : ''}`}
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            aria-busy={loading}
+            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
+                Saving…
               </>
             ) : (
               'Save Changes'

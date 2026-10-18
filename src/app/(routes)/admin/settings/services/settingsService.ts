@@ -1,5 +1,21 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 import { getAuthHeader } from "@/helper/helper";
+
+/** Which settings action is currently in flight (drives per-button spinners). */
+export type SettingsBusyAction =
+  | 'fetch'
+  | 'general'
+  | 'smtp'
+  | 'dimensions'
+  | 'uploadLogo'
+  | 'removeLogo'
+  | 'uploadFooterLogo'
+  | 'removeFooterLogo'
+  | 'uploadFavicon'
+  | 'removeFavicon'
+  | 'resetCaches'
+  | 'resetSettings';
+
 interface SettingsData {
   siteName: string;
   siteUrl: string;

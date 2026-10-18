@@ -260,6 +260,7 @@ export default function StockTransfersPage() {
               onPageChange={setPage}
               onLimitChange={setLimit}
               label="transfers"
+              loading={loading}
             />
           </div>
         )}

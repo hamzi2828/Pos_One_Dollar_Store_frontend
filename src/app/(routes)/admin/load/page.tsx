@@ -33,6 +33,8 @@ const LoadPage = () => {
   const [newColor, setNewColor] = useState<string>(PRESET_COLORS[0]);
   const [saving, setSaving] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Synchronous lock so a fast double-click can't create the network twice.
+  const savingRef = useRef(false);
 
   const fetchNetworks = useCallback(async () => {
     abortRef.current?.abort();
@@ -58,10 +60,12 @@ const LoadPage = () => {
   }, [fetchNetworks]);
 
   const handleCreate = async () => {
+    if (savingRef.current) return;
     if (!newName.trim()) {
       setFormError('Network name is required');
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setFormError(null);
     try {
@@ -79,6 +83,7 @@ const LoadPage = () => {
       const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setFormError(message || 'Failed to create network');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -118,10 +123,12 @@ const LoadPage = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDate((d) => shiftDay(d, -1))}
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            disabled={loading}
+            aria-busy={loading}
+            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label="Previous day"
           >
-            <ChevronLeft className="h-4 w-4" />
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
           <input
             type="date"
@@ -132,11 +139,12 @@ const LoadPage = () => {
           />
           <button
             onClick={() => setDate((d) => shiftDay(d, 1))}
-            disabled={isToday}
+            disabled={isToday || loading}
+            aria-busy={loading}
             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label="Next day"
           >
-            <ChevronRight className="h-4 w-4" />
+            {loading && !isToday ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
           </button>
           <button
             onClick={() => setIsAddOpen(true)}
@@ -270,7 +278,7 @@ const LoadPage = () => {
       {/* Add network modal */}
       {isAddOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setIsAddOpen(false)} />
+          <div className="fixed inset-0 bg-black/50" onClick={() => { if (!saving) setIsAddOpen(false); }} />
           <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Network</h3>
 
@@ -281,7 +289,7 @@ const LoadPage = () => {
               </div>
             )}
 
-            <div className="space-y-4">
+            <fieldset disabled={saving} className="min-w-0 space-y-4 disabled:opacity-60">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
@@ -321,22 +329,27 @@ const LoadPage = () => {
                   ))}
                 </div>
               </div>
-            </div>
+            </fieldset>
 
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setIsAddOpen(false)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                disabled={saving}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={saving}
-                className="px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                aria-busy={saving}
+                className="px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                Create
+                {saving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Creating…</>
+                ) : (
+                  'Create'
+                )}
               </button>
             </div>
           </div>

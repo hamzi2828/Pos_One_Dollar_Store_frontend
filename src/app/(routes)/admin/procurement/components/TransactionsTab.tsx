@@ -220,6 +220,7 @@ export default function TransactionsTab() {
           onPageChange={pg.setPage}
           onLimitChange={pg.setPageSize}
           label="payments"
+          loading={loading}
         />
       </div>
     </div>

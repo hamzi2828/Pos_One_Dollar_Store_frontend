@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { HeldCart } from '../types';
-import { Archive, Trash2, Clock, Eye, X, User, Phone, Car, Package, Wrench, Tag } from 'lucide-react';
+import { Archive, Trash2, Clock, Eye, X, User, Phone, Car, Package, Wrench, Tag, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface HeldOrdersProps {
@@ -11,16 +11,23 @@ interface HeldOrdersProps {
   onRetrieve: (cartId: string) => void;
   onDelete: (cartId: string) => void;
   currency?: string;
+  /** Set by the page while a retrieve/delete request is in flight. */
+  busy?: HeldBusy | null;
 }
+
+type HeldBusy = { id: string; action: 'retrieve' | 'delete' };
 
 export default function HeldOrders({
   heldCarts,
   onRetrieve,
   onDelete,
   currency = 'PKR',
+  busy = null,
 }: HeldOrdersProps) {
   const symbol = getCurrencySymbol(currency);
-  const [viewing, setViewing] = useState<HeldCart | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  // Derived from the live list, so a deleted order doesn't linger in the modal.
+  const viewing = viewingId ? heldCarts.find((h) => h.id === viewingId) ?? null : null;
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -56,7 +63,10 @@ export default function HeldOrders({
   return (
     <>
       <div className="space-y-3">
-        {heldCarts.map((held) => (
+        {heldCarts.map((held) => {
+          const retrievingThis = busy?.id === held.id && busy.action === 'retrieve';
+          const deletingThis = busy?.id === held.id && busy.action === 'delete';
+          return (
           <div
             key={held.id}
             className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
@@ -89,7 +99,7 @@ export default function HeldOrders({
 
             <div className="flex gap-2 mt-3">
               <button
-                onClick={() => setViewing(held)}
+                onClick={() => setViewingId(held.id)}
                 className="flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 py-2 px-3 rounded text-sm font-medium hover:bg-gray-200 transition-colors"
                 title="View held order details"
               >
@@ -98,20 +108,37 @@ export default function HeldOrders({
               </button>
               <button
                 onClick={() => onRetrieve(held.id)}
-                className="flex-1 bg-[#DC2626] text-white py-2 px-3 rounded text-sm font-medium hover:bg-[#B91C1C] transition-colors"
+                disabled={!!busy}
+                aria-busy={retrievingThis}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#DC2626] text-white py-2 px-3 rounded text-sm font-medium hover:bg-[#B91C1C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Retrieve
+                {retrievingThis ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Retrieving…
+                  </>
+                ) : (
+                  'Retrieve'
+                )}
               </button>
               <button
                 onClick={() => onDelete(held.id)}
-                className="bg-red-100 text-red-600 py-2 px-3 rounded hover:bg-red-200 transition-colors"
+                disabled={!!busy}
+                aria-busy={deletingThis}
+                aria-label={deletingThis ? 'Deleting held order' : 'Delete held order'}
+                className="bg-red-100 text-red-600 py-2 px-3 rounded hover:bg-red-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 title="Delete held order"
               >
-                <Trash2 className="h-4 w-4" />
+                {deletingThis ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {viewing && (
@@ -119,15 +146,10 @@ export default function HeldOrders({
           held={viewing}
           symbol={symbol}
           formatDateTime={formatDateTime}
-          onClose={() => setViewing(null)}
-          onRetrieve={(id) => {
-            setViewing(null);
-            onRetrieve(id);
-          }}
-          onDelete={(id) => {
-            setViewing(null);
-            onDelete(id);
-          }}
+          busy={busy}
+          onClose={() => setViewingId(null)}
+          onRetrieve={onRetrieve}
+          onDelete={onDelete}
         />
       )}
     </>
@@ -141,16 +163,23 @@ interface HeldOrderModalProps {
   onClose: () => void;
   onRetrieve: (id: string) => void;
   onDelete: (id: string) => void;
+  busy: HeldBusy | null;
 }
 
-function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onDelete }: HeldOrderModalProps) {
+function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onDelete, busy }: HeldOrderModalProps) {
   const cart = held.cart;
   const customer = cart.customer;
+  const isBusy = !!busy;
+  const retrieving = busy?.id === held.id && busy.action === 'retrieve';
+  const deleting = busy?.id === held.id && busy.action === 'delete';
+  const handleClose = () => {
+    if (!isBusy) onClose();
+  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
@@ -169,8 +198,9 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-md"
+            onClick={handleClose}
+            disabled={isBusy}
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <X className="h-5 w-5" />
           </button>
@@ -327,22 +357,43 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
         <div className="flex gap-2 p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
           <button
             onClick={() => onDelete(held.id)}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded hover:bg-red-50 transition-colors"
+            disabled={isBusy}
+            aria-busy={deleting}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded hover:bg-red-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Trash2 className="h-4 w-4" />
-            Delete
+            {deleting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Deleting…
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </>
+            )}
           </button>
           <button
-            onClick={onClose}
-            className="ml-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+            onClick={handleClose}
+            disabled={isBusy}
+            className="ml-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Close
           </button>
           <button
             onClick={() => onRetrieve(held.id)}
-            className="px-4 py-2 text-sm font-medium text-white bg-[#DC2626] rounded hover:bg-[#B91C1C] transition-colors"
+            disabled={isBusy}
+            aria-busy={retrieving}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#DC2626] rounded hover:bg-[#B91C1C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Retrieve to Cart
+            {retrieving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Retrieving…
+              </>
+            ) : (
+              'Retrieve to Cart'
+            )}
           </button>
         </div>
       </div>

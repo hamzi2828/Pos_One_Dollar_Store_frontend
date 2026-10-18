@@ -1,6 +1,6 @@
 "use client";
-import React, { useState } from "react";
-import { Barcode, CircleAlert, Pencil, Printer, PackagePlus, X } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Barcode, CircleAlert, Loader2, Pencil, Printer, PackagePlus, X } from "lucide-react";
 import { labelService, errorMessage, type CodeLookupResult } from "../../services/labelService";
 
 interface CodeFinderProps {
@@ -22,11 +22,15 @@ export default function CodeFinder({ onStickers, onEdit, onReceiveStock }: CodeF
   const [busy, setBusy] = useState(false);
   const [found, setFound] = useState<CodeLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous lock so Enter + click (or a double click) can't start two lookups
+  const busyRef = useRef(false);
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busyRef.current) return;
     const c = code.trim();
     if (!c) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     setFound(null);
@@ -37,6 +41,7 @@ export default function CodeFinder({ onStickers, onEdit, onReceiveStock }: CodeF
     } catch (err) {
       setError(errorMessage(err, "No product uses this code"));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -74,9 +79,17 @@ export default function CodeFinder({ onStickers, onEdit, onReceiveStock }: CodeF
         <button
           type="submit"
           disabled={busy || !code.trim()}
-          className="h-8 sm:h-10 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+          aria-busy={busy}
+          className="inline-flex items-center justify-center gap-1.5 h-8 sm:h-10 px-3 sm:px-4 text-xs sm:text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {busy ? "Finding…" : "Find"}
+          {busy ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+              Finding…
+            </>
+          ) : (
+            "Find"
+          )}
         </button>
       </form>
 

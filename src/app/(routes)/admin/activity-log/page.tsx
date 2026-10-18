@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Activity, Loader2, Search, X, ChevronLeft, ChevronRight, RefreshCw,
@@ -506,6 +506,8 @@ function FeedTab() {
     return () => clearInterval(id);
   }, [fetchLogs, page]);
 
+  const action = useBusyAction<'refresh' | 'prev' | 'next'>();
+
   return (
     <>
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
@@ -515,11 +517,16 @@ function FeedTab() {
         <div className="flex items-center gap-2">
           <FeedCacheCounter logs={logs} />
           <button
-            onClick={() => fetchLogs(page)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            onClick={() => action.run('refresh', () => fetchLogs(page))}
+            disabled={action.busy !== null}
+            aria-busy={action.busy === 'refresh'}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {action.busy === 'refresh' ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" />Refreshing…</>
+            ) : (
+              <><RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />Refresh</>
+            )}
           </button>
         </div>
       </div>
@@ -730,18 +737,20 @@ function FeedTab() {
           </p>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => fetchLogs(page - 1)}
-              disabled={page <= 1}
-              className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+              onClick={() => action.run('prev', () => fetchLogs(page - 1))}
+              disabled={page <= 1 || action.busy !== null}
+              aria-busy={action.busy === 'prev'}
+              className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              <ChevronLeft className="w-4 h-4" />
+              {action.busy === 'prev' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
             <button
-              onClick={() => fetchLogs(page + 1)}
-              disabled={page >= totalPages}
-              className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+              onClick={() => action.run('next', () => fetchLogs(page + 1))}
+              disabled={page >= totalPages || action.busy !== null}
+              aria-busy={action.busy === 'next'}
+              className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              <ChevronRight className="w-4 h-4" />
+              {action.busy === 'next' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -1042,6 +1051,30 @@ function useAnalytics(range: Range) {
   return { data, loading, refetch: fetchData };
 }
 
+/* ---------------- BUSY ACTION HOOK ---------------- */
+
+/**
+ * Runs one user-triggered async action at a time. A ref lock blocks repeat
+ * clicks before React re-renders; `busy` names the running action so only
+ * that button shows a spinner while the others are disabled.
+ */
+function useBusyAction<K extends string>() {
+  const lockRef = useRef(false);
+  const [busy, setBusy] = useState<K | null>(null);
+  const run = useCallback(async (key: K, fn: () => unknown) => {
+    if (lockRef.current) return;
+    lockRef.current = true;
+    setBusy(key);
+    try {
+      await fn();
+    } finally {
+      lockRef.current = false;
+      setBusy(null);
+    }
+  }, []);
+  return { busy, run };
+}
+
 function RangeTabs({ range, onChange }: { range: Range; onChange: (r: Range) => void }) {
   return (
     <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
@@ -1115,6 +1148,8 @@ function UserDetailView({ userId, onBack }: { userId: string; onBack: () => void
 
   useEffect(() => { fetchAll(1); }, [fetchAll]);
 
+  const action = useBusyAction<'refresh' | 'prev' | 'next'>();
+
   const name = userInfo?.firstName || userInfo?.lastName
     ? `${userInfo.firstName || ''} ${userInfo.lastName || ''}`.trim()
     : 'User';
@@ -1134,10 +1169,17 @@ function UserDetailView({ userId, onBack }: { userId: string; onBack: () => void
           <p className="text-xs text-gray-500">{userInfo?.email || userId}</p>
         </div>
         <button
-          onClick={() => fetchAll(page)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+          onClick={() => action.run('refresh', () => fetchAll(page))}
+          disabled={action.busy !== null}
+          aria-busy={action.busy === 'refresh'}
+          aria-label={action.busy === 'refresh' ? 'Refreshing…' : 'Refresh'}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          {action.busy === 'refresh' ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          )}
         </button>
       </div>
 
@@ -1268,18 +1310,20 @@ function UserDetailView({ userId, onBack }: { userId: string; onBack: () => void
                     </p>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => fetchAll(page - 1)}
-                        disabled={page <= 1}
-                        className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                        onClick={() => action.run('prev', () => fetchAll(page - 1))}
+                        disabled={page <= 1 || action.busy !== null}
+                        aria-busy={action.busy === 'prev'}
+                        className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        <ChevronLeft className="w-4 h-4" />
+                        {action.busy === 'prev' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronLeft className="w-4 h-4" />}
                       </button>
                       <button
-                        onClick={() => fetchAll(page + 1)}
-                        disabled={page >= totalPages}
-                        className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                        onClick={() => action.run('next', () => fetchAll(page + 1))}
+                        disabled={page >= totalPages || action.busy !== null}
+                        aria-busy={action.busy === 'next'}
+                        className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        <ChevronRight className="w-4 h-4" />
+                        {action.busy === 'next' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
@@ -1352,6 +1396,8 @@ function UsersTab({ onUserClick }: { onUserClick: (id: string) => void }) {
 
   useEffect(() => { fetchPage(1); }, [fetchPage]);
 
+  const action = useBusyAction<'refresh' | 'prev' | 'next'>();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -1361,10 +1407,17 @@ function UsersTab({ onUserClick }: { onUserClick: (id: string) => void }) {
         <div className="flex items-center gap-2">
           <RangeTabs range={range} onChange={(r) => { setRange(r); setPage(1); }} />
           <button
-            onClick={() => fetchPage(page)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            onClick={() => action.run('refresh', () => fetchPage(page))}
+            disabled={action.busy !== null}
+            aria-busy={action.busy === 'refresh'}
+            aria-label={action.busy === 'refresh' ? 'Refreshing…' : 'Refresh'}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {action.busy === 'refresh' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            )}
           </button>
         </div>
       </div>
@@ -1436,18 +1489,20 @@ function UsersTab({ onUserClick }: { onUserClick: (id: string) => void }) {
               </p>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => fetchPage(page - 1)}
-                  disabled={page <= 1 || loading}
-                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                  onClick={() => action.run('prev', () => fetchPage(page - 1))}
+                  disabled={page <= 1 || loading || action.busy !== null}
+                  aria-busy={action.busy === 'prev'}
+                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  {action.busy === 'prev' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronLeft className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={() => fetchPage(page + 1)}
-                  disabled={page >= totalPages || loading}
-                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                  onClick={() => action.run('next', () => fetchPage(page + 1))}
+                  disabled={page >= totalPages || loading || action.busy !== null}
+                  aria-busy={action.busy === 'next'}
+                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  {action.busy === 'next' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -1466,8 +1521,12 @@ function InsightsTab() {
   const [clearing, setClearing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
+  const clearLockRef = useRef(false);
+  const action = useBusyAction<'refresh'>();
 
   const handleClearAll = useCallback(async () => {
+    if (clearLockRef.current) return;
+    clearLockRef.current = true;
     setClearing(true);
     setClearError(null);
     try {
@@ -1484,6 +1543,7 @@ function InsightsTab() {
     } catch (err) {
       setClearError(err instanceof Error ? err.message : 'Failed to clear logs');
     } finally {
+      clearLockRef.current = false;
       setClearing(false);
     }
   }, [refetch]);
@@ -1539,14 +1599,22 @@ function InsightsTab() {
         <div className="flex items-center gap-2">
           <RangeTabs range={range} onChange={setRange} />
           <button
-            onClick={refetch}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            onClick={() => action.run('refresh', refetch)}
+            disabled={action.busy !== null}
+            aria-busy={action.busy === 'refresh'}
+            aria-label={action.busy === 'refresh' ? 'Refreshing…' : 'Refresh'}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {action.busy === 'refresh' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            )}
           </button>
           <button
             onClick={() => { setClearError(null); setShowConfirm(true); }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50"
+            disabled={clearing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Clear All Logs
@@ -1575,17 +1643,18 @@ function InsightsTab() {
               <button
                 onClick={() => setShowConfirm(false)}
                 disabled={clearing}
-                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClearAll}
                 disabled={clearing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                aria-busy={clearing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {clearing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                {clearing ? 'Clearing...' : 'Yes, clear all'}
+                {clearing ? 'Clearing…' : 'Yes, clear all'}
               </button>
             </div>
           </div>
@@ -2288,10 +2357,11 @@ function CacheTab() {
     return () => clearInterval(id);
   }, [fetchResets]);
 
-  const combinedRefetch = useCallback(() => {
-    refetch();
-    fetchResets();
-  }, [refetch, fetchResets]);
+  const combinedRefetch = useCallback(
+    () => Promise.all([refetch(), fetchResets()]),
+    [refetch, fetchResets],
+  );
+  const action = useBusyAction<'refresh'>();
 
   const cacheStats: CacheRouteStats[] = useMemo(() => {
     return CACHE_ROUTES.map((route) => {
@@ -2409,10 +2479,17 @@ function CacheTab() {
         <div className="flex items-center gap-2">
           <RangeTabs range={range} onChange={setRange} />
           <button
-            onClick={combinedRefetch}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            onClick={() => action.run('refresh', combinedRefetch)}
+            disabled={action.busy !== null}
+            aria-busy={action.busy === 'refresh'}
+            aria-label={action.busy === 'refresh' ? 'Refreshing…' : 'Refresh'}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {action.busy === 'refresh' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            )}
           </button>
         </div>
       </div>

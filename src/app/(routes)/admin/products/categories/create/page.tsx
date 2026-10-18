@@ -3,6 +3,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiChevronDown } from 'react-icons/fi';
+import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { categoryService } from '../../services/categoryService';
 import RichTextEditor from '@/components/RichTextEditor';
@@ -39,6 +40,7 @@ const CreateCategoryPage = () => {
   const [thumbnailFiles, setThumbnailFiles] = useState<File[]>([]);
   const [thumbnailPreviews, setThumbnailPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const [loadingParents, setLoadingParents] = useState(true);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +103,9 @@ const CreateCategoryPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Synchronous lock: Enter + click (or a double click) must not submit twice
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
 
     try {
@@ -142,6 +147,7 @@ const CreateCategoryPage = () => {
       console.error('Failed to create category', e);
       alert('Failed to create category');
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
@@ -151,7 +157,8 @@ const CreateCategoryPage = () => {
       <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b">
         <h3 className="text-base sm:text-lg font-medium text-gray-900">Add Category</h3>
       </div>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} aria-busy={loading}>
+       <fieldset disabled={loading} className="min-w-0">
         <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Name</label>
@@ -349,18 +356,27 @@ const CreateCategoryPage = () => {
           <button
             type="button"
             onClick={() => router.push('/admin/products/categories')}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+            aria-busy={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? 'Creating...' : 'Create'}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Creating category…
+              </>
+            ) : (
+              'Create'
+            )}
           </button>
         </div>
+       </fieldset>
       </form>
     </div>
   );

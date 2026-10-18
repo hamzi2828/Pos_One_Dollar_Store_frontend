@@ -19,7 +19,8 @@ import {
   FolderTree,
   X,
   ArrowLeft,
-  GripVertical
+  GripVertical,
+  Loader2
 } from "lucide-react";
 import {
   DndContext,
@@ -72,9 +73,11 @@ interface CategoriesTabProps {
   onToggleFeatured: (id: string) => void;
   onReorder?: (reorderedCategories: Category[]) => void;
   onFeatureProducts?: (id: string) => void;
+  /** category id -> request in progress for it (shows a spinner and disables that row's actions) */
+  busy?: Record<string, "active" | "featured" | "delete">;
 }
 
-export default function CategoriesTab({ categories, onEdit, onDelete, onToggleActive, onToggleFeatured, onReorder, onFeatureProducts }: CategoriesTabProps) {
+export default function CategoriesTab({ categories, onEdit, onDelete, onToggleActive, onToggleFeatured, onReorder, onFeatureProducts, busy = {} }: CategoriesTabProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
@@ -291,7 +294,9 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               {/* Active Toggle */}
               <button
                 onClick={() => onToggleActive(cat.id)}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                disabled={!!busy[cat.id]}
+                aria-busy={busy[cat.id] === "active"}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
                   cat.active ? 'bg-green-500' : 'bg-gray-300'
                 }`}
                 title={cat.active ? "Set inactive" : "Set active"}
@@ -301,19 +306,22 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                     cat.active ? 'translate-x-[18px]' : 'translate-x-0.5'
                   }`}
                 />
+                {busy[cat.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
               </button>
 
               {/* Featured Toggle */}
               <button
                 title={cat.featured ? "Remove from featured" : "Make featured"}
                 onClick={() => onToggleFeatured(cat.id)}
-                className={`p-1 rounded transition-colors ${
+                disabled={!!busy[cat.id]}
+                aria-busy={busy[cat.id] === "featured"}
+                className={`p-1 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                   cat.featured
                     ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100"
                     : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                <Star className={`h-3.5 w-3.5 ${cat.featured ? 'fill-current' : ''}`} />
+                {busy[cat.id] === "featured" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Star className={`h-3.5 w-3.5 ${cat.featured ? 'fill-current' : ''}`} />}
               </button>
             </div>
 
@@ -336,10 +344,12 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               </button>
               <button
                 onClick={() => onDelete(cat.id)}
-                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                disabled={!!busy[cat.id]}
+                aria-busy={busy[cat.id] === "delete"}
+                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 title="Delete category"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                {busy[cat.id] === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-red-500" /> : <Trash2 className="h-3.5 w-3.5" />}
               </button>
             </div>
           </div>
@@ -426,7 +436,9 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
         <td className="px-6 py-4 whitespace-nowrap">
           <button
             onClick={() => onToggleActive(cat.id)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 ${
+            disabled={!!busy[cat.id]}
+            aria-busy={busy[cat.id] === "active"}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${
               cat.active ? 'bg-green-500' : 'bg-gray-300'
             }`}
             title={cat.active ? "Set inactive" : "Set active"}
@@ -436,19 +448,22 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                 cat.active ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
+            {busy[cat.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
           </button>
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
           <button
             onClick={() => onToggleFeatured(cat.id)}
-            className={`p-2 rounded-lg transition-colors ${
+            disabled={!!busy[cat.id]}
+            aria-busy={busy[cat.id] === "featured"}
+            className={`p-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
               cat.featured
                 ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100"
                 : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
             }`}
             title={cat.featured ? "Remove from featured" : "Make featured"}
           >
-            <Star className={`h-5 w-5 ${cat.featured ? 'fill-current' : ''}`} />
+            {busy[cat.id] === "featured" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Star className={`h-5 w-5 ${cat.featured ? 'fill-current' : ''}`} />}
           </button>
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -471,10 +486,12 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             </button>
             <button
               onClick={() => onDelete(cat.id)}
-              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              disabled={!!busy[cat.id]}
+              aria-busy={busy[cat.id] === "delete"}
+              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               title="Delete category"
             >
-              <Trash2 className="h-4 w-4" />
+              {busy[cat.id] === "delete" ? <Loader2 className="h-4 w-4 animate-spin text-red-500" /> : <Trash2 className="h-4 w-4" />}
             </button>
           </div>
         </td>
@@ -758,19 +775,23 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                     <button
                       type="button"
                       onClick={() => onToggleFeatured(parent.id)}
-                      className={`p-1.5 rounded-md transition-colors ${
+                      disabled={!!busy[parent.id]}
+                      aria-busy={busy[parent.id] === "featured"}
+                      className={`p-1.5 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                         parent.featured
                           ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100"
                           : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
                       }`}
                       title={parent.featured ? "Remove from featured" : "Make featured"}
                     >
-                      <Star className={`h-4 w-4 ${parent.featured ? "fill-current" : ""}`} />
+                      {busy[parent.id] === "featured" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className={`h-4 w-4 ${parent.featured ? "fill-current" : ""}`} />}
                     </button>
                     <button
                       type="button"
                       onClick={() => onToggleActive(parent.id)}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      disabled={!!busy[parent.id]}
+                      aria-busy={busy[parent.id] === "active"}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                         parent.active ? "bg-green-500" : "bg-gray-300"
                       }`}
                       title={parent.active ? "Set inactive" : "Set active"}
@@ -780,6 +801,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                           parent.active ? "translate-x-5" : "translate-x-1"
                         }`}
                       />
+                      {busy[parent.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
                     </button>
                     {onFeatureProducts && (
                       <button
@@ -802,10 +824,12 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                     <button
                       type="button"
                       onClick={() => onDelete(parent.id)}
-                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                      disabled={!!busy[parent.id]}
+                      aria-busy={busy[parent.id] === "delete"}
+                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       title="Delete category"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {busy[parent.id] === "delete" ? <Loader2 className="h-4 w-4 animate-spin text-red-500" /> : <Trash2 className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
@@ -847,7 +871,9 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                               <button
                                 type="button"
                                 onClick={() => onToggleActive(sub.id)}
-                                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+                                disabled={!!busy[sub.id]}
+                                aria-busy={busy[sub.id] === "active"}
+                                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                                   sub.active ? "bg-green-500" : "bg-gray-300"
                                 }`}
                                 title={sub.active ? "Set inactive" : "Set active"}
@@ -857,6 +883,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                                     sub.active ? "translate-x-3.5" : "translate-x-0.5"
                                   }`}
                                 />
+                                {busy[sub.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
                               </button>
                               {onFeatureProducts && (
                                 <button
@@ -879,10 +906,12 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                               <button
                                 type="button"
                                 onClick={() => onDelete(sub.id)}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                disabled={!!busy[sub.id]}
+                                aria-busy={busy[sub.id] === "delete"}
+                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                 title="Delete subcategory"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                {busy[sub.id] === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-red-500" /> : <Trash2 className="h-3.5 w-3.5" />}
                               </button>
                             </div>
                           </li>

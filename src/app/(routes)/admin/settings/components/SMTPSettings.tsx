@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Mail, Server, Lock, User, Check, Eye, EyeOff, AlertCircle, Zap, CheckCircle, XCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Mail, Server, Lock, User, Check, Eye, EyeOff, AlertCircle, Zap, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { SettingsData } from '../services/settingsService';
 
 interface SMTPSettingsProps {
   settings: SettingsData;
   onUpdate: (data: Partial<SettingsData>) => Promise<void>;
   isLoading: boolean;
+  /** True only while this form's own save is in flight (drives the spinner). */
+  isSaving?: boolean;
 }
 
 interface SMTPData {
@@ -20,7 +22,7 @@ interface SMTPData {
   smtpSecure: boolean;
 }
 
-export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSettingsProps) {
+export default function SMTPSettings({ settings, onUpdate, isLoading, isSaving }: SMTPSettingsProps) {
   const [smtpData, setSmtpData] = useState<SMTPData>({
     smtpHost: '',
     smtpPort: '587',
@@ -35,6 +37,9 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
   const [hasChanges, setHasChanges] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Synchronous locks so a fast double-click can't fire two requests.
+  const saveLockRef = useRef(false);
+  const testLockRef = useRef(false);
 
   useEffect(() => {
     if (settings) {
@@ -59,11 +64,15 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
   };
 
   const handleSave = async () => {
+    if (saveLockRef.current || isLoading) return;
+    saveLockRef.current = true;
     try {
       await onUpdate(smtpData);
       setHasChanges(false);
     } catch (error) {
       console.error('Error saving SMTP settings:', error);
+    } finally {
+      saveLockRef.current = false;
     }
   };
 
@@ -82,11 +91,13 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
   };
 
   const handleTestConnection = async () => {
+    if (testLockRef.current) return;
     if (!smtpData.smtpHost || !smtpData.smtpUser || !smtpData.smtpPassword) {
       setTestResult({ success: false, message: 'Please fill in host, username and password first' });
       return;
     }
 
+    testLockRef.current = true;
     setIsTesting(true);
     setTestResult(null);
 
@@ -117,6 +128,7 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
       console.error('Error testing SMTP connection:', error);
       setTestResult({ success: false, message: 'Failed to test connection. Please try again.' });
     } finally {
+      testLockRef.current = false;
       setIsTesting(false);
     }
   };
@@ -291,12 +303,13 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
             type="button"
             onClick={handleTestConnection}
             disabled={isTesting || !isConfigured}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-busy={isTesting}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {isTesting ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                Testing...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Testing…
               </>
             ) : (
               <>
@@ -329,7 +342,7 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
             type="button"
             onClick={handleReset}
             disabled={isLoading}
-            className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50"
+            className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Discard Changes
           </button>
@@ -337,12 +350,13 @@ export default function SMTPSettings({ settings, onUpdate, isLoading }: SMTPSett
             type="button"
             onClick={handleSave}
             disabled={isLoading}
-            className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 focus:ring-2 focus:ring-offset-2 focus:ring-honey-500 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-busy={isSaving}
+            className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 focus:ring-2 focus:ring-offset-2 focus:ring-honey-500 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
+            {isSaving ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                Saving...
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving…
               </>
             ) : (
               <>

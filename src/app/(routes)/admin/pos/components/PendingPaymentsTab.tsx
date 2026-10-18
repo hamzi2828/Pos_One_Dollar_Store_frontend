@@ -1,7 +1,7 @@
 // Pending Payments Tab Component
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { POSOrder, PaymentMethodType } from '../types';
 import { getPendingOrders, addPaymentToOrder } from '../services/posOrderService';
 import { getCurrencySymbol } from '../utils/currency';
@@ -29,22 +29,39 @@ export default function PendingPaymentsTab({
   const [paymentNote, setPaymentNote] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const paymentLock = useRef(false);
+
+  // Manual refresh (keeps the list visible, spins the refresh button)
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshLock = useRef(false);
 
   // Track expanded payment history
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
-  const loadPendingOrders = useCallback(async () => {
+  const loadPendingOrders = useCallback(async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
       const response = await getPendingOrders();
       setPendingOrders(response.data || []);
       setSummary(response.summary || { totalOrders: 0, totalPending: 0, totalPaid: 0 });
     } catch (err) {
       console.error('Failed to load pending orders:', err);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
+
+  const handleRefresh = async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
+    setRefreshing(true);
+    try {
+      await loadPendingOrders({ silent: true });
+    } finally {
+      refreshLock.current = false;
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     loadPendingOrders();
@@ -117,7 +134,7 @@ export default function PendingPaymentsTab({
   };
 
   const handleAddPayment = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || paymentLock.current) return;
 
     const amount = parseFloat(paymentAmount);
     const discount = parseFloat(discountAmount) || 0;
@@ -138,6 +155,7 @@ export default function PendingPaymentsTab({
       return;
     }
 
+    paymentLock.current = true;
     setProcessing(true);
     setError(null);
 
@@ -164,11 +182,13 @@ export default function PendingPaymentsTab({
       const msg = err instanceof Error ? err.message : 'Failed to add payment';
       setError(msg);
     } finally {
+      paymentLock.current = false;
       setProcessing(false);
     }
   };
 
   const closeModal = () => {
+    if (paymentLock.current) return;
     setSelectedOrder(null);
     setPaymentAmount('');
     setDiscountAmount('');
@@ -195,11 +215,14 @@ export default function PendingPaymentsTab({
             <p className="text-xs text-orange-600 mt-1">{summary.totalOrders} order(s) with pending payment</p>
           </div>
           <button
-            onClick={loadPendingOrders}
-            className="p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
-            title="Refresh"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-busy={refreshing}
+            aria-label={refreshing ? 'Refreshing' : 'Refresh'}
+            className="p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            title={refreshing ? 'Refreshing…' : 'Refresh'}
           >
-            <RefreshCw className="h-5 w-5" />
+            <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -382,14 +405,14 @@ export default function PendingPaymentsTab({
               </div>
               <button
                 onClick={closeModal}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 disabled={processing}
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
 
-            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <fieldset disabled={processing} className="min-w-0 p-4 space-y-4 max-h-[70vh] overflow-y-auto">
               {/* Order Info */}
               <div className="bg-gray-50 rounded-lg p-3">
                 <div className="flex justify-between text-sm">
@@ -628,16 +651,17 @@ export default function PendingPaymentsTab({
               <button
                 onClick={handleAddPayment}
                 disabled={processing || !paymentAmount || parseFloat(paymentAmount) <= 0}
-                className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-                  !processing && paymentAmount && parseFloat(paymentAmount) > 0
-                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                aria-busy={processing}
+                className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:cursor-not-allowed ${
+                  paymentAmount && parseFloat(paymentAmount) > 0
+                    ? 'bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
                 {processing ? (
                   <span className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Processing...
+                    Recording payment…
                   </span>
                 ) : (
                   <span>
@@ -650,7 +674,7 @@ export default function PendingPaymentsTab({
                   </span>
                 )}
               </button>
-            </div>
+            </fieldset>
           </div>
         </div>
       )}

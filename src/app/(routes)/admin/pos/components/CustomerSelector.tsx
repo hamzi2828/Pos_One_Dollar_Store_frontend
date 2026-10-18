@@ -6,7 +6,7 @@
 // accurate: every sale gets pinned to the exact car it was performed on.
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { POSCustomer, POSCarDetails } from '../types';
 import { Search, X, User, Car, Plus, ArrowLeft, Loader2, Check } from 'lucide-react';
 import Select, { type SingleValue, type StylesConfig } from 'react-select';
@@ -90,6 +90,7 @@ export default function CustomerSelector({
   const [formVariantName, setFormVariantName] = useState('');
   const [formPlate, setFormPlate] = useState('');
   const [savingCar, setSavingCar] = useState(false);
+  const savingCarLock = useRef(false);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -214,7 +215,7 @@ export default function CustomerSelector({
   };
 
   const saveNewCar = async () => {
-    if (!picked) return;
+    if (!picked || savingCarLock.current) return;
     if (!formMakeName) return toast.error('Pick a brand');
     if (!formModelName) return toast.error('Pick a model');
 
@@ -243,6 +244,7 @@ export default function CustomerSelector({
       return;
     }
 
+    savingCarLock.current = true;
     try {
       setSavingCar(true);
       const updated = await addCarToCustomer(picked._id, {
@@ -267,6 +269,7 @@ export default function CustomerSelector({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to add car');
     } finally {
+      savingCarLock.current = false;
       setSavingCar(false);
     }
   };
@@ -286,7 +289,8 @@ export default function CustomerSelector({
                   setPicked(null);
                   setShowAddCarForm(false);
                 }}
-                className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
+                disabled={savingCar}
+                className="inline-flex items-center gap-1 px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
                 title="Back"
               >
                 <ArrowLeft className="h-4 w-4" /> Back
@@ -306,7 +310,11 @@ export default function CustomerSelector({
                 Add Customer
               </button>
             )}
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button
+              onClick={onClose}
+              disabled={savingCar}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
               <X className="h-6 w-6" />
             </button>
           </div>
@@ -580,7 +588,8 @@ function VehicleStage({
                 <button
                   key={`${car.brand}-${car.model}-${car.numberPlate}-${i}`}
                   onClick={() => setPickedVehicle(value)}
-                  className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${
+                  disabled={savingCar}
+                  className={`w-full text-left p-3 rounded-lg border-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                     isPicked
                       ? 'border-[#DC2626] bg-red-50'
                       : 'border-gray-200 hover:border-[#DC2626]/50'
@@ -628,7 +637,8 @@ function VehicleStage({
               </span>
               <button
                 onClick={() => setShowAddCarForm(false)}
-                className="text-gray-400 hover:text-gray-600"
+                disabled={savingCar}
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -697,7 +707,8 @@ function VehicleStage({
             <button
               onClick={onSaveCar}
               disabled={savingCar}
-              className="w-full px-3 py-2 text-sm font-medium text-white bg-[#DC2626] rounded-lg hover:bg-[#b91c1c] disabled:opacity-50 flex items-center justify-center gap-2"
+              aria-busy={savingCar}
+              className="w-full px-3 py-2 text-sm font-medium text-white bg-[#DC2626] rounded-lg hover:bg-[#b91c1c] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {savingCar ? (
                 <>
@@ -716,13 +727,14 @@ function VehicleStage({
       <div className="p-4 border-t border-gray-200 flex items-center justify-between gap-2">
         <button
           onClick={onSkip}
-          className="px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+          disabled={savingCar}
+          className="px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
         >
           Skip — no vehicle
         </button>
         <button
           onClick={onConfirm}
-          disabled={!pickedVehicle}
+          disabled={!pickedVehicle || savingCar}
           className="px-4 py-2 text-sm font-medium text-white bg-[#DC2626] rounded-lg hover:bg-[#b91c1c] disabled:opacity-50 flex items-center gap-1.5"
         >
           <Check className="h-4 w-4" />

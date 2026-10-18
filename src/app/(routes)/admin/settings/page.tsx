@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Settings, Image as ImageIcon, RotateCcw, Mail, Zap } from 'lucide-react';
+import { Settings, Image as ImageIcon, RotateCcw, Mail, Zap, Loader2 } from 'lucide-react';
 
 import GeneralSettings from './components/GeneralSettings';
 import LogoSettings from './components/LogoSettings';
 import SMTPSettings from './components/SMTPSettings';
-import { settingsService, SettingsData } from './services/settingsService';
+import { settingsService, SettingsData, SettingsBusyAction } from './services/settingsService';
 
 const VALID_TABS = ['general', 'logo', 'smtp'] as const;
 type TabType = typeof VALID_TABS[number];
@@ -18,7 +18,23 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
 
   const [settings, setSettings] = useState<SettingsData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // Which async action is in flight (null = idle). The ref is a synchronous
+  // lock so rapid double-clicks can't start a second request before state updates.
+  const [busyAction, setBusyAction] = useState<SettingsBusyAction | null>(null);
+  const busyRef = useRef(false);
+  const isLoading = busyAction !== null;
+
+  const runLocked = async (action: SettingsBusyAction, task: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusyAction(action);
+    try {
+      await task();
+    } finally {
+      busyRef.current = false;
+      setBusyAction(null);
+    }
+  };
 
   const tabParam = searchParams.get('tab');
   const activeTab: TabType = VALID_TABS.includes(tabParam as TabType) ? (tabParam as TabType) : 'general';
@@ -33,153 +49,139 @@ export default function SettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      setIsLoading(true);
+      setBusyAction('fetch');
       const data = await settingsService.getSettings();
       setSettings(data);
     } catch (error) {
       console.error('Error fetching settings:', error);
       toast.error('Failed to load settings');
     } finally {
-      setIsLoading(false);
+      setBusyAction(null);
     }
   };
 
-  const updateSettings = async (updateData: Partial<SettingsData>) => {
-    try {
-      setIsLoading(true);
-      const data = await settingsService.updateSettings(updateData);
-      setSettings(data);
-      toast.success('Settings updated successfully');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error updating settings:', error);
-      toast.error('Failed to update settings');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const updateSettings = (updateData: Partial<SettingsData>, action: SettingsBusyAction = 'general') =>
+    runLocked(action, async () => {
+      try {
+        const data = await settingsService.updateSettings(updateData);
+        setSettings(data);
+        toast.success('Settings updated successfully');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error updating settings:', error);
+        toast.error('Failed to update settings');
+      }
+    });
 
-  const uploadLogo = async (file: File) => {
-    try {
-      setIsLoading(true);
-      const data = await settingsService.uploadLogo(file);
-      setSettings(prev => prev ? { ...prev, logoUrl: data.logoUrl } : null);
-      toast.success('Header logo uploaded');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error uploading logo:', error);
-      toast.error('Failed to upload logo');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const uploadLogo = (file: File) =>
+    runLocked('uploadLogo', async () => {
+      try {
+        const data = await settingsService.uploadLogo(file);
+        setSettings(prev => prev ? { ...prev, logoUrl: data.logoUrl } : null);
+        toast.success('Header logo uploaded');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error uploading logo:', error);
+        toast.error('Failed to upload logo');
+      }
+    });
 
-  const removeLogo = async () => {
-    try {
-      setIsLoading(true);
-      await settingsService.removeLogo();
-      setSettings(prev => prev ? { ...prev, logoUrl: '' } : null);
-      toast.success('Header logo removed');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error removing logo:', error);
-      toast.error('Failed to remove logo');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const removeLogo = () =>
+    runLocked('removeLogo', async () => {
+      try {
+        await settingsService.removeLogo();
+        setSettings(prev => prev ? { ...prev, logoUrl: '' } : null);
+        toast.success('Header logo removed');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error removing logo:', error);
+        toast.error('Failed to remove logo');
+      }
+    });
 
-  const uploadFooterLogo = async (file: File) => {
-    try {
-      setIsLoading(true);
-      const data = await settingsService.uploadFooterLogo(file);
-      setSettings(prev => prev ? { ...prev, footerLogoUrl: data.footerLogoUrl } : null);
-      toast.success('Footer logo uploaded');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error uploading footer logo:', error);
-      toast.error('Failed to upload footer logo');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const uploadFooterLogo = (file: File) =>
+    runLocked('uploadFooterLogo', async () => {
+      try {
+        const data = await settingsService.uploadFooterLogo(file);
+        setSettings(prev => prev ? { ...prev, footerLogoUrl: data.footerLogoUrl } : null);
+        toast.success('Footer logo uploaded');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error uploading footer logo:', error);
+        toast.error('Failed to upload footer logo');
+      }
+    });
 
-  const removeFooterLogo = async () => {
-    try {
-      setIsLoading(true);
-      await settingsService.removeFooterLogo();
-      setSettings(prev => prev ? { ...prev, footerLogoUrl: '' } : null);
-      toast.success('Footer logo removed');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error removing footer logo:', error);
-      toast.error('Failed to remove footer logo');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const removeFooterLogo = () =>
+    runLocked('removeFooterLogo', async () => {
+      try {
+        await settingsService.removeFooterLogo();
+        setSettings(prev => prev ? { ...prev, footerLogoUrl: '' } : null);
+        toast.success('Footer logo removed');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error removing footer logo:', error);
+        toast.error('Failed to remove footer logo');
+      }
+    });
 
-  const uploadFavicon = async (file: File) => {
-    try {
-      setIsLoading(true);
-      const data = await settingsService.uploadFavicon(file);
-      setSettings(prev => prev ? { ...prev, faviconUrl: data.faviconUrl } : null);
-      toast.success('Favicon uploaded');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error uploading favicon:', error);
-      toast.error('Failed to upload favicon');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const uploadFavicon = (file: File) =>
+    runLocked('uploadFavicon', async () => {
+      try {
+        const data = await settingsService.uploadFavicon(file);
+        setSettings(prev => prev ? { ...prev, faviconUrl: data.faviconUrl } : null);
+        toast.success('Favicon uploaded');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error uploading favicon:', error);
+        toast.error('Failed to upload favicon');
+      }
+    });
 
-  const removeFavicon = async () => {
-    try {
-      setIsLoading(true);
-      await settingsService.removeFavicon();
-      setSettings(prev => prev ? { ...prev, faviconUrl: '' } : null);
-      toast.success('Favicon removed');
-      window.dispatchEvent(new Event('settingsUpdated'));
-    } catch (error) {
-      console.error('Error removing favicon:', error);
-      toast.error('Failed to remove favicon');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const removeFavicon = () =>
+    runLocked('removeFavicon', async () => {
+      try {
+        await settingsService.removeFavicon();
+        setSettings(prev => prev ? { ...prev, faviconUrl: '' } : null);
+        toast.success('Favicon removed');
+        window.dispatchEvent(new Event('settingsUpdated'));
+      } catch (error) {
+        console.error('Error removing favicon:', error);
+        toast.error('Failed to remove favicon');
+      }
+    });
 
   const resetCaches = async () => {
+    if (busyRef.current) return;
     if (!confirm('Clear all server-side caches? Public pages will refetch fresh data on the next request.')) {
       return;
     }
-    try {
-      setIsLoading(true);
-      await settingsService.resetCaches();
-      toast.success('All caches cleared');
-    } catch (error) {
-      console.error('Error clearing caches:', error);
-      toast.error('Failed to clear caches');
-    } finally {
-      setIsLoading(false);
-    }
+    await runLocked('resetCaches', async () => {
+      try {
+        await settingsService.resetCaches();
+        toast.success('All caches cleared');
+      } catch (error) {
+        console.error('Error clearing caches:', error);
+        toast.error('Failed to clear caches');
+      }
+    });
   };
 
   const resetSettings = async () => {
+    if (busyRef.current) return;
     if (!confirm('Are you sure you want to reset all settings to defaults? This action cannot be undone.')) {
       return;
     }
-    try {
-      setIsLoading(true);
-      const data = await settingsService.resetSettings();
-      setSettings(data);
-      toast.success('Settings reset to defaults');
-    } catch (error) {
-      console.error('Error resetting settings:', error);
-      toast.error('Failed to reset settings');
-    } finally {
-      setIsLoading(false);
-    }
+    await runLocked('resetSettings', async () => {
+      try {
+        const data = await settingsService.resetSettings();
+        setSettings(data);
+        toast.success('Settings reset to defaults');
+      } catch (error) {
+        console.error('Error resetting settings:', error);
+        toast.error('Failed to reset settings');
+      }
+    });
   };
 
   if (!settings) {
@@ -215,19 +217,27 @@ export default function SettingsPage() {
               <button
                 onClick={resetCaches}
                 disabled={isLoading}
-                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-50 shadow-sm"
+                aria-busy={busyAction === 'resetCaches'}
+                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
                 title="Clear all server caches"
               >
-                <Zap className="h-4 w-4" />
-                Reset All Caches
+                {busyAction === 'resetCaches' ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Clearing…</>
+                ) : (
+                  <><Zap className="h-4 w-4" />Reset All Caches</>
+                )}
               </button>
               <button
                 onClick={resetSettings}
                 disabled={isLoading}
-                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50"
+                aria-busy={busyAction === 'resetSettings'}
+                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <RotateCcw className="h-4 w-4" />
-                Reset
+                {busyAction === 'resetSettings' ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Resetting…</>
+                ) : (
+                  <><RotateCcw className="h-4 w-4" />Reset</>
+                )}
               </button>
             </div>
           </div>
@@ -263,8 +273,9 @@ export default function SettingsPage() {
             {activeTab === 'general' && (
               <GeneralSettings
                 settings={settings}
-                onUpdate={updateSettings}
+                onUpdate={(data) => updateSettings(data, 'general')}
                 isLoading={isLoading}
+                isSaving={busyAction === 'general'}
               />
             )}
 
@@ -284,15 +295,17 @@ export default function SettingsPage() {
                 onUploadFavicon={uploadFavicon}
                 onRemoveFavicon={removeFavicon}
                 isLoading={isLoading}
-                onSaveDimensions={(dims) => updateSettings(dims)}
+                busyAction={busyAction}
+                onSaveDimensions={(dims) => updateSettings(dims, 'dimensions')}
               />
             )}
 
             {activeTab === 'smtp' && (
               <SMTPSettings
                 settings={settings}
-                onUpdate={updateSettings}
+                onUpdate={(data) => updateSettings(data, 'smtp')}
                 isLoading={isLoading}
+                isSaving={busyAction === 'smtp'}
               />
             )}
           </div>

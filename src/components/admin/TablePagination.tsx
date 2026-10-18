@@ -8,7 +8,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 interface TablePaginationProps {
   page: number;
@@ -20,6 +20,8 @@ interface TablePaginationProps {
   pageSizeOptions?: number[];
   className?: string;
   label?: string; // e.g. "orders", "payments"
+  /** Optional: while a page fetch is running, disable the controls and show a spinner. */
+  loading?: boolean;
 }
 
 export default function TablePagination({
@@ -32,6 +34,7 @@ export default function TablePagination({
   pageSizeOptions = [10, 25, 50, 100],
   className = '',
   label = 'rows',
+  loading = false,
 }: TablePaginationProps) {
   if (total <= 0) return null;
 
@@ -56,11 +59,13 @@ export default function TablePagination({
           <span className="font-medium text-gray-700">{to}</span> of{' '}
           <span className="font-medium text-gray-700">{total}</span> {label}
         </span>
+        {loading && <Loader2 className="w-3.5 h-3.5 text-honey-500 animate-spin" aria-label="Loading" />}
         {onLimitChange && (
           <select
             value={limit}
             onChange={(e) => onLimitChange(Number(e.target.value))}
-            className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs bg-white"
+            disabled={loading}
+            className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs bg-white disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {pageSizeOptions.map((n) => (
               <option key={n} value={n}>
@@ -71,11 +76,11 @@ export default function TablePagination({
         )}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" aria-busy={loading || undefined}>
         <button
           type="button"
           onClick={() => onPageChange(Math.max(1, page - 1))}
-          disabled={page <= 1}
+          disabled={loading || page <= 1}
           className="p-1.5 rounded-md border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
           aria-label="Previous page"
         >
@@ -86,7 +91,8 @@ export default function TablePagination({
             <button
               type="button"
               onClick={() => onPageChange(1)}
-              className="px-2 py-1 text-xs rounded-md hover:bg-gray-100"
+              disabled={loading}
+              className="px-2 py-1 text-xs rounded-md hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               1
             </button>
@@ -98,7 +104,8 @@ export default function TablePagination({
             key={n}
             type="button"
             onClick={() => onPageChange(n)}
-            className={`px-2 py-1 text-xs rounded-md ${
+            disabled={loading}
+            className={`px-2 py-1 text-xs rounded-md disabled:opacity-60 disabled:cursor-not-allowed ${
               n === page ? 'bg-[#DC2626] text-white' : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
@@ -111,7 +118,8 @@ export default function TablePagination({
             <button
               type="button"
               onClick={() => onPageChange(pages)}
-              className="px-2 py-1 text-xs rounded-md hover:bg-gray-100"
+              disabled={loading}
+              className="px-2 py-1 text-xs rounded-md hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {pages}
             </button>
@@ -120,7 +128,7 @@ export default function TablePagination({
         <button
           type="button"
           onClick={() => onPageChange(Math.min(pages, page + 1))}
-          disabled={page >= pages}
+          disabled={loading || page >= pages}
           className="p-1.5 rounded-md border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
           aria-label="Next page"
         >

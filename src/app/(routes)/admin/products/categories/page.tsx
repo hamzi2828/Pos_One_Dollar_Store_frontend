@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import CategoriesTab, { type Category, type CategoryWithCount } from '../components/CategoriesTab';
 import FeaturedProductsModal from '../components/FeaturedProductsModal';
@@ -23,8 +23,31 @@ const CategoriesPage = () => {
   // Featured products modal
   const [featuredModalCategoryId, setFeaturedModalCategoryId] = useState<string | null>(null);
 
+  // Per-category request in progress (spinner + disabled row actions). The ref is the
+  // synchronous lock so a fast double click can't send the same request twice.
+  type BusyAction = 'active' | 'featured' | 'delete';
+  const [busy, setBusy] = useState<Record<string, BusyAction>>({});
+  const busyRef = useRef<Set<string>>(new Set());
+  const loadingRef = useRef(false);
+  const lockRow = (id: string, action: BusyAction) => {
+    if (busyRef.current.has(id)) return false;
+    busyRef.current.add(id);
+    setBusy((prev) => ({ ...prev, [id]: action }));
+    return true;
+  };
+  const unlockRow = (id: string) => {
+    busyRef.current.delete(id);
+    setBusy((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
   // Load categories
   const loadCategories = async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setCatLoading(true);
     setCatError(null);
     try {
@@ -34,6 +57,7 @@ const CategoriesPage = () => {
       console.error('Failed to load categories', e);
       setCatError('Could not fetch categories from server.');
     } finally {
+      loadingRef.current = false;
       setCatLoading(false);
     }
   };
@@ -85,11 +109,13 @@ const CategoriesPage = () => {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    if (busyRef.current.has(id)) return;
     const target = categories.find((c) => c.id === id);
     const confirmed = window.confirm(
       `Are you sure you want to delete "${target?.name ?? 'this category'}"? This action cannot be undone.`
     );
     if (!confirmed) return;
+    if (!lockRow(id, 'delete')) return;
 
     const prev = categories;
     setCategories((p) => p.filter((c) => c.id !== id));
@@ -99,12 +125,15 @@ const CategoriesPage = () => {
       console.error('Failed to delete category', e);
       setCategories(prev);
       alert('Failed to delete category');
+    } finally {
+      unlockRow(id);
     }
   };
 
   const handleToggleActiveCategory = async (id: string) => {
     const target = categories.find((c) => c.id === id);
     if (!target) return;
+    if (!lockRow(id, 'active')) return;
     const nextActive = !target.active;
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, active: nextActive } : c)));
     try {
@@ -113,12 +142,15 @@ const CategoriesPage = () => {
       console.error('Failed to update category status', e);
       setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, active: !nextActive } : c)));
       alert('Failed to update category');
+    } finally {
+      unlockRow(id);
     }
   };
 
   const handleToggleFeaturedCategory = async (id: string) => {
     const target = categories.find((c) => c.id === id);
     if (!target) return;
+    if (!lockRow(id, 'featured')) return;
     const nextFeatured = !target.featured;
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, featured: nextFeatured } : c)));
     try {
@@ -127,6 +159,8 @@ const CategoriesPage = () => {
       console.error('Failed to update category featured status', e);
       setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, featured: !nextFeatured } : c)));
       alert('Failed to update category featured status');
+    } finally {
+      unlockRow(id);
     }
   };
 
@@ -157,10 +191,11 @@ const CategoriesPage = () => {
         <button
           onClick={loadCategories}
           disabled={catLoading}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-all duration-200"
+          aria-busy={catLoading}
+          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
         >
           <RefreshCw className={`h-4 w-4 ${catLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          {catLoading ? 'Refreshing…' : 'Refresh'}
         </button>
         <button
           onClick={() => router.push('/admin/products/categories/create')}
@@ -203,7 +238,8 @@ const CategoriesPage = () => {
               <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-red-600">{catError}</p>
               <button
                 onClick={loadCategories}
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200"
+                disabled={catLoading}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="h-4 w-4" />
                 Try Again
@@ -251,6 +287,7 @@ const CategoriesPage = () => {
         onToggleFeatured={handleToggleFeaturedCategory}
         onReorder={handleReorder}
         onFeatureProducts={(id) => setFeaturedModalCategoryId(id)}
+        busy={busy}
       />
       {featuredModalCategoryId && (
         <FeaturedProductsModal

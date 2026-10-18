@@ -24,6 +24,9 @@ export default function CreateExpensePage() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
+  // One lock for every category mutation (create / rename / delete all refetch).
+  const categoryLockRef = useRef(false);
+  const categoryBusy = creatingCategory || !!deletingCategoryId;
 
   // Expense Info
   const [title, setTitle] = useState('');
@@ -41,6 +44,8 @@ export default function CreateExpensePage() {
   // UI State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Synchronous submit lock — Enter-key + double-click can't double-submit.
+  const submitLockRef = useRef(false);
 
   const fetchCategories = async () => {
     try {
@@ -60,6 +65,7 @@ export default function CreateExpensePage() {
   }, []);
 
   const handleCreateCategory = async () => {
+    if (categoryLockRef.current) return;
     if (!newCategoryName.trim()) return;
 
     // Check for duplicate
@@ -68,6 +74,7 @@ export default function CreateExpensePage() {
       return;
     }
 
+    categoryLockRef.current = true;
     setCreatingCategory(true);
     setError(null);
     try {
@@ -81,6 +88,7 @@ export default function CreateExpensePage() {
       console.error('Failed to create category:', err);
       setError('Failed to create category');
     } finally {
+      categoryLockRef.current = false;
       setCreatingCategory(false);
     }
   };
@@ -91,6 +99,7 @@ export default function CreateExpensePage() {
   };
 
   const handleSaveEditCategory = async () => {
+    if (categoryLockRef.current) return;
     if (!editingCategoryId || !editingCategoryName.trim()) return;
 
     // Check for duplicate (excluding current category)
@@ -99,6 +108,7 @@ export default function CreateExpensePage() {
       return;
     }
 
+    categoryLockRef.current = true;
     setCreatingCategory(true);
     setError(null);
     try {
@@ -117,13 +127,17 @@ export default function CreateExpensePage() {
       console.error('Failed to update category:', err);
       setError('Failed to update category');
     } finally {
+      categoryLockRef.current = false;
       setCreatingCategory(false);
     }
   };
 
   const handleDeleteCategory = async (categoryId: string, categoryName: string) => {
+    if (categoryLockRef.current) return;
     if (!confirm(`Are you sure you want to delete "${categoryName}"?`)) return;
+    if (categoryLockRef.current) return;
 
+    categoryLockRef.current = true;
     setDeletingCategoryId(categoryId);
     setError(null);
     try {
@@ -135,6 +149,7 @@ export default function CreateExpensePage() {
       console.error('Failed to delete category:', err);
       setError('Failed to delete category');
     } finally {
+      categoryLockRef.current = false;
       setDeletingCategoryId(null);
     }
   };
@@ -179,6 +194,7 @@ export default function CreateExpensePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
     setError(null);
 
     // Validation
@@ -195,6 +211,7 @@ export default function CreateExpensePage() {
       return;
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     try {
       const expenseData: CreateExpenseData = {
@@ -213,6 +230,7 @@ export default function CreateExpensePage() {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create expense';
       setError(errorMessage);
     } finally {
+      submitLockRef.current = false;
       setLoading(false);
     }
   };
@@ -322,16 +340,20 @@ export default function CreateExpensePage() {
                       onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleCreateCategory())}
                       placeholder="New category name..."
                       className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
-                      disabled={creatingCategory}
+                      disabled={categoryBusy}
                     />
                     <button
                       type="button"
                       onClick={handleCreateCategory}
-                      disabled={creatingCategory || !newCategoryName.trim()}
-                      className="px-3 py-2 bg-[#dc2626] text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
+                      disabled={categoryBusy || !newCategoryName.trim()}
+                      aria-busy={creatingCategory}
+                      className="px-3 py-2 bg-[#dc2626] text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
                     >
                       {creatingCategory ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Adding…
+                        </>
                       ) : (
                         <>
                           <Plus className="h-4 w-4" />
@@ -342,7 +364,8 @@ export default function CreateExpensePage() {
                     <button
                       type="button"
                       onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }}
-                      className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-100"
+                      disabled={creatingCategory}
+                      className="px-3 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </button>
@@ -375,20 +398,24 @@ export default function CreateExpensePage() {
                             onChange={(e) => setEditingCategoryName(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleSaveEditCategory())}
                             className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-[#dc2626] focus:border-transparent w-24"
+                            disabled={creatingCategory}
                             autoFocus
                           />
                           <button
                             type="button"
                             onClick={handleSaveEditCategory}
-                            disabled={creatingCategory}
-                            className="p-1 text-green-600 hover:bg-green-100 rounded"
+                            disabled={categoryBusy}
+                            aria-busy={creatingCategory}
+                            aria-label={creatingCategory ? 'Saving category…' : 'Save category'}
+                            className="p-1 text-green-600 hover:bg-green-100 rounded disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             {creatingCategory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                           </button>
                           <button
                             type="button"
                             onClick={() => { setEditingCategoryId(null); setEditingCategoryName(''); }}
-                            className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                            disabled={creatingCategory}
+                            className="p-1 text-gray-500 hover:bg-gray-100 rounded disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -418,7 +445,8 @@ export default function CreateExpensePage() {
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleEditCategory(category); }}
-                            className="p-0.5 text-gray-400 hover:text-blue-600 rounded"
+                            disabled={categoryBusy || loading}
+                            className="p-0.5 text-gray-400 hover:text-blue-600 rounded disabled:opacity-60 disabled:cursor-not-allowed"
                             title="Edit category"
                           >
                             <Pencil className="h-3 w-3" />
@@ -426,9 +454,10 @@ export default function CreateExpensePage() {
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleDeleteCategory(category._id, category.name); }}
-                            disabled={isDeleting}
-                            className="p-0.5 text-gray-400 hover:text-red-600 rounded disabled:opacity-50"
-                            title="Delete category"
+                            disabled={categoryBusy || loading}
+                            aria-busy={isDeleting}
+                            className="p-0.5 text-gray-400 hover:text-red-600 rounded disabled:opacity-60 disabled:cursor-not-allowed"
+                            title={isDeleting ? 'Deleting…' : 'Delete category'}
                           >
                             {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                           </button>
@@ -522,15 +551,17 @@ export default function CreateExpensePage() {
                 <button
                   type="button"
                   onClick={handleRemoveFile}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                  disabled={loading}
+                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             ) : (
               <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-[#dc2626] transition-colors"
+                onClick={() => { if (!loading) fileInputRef.current?.click(); }}
+                aria-disabled={loading}
+                className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-[#dc2626]'}`}
               >
                 <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm text-gray-600">Click to upload receipt image</p>
@@ -569,19 +600,22 @@ export default function CreateExpensePage() {
         <div className="flex justify-end gap-3">
           <Link
             href="/admin/expenses"
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            aria-disabled={loading}
+            tabIndex={loading ? -1 : undefined}
+            className={`px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors ${loading ? 'opacity-60 pointer-events-none' : ''}`}
           >
             Cancel
           </Link>
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            aria-busy={loading}
+            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Creating...
+                Creating…
               </>
             ) : (
               'Create Expense'

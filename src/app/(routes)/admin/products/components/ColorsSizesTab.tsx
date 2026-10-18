@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { colorService, mapColor } from "../services/colorService";
 import { sizeService, mapSize } from "../services/sizeService";
@@ -64,6 +65,22 @@ export default function ColorsSizesTab() {
   const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
   const [sizeDraft, setSizeDraft] = useState<{ name: string }>({ name: "" });
   const [saving, setSaving] = useState(false);
+  // One attribute request at a time. The ref is the synchronous double-click lock,
+  // busyKey says which button shows the spinner (e.g. "create-color", "delete-size:<id>").
+  const busyRef = useRef<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const anyBusy = busyKey !== null;
+  const runLocked = async (key: string, fn: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = key;
+    setBusyKey(key);
+    try {
+      await fn();
+    } finally {
+      busyRef.current = null;
+      setBusyKey(null);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -92,14 +109,16 @@ export default function ColorsSizesTab() {
     const name = newColor.name.trim();
     if (!name) return;
     const slug = slugify(name);
-    try {
-      const created = await colorService.createColor({ name, slug, hex: newColor.hex || "", active: newColor.active });
-      setColors(prev => [created, ...prev]);
-      setNewColor({ name: "", hex: "", active: true });
-    } catch (e) {
-      console.error("Failed to create color", e);
-      alert("Failed to create color");
-    }
+    await runLocked("create-color", async () => {
+      try {
+        const created = await colorService.createColor({ name, slug, hex: newColor.hex || "", active: newColor.active });
+        setColors(prev => [created, ...prev]);
+        setNewColor({ name: "", hex: "", active: true });
+      } catch (e) {
+        console.error("Failed to create color", e);
+        alert("Failed to create color");
+      }
+    });
   };
 
   // Edit: Color
@@ -116,21 +135,23 @@ export default function ColorsSizesTab() {
     if (!editingColorId) return;
     const name = colorDraft.name.trim();
     if (!name) return;
-    try {
-      setSaving(true);
-      const updated = await colorService.updateColor(editingColorId, {
-        name,
-        slug: slugify(name),
-        hex: colorDraft.hex || "",
-      });
-      setColors((prev) => prev.map((c) => (c.id === editingColorId ? updated : c)));
-      setEditingColorId(null);
-    } catch (e) {
-      console.error("Failed to update color", e);
-      alert("Failed to update color");
-    } finally {
-      setSaving(false);
-    }
+    await runLocked(`edit-color:${editingColorId}`, async () => {
+      try {
+        setSaving(true);
+        const updated = await colorService.updateColor(editingColorId, {
+          name,
+          slug: slugify(name),
+          hex: colorDraft.hex || "",
+        });
+        setColors((prev) => prev.map((c) => (c.id === editingColorId ? updated : c)));
+        setEditingColorId(null);
+      } catch (e) {
+        console.error("Failed to update color", e);
+        alert("Failed to update color");
+      } finally {
+        setSaving(false);
+      }
+    });
   };
 
   // Edit: Size
@@ -147,75 +168,83 @@ export default function ColorsSizesTab() {
     if (!editingSizeId) return;
     const name = sizeDraft.name.trim();
     if (!name) return;
-    try {
-      setSaving(true);
-      const updated = await sizeService.updateSize(editingSizeId, {
-        name,
-        slug: slugify(name),
-      });
-      setSizes((prev) => prev.map((s) => (s.id === editingSizeId ? updated : s)));
-      setEditingSizeId(null);
-    } catch (e) {
-      console.error("Failed to update size", e);
-      alert("Failed to update size");
-    } finally {
-      setSaving(false);
-    }
+    await runLocked(`edit-size:${editingSizeId}`, async () => {
+      try {
+        setSaving(true);
+        const updated = await sizeService.updateSize(editingSizeId, {
+          name,
+          slug: slugify(name),
+        });
+        setSizes((prev) => prev.map((s) => (s.id === editingSizeId ? updated : s)));
+        setEditingSizeId(null);
+      } catch (e) {
+        console.error("Failed to update size", e);
+        alert("Failed to update size");
+      } finally {
+        setSaving(false);
+      }
+    });
   };
 
   const handleCreateSize = async () => {
     const name = newSize.name.trim();
     if (!name) return;
     const slug = slugify(name);
-    try {
-      const created = await sizeService.createSize({ name, slug, active: newSize.active });
-      setSizes(prev => [created, ...prev]);
-      setNewSize({ name: "", active: true });
-    } catch (e) {
-      console.error("Failed to create size", e);
-      alert("Failed to create size");
-    }
+    await runLocked("create-size", async () => {
+      try {
+        const created = await sizeService.createSize({ name, slug, active: newSize.active });
+        setSizes(prev => [created, ...prev]);
+        setNewSize({ name: "", active: true });
+      } catch (e) {
+        console.error("Failed to create size", e);
+        alert("Failed to create size");
+      }
+    });
   };
 
-  const toggleColor = async (id: string, next: boolean) => {
-    const prev = colors;
-    setColors(p => p.map(c => c.id === id ? { ...c, active: next } : c));
-    try { await colorService.setActive(id, next); } catch (e) {
-      console.error("Failed to update color", e);
-      setColors(prev);
-      alert("Failed to update color");
-    }
-  };
+  const toggleColor = (id: string, next: boolean) =>
+    runLocked(`toggle-color:${id}`, async () => {
+      const prev = colors;
+      setColors(p => p.map(c => c.id === id ? { ...c, active: next } : c));
+      try { await colorService.setActive(id, next); } catch (e) {
+        console.error("Failed to update color", e);
+        setColors(prev);
+        alert("Failed to update color");
+      }
+    });
 
-  const toggleSize = async (id: string, next: boolean) => {
-    const prev = sizes;
-    setSizes(p => p.map(s => s.id === id ? { ...s, active: next } : s));
-    try { await sizeService.setActive(id, next); } catch (e) {
-      console.error("Failed to update size", e);
-      setSizes(prev);
-      alert("Failed to update size");
-    }
-  };
+  const toggleSize = (id: string, next: boolean) =>
+    runLocked(`toggle-size:${id}`, async () => {
+      const prev = sizes;
+      setSizes(p => p.map(s => s.id === id ? { ...s, active: next } : s));
+      try { await sizeService.setActive(id, next); } catch (e) {
+        console.error("Failed to update size", e);
+        setSizes(prev);
+        alert("Failed to update size");
+      }
+    });
 
-  const deleteColor = async (id: string) => {
-    const prev = colors;
-    setColors(p => p.filter(c => c.id !== id));
-    try { await colorService.deleteColor(id); } catch (e) {
-      console.error("Failed to delete color", e);
-      setColors(prev);
-      alert("Failed to delete color");
-    }
-  };
+  const deleteColor = (id: string) =>
+    runLocked(`delete-color:${id}`, async () => {
+      const prev = colors;
+      setColors(p => p.filter(c => c.id !== id));
+      try { await colorService.deleteColor(id); } catch (e) {
+        console.error("Failed to delete color", e);
+        setColors(prev);
+        alert("Failed to delete color");
+      }
+    });
 
-  const deleteSize = async (id: string) => {
-    const prev = sizes;
-    setSizes(p => p.filter(s => s.id !== id));
-    try { await sizeService.deleteSize(id); } catch (e) {
-      console.error("Failed to delete size", e);
-      setSizes(prev);
-      alert("Failed to delete size");
-    }
-  };
+  const deleteSize = (id: string) =>
+    runLocked(`delete-size:${id}`, async () => {
+      const prev = sizes;
+      setSizes(p => p.filter(s => s.id !== id));
+      try { await sizeService.deleteSize(id); } catch (e) {
+        console.error("Failed to delete size", e);
+        setSizes(prev);
+        alert("Failed to delete size");
+      }
+    });
 
   return (
     <div className="space-y-2 sm:space-y-3 md:space-y-4">
@@ -281,8 +310,12 @@ export default function ColorsSizesTab() {
             <button
               type="button"
               onClick={handleCreateColor}
-              className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-            >Add Color</button>
+              disabled={anyBusy}
+              aria-busy={busyKey === "create-color"}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {busyKey === "create-color" ? (<><Loader2 className="h-4 w-4 animate-spin" />Adding…</>) : "Add Color"}
+            </button>
           </div>
 
           <div className="mt-4 divide-y divide-gray-100 border rounded-lg">
@@ -314,8 +347,10 @@ export default function ColorsSizesTab() {
                         />
                       </div>
                       <div className="flex items-center gap-3">
-                        <button type="button" onClick={saveEditColor} disabled={saving} className="text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-60">Save</button>
-                        <button type="button" onClick={cancelEditColor} className="text-sm text-gray-600 hover:text-gray-700">Cancel</button>
+                        <button type="button" onClick={saveEditColor} disabled={saving || anyBusy} aria-busy={saving} className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                          {saving ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>) : "Save"}
+                        </button>
+                        <button type="button" onClick={cancelEditColor} disabled={saving} className="text-sm text-gray-600 hover:text-gray-700 disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
                       </div>
                     </>
                   ) : (
@@ -332,16 +367,26 @@ export default function ColorsSizesTab() {
                           type="button"
                           aria-pressed={c.active}
                           onClick={() => toggleColor(c.id, !c.active)}
-                          className={`inline-flex items-center justify-center h-8 rounded-full px-2 text-sm transition ${c.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                          disabled={anyBusy}
+                          aria-busy={busyKey === `toggle-color:${c.id}`}
+                          className={`inline-flex items-center justify-center h-8 rounded-full px-2 text-sm transition disabled:opacity-60 disabled:cursor-not-allowed ${c.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                         >
-                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow`}></span>
+                          {busyKey === `toggle-color:${c.id}` ? (
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow"><Loader2 className="h-3.5 w-3.5 animate-spin" /></span>
+                          ) : (
+                            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow`}></span>
+                          )}
                         </button>
                         <button type="button" className="text-sm text-gray-600 hover:text-gray-700" onClick={() => startEditColor(c)}>Edit</button>
                         <button
                           type="button"
-                          className="text-sm text-red-600 hover:text-red-700"
+                          className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                           onClick={() => deleteColor(c.id)}
-                        >Delete</button>
+                          disabled={anyBusy}
+                          aria-busy={busyKey === `delete-color:${c.id}`}
+                        >
+                          {busyKey === `delete-color:${c.id}` ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />Deleting…</>) : "Delete"}
+                        </button>
                       </div>
                     </>
                   )}
@@ -383,8 +428,12 @@ export default function ColorsSizesTab() {
             <button
               type="button"
               onClick={handleCreateSize}
-              className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-            >Add Size</button>
+              disabled={anyBusy}
+              aria-busy={busyKey === "create-size"}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {busyKey === "create-size" ? (<><Loader2 className="h-4 w-4 animate-spin" />Adding…</>) : "Add Size"}
+            </button>
           </div>
 
           <div className="mt-4 divide-y divide-gray-100 border rounded-lg">
@@ -409,8 +458,10 @@ export default function ColorsSizesTab() {
                         />
                       </div>
                       <div className="flex items-center gap-3">
-                        <button type="button" onClick={saveEditSize} disabled={saving} className="text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-60">Save</button>
-                        <button type="button" onClick={cancelEditSize} className="text-sm text-gray-600 hover:text-gray-700">Cancel</button>
+                        <button type="button" onClick={saveEditSize} disabled={saving || anyBusy} aria-busy={saving} className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                          {saving ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>) : "Save"}
+                        </button>
+                        <button type="button" onClick={cancelEditSize} disabled={saving} className="text-sm text-gray-600 hover:text-gray-700 disabled:opacity-60 disabled:cursor-not-allowed">Cancel</button>
                       </div>
                     </>
                   ) : (
@@ -424,16 +475,26 @@ export default function ColorsSizesTab() {
                           type="button"
                           aria-pressed={s.active}
                           onClick={() => toggleSize(s.id, !s.active)}
-                          className={`inline-flex items-center justify-center h-8 rounded-full px-2 text-sm transition ${s.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                          disabled={anyBusy}
+                          aria-busy={busyKey === `toggle-size:${s.id}`}
+                          className={`inline-flex items-center justify-center h-8 rounded-full px-2 text-sm transition disabled:opacity-60 disabled:cursor-not-allowed ${s.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                         >
-                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow`}></span>
+                          {busyKey === `toggle-size:${s.id}` ? (
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow"><Loader2 className="h-3.5 w-3.5 animate-spin" /></span>
+                          ) : (
+                            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow`}></span>
+                          )}
                         </button>
                         <button type="button" className="text-sm text-gray-600 hover:text-gray-700" onClick={() => startEditSize(s)}>Edit</button>
                         <button
                           type="button"
-                          className="text-sm text-red-600 hover:text-red-700"
+                          className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                           onClick={() => deleteSize(s.id)}
-                        >Delete</button>
+                          disabled={anyBusy}
+                          aria-busy={busyKey === `delete-size:${s.id}`}
+                        >
+                          {busyKey === `delete-size:${s.id}` ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" />Deleting…</>) : "Delete"}
+                        </button>
                       </div>
                     </>
                   )}

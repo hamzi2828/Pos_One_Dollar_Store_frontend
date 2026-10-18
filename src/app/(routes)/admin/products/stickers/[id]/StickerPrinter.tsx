@@ -9,6 +9,7 @@ import {
   CircleAlert,
   CircleCheck,
   Layers,
+  Loader2,
   Package,
   PackagePlus,
   Pencil,
@@ -168,6 +169,8 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
   const [showReceive, setShowReceive] = useState(false);
 
   const initDone = useRef(false);
+  // Synchronous lock: a double click must not open two print windows / fetch twice
+  const printingRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -314,7 +317,9 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
   }, [previewKey, data]);
 
   const handlePrint = async () => {
+    if (printingRef.current) return;
     if (!items.length || tooMany) return;
+    printingRef.current = true;
     const w = openPrintWindow(); // must run before any await (popup blockers)
     setPrinting(true);
     try {
@@ -329,6 +334,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
       if (w && !w.closed) w.close();
       toast.error(errorMessage(e, 'Could not make the stickers.'));
     } finally {
+      printingRef.current = false;
       setPrinting(false);
     }
   };
@@ -363,7 +369,8 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
           <p className="text-sm text-red-700">{loadError || 'Product not found.'}</p>
           <button
             onClick={load}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            disabled={loading}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <RefreshCw className="h-4 w-4" /> Try again
           </button>
@@ -689,14 +696,20 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
               <button
                 onClick={handlePrint}
                 disabled={!items.length || printing || tooMany}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                aria-busy={printing}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 {printing ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing stickers…
+                  </>
                 ) : (
-                  <Printer className="h-4 w-4" />
+                  <>
+                    <Printer className="h-4 w-4" />
+                    Print {total > 0 ? total : ''}
+                  </>
                 )}
-                Print {total > 0 ? total : ''}
               </button>
             </div>
             {tooMany && (

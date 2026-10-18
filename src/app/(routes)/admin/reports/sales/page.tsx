@@ -1,7 +1,7 @@
 // Sales report — transaction-level listing of POS counter sales.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import ReportsNav from '../components/ReportsNav';
+import { usePdfExport } from '../components/usePdfExport';
 import {
   fetchSalesSummary,
   rangeFromFilter,
@@ -39,6 +40,12 @@ export default function SalesReportPage() {
   const pg = useServerPagination(25);
   const [reloadTick, setReloadTick] = useState(0);
   const load = useCallback(() => setReloadTick((n) => n + 1), []);
+  // Counts in-flight fetches so Refresh can't be re-fired while one is running.
+  const inFlightRef = useRef(0);
+  const handleRefresh = () => {
+    if (inFlightRef.current > 0) return;
+    load();
+  };
 
   useEffect(() => {
     pg.resetToFirstPage();
@@ -48,6 +55,7 @@ export default function SalesReportPage() {
   useEffect(() => {
     if (!range) return;
     const ctl = new AbortController();
+    inFlightRef.current += 1;
     setLoading(true);
     fetchSalesSummary(
       range.start,
@@ -63,7 +71,10 @@ export default function SalesReportPage() {
         if ((err as Error).name === 'AbortError') return;
         toast.error(err instanceof Error ? err.message : 'Failed to load sales report');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        inFlightRef.current -= 1;
+        if (inFlightRef.current === 0) setLoading(false);
+      });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, pg.page, pg.pageSize, reloadTick]);
@@ -151,6 +162,7 @@ export default function SalesReportPage() {
     });
     doc.save(`POS_Sales_${range?.label.replace(/\s|\//g, '_')}.pdf`);
   };
+  const pdfExport = usePdfExport(handleDownloadPdf);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -164,18 +176,28 @@ export default function SalesReportPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleDownloadPdf}
-            disabled={loading || !data}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+            onClick={pdfExport.run}
+            disabled={loading || !data || pdfExport.exporting}
+            aria-busy={pdfExport.exporting}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Download className="h-4 w-4" /> PDF
+            {pdfExport.exporting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+            ) : (
+              <><Download className="h-4 w-4" /> PDF</>
+            )}
           </button>
           <button
-            onClick={load}
+            onClick={handleRefresh}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+            ) : (
+              <><RefreshCw className="h-4 w-4" /> Refresh</>
+            )}
           </button>
         </div>
       </div>
@@ -303,6 +325,7 @@ export default function SalesReportPage() {
               limit={pg.pageSize}
               onPageChange={pg.setPage}
               onLimitChange={pg.setPageSize}
+              loading={loading}
               label="sales"
             />
           </div>

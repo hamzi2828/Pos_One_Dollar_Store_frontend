@@ -5,7 +5,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { POSCart, POSCustomer, POSTax, POSCarDetails } from '../types';
 import CartItem from './CartItem';
-import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Car, Percent, X, Wrench } from 'lucide-react';
+import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Car, Percent, X, Wrench, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 // Helper to get cars array
@@ -37,6 +37,10 @@ interface CartPanelProps {
   ) => void;
   serviceVehicle?: string;
   onSelectVehicle?: (vehicle: string) => void;
+  /** Hold Order is saving. */
+  holding?: boolean;
+  /** Payment window is open / payment is going through. */
+  paying?: boolean;
 }
 
 export default function CartPanel({
@@ -57,7 +61,10 @@ export default function CartPanel({
   onAddCustomItem,
   serviceVehicle,
   onSelectVehicle,
+  holding = false,
+  paying = false,
 }: CartPanelProps) {
+  const busy = holding || paying;
   const symbol = getCurrencySymbol(currency);
   const isEmpty = cart.items.length === 0;
   const [showTaxDropdown, setShowTaxDropdown] = useState(false);
@@ -97,7 +104,8 @@ export default function CartPanel({
           {!isEmpty && (
             <button
               onClick={onClearCart}
-              className="text-red-500 hover:text-red-700 p-1"
+              disabled={busy}
+              className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"
               title="Clear cart"
             >
               <Trash2 className="h-5 w-5" />
@@ -472,16 +480,36 @@ export default function CartPanel({
           <div className="space-y-2">
             <button
               onClick={onCheckout}
-              className="w-full bg-[#DC2626] text-white py-3 rounded-lg font-semibold hover:bg-[#b91c1c] transition-colors"
+              disabled={busy}
+              aria-busy={paying}
+              className="w-full bg-[#DC2626] text-white py-3 rounded-lg font-semibold hover:bg-[#b91c1c] transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#DC2626]"
             >
-              Process Payment
+              {paying ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing payment…
+                </>
+              ) : (
+                'Process Payment'
+              )}
             </button>
             <button
               onClick={onHoldCart}
-              className="w-full border border-gray-300 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              disabled={busy}
+              aria-busy={holding}
+              className="w-full border border-gray-300 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white"
             >
-              <Archive className="h-4 w-4" />
-              Hold Order
+              {holding ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Holding order…
+                </>
+              ) : (
+                <>
+                  <Archive className="h-4 w-4" />
+                  Hold Order
+                </>
+              )}
             </button>
           </div>
         </div>

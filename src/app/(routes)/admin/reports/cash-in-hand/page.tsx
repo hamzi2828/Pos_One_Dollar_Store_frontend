@@ -4,7 +4,7 @@
 // renders PDFs.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
@@ -21,6 +21,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import ReportsNav from '../components/ReportsNav';
+import { usePdfExport } from '../components/usePdfExport';
 import {
   fetchCashInHand,
   rangeFromFilter,
@@ -70,6 +71,8 @@ export default function CashInHandPage() {
     return r?.label ?? 'Select a range';
   }, [dateFilter, customStart, customEnd]);
 
+  // Counts in-flight fetches so Refresh can't be re-fired while one is running.
+  const inFlightRef = useRef(0);
   const loadData = useCallback(async () => {
     const range = rangeFromFilter(dateFilter, customStart, customEnd);
     if (!range) {
@@ -77,6 +80,7 @@ export default function CashInHandPage() {
       return;
     }
     try {
+      inFlightRef.current += 1;
       setLoading(true);
       const data = await fetchCashInHand(range.start, range.end);
       setReport(data);
@@ -84,13 +88,18 @@ export default function CashInHandPage() {
       console.error(err);
       toast.error(err instanceof Error ? err.message : 'Failed to load report');
     } finally {
-      setLoading(false);
+      inFlightRef.current -= 1;
+      if (inFlightRef.current === 0) setLoading(false);
     }
   }, [dateFilter, customStart, customEnd]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+  const handleRefresh = () => {
+    if (inFlightRef.current > 0) return;
+    loadData();
+  };
 
   // -------- PDF (mirrors on-screen layout) --------
   const handleDownloadPdf = () => {
@@ -342,6 +351,7 @@ export default function CashInHandPage() {
     const filename = `Cash_In_Hand_${rangeLabel.replace(/\s|\//g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
     doc.save(filename);
   };
+  const pdfExport = usePdfExport(handleDownloadPdf);
 
   const fmt = (n: number) =>
     `${symbol}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -363,18 +373,28 @@ export default function CashInHandPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleDownloadPdf}
-            disabled={loading || !report}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+            onClick={pdfExport.run}
+            disabled={loading || !report || pdfExport.exporting}
+            aria-busy={pdfExport.exporting}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Download className="h-4 w-4" /> Download PDF
+            {pdfExport.exporting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+            ) : (
+              <><Download className="h-4 w-4" /> Download PDF</>
+            )}
           </button>
           <button
-            onClick={loadData}
+            onClick={handleRefresh}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            aria-busy={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            {loading ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+            ) : (
+              <><RefreshCw className="h-4 w-4" /> Refresh</>
+            )}
           </button>
         </div>
       </div>

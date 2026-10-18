@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -77,6 +77,9 @@ export default function StaffPage() {
   const [editing, setEditing] = useState<{ open: boolean; user: StaffUser | null }>({ open: false, user: null });
   const [resetFor, setResetFor] = useState<StaffUser | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyKind, setBusyKind] = useState<'delete' | 'status' | null>(null);
+  // Row actions lock synchronously so a fast double click can't fire twice.
+  const rowLockRef = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search.trim()), 350);
@@ -141,29 +144,40 @@ export default function StaffPage() {
   const activeBranches = useMemo(() => branches.filter((b) => b.isActive), [branches]);
 
   const handleDelete = async (u: StaffUser) => {
+    if (rowLockRef.current) return;
     if (!window.confirm(`Delete the login of ${u.name} (${u.email})?\n\nThey will not be able to sign in any more.`)) return;
+    if (rowLockRef.current) return;
+    rowLockRef.current = true;
     try {
       setBusyId(u.id);
+      setBusyKind('delete');
       await staffService.remove(u.id);
       toast.success('Staff login deleted');
       await load();
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not delete the staff login.'), { duration: 6000 });
     } finally {
+      rowLockRef.current = false;
       setBusyId(null);
+      setBusyKind(null);
     }
   };
 
   const handleToggleActive = async (u: StaffUser) => {
+    if (rowLockRef.current) return;
+    rowLockRef.current = true;
     try {
       setBusyId(u.id);
+      setBusyKind('status');
       await staffService.update(u.id, { isActive: !u.isActive });
       toast.success(u.isActive ? 'Login turned off' : 'Login turned on');
       await load();
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not change the status.'), { duration: 6000 });
     } finally {
+      rowLockRef.current = false;
       setBusyId(null);
+      setBusyKind(null);
     }
   };
 
@@ -351,12 +365,16 @@ export default function StaffPage() {
                               type="button"
                               onClick={() => handleToggleActive(u)}
                               disabled={!canEdit || isMe || busy}
-                              className={`px-2 py-0.5 text-xs font-semibold rounded-full transition-colors disabled:cursor-not-allowed ${
+                              aria-busy={busy && busyKind === 'status'}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full transition-colors disabled:cursor-not-allowed ${
+                                busy ? 'opacity-60' : ''
+                              } ${
                                 u.isActive ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                               }`}
                               title={canEdit && !isMe ? 'Click to turn this login on/off' : undefined}
                             >
-                              {u.isActive ? 'Active' : 'Inactive'}
+                              {busy && busyKind === 'status' && <Loader2 className="h-3 w-3 animate-spin" />}
+                              {busy && busyKind === 'status' ? 'Saving…' : u.isActive ? 'Active' : 'Inactive'}
                             </button>
                           </td>
                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-500">{formatDate(u.lastLogin)}</td>
@@ -366,14 +384,16 @@ export default function StaffPage() {
                                 <>
                                   <button
                                     onClick={() => setEditing({ open: true, user: u })}
-                                    className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors"
+                                    disabled={busy}
+                                    className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title="Edit"
                                   >
                                     <Edit2 className="h-4 w-4" />
                                   </button>
                                   <button
                                     onClick={() => setResetFor(u)}
-                                    className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    disabled={busy}
+                                    className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title="Set a new password"
                                   >
                                     <KeyRound className="h-4 w-4" />
@@ -384,10 +404,11 @@ export default function StaffPage() {
                                 <button
                                   onClick={() => handleDelete(u)}
                                   disabled={busy}
-                                  className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 transition-colors"
-                                  title="Delete login"
+                                  aria-busy={busy && busyKind === 'delete'}
+                                  className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                  title={busy && busyKind === 'delete' ? 'Deleting…' : 'Delete login'}
                                 >
-                                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                  {busy && busyKind === 'delete' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 </button>
                               )}
                             </div>
@@ -407,6 +428,7 @@ export default function StaffPage() {
               onPageChange={setPage}
               onLimitChange={setLimit}
               label="staff logins"
+              loading={loading}
             />
           </div>
         )}
@@ -480,6 +502,7 @@ function StaffFormModal({
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const [makeSuper, setMakeSuper] = useState(user?.isSuperAdmin ?? false);
   const [saving, setSaving] = useState(false);
+  const saveLockRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   // If the role list arrives after the modal opened, pick a default.
@@ -488,6 +511,7 @@ function StaffFormModal({
   }, [defaultRole, roleId, isEdit]);
 
   const submit = async () => {
+    if (saveLockRef.current) return;
     if (!firstName.trim() || !lastName.trim()) return setError('Please enter first and last name.');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.');
     if (!isEdit && password.length < MIN_PASSWORD) return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
@@ -516,6 +540,7 @@ function StaffFormModal({
       }
     }
 
+    saveLockRef.current = true;
     try {
       setSaving(true);
       setError(null);
@@ -531,6 +556,7 @@ function StaffFormModal({
       // "This is the last active super admin..."
       setError(apiErrorMessage(e, 'Could not save the staff login.'));
     } finally {
+      saveLockRef.current = false;
       setSaving(false);
     }
   };
@@ -547,9 +573,9 @@ function StaffFormModal({
           <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={saving} className={primaryBtn}>
+          <button type="button" onClick={submit} disabled={saving} aria-busy={saving} className={primaryBtn}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {isEdit ? 'Save' : 'Create Login'}
+            {saving ? (isEdit ? 'Saving…' : 'Creating…') : isEdit ? 'Save' : 'Create Login'}
           </button>
         </>
       }
@@ -559,8 +585,8 @@ function StaffFormModal({
           e.preventDefault();
           submit();
         }}
-        className="space-y-4"
       >
+        <fieldset disabled={saving} className="min-w-0 space-y-4">
         <ErrorBox message={error} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="First name" required>
@@ -650,6 +676,7 @@ function StaffFormModal({
           )}
         </div>
         <button type="submit" className="hidden" />
+        </fieldset>
       </form>
     </Modal>
   );
@@ -661,11 +688,14 @@ function ResetPasswordModal({ user, onClose, onDone }: { user: StaffUser; onClos
   const [confirm, setConfirm] = useState('');
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
+  const saveLockRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
+    if (saveLockRef.current) return;
     if (password.length < MIN_PASSWORD) return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
     if (password !== confirm) return setError('The two passwords are not the same.');
+    saveLockRef.current = true;
     try {
       setSaving(true);
       setError(null);
@@ -674,6 +704,7 @@ function ResetPasswordModal({ user, onClose, onDone }: { user: StaffUser; onClos
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not change the password.'));
     } finally {
+      saveLockRef.current = false;
       setSaving(false);
     }
   };
@@ -690,9 +721,9 @@ function ResetPasswordModal({ user, onClose, onDone }: { user: StaffUser; onClos
           <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={saving} className={primaryBtn}>
+          <button type="button" onClick={submit} disabled={saving} aria-busy={saving} className={primaryBtn}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Save Password
+            {saving ? 'Saving…' : 'Save Password'}
           </button>
         </>
       }
@@ -702,8 +733,8 @@ function ResetPasswordModal({ user, onClose, onDone }: { user: StaffUser; onClos
           e.preventDefault();
           submit();
         }}
-        className="space-y-4"
       >
+        <fieldset disabled={saving} className="min-w-0 space-y-4">
         <ErrorBox message={error} />
         <Field label="New password" required hint={`At least ${MIN_PASSWORD} characters.`}>
           <div className="relative">
@@ -729,6 +760,7 @@ function ResetPasswordModal({ user, onClose, onDone }: { user: StaffUser; onClos
           <input type={show ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputClass} autoComplete="new-password" />
         </Field>
         <button type="submit" className="hidden" />
+        </fieldset>
       </form>
     </Modal>
   );

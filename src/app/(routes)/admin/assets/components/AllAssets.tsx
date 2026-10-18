@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiTruck, FiTool, FiHome, FiMonitor, FiPackage, FiMoreVertical } from 'react-icons/fi';
+import { Loader2 } from 'lucide-react';
 import type { AssetUI, AssetType, AssetStatus, CreateAssetPayload } from '../services/assetService';
 
 interface AllAssetsProps {
   assets: AssetUI[];
-  onAdd: (asset: CreateAssetPayload) => void;
-  onEdit: (id: string, asset: Partial<CreateAssetPayload>) => void;
-  onDelete: (id: string) => void;
+  // May return a promise: the form / row then shows a spinner until it settles.
+  onAdd: (asset: CreateAssetPayload) => void | Promise<void>;
+  onEdit: (id: string, asset: Partial<CreateAssetPayload>) => void | Promise<void>;
+  onDelete: (id: string) => void | Promise<void>;
   loading: boolean;
   error: string | null;
   currency: string;
@@ -58,6 +60,10 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<AssetUI | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const saveLockRef = useRef(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const deleteLockRef = useRef(false);
 
   const [formData, setFormData] = useState<CreateAssetPayload>({
     name: '',
@@ -88,16 +94,42 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
 
   const totalValue = filteredAssets.reduce((sum, asset) => sum + (asset.currentValue || asset.purchasePrice), 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingAsset) {
-      onEdit(editingAsset.id, formData);
-      setEditingAsset(null);
-    } else {
-      onAdd(formData);
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
+    setSaving(true);
+    try {
+      if (editingAsset) {
+        await onEdit(editingAsset.id, formData);
+        setEditingAsset(null);
+      } else {
+        await onAdd(formData);
+      }
+    } finally {
+      saveLockRef.current = false;
+      setSaving(false);
+      setShowAddModal(false);
+      resetForm();
     }
+  };
+
+  const handleDeleteClick = async (id: string) => {
+    setOpenDropdown(null);
+    if (deleteLockRef.current) return;
+    deleteLockRef.current = true;
+    setDeletingId(id);
+    try {
+      await onDelete(id);
+    } finally {
+      deleteLockRef.current = false;
+      setDeletingId(null);
+    }
+  };
+
+  const closeModal = () => {
+    if (saveLockRef.current) return;
     setShowAddModal(false);
-    resetForm();
   };
 
   const openEditModal = (asset: AssetUI) => {
@@ -284,9 +316,16 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
                         <div className="relative flex justify-end">
                           <button
                             onClick={() => setOpenDropdown(openDropdown === asset.id ? null : asset.id)}
-                            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                            disabled={deletingId === asset.id}
+                            aria-busy={deletingId === asset.id}
+                            title={deletingId === asset.id ? 'Deleting…' : undefined}
+                            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            <FiMoreVertical className="w-4 h-4" />
+                            {deletingId === asset.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <FiMoreVertical className="w-4 h-4" />
+                            )}
                           </button>
                           {openDropdown === asset.id && (
                             <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -298,11 +337,9 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
                                 Edit
                               </button>
                               <button
-                                onClick={() => {
-                                  onDelete(asset.id);
-                                  setOpenDropdown(null);
-                                }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                onClick={() => handleDeleteClick(asset.id)}
+                                disabled={!!deletingId}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed"
                               >
                                 <FiTrash2 className="w-4 h-4" />
                                 Delete
@@ -324,7 +361,7 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
       {showAddModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-          onClick={() => setShowAddModal(false)}
+          onClick={closeModal}
         >
           <div
             className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
@@ -335,13 +372,15 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
                 {editingAsset ? 'Edit Asset' : 'Add New Asset'}
               </h3>
               <button
-                onClick={() => setShowAddModal(false)}
-                className="p-1 text-gray-400 hover:text-gray-600"
+                onClick={closeModal}
+                disabled={saving}
+                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ×
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-4">
+              <fieldset disabled={saving} className="min-w-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Asset Name *</label>
@@ -465,18 +504,23 @@ export default function AllAssets({ assets, onAdd, onEdit, onDelete, loading, er
               <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700"
+                  aria-busy={saving}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {editingAsset ? 'Update Asset' : 'Add Asset'}
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {saving
+                    ? editingAsset ? 'Updating…' : 'Adding…'
+                    : editingAsset ? 'Update Asset' : 'Add Asset'}
                 </button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>

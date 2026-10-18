@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   ProductStats,
@@ -92,6 +92,10 @@ interface AllProductsProps {
   loading?: boolean;
   error?: string | null;
   copyingProduct?: Set<string>;
+  /** ids of products currently being deleted */
+  deletingProduct?: Set<string>;
+  /** ids of products whose featured flag is being saved */
+  featuringProduct?: Set<string>;
   /** called after stock was received, to reload the list */
   onStockChanged?: () => void;
 }
@@ -106,6 +110,8 @@ export default function AllProducts({
   loading = false,
   error = null,
   copyingProduct = new Set(),
+  deletingProduct = new Set(),
+  featuringProduct = new Set(),
   onStockChanged
 }: AllProductsProps) {
   const searchParams = useSearchParams();
@@ -120,6 +126,8 @@ export default function AllProducts({
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
 
   const [togglingStatus, setTogglingStatus] = useState<Set<string>>(new Set());
+  // Synchronous lock: blocks a second status toggle for the same product before re-render
+  const togglingStatusRef = useRef<Set<string>>(new Set());
   const productsPerPage = 12;
 
   // Stickers / receive stock
@@ -238,6 +246,8 @@ export default function AllProducts({
 
   const handleToggleStatus = async (productId: string, currentStatus: 'published' | 'draft' | 'out_of_stock') => {
     if (!onToggleStatus || currentStatus === 'out_of_stock') return;
+    if (togglingStatusRef.current.has(productId)) return;
+    togglingStatusRef.current.add(productId);
 
     const newStatus = currentStatus === 'published' ? 'draft' : 'published';
     setTogglingStatus(prev => new Set([...prev, productId]));
@@ -247,6 +257,7 @@ export default function AllProducts({
     } catch (error) {
       console.error('Failed to toggle product status:', error);
     } finally {
+      togglingStatusRef.current.delete(productId);
       setTogglingStatus(prev => {
         const newSet = new Set(prev);
         newSet.delete(productId);
@@ -316,6 +327,8 @@ export default function AllProducts({
               onToggleFeatured={onToggleFeatured}
               togglingStatus={togglingStatus}
               copyingProduct={copyingProduct}
+              deletingProduct={deletingProduct}
+              featuringProduct={featuringProduct}
               handleToggleStatus={handleToggleStatus}
               codeSummary={codeSummaries[product.id]}
               onStickers={(id) => openStickers(id)}

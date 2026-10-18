@@ -1,7 +1,7 @@
 // POS Dashboard Component
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ShoppingCart,
   TrendingUp,
@@ -428,6 +428,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [chartPeriod, setChartPeriod] = useState<'7days' | '30days' | '12months'>('7days');
   const [refreshing, setRefreshing] = useState(false);
+  const refreshLock = useRef(false);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('today');
   const [customDateRange, setCustomDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
 
@@ -467,9 +468,15 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
     loadChart();
   }, [chartPeriod]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    if (refreshLock.current) return;
+    refreshLock.current = true;
     setRefreshing(true);
-    loadData();
+    try {
+      await loadData();
+    } finally {
+      refreshLock.current = false;
+    }
   };
 
   const handleFilterChange = (filter: FilterType) => {
@@ -520,10 +527,11 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            aria-busy={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>

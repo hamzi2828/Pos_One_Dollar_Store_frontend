@@ -11,7 +11,7 @@ import { productService, type ProductUI } from "../services/productService";
 import { carService, type CarMakeUI, type CarModelUI, type CarVariantUI } from "../services/carService";
 import { useCurrency } from "@/context/CurrencyContext";
 import RichTextEditor from "@/components/RichTextEditor";
-import { ChevronDown, Hash } from "lucide-react";
+import { ChevronDown, Hash, Loader2 } from "lucide-react";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
 import {
@@ -219,6 +219,8 @@ export default function ProductForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab);
   const [isLoading, setIsLoading] = useState(false);
+  // Synchronous lock: Enter + click (or a double click) must not create/update the product twice
+  const submittingRef = useRef(false);
 
   // Packaging / barcodes / batches (single products). Edit: loaded from the product.
   const [packaging, setPackaging] = useState<PackagingState>(() =>
@@ -934,6 +936,7 @@ export default function ProductForm({
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     const validation = validate();
     if (!validation.isValid) {
       const errs = validation.errors;
@@ -954,6 +957,7 @@ export default function ProductForm({
       return;
     }
     
+    submittingRef.current = true;
     setIsLoading(true);
     try {
       const fallbackMetaTitle = (form.metaTitle || form.name || "").slice(0, META_TITLE_LIMIT);
@@ -1211,6 +1215,7 @@ export default function ProductForm({
         toast.error(`Failed to ${mode} product`);
       }
     } finally {
+      submittingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -1222,7 +1227,9 @@ export default function ProductForm({
   
   return (
     <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} aria-busy={isLoading}>
+       {/* While saving, every field / tab / button in the form is disabled */}
+       <fieldset disabled={isLoading} className="min-w-0">
         {/* Tabs Navigation */}
         <div className="border-b border-gray-200">
           <nav className="flex gap-1 px-2 sm:px-3 md:px-4 pt-2 sm:pt-3 md:pt-4 overflow-x-auto" aria-label="Tabs">
@@ -3211,7 +3218,7 @@ export default function ProductForm({
                   type="button"
                   onClick={onCancel}
                   disabled={isLoading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
                   Cancel
                 </button>
@@ -3222,7 +3229,7 @@ export default function ProductForm({
                   type="button"
                   onClick={goToPreviousTab}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -3236,7 +3243,7 @@ export default function ProductForm({
                   type="button"
                   onClick={goToNextTab}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 transition-all duration-200 shadow-md hover:shadow-lg"
+                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   Next
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3249,15 +3256,13 @@ export default function ProductForm({
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 transition-all duration-200 shadow-md hover:shadow-lg"
+                  aria-busy={isLoading}
+                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   {isLoading ? (
                     <>
-                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      {mode === "create" ? "Creating..." : "Updating..."}
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {mode === "create" ? "Creating product…" : "Updating product…"}
                     </>
                   ) : (
                     <>
@@ -3272,6 +3277,7 @@ export default function ProductForm({
             </div>
           </div>
         </div>
+       </fieldset>
       </form>
 
       {/* Product Type Change Confirmation Modal */}

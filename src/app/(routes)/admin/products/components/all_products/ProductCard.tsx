@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import Image from "next/image";
-import { Edit2, Trash2, Star, Layers, Package, AlertTriangle, ChevronLeft, ChevronRight, Tag, Copy, Eye, X, Printer, PackagePlus, Barcode } from "lucide-react";
+import { Edit2, Trash2, Star, Layers, Package, AlertTriangle, ChevronLeft, ChevronRight, Tag, Copy, Eye, X, Printer, PackagePlus, Barcode, Loader2 } from "lucide-react";
 import { Product } from "../AllProducts";
 import { useCurrency } from "@/context/CurrencyContext";
 import type { CodeSummary } from "../../services/labelService";
@@ -15,6 +15,8 @@ interface ProductCardProps {
   onToggleFeatured?: (id: string) => void;
   togglingStatus: Set<string>;
   copyingProduct?: Set<string>;
+  deletingProduct?: Set<string>;
+  featuringProduct?: Set<string>;
   handleToggleStatus: (productId: string, currentStatus: 'published' | 'draft' | 'out_of_stock') => Promise<void>;
   /** short code / box / batches info for the badges */
   codeSummary?: CodeSummary;
@@ -31,6 +33,8 @@ export default function ProductCard({
   onToggleFeatured,
   togglingStatus,
   copyingProduct = new Set(),
+  deletingProduct = new Set(),
+  featuringProduct = new Set(),
   handleToggleStatus,
   codeSummary,
   onStickers,
@@ -39,6 +43,12 @@ export default function ProductCard({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showStockModal, setShowStockModal] = useState(false);
   const { formatPrice } = useCurrency();
+  const isToggling = togglingStatus.has(product.id);
+  const isCopying = copyingProduct.has(product.id);
+  const isDeleting = deletingProduct.has(product.id);
+  const isFeaturing = featuringProduct.has(product.id);
+  // Any server action running on this card blocks the others (e.g. no delete while duplicating)
+  const cardBusy = isToggling || isCopying || isDeleting || isFeaturing;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -190,29 +200,32 @@ export default function ProductCard({
             {onToggleStatus && product.status !== 'out_of_stock' && (
               <button
                 onClick={() => handleToggleStatus(product.id, product.status)}
-                disabled={togglingStatus.has(product.id)}
+                disabled={cardBusy}
+                aria-busy={isToggling}
                 className={`
                   relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none
                   ${product.status === 'published' ? 'bg-green-500' : 'bg-gray-300'}
-                  ${togglingStatus.has(product.id) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed
                 `}
-                title={`Click to ${product.status === 'published' ? 'unpublish' : 'publish'}`}
+                title={isToggling ? 'Updating status…' : `Click to ${product.status === 'published' ? 'unpublish' : 'publish'}`}
               >
                 <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-sm transition-transform ${product.status === 'published' ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
-                {togglingStatus.has(product.id) && (
+                {isToggling && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="h-2 w-2 animate-spin rounded-full border border-white border-t-transparent"></div>
+                    <Loader2 className="h-2.5 w-2.5 animate-spin text-white" />
                   </div>
                 )}
               </button>
             )}
             {/* Featured Toggle */}
             <button
-              title={product.featured ? "Remove from featured" : "Make featured"}
+              title={isFeaturing ? "Saving…" : product.featured ? "Remove from featured" : "Make featured"}
               onClick={() => onToggleFeatured?.(product.id)}
-              className={`p-0.5 rounded transition-colors ${product.featured ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+              disabled={cardBusy}
+              aria-busy={isFeaturing}
+              className={`p-0.5 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${product.featured ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
             >
-              <Star className={`h-3 w-3 ${product.featured ? 'fill-current' : ''}`} />
+              {isFeaturing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Star className={`h-3 w-3 ${product.featured ? 'fill-current' : ''}`} />}
             </button>
           </div>
           <div className="flex items-center">
@@ -222,18 +235,25 @@ export default function ProductCard({
               </button>
             )}
             <button
-              className={`p-0.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors ${copyingProduct.has(product.id) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className="p-0.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => onCopy?.(product.id)}
-              disabled={copyingProduct.has(product.id)}
-              title="Duplicate product"
+              disabled={cardBusy}
+              aria-busy={isCopying}
+              title={isCopying ? "Duplicating…" : "Duplicate product"}
             >
-              {copyingProduct.has(product.id) ? <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /> : <Copy className="h-3 w-3" />}
+              {isCopying ? <Loader2 className="h-3 w-3 animate-spin text-blue-500" /> : <Copy className="h-3 w-3" />}
             </button>
-            <button className="p-0.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" onClick={() => onEdit?.(product.id)} title="Edit product">
+            <button className="p-0.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed" onClick={() => onEdit?.(product.id)} disabled={isDeleting} title="Edit product">
               <Edit2 className="h-3 w-3" />
             </button>
-            <button className="p-0.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors" onClick={() => onDelete?.(product.id)} title="Delete product">
-              <Trash2 className="h-3 w-3" />
+            <button
+              className="p-0.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={() => onDelete?.(product.id)}
+              disabled={cardBusy}
+              aria-busy={isDeleting}
+              title={isDeleting ? "Deleting…" : "Delete product"}
+            >
+              {isDeleting ? <Loader2 className="h-3 w-3 animate-spin text-red-500" /> : <Trash2 className="h-3 w-3" />}
             </button>
           </div>
         </div>

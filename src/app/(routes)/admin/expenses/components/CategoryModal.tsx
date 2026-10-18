@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, Loader2, Tag } from 'lucide-react';
 import { expenseService } from '../service/expenseService';
 import type { ExpenseCategoryItem } from '../types';
@@ -18,6 +18,10 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // One shared lock: create and delete both refetch the list, so only one
+  // mutation may be in flight at a time.
+  const busyRef = useRef(false);
+  const busy = creating || !!deletingId;
 
   useEffect(() => {
     if (isOpen) {
@@ -40,6 +44,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
   };
 
   const handleCreateCategory = async () => {
+    if (busyRef.current) return;
     if (!newCategoryName.trim()) {
       setError('Category name is required');
       return;
@@ -51,6 +56,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
       return;
     }
 
+    busyRef.current = true;
     setCreating(true);
     setError(null);
     try {
@@ -62,13 +68,17 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
       console.error('Error creating category:', err);
       setError('Failed to create category');
     } finally {
+      busyRef.current = false;
       setCreating(false);
     }
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
+    if (busyRef.current) return;
     if (!confirm('Are you sure you want to delete this category?')) return;
+    if (busyRef.current) return;
 
+    busyRef.current = true;
     setDeletingId(categoryId);
     setError(null);
     try {
@@ -79,6 +89,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
       console.error('Error deleting category:', err);
       setError('Failed to delete category');
     } finally {
+      busyRef.current = false;
       setDeletingId(null);
     }
   };
@@ -87,7 +98,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50" onClick={() => { if (!busy) onClose(); }} />
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
@@ -95,7 +106,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
             <Tag className="h-5 w-5 text-[#dc2626]" />
             <h2 className="text-lg font-bold text-gray-900">Manage Categories</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600 disabled:opacity-60 disabled:cursor-not-allowed">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -121,12 +132,15 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
                 onKeyPress={(e) => e.key === 'Enter' && handleCreateCategory()}
                 placeholder="Category name..."
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
-                disabled={creating}
+                disabled={busy}
               />
               <button
                 onClick={handleCreateCategory}
-                disabled={creating || !newCategoryName.trim()}
-                className="px-3 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
+                disabled={busy || !newCategoryName.trim()}
+                aria-busy={creating}
+                aria-label={creating ? 'Adding category…' : 'Add category'}
+                title={creating ? 'Adding…' : 'Add category'}
+                className="px-3 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 {creating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -162,8 +176,10 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
                     <span className="text-sm text-gray-700">{category.name}</span>
                     <button
                       onClick={() => handleDeleteCategory(category._id)}
-                      disabled={deletingId === category._id}
-                      className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                      disabled={busy}
+                      aria-busy={deletingId === category._id}
+                      aria-label={deletingId === category._id ? 'Deleting category…' : 'Delete category'}
+                      className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {deletingId === category._id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -182,7 +198,8 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
         <div className="p-4 border-t border-gray-200 flex-shrink-0">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            disabled={busy}
+            className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Close
           </button>

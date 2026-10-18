@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CircleAlert, CircleCheck, Info, Layers, PackagePlus, Printer, RefreshCw, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, Layers, Loader2, PackagePlus, Printer, RefreshCw, X } from 'lucide-react';
 import {
   labelService,
   errorMessage,
@@ -50,8 +50,13 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ReceiveStockResult | null>(null);
   const [lastMode, setLastMode] = useState<Mode>('pieces');
+  // Synchronous locks: a second click / Enter before re-render must not send a second request
+  const savingRef = useRef(false);
+  const loadingRef = useRef(false);
 
   const load = async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     setLoadError(null);
     try {
@@ -66,6 +71,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
     } catch (e) {
       setLoadError(errorMessage(e, 'Could not load this product.'));
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   };
@@ -99,6 +105,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingRef.current) return;
     setError(null);
     if (!data) return;
     if (isVariant && !unit) {
@@ -125,6 +132,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
       if (note.trim()) batch.note = note.trim();
       body.batch = batch;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       const r = await labelService.receiveStock(productId, body);
@@ -133,6 +141,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
     } catch (err) {
       setError(errorMessage(err, 'Could not add the stock.'));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -174,7 +183,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
           <button
             onClick={() => onClose(!!result)}
             disabled={saving}
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -191,7 +200,8 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
             <p className="text-sm text-red-700">{loadError}</p>
             <button
               onClick={load}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              disabled={loading}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <RefreshCw className="h-4 w-4" /> Try again
             </button>
@@ -236,7 +246,8 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
           </div>
         ) : (
           /* Form */
-          <form onSubmit={submit} className="p-4 space-y-4">
+          <form onSubmit={submit} aria-busy={saving}>
+           <fieldset disabled={saving} className="min-w-0 p-4 space-y-4">
             <p className="flex items-center gap-1.5 text-xs text-gray-500">
               <Info className="h-3.5 w-3.5 flex-shrink-0" />
               Stock will be added to {branchName ? <strong className="text-gray-700">{branchName}</strong> : 'your current branch'}.
@@ -401,23 +412,30 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                 type="button"
                 onClick={() => onClose(false)}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving || totalPieces <= 0 || (isVariant && !unit)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                aria-busy={saving}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
               >
                 {saving ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Adding stock…
+                  </>
                 ) : (
-                  <PackagePlus className="h-4 w-4" />
+                  <>
+                    <PackagePlus className="h-4 w-4" />
+                    Add {totalPieces > 0 ? `${totalPieces} piece${totalPieces === 1 ? '' : 's'}` : 'stock'}
+                  </>
                 )}
-                Add {totalPieces > 0 ? `${totalPieces} piece${totalPieces === 1 ? '' : 's'}` : 'stock'}
               </button>
             </div>
+           </fieldset>
           </form>
         )}
       </div>

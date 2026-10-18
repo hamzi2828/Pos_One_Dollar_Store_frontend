@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Search, Edit3, Trash2, Loader2, FileText, DollarSign, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import {
@@ -48,6 +48,8 @@ export default function PurchasesTab() {
   const [paymentFor, setPaymentFor] = useState<Purchase | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Synchronous lock — blocks a second delete before React re-renders.
+  const deletingRef = useRef<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 300);
 
@@ -82,7 +84,10 @@ export default function PurchasesTab() {
   }, [debouncedSearch, vendorId, status, dateFrom, dateTo]);
 
   const handleDelete = async (id: string) => {
+    if (deletingRef.current) return;
     if (!window.confirm('Delete this purchase? (soft delete)')) return;
+    if (deletingRef.current) return;
+    deletingRef.current = id;
     setDeletingId(id);
     try {
       await procurementService.deletePurchase(id);
@@ -91,6 +96,7 @@ export default function PurchasesTab() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete');
     } finally {
+      deletingRef.current = null;
       setDeletingId(null);
     }
   };
@@ -210,7 +216,8 @@ export default function PurchasesTab() {
                         {p.paymentStatus !== 'paid' && (
                           <button
                             onClick={() => setPaymentFor(p)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
+                            disabled={deletingId === p._id}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                             title="Record a payment"
                           >
                             <DollarSign className="w-4 h-4" />
@@ -219,7 +226,8 @@ export default function PurchasesTab() {
                         )}
                         <button
                           onClick={() => { setEditing(p); setModalOpen(true); }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                          disabled={deletingId === p._id}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                           title="Edit purchase"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -227,12 +235,13 @@ export default function PurchasesTab() {
                         </button>
                         <button
                           onClick={() => handleDelete(p._id)}
-                          disabled={deletingId === p._id}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                          disabled={!!deletingId}
+                          aria-busy={deletingId === p._id}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                           title="Delete purchase"
                         >
                           {deletingId === p._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                          <span>Delete</span>
+                          <span>{deletingId === p._id ? 'Deleting…' : 'Delete'}</span>
                         </button>
                       </div>
                     </td>
@@ -250,6 +259,7 @@ export default function PurchasesTab() {
           limit={pagination.limit}
           onPageChange={(p) => fetchList(p, pagination.limit)}
           onLimitChange={(l) => fetchList(1, l)}
+          disabled={loading}
         />
       </div>
 

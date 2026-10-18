@@ -50,6 +50,11 @@ const NetworkDetail = () => {
   const [addingLoad, setAddingLoad] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deletingLoadId, setDeletingLoadId] = useState<string | null>(null);
+  // One synchronous lock for every write to this day (save / add load / delete load):
+  // they all replace the same day record, so only one may run at a time and a fast
+  // double-click can't fire a second request before React re-renders.
+  const mutatingRef = useRef(false);
+  const mutating = savingDay || addingLoad || deletingLoadId !== null;
 
   const applyDay = useCallback((next: NetworkDay) => {
     setDay(next);
@@ -89,6 +94,7 @@ const NetworkDetail = () => {
 
   // Keep the date in the URL so the back link and refreshes stay on the same day
   const changeDate = (next: string) => {
+    if (mutatingRef.current) return;
     const value = next || shopToday();
     setDate(value);
     router.replace(`/admin/load/${networkId}?date=${value}`);
@@ -104,6 +110,8 @@ const NetworkDetail = () => {
   };
 
   const handleSaveDay = async () => {
+    if (mutatingRef.current) return;
+    mutatingRef.current = true;
     setSavingDay(true);
     setError(null);
     try {
@@ -133,16 +141,19 @@ const NetworkDetail = () => {
       const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(message || 'Failed to save the day');
     } finally {
+      mutatingRef.current = false;
       setSavingDay(false);
     }
   };
 
   const handleAddLoad = async () => {
+    if (mutatingRef.current) return;
     const amount = Number(loadAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setLoadError('Enter a load amount greater than 0');
       return;
     }
+    mutatingRef.current = true;
     setAddingLoad(true);
     setLoadError(null);
     try {
@@ -159,11 +170,14 @@ const NetworkDetail = () => {
       const message = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setLoadError(message || 'Failed to add the load');
     } finally {
+      mutatingRef.current = false;
       setAddingLoad(false);
     }
   };
 
   const handleDeleteLoad = async (loadId: string) => {
+    if (mutatingRef.current) return;
+    mutatingRef.current = true;
     setDeletingLoadId(loadId);
     try {
       const updated = await networkService.deleteLoad(networkId, date, loadId);
@@ -173,6 +187,7 @@ const NetworkDetail = () => {
       console.error('Error deleting load:', e);
       setError('Failed to remove the load entry');
     } finally {
+      mutatingRef.current = false;
       setDeletingLoadId(null);
     }
   };
@@ -242,25 +257,29 @@ const NetworkDetail = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => changeDate(shiftDay(date, -1))}
-              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              disabled={loading || mutating}
+              aria-busy={loading}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               aria-label="Previous day"
             >
-              <ChevronLeft className="h-4 w-4" />
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronLeft className="h-4 w-4" />}
             </button>
             <input
               type="date"
               value={date}
               max={shopToday()}
               onChange={(e) => changeDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+              disabled={mutating}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed"
             />
             <button
               onClick={() => changeDate(shiftDay(date, 1))}
-              disabled={isToday}
+              disabled={isToday || loading || mutating}
+              aria-busy={loading}
               className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Next day"
             >
-              <ChevronRight className="h-4 w-4" />
+              {loading && !isToday ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
             </button>
           </div>
         </div>
@@ -287,7 +306,7 @@ const NetworkDetail = () => {
           </span>
         </div>
 
-        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+        <fieldset disabled={mutating} className="min-w-0 p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Opening balance</label>
             <input
@@ -332,7 +351,7 @@ const NetworkDetail = () => {
             </div>
             <p className="mt-1 text-xs text-gray-500">Opening + load − closing</p>
           </div>
-        </div>
+        </fieldset>
 
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-3">
           <p className="text-sm text-gray-500">
@@ -344,11 +363,15 @@ const NetworkDetail = () => {
           </p>
           <button
             onClick={handleSaveDay}
-            disabled={savingDay}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            disabled={mutating}
+            aria-busy={savingDay}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {savingDay ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save day
+            {savingDay ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
+            ) : (
+              <><Save className="h-4 w-4" />Save day</>
+            )}
           </button>
         </div>
       </div>
@@ -368,7 +391,7 @@ const NetworkDetail = () => {
               {loadError}
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <fieldset disabled={mutating} className="min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
               <input
@@ -407,14 +430,18 @@ const NetworkDetail = () => {
             <div className="flex items-end">
               <button
                 onClick={handleAddLoad}
-                disabled={addingLoad}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                disabled={mutating}
+                aria-busy={addingLoad}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {addingLoad ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Add load
+                {addingLoad ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" />Adding…</>
+                ) : (
+                  <><Plus className="h-4 w-4" />Add load</>
+                )}
               </button>
             </div>
-          </div>
+          </fieldset>
         </div>
 
         {/* Entries */}
@@ -448,9 +475,10 @@ const NetworkDetail = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
                         onClick={() => handleDeleteLoad(entry._id)}
-                        disabled={deletingLoadId === entry._id}
-                        className="text-gray-600 hover:text-red-600 disabled:opacity-50"
-                        aria-label="Remove load entry"
+                        disabled={mutating}
+                        aria-busy={deletingLoadId === entry._id}
+                        className="text-gray-600 hover:text-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                        aria-label={deletingLoadId === entry._id ? 'Removing load entry…' : 'Remove load entry'}
                       >
                         {deletingLoadId === entry._id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -507,7 +535,7 @@ const NetworkDetail = () => {
                 history.map((row) => (
                   <tr
                     key={row.date}
-                    className={`hover:bg-gray-50 cursor-pointer ${row.date === date ? 'bg-red-50/40' : ''}`}
+                    className={`hover:bg-gray-50 ${mutating ? 'cursor-not-allowed' : 'cursor-pointer'} ${row.date === date ? 'bg-red-50/40' : ''}`}
                     onClick={() => changeDate(row.date)}
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

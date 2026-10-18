@@ -29,6 +29,10 @@ const BanksPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [deletingBank, setDeletingBank] = useState<Bank | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
+  const deleteLockRef = useRef(false);
+  // Per-row status toggle lock (only that row's pill spins).
+  const statusLockRef = useRef<Set<string>>(new Set());
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
 
   useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter]);
 
@@ -85,6 +89,9 @@ const BanksPage = () => {
 
   // Handlers
   const handleStatusToggle = async (bankId: string, isActive: boolean) => {
+    if (statusLockRef.current.has(bankId)) return;
+    statusLockRef.current.add(bankId);
+    setStatusBusyId(bankId);
     try {
       // Optimistic UI
       setBanks((prev) => prev.map((b) => (b._id === bankId ? { ...b, isActive } : b)));
@@ -94,6 +101,9 @@ const BanksPage = () => {
       setError('Failed to update bank status');
       // Rollback
       setBanks((prev) => prev.map((b) => (b._id === bankId ? { ...b, isActive: !isActive } : b)));
+    } finally {
+      statusLockRef.current.delete(bankId);
+      setStatusBusyId((id) => (id === bankId ? null : id));
     }
   };
 
@@ -110,7 +120,8 @@ const BanksPage = () => {
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deletingBank) return;
+    if (!deletingBank || deleteLockRef.current) return;
+    deleteLockRef.current = true;
 
     setDeleteLoading(true);
     try {
@@ -122,6 +133,7 @@ const BanksPage = () => {
       console.error('Error deleting bank:', err);
       setError('Failed to delete bank');
     } finally {
+      deleteLockRef.current = false;
       setDeleteLoading(false);
     }
   };
@@ -249,12 +261,15 @@ const BanksPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleStatusToggle(bank._id, !bank.isActive)}
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        disabled={statusBusyId === bank._id}
+                        aria-busy={statusBusyId === bank._id}
+                        className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full disabled:opacity-60 disabled:cursor-not-allowed ${
                           bank.isActive
                             ? 'bg-green-100 text-green-700'
                             : 'bg-red-100 text-red-700'
                         }`}
                       >
+                        {statusBusyId === bank._id && <Loader2 className="h-3 w-3 animate-spin" />}
                         {bank.isActive ? 'Active' : 'Inactive'}
                       </button>
                     </td>
@@ -292,17 +307,18 @@ const BanksPage = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={clampedPage === 1}
+            disabled={loading || clampedPage === 1}
             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm text-gray-600">
+          <span className="inline-flex items-center gap-1.5 text-sm text-gray-600" aria-busy={loading}>
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#dc2626]" />}
             Page {clampedPage} of {totalPages}
           </span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={clampedPage === totalPages}
+            disabled={loading || clampedPage === totalPages}
             className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronRight className="h-4 w-4" />
@@ -313,7 +329,7 @@ const BanksPage = () => {
       {/* Delete Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setIsDeleteModalOpen(false)} />
+          <div className="fixed inset-0 bg-black/50" onClick={() => { if (!deleteLoading) setIsDeleteModalOpen(false); }} />
           <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Bank</h3>
             <p className="text-gray-600 mb-6">
@@ -325,17 +341,19 @@ const BanksPage = () => {
                   setIsDeleteModalOpen(false);
                   setDeletingBank(null);
                 }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                disabled={deleteLoading}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 disabled={deleteLoading}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                aria-busy={deleteLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {deleteLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Delete
+                {deleteLoading ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
