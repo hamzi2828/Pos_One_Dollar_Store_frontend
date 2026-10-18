@@ -8,9 +8,7 @@ import type { Product, ProductVariant } from "./AllProducts";
 import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
-import { carService, type CarMakeUI, type CarModelUI, type CarVariantUI } from "../services/carService";
 import { useCurrency } from "@/context/CurrencyContext";
-import RichTextEditor from "@/components/RichTextEditor";
 import { ChevronDown, Hash, Loader2 } from "lucide-react";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
@@ -149,8 +147,10 @@ const initialFormData: ProductFormData = {
 };
 
 // Valid tab keys
-type TabKey = "content" | "variant" | "description" | "seo" | "related";
-const VALID_TABS: TabKey[] = ["content", "variant", "description", "seo", "related"];
+// Description, SEO & Meta, Compatible Cars, Pre-Order and Guidelines were removed
+// from the form (not used by this shop). Saved values on old products are kept.
+type TabKey = "content" | "variant" | "related";
+const VALID_TABS: TabKey[] = ["content", "variant", "related"];
 
 export default function ProductForm({
   mode,
@@ -255,106 +255,16 @@ export default function ProductForm({
   const [videoFile, setVideoFile] = useState<File | null>(null);
   // Removed unused thumbName state
 
-  // Compatible cars state
-  const [carMakes, setCarMakes] = useState<CarMakeUI[]>([]);
-  const [carModels, setCarModels] = useState<CarModelUI[]>([]);
-  const [carVariants, setCarVariants] = useState<CarVariantUI[]>([]);
-  const [selectedMake, setSelectedMake] = useState('');
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [selectedCarVariants, setSelectedCarVariants] = useState<string[]>(
-    (initialData as any)?.compatibleCars || []
-  );
-  const [pendingVariants, setPendingVariants] = useState<string[]>([]); // checked variants before clicking Add
-  const [carsLoading, setCarsLoading] = useState(false);
-  // Lookup map: variantId -> { make, model, variant, year } for chip labels
-  const [carLabelMap, setCarLabelMap] = useState<Record<string, { make: string; model: string; variant: string; year: string }>>({});
-  // Search states for Select2-style dropdowns
-  const [makeSearch, setMakeSearch] = useState('');
-  const [modelSearch, setModelSearch] = useState('');
-  const [variantSearch, setVariantSearch] = useState('');
-  const [makeDropdownOpen, setMakeDropdownOpen] = useState(false);
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-  const [variantDropdownOpen, setVariantDropdownOpen] = useState(false);
-  const makeDropdownRef = useRef<HTMLDivElement>(null);
-  const modelDropdownRef = useRef<HTMLDivElement>(null);
-  const variantDropdownRef = useRef<HTMLDivElement>(null);
+  // Compatible cars (no longer edited here): send back what the product already had
+  const selectedCarVariants: string[] = (initialData as any)?.compatibleCars || [];
 
   // Variant state
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [colorMedia, setColorMedia] = useState<Record<string, ColorMediaData>>({});
 
-  // Guideline toggle state (initialize based on whether guidelineId exists)
-  const [guidelineEnabled, setGuidelineEnabled] = useState<boolean>(!!(initialData as any)?.showGuidelines);
-
-  // Load car makes on mount
-  useEffect(() => {
-    carService.listMakes().then(makes => setCarMakes(makes.filter(m => m.active))).catch(() => {});
-  }, []);
-
-  // Load models when make changes
-  useEffect(() => {
-    if (!selectedMake) { setCarModels([]); setSelectedModels([]); return; }
-    setCarsLoading(true);
-    carService.listModels(selectedMake).then(models => {
-      setCarModels(models.filter(m => m.active));
-      setSelectedModels([]);
-      setCarVariants([]);
-      setPendingVariants([]);
-    }).catch(() => {}).finally(() => setCarsLoading(false));
-  }, [selectedMake]);
-
-  // Load variants when selected models change + build label map
-  useEffect(() => {
-    if (selectedModels.length === 0) { setCarVariants([]); setPendingVariants([]); return; }
-    setCarsLoading(true);
-    // Fetch variants for all selected models
-    Promise.all(selectedModels.map(modelId => carService.listVariants(modelId)))
-      .then(results => {
-        const allVariants: CarVariantUI[] = [];
-        const makeName = carMakes.find(m => m.id === selectedMake)?.name || '';
-        const newLabels: Record<string, { make: string; model: string; variant: string; year: string }> = {};
-
-        results.forEach((variants, idx) => {
-          const modelId = selectedModels[idx];
-          const modelName = carModels.find(m => m.id === modelId)?.name || '';
-          const active = variants.filter(v => v.active);
-          active.forEach(v => {
-            allVariants.push(v);
-            const year = v.yearStart ? `${v.yearStart}${v.yearEnd ? ` - ${v.yearEnd}` : '+'}` : '';
-            newLabels[v.id] = { make: makeName, model: modelName, variant: v.name, year };
-          });
-        });
-
-        setCarVariants(allVariants);
-        setPendingVariants([]);
-        setCarLabelMap(prev => ({ ...prev, ...newLabels }));
-      })
-      .catch(() => {})
-      .finally(() => setCarsLoading(false));
-  }, [selectedModels, selectedMake, carMakes, carModels]);
-
-  // Close car dropdowns on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (makeDropdownRef.current && !makeDropdownRef.current.contains(e.target as Node)) setMakeDropdownOpen(false);
-      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) setModelDropdownOpen(false);
-      if (variantDropdownRef.current && !variantDropdownRef.current.contains(e.target as Node)) setVariantDropdownOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const toggleCarVariant = useCallback((variantId: string) => {
-    setSelectedCarVariants(prev =>
-      prev.includes(variantId) ? prev.filter(id => id !== variantId) : [...prev, variantId]
-    );
-  }, []);
-
-  const addAllCarVariants = useCallback(() => {
-    const available = carVariants.filter(v => !selectedCarVariants.includes(v.id)).map(v => v.id);
-    setSelectedCarVariants(prev => [...prev, ...available]);
-  }, [carVariants, selectedCarVariants]);
+  // Show Guidelines (no longer edited here): keep the product's saved value
+  const guidelineEnabled = !!(initialData as any)?.showGuidelines;
 
   // Product type change confirmation modal
   const [showTypeChangeModal, setShowTypeChangeModal] = useState<{ show: boolean; targetType: 'single' | 'variant' }>({ show: false, targetType: 'single' });
@@ -630,16 +540,6 @@ export default function ProductForm({
     }
   }, []);
   
-  const isValidJson = (val: string) => {
-    if (!val.trim()) return true;
-    try {
-      const parsed = JSON.parse(val);
-      return typeof parsed === "object";
-    } catch {
-      return false;
-    }
-  };
-  
   const validate = (): { isValid: boolean; errors: Record<string, string> } => {
     const e: Record<string, string> = {};
 
@@ -664,24 +564,13 @@ export default function ProductForm({
 
     // Dimensions and weight are optional
 
-    // SEO validations
-    if (form.metaTitle && form.metaTitle.length > META_TITLE_LIMIT) {
-      e.metaTitle = `Keep under ${META_TITLE_LIMIT} characters`;
-    }
-    if (form.metaDescription && form.metaDescription.length > META_DESC_LIMIT) {
-      e.metaDescription = `Keep under ${META_DESC_LIMIT} characters`;
-    }
-    if (!isValidJson(form.metaSchema || "")) {
-      e.metaSchema = "Meta Schema must be valid JSON (JSON-LD).";
-    }
-
     setErrors(e);
     return { isValid: Object.keys(e).length === 0, errors: e };
   };
 
   // Navigation helpers
   const currentTabIndex = effectiveValidTabs.indexOf(activeTab);
-  const isLastTab = mode === "edit" ? activeTab === "related" : activeTab === "seo";
+  const isLastTab = mode === "edit" ? activeTab === "related" : activeTab === "variant";
   const isFirstTab = activeTab === "content";
 
   const goToNextTab = () => {
@@ -950,9 +839,6 @@ export default function ProductForm({
       } else if (errs.thumbnail) {
         handleTabChange("variant");
         toast.error(errs.thumbnail);
-      } else if (errs.metaTitle || errs.metaDescription || errs.metaSchema) {
-        handleTabChange("seo");
-        toast.error("Please fix the errors in SEO & Meta tab");
       }
       return;
     }
@@ -1220,10 +1106,6 @@ export default function ProductForm({
     }
   };
   
-  // SEO Preview
-  const previewTitle = (form.metaTitle || form.name || "").slice(0, META_TITLE_LIMIT);
-  const previewUrl = `/products/${slug || "your-slug"}`;
-  const previewDesc = (form.metaDescription || `${form.name} - ${form.category} - Starting from ${currency.symbol}${form.price}`).slice(0, META_DESC_LIMIT);
   
   return (
     <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200">
@@ -1243,16 +1125,6 @@ export default function ProductForm({
                 key: "variant",
                 label: "Product Variant",
                 icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z",
-              },
-              {
-                key: "description",
-                label: "Description",
-                icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
-              },
-              {
-                key: "seo",
-                label: "SEO & Meta",
-                icon: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9",
               },
               ...(mode === "edit" ? [{
                 key: "related",
@@ -1787,82 +1659,6 @@ export default function ProductForm({
                 </div>
               )}
 
-              {/* Pre-order Toggle */}
-              <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700">
-                      Enable Pre-Order
-                    </label>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Allow customers to reserve this product when out of stock
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={form.preorderEnabled}
-                    onClick={() => setField("preorderEnabled", !form.preorderEnabled)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 ${
-                      form.preorderEnabled ? 'bg-honey-500' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        form.preorderEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Pre-order message (shown when enabled) */}
-                {form.preorderEnabled && (
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Pre-Order Message <span className="text-xs text-gray-400">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Expected to ship in 2-3 weeks"
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-honey-500 focus:ring-1 focus:ring-honey-500 transition-colors"
-                      value={form.preorderMessage || ""}
-                      onChange={(e) => setField("preorderMessage", e.target.value)}
-                    />
-                    <p className="mt-1 text-xs text-gray-500">This message will be shown to customers on the product page</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Show Guidelines Toggle */}
-              <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700">
-                      Show Guidelines
-                    </label>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Display size charts and measuring tips on product page
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={guidelineEnabled}
-                    onClick={() => setGuidelineEnabled(!guidelineEnabled)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-honey-500 focus:ring-offset-2 ${
-                      guidelineEnabled ? 'bg-honey-500' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        guidelineEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -1870,221 +1666,6 @@ export default function ProductForm({
         {/* PRODUCT VARIANT TAB */}
         {activeTab === "variant" && (
           <div className="space-y-3 sm:space-y-4 md:space-y-6">
-
-            {/* Compatible Cars Section */}
-            <div>
-              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-1">Compatible Cars</h4>
-              <p className="text-[10px] sm:text-xs text-gray-500 mb-2 sm:mb-3">Select which vehicles this product is compatible with</p>
-
-              <div className="flex flex-col sm:flex-row gap-3 mb-3">
-                {/* Make */}
-                <div ref={makeDropdownRef} className="relative flex-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Make</label>
-                  <button
-                    type="button"
-                    onClick={() => { setMakeDropdownOpen(!makeDropdownOpen); setMakeSearch(''); }}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-honey-500 bg-white"
-                  >
-                    <span className={selectedMake ? 'text-gray-900' : 'text-gray-400'}>
-                      {carMakes.find(m => m.id === selectedMake)?.name || 'Select Make'}
-                    </span>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {makeDropdownOpen && (
-                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-hidden">
-                      <div className="p-2 border-b border-gray-100">
-                        <input type="text" value={makeSearch} onChange={e => setMakeSearch(e.target.value)} placeholder="Search makes..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-honey-500" autoFocus />
-                      </div>
-                      <div className="overflow-y-auto max-h-40">
-                        {carMakes.filter(m => m.name.toLowerCase().includes(makeSearch.toLowerCase())).map(make => (
-                          <button key={make.id} type="button" onClick={() => { setSelectedMake(make.id); setMakeDropdownOpen(false); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-honey-50 ${selectedMake === make.id ? 'bg-honey-50 font-medium' : ''}`}>{make.name}</button>
-                        ))}
-                        {carMakes.filter(m => m.name.toLowerCase().includes(makeSearch.toLowerCase())).length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No makes found</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Model - multi-select with checkboxes */}
-                <div ref={modelDropdownRef} className="relative flex-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Model</label>
-                  <button
-                    type="button"
-                    onClick={() => { if (selectedMake) { setModelDropdownOpen(!modelDropdownOpen); setModelSearch(''); } }}
-                    disabled={!selectedMake}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-honey-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    <span className={selectedModels.length > 0 ? 'text-gray-900 truncate' : 'text-gray-400'}>
-                      {selectedModels.length > 0
-                        ? `${selectedModels.length} model${selectedModels.length > 1 ? 's' : ''} selected`
-                        : 'Select Models'}
-                    </span>
-                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {modelDropdownOpen && (
-                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-hidden">
-                      <div className="p-2 border-b border-gray-100">
-                        <input type="text" value={modelSearch} onChange={e => setModelSearch(e.target.value)} placeholder="Search models..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-honey-500" autoFocus />
-                      </div>
-                      <div className="overflow-y-auto max-h-40">
-                        {carModels.filter(m => m.name.toLowerCase().includes(modelSearch.toLowerCase())).map(model => {
-                          const checked = selectedModels.includes(model.id);
-                          return (
-                            <button key={model.id} type="button" onClick={() => setSelectedModels(prev => checked ? prev.filter(id => id !== model.id) : [...prev, model.id])} className={`w-full text-left px-3 py-2 text-sm hover:bg-honey-50 flex items-center gap-2 ${checked ? 'bg-honey-50' : ''}`}>
-                              <div className={`w-4 h-4 border-2 rounded flex items-center justify-center flex-shrink-0 ${checked ? 'bg-honey-500 border-honey-500' : 'border-gray-300'}`}>
-                                {checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
-                              </div>
-                              {model.name}
-                            </button>
-                          );
-                        })}
-                        {carModels.filter(m => m.name.toLowerCase().includes(modelSearch.toLowerCase())).length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No models found</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Variant - multi-select with checkboxes */}
-                <div ref={variantDropdownRef} className="relative flex-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Variant</label>
-                  <button
-                    type="button"
-                    onClick={() => { if (selectedModels.length > 0 && carVariants.length > 0) { setVariantDropdownOpen(!variantDropdownOpen); setVariantSearch(''); } }}
-                    disabled={selectedModels.length === 0 || carVariants.length === 0}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-honey-500 bg-white disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    <span className={pendingVariants.length > 0 ? 'text-gray-900 truncate' : 'text-gray-400'}>
-                      {pendingVariants.length > 0
-                        ? `${pendingVariants.length} variant${pendingVariants.length > 1 ? 's' : ''} selected`
-                        : 'Select Variants'}
-                    </span>
-                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                  {variantDropdownOpen && (
-                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-hidden">
-                      <div className="p-2 border-b border-gray-100">
-                        <input type="text" value={variantSearch} onChange={e => setVariantSearch(e.target.value)} placeholder="Search variants..." className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-honey-500" autoFocus />
-                      </div>
-                      <div className="overflow-y-auto max-h-40">
-                        {carVariants
-                          .filter(v => !selectedCarVariants.includes(v.id))
-                          .filter(v => `${v.name} ${v.yearStart || ''}`.toLowerCase().includes(variantSearch.toLowerCase()))
-                          .map(v => {
-                            const checked = pendingVariants.includes(v.id);
-                            const year = v.yearStart ? ` (${v.yearStart}${v.yearEnd ? `-${v.yearEnd}` : '+'})` : '';
-                            const modelName = carModels.find(m => m.id === v.modelId)?.name || '';
-                            return (
-                              <button key={v.id} type="button" onClick={() => setPendingVariants(prev => checked ? prev.filter(id => id !== v.id) : [...prev, v.id])} className={`w-full text-left px-3 py-2 text-sm hover:bg-honey-50 flex items-center gap-2 ${checked ? 'bg-honey-50' : ''}`}>
-                                <div className={`w-4 h-4 border-2 rounded flex items-center justify-center flex-shrink-0 ${checked ? 'bg-honey-500 border-honey-500' : 'border-gray-300'}`}>
-                                  {checked && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
-                                </div>
-                                <span className="truncate">{modelName && <span className="text-gray-400 mr-1">{modelName} ›</span>}{v.name}{year}</span>
-                              </button>
-                            );
-                          })}
-                        {carVariants.filter(v => !selectedCarVariants.includes(v.id)).filter(v => `${v.name} ${v.yearStart || ''}`.toLowerCase().includes(variantSearch.toLowerCase())).length === 0 && <div className="px-3 py-2 text-xs text-gray-400">No variants found</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Add button */}
-                <div className="flex gap-2 items-end">
-                  <button
-                    type="button"
-                    disabled={pendingVariants.length === 0}
-                    onClick={() => {
-                      setSelectedCarVariants(prev => [...prev, ...pendingVariants.filter(id => !prev.includes(id))]);
-                      setPendingVariants([]);
-                      setVariantSearch('');
-                      setSelectedMake('');
-                      setSelectedModels([]);
-                      setCarModels([]);
-                      setCarVariants([]);
-                    }}
-                    className="px-4 py-2 text-sm font-medium bg-honey-500 hover:bg-honey-600 text-white rounded-lg transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    Add {pendingVariants.length > 0 ? `(${pendingVariants.length})` : ''}
-                  </button>
-                  {selectedModels.length > 0 && carVariants.filter(v => !selectedCarVariants.includes(v.id)).length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        addAllCarVariants();
-                        setPendingVariants([]);
-                        setVariantSearch('');
-                        setSelectedMake('');
-                        setSelectedModels([]);
-                        setCarModels([]);
-                        setCarVariants([]);
-                      }}
-                      className="px-3 py-2 text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors whitespace-nowrap"
-                    >
-                      Add All
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {carsLoading && (
-                <div className="text-xs text-gray-400 mb-2">Loading...</div>
-              )}
-
-              {/* Selected cars list */}
-              {selectedCarVariants.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-600">{selectedCarVariants.length} vehicle{selectedCarVariants.length > 1 ? 's' : ''} selected</span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCarVariants([])}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium"
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-100 max-h-60 overflow-y-auto">
-                    {selectedCarVariants.map(variantId => {
-                      const info = carLabelMap[variantId];
-                      return (
-                        <div
-                          key={variantId}
-                          className="flex items-center justify-between px-3 py-2 hover:bg-white transition-colors group"
-                        >
-                          {info ? (
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-200 text-[10px] font-semibold text-gray-700 uppercase tracking-wider flex-shrink-0">
-                                {info.make}
-                              </span>
-                              <span className="text-gray-400 text-xs flex-shrink-0">›</span>
-                              <span className="text-xs font-medium text-gray-700 flex-shrink-0">{info.model}</span>
-                              <span className="text-gray-400 text-xs flex-shrink-0">›</span>
-                              <span className="text-xs text-gray-900 font-semibold truncate">{info.variant}</span>
-                              {info.year && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-honey-100 text-[10px] font-medium text-honey-700 flex-shrink-0">
-                                  {info.year}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">ID: {variantId.slice(-8)}</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => toggleCarVariant(variantId)}
-                            className="text-gray-300 hover:text-red-500 transition-colors ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100"
-                          >
-                            <FiX className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-gray-200"></div>
 
             {/* Product Type Section */}
             <div>
@@ -2944,134 +2525,6 @@ export default function ProductForm({
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* DESCRIPTION TAB */}
-        {activeTab === "description" && (
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Short Description
-              </label>
-              <p className="text-xs text-gray-500 mb-2">Brief summary for product cards and search results</p>
-              <textarea
-                rows={3}
-                placeholder="Enter a brief, compelling summary (2-3 sentences)"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-none"
-                value={form.shortDescription || ""}
-                onChange={(e) => setField("shortDescription", e.target.value)}
-                maxLength={500}
-              />
-              <p className="mt-1 text-xs text-gray-500 text-right">{(form.shortDescription || "").length}/500</p>
-            </div>
-
-            <div className="border-t border-gray-200 pt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Key Features
-              </label>
-              <p className="text-xs text-gray-500 mb-2">Highlight what makes your product special (one per line)</p>
-              <textarea
-                value={form.features || ""}
-                onChange={(e) => setField("features", e.target.value)}
-                placeholder="• Moisture-wicking fabric&#10;• Four-way stretch&#10;• Reinforced seams&#10;• UPF 50+ protection"
-                rows={5}
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-y"
-              />
-            </div>
-
-            <div className="border-t border-gray-200 pt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Description
-              </label>
-              <p className="text-xs text-gray-500 mb-2">Comprehensive product details for the product page</p>
-              <RichTextEditor
-                value={form.description || ""}
-                onChange={(content) => setField("description", content)}
-                placeholder="Enter comprehensive product details: materials, fit, sizing, care instructions, key benefits..."
-              />
-            </div>
-          </div>
-        )}
-
-        {/* SEO & META TAB */}
-        {activeTab === "seo" && (
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-gray-700">Meta Title</label>
-                <span className="text-xs text-gray-500">{(form.metaTitle || "").length}/{META_TITLE_LIMIT}</span>
-              </div>
-              <input
-                type="text"
-                placeholder="Keep it under ~60 characters"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                value={form.metaTitle || ""}
-                onChange={(e) => setField("metaTitle", e.target.value)}
-                maxLength={120}
-              />
-              {errors.metaTitle && <p className="mt-1 text-sm text-red-600">{errors.metaTitle}</p>}
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-gray-700">Meta Description</label>
-                <span className="text-xs text-gray-500">{(form.metaDescription || "").length}/{META_DESC_LIMIT}</span>
-              </div>
-              <textarea
-                rows={3}
-                placeholder="Write a compelling summary (under 155 characters)"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 resize-none"
-                value={form.metaDescription || ""}
-                onChange={(e) => setField("metaDescription", e.target.value)}
-                maxLength={320}
-              />
-              {errors.metaDescription && <p className="mt-1 text-sm text-red-600">{errors.metaDescription}</p>}
-            </div>
-
-            <div className="border-t border-gray-200 pt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Meta Keywords</label>
-              <input
-                type="text"
-                placeholder="e.g., compression shirt, athletic wear, gym clothing"
-                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                value={form.metaKeywords || ""}
-                onChange={(e) => setField("metaKeywords", e.target.value)}
-              />
-              <p className="mt-1 text-xs text-gray-500">Separate keywords with commas</p>
-            </div>
-
-            <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Structured Data (JSON-LD) <span className="text-xs text-gray-400">Optional</span>
-              </label>
-              <textarea
-                rows={6}
-                placeholder='{"@context": "https://schema.org", "@type": "Product", ...}'
-                className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 font-mono resize-y ${
-                  errors.metaSchema
-                    ? "border-red-300 focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                    : "border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                }`}
-                value={form.metaSchema || ""}
-                onChange={(e) => setField("metaSchema", e.target.value)}
-              />
-              {errors.metaSchema && <p className="mt-1 text-sm text-red-600">{errors.metaSchema}</p>}
-            </div>
-
-            {/* Search Engine Preview */}
-            <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
-              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2 sm:mb-3">Search Engine Preview</h4>
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 sm:p-4">
-                <h3 className="text-sm sm:text-base text-blue-700 leading-snug font-medium truncate">
-                  {previewTitle || "Your Product Title"}
-                </h3>
-                <p className="text-xs text-green-700 mt-1">{previewUrl}</p>
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                  {previewDesc || "Your meta description will appear here..."}
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
