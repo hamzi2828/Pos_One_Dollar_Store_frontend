@@ -1,395 +1,425 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState, useRef } from "react";
+// The owner's dashboard: how the shop is doing now (sales, profit, bills vs the
+// previous period), what needs doing (attention), when it is busy, what sells,
+// what stock is worth and which tills are open. Shop time = Asia/Karachi.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Banknote, Loader2, Printer, ReceiptText, RefreshCw, Table2, BarChart3, TrendingUp } from 'lucide-react';
+import { useAccess } from '@/context/AccessContext';
+import { apiErrorMessage, formatRs } from '@/lib/storeApi';
+import { dashboardService, RANGE_OPTIONS, type DashboardData, type RangeKey } from './dashboardService';
+import { BarList, ColumnChart, Sparkline, compactRs } from './adminComponents/charts';
 import {
-  TrendingUp, Users, Package, Banknote,
-  AlertCircle, Clock,
-  ShoppingCart, Percent, RefreshCw,
-  Loader2, Download
-} from 'lucide-react';
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import { RecentOrdersTable } from './adminComponents/RecentOrdersTable';
-import { SalesTrendChart } from './adminComponents/SalesTrendChart';
-import { TopProducts } from './adminComponents/TopProducts';
-import { dashboardService, type DashboardData } from '@/app/(routes)/admin/dashboardService';
-import { useCurrency } from '@/context/CurrencyContext';
+  AttentionGrid,
+  Card,
+  CardLink,
+  Delta,
+  KpiTile,
+  QuickActions,
+  RecentBills,
+  StatStrip,
+  StockPanel,
+  TillsPanel,
+  TopProductsTable,
+} from './adminComponents/parts';
 
-const AdminDashboardClient = () => {
-  const { formatPrice } = useCurrency();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+const TZ = 'Asia/Karachi';
+const RANGE_STORAGE = 'dashboard_range';
+const REFRESH_MS = 60 * 1000;
+
+const shopHour = () => Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+const greeting = () => {
+  const h = shopHour();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
+const shopDate = () =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
+
+function useNowTick(ms = 30000) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick((x) => x + 1), ms);
+    return () => window.clearInterval(t);
+  }, [ms]);
+}
+
+const ago = (d: Date | null) => {
+  if (!d) return '';
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
+
+export default function AdminDashboardClient() {
+  const { access, can } = useAccess();
+  const [range, setRange] = useState<RangeKey>('today');
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState('week');
   const [refreshing, setRefreshing] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-  // Synchronous locks so a fast double click can't start two refreshes / PDFs.
-  const refreshLockRef = useRef(false);
-  const reportLockRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [tableView, setTableView] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+  useNowTick();
 
-  const fetchDashboardData = async () => {
-    refreshLockRef.current = true;
+  // Remember the period the owner looks at.
+  useEffect(() => {
     try {
-      setRefreshing(true);
-      const data = await dashboardService.getDashboardData(timeRange);
-      setDashboardData(data);
+      const saved = localStorage.getItem(RANGE_STORAGE) as RangeKey | null;
+      if (saved && RANGE_OPTIONS.some((o) => o.key === saved)) setRange(saved);
+    } catch {
+      /* storage blocked: keep "today" */
+    }
+  }, []);
+
+  const load = useCallback(async (r: RangeKey) => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setRefreshing(true);
+    try {
+      const d = await dashboardService.get(r, ctrl.signal);
+      setData(d);
       setError(null);
-    } catch (err) {
-      setError('Failed to load dashboard data');
-      console.error('Dashboard error:', err);
+      setUpdatedAt(new Date());
+    } catch (e) {
+      if ((e as { name?: string })?.name === 'CanceledError') return;
+      setError(apiErrorMessage(e, 'Could not load the dashboard.'));
     } finally {
-      refreshLockRef.current = false;
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [timeRange]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchDashboardData();
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, [timeRange]);
-
-  const handleRefresh = () => {
-    if (refreshLockRef.current) return;
-    fetchDashboardData();
-  };
-
-  const handleGenerateReport = async () => {
-    if (!contentRef.current || reportLockRef.current) return;
-    reportLockRef.current = true;
-
-    try {
-      setIsDownloading(true);
-
-      const canvas = await html2canvas(contentRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#f9fafb",
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      const pdf = new jsPDF("p", "mm", "a4");
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      // Add additional pages if needed
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      if (abortRef.current === ctrl) {
+        setRefreshing(false);
+        setLoading(false);
       }
+    }
+  }, []);
 
-      const timeRangeLabels: Record<string, string> = {
-        today: "Today",
-        week: "This Week",
-        month: "This Month",
-        year: "This Year",
-      };
-      const dateStr = new Date().toISOString().split("T")[0];
-      pdf.save(`dashboard-report-${timeRangeLabels[timeRange] || timeRange}-${dateStr}.pdf`);
-    } catch (err) {
-      console.error("Failed to generate report:", err);
-    } finally {
-      reportLockRef.current = false;
-      setIsDownloading(false);
+  useEffect(() => {
+    load(range);
+  }, [range, load]);
+
+  // Auto refresh every minute while the tab is visible.
+  useEffect(() => {
+    const t = window.setInterval(() => {
+      if (document.visibilityState === 'visible') load(range);
+    }, REFRESH_MS);
+    return () => window.clearInterval(t);
+  }, [range, load]);
+
+  const pickRange = (r: RangeKey) => {
+    setRange(r);
+    try {
+      localStorage.setItem(RANGE_STORAGE, r);
+    } catch {
+      /* ignore */
     }
   };
 
-  if (loading) {
+  const firstName = access?.user?.firstName || '';
+  const canBills = can(['pos_orders', 'pos'], 'view');
+
+  const k = data?.kpis;
+  const p = data?.kpis.previous;
+
+  // Sales columns: for "today" only up to the current hour (future hours are empty, not zero sales).
+  const trendCols = useMemo(() => {
+    if (!data) return [];
+    let rows = data.trend;
+    if (data.range.bucket === 'hour') {
+      // Trading hours only: from the first bill (or 9am) to the last bill (or 10pm); today stops at this hour.
+      const active = rows.filter((t) => t.bills > 0).map((t) => Number(t.key));
+      const first = Math.min(9, ...(active.length ? active : [9]));
+      let last = Math.max(22, ...(active.length ? active : [22]));
+      if (data.range.key === 'today') last = Math.min(last, shopHour());
+      rows = rows.filter((t) => Number(t.key) >= first && Number(t.key) <= Math.max(first, last));
+    }
+    return rows.map((t) => ({
+      key: t.key,
+      label: t.label,
+      value: t.sales,
+      extra: [
+        { label: 'profit', value: compactRs(t.profit) },
+        { label: t.bills === 1 ? 'bill' : 'bills', value: String(t.bills) },
+      ],
+    }));
+  }, [data]);
+
+  // Busy hours: trim to the hours the shop actually trades (first..last hour with bills), at least 9am–10pm.
+  const hourCols = useMemo(() => {
+    if (!data) return [];
+    const active = data.hours.filter((h) => h.bills > 0).map((h) => h.hour);
+    const first = Math.min(9, ...(active.length ? active : [9]));
+    const last = Math.max(22, ...(active.length ? active : [22]));
+    return data.hours
+      .filter((h) => h.hour >= first && h.hour <= last)
+      .map((h) => ({ key: String(h.hour), label: h.label, value: h.sales, extra: [{ label: h.bills === 1 ? 'bill' : 'bills', value: String(h.bills) }] }));
+  }, [data]);
+  const peakHour = useMemo(() => {
+    if (!data) return null;
+    const best = [...data.hours].sort((a, b) => b.sales - a.sales)[0];
+    return best && best.sales > 0 ? best : null;
+  }, [data]);
+
+  const payTotal = data ? data.payments.reduce((s, x) => s + x.amount, 0) : 0;
+  const catMax = data ? Math.max(0, ...data.topCategories.map((c) => c.revenue)) : 0;
+
+  /* ---------------- first load / error ---------------- */
+  if (loading && !data) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-2 sm:gap-3">
-              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-gray-400" />
-              <p className="text-xs sm:text-sm text-gray-500">Loading dashboard...</p>
-            </div>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-7 w-7 animate-spin text-honey-700" />
+          <p className="text-sm text-gray-500">Loading your dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+  if (error && !data) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-10">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-red-800">The dashboard could not load</p>
+            <p className="mt-0.5 text-sm text-red-700">{error}</p>
+            <button onClick={() => load(range)} className="mt-2 text-sm font-medium text-red-800 underline">
+              Try again
+            </button>
           </div>
         </div>
       </div>
     );
   }
+  if (!data || !k || !p) return null;
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="rounded-lg sm:rounded-xl bg-red-50 border border-red-200 p-3 sm:p-4 md:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
-              <div>
-                <h3 className="text-xs sm:text-sm font-medium text-red-800">Error loading dashboard</h3>
-                <p className="mt-1 text-xs sm:text-sm text-red-600">{error}</p>
-                <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  aria-busy={refreshing}
-                  className="mt-2 inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-red-700 hover:text-red-800 underline disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {refreshing ? 'Retrying…' : 'Try again'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!dashboardData || !dashboardData.stats || !dashboardData.quickStats) {
-    return null;
-  }
-
-  const statsConfig = [
-    {
-      name: 'Total Sales',
-      value: dashboardData.stats.totalSales.toLocaleString(),
-      icon: TrendingUp,
-      prefix: '',
-      bgColor: 'bg-blue-50',
-      iconColor: 'text-blue-600'
-    },
-    {
-      name: 'Customers',
-      value: dashboardData.stats.totalUsers.toLocaleString(),
-      icon: Users,
-      prefix: '',
-      bgColor: 'bg-green-50',
-      iconColor: 'text-green-600'
-    },
-    {
-      name: 'Products',
-      value: dashboardData.stats.totalProducts.toLocaleString(),
-      icon: Package,
-      prefix: '',
-      bgColor: 'bg-purple-50',
-      iconColor: 'text-purple-600'
-    },
-    {
-      name: 'Revenue',
-      value: formatPrice(dashboardData.stats.totalRevenue || 0),
-      icon: Banknote,
-      prefix: '',
-      bgColor: 'bg-yellow-50',
-      iconColor: 'text-yellow-600'
-    },
-  ];
-
-  const secondaryStats = [
-    {
-      name: 'Orders Today',
-      value: dashboardData.stats.ordersToday.toLocaleString(),
-      icon: ShoppingCart,
-    },
-    {
-      name: 'Avg Order Value',
-      value: formatPrice(dashboardData.stats.avgOrderValue || 0),
-      icon: Banknote,
-    },
-    {
-      name: 'Refund Rate',
-      value: `${(dashboardData.stats.refundRate || 0).toFixed(1)}%`,
-      icon: Percent,
-    },
-  ];
-
-  const quickStatsConfig = [
-    {
-      name: 'Pending Orders',
-      value: dashboardData.quickStats.pendingOrders.toString(),
-      icon: Clock,
-      color: 'text-yellow-600 bg-yellow-50'
-    },
-    {
-      name: 'Low Stock Items',
-      value: dashboardData.quickStats.lowStockItems.toString(),
-      icon: AlertCircle,
-      color: 'text-red-600 bg-red-50'
-    },
-    {
-      name: 'New Customers',
-      value: dashboardData.quickStats.newCustomers.toString(),
-      icon: Users,
-      color: 'text-blue-600 bg-blue-50'
-    },
-  ];
+  const isToday = data.range.key === 'today';
+  const sparkValues = trendCols.map((c) => c.value);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-        {/* Header - Outside PDF capture */}
-        <div className="mb-4 sm:mb-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
-            <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">Dashboard Overview</h1>
-              <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-                Sales, customers and stock for the shop at a glance.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                aria-busy={refreshing}
-                className="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
-                title="Refresh"
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
-              </button>
-              <select
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-honey-500 transition-all duration-200 min-w-0"
-              >
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-                <option value="year">This Year</option>
-              </select>
-              <button
-                onClick={handleGenerateReport}
-                disabled={isDownloading}
-                aria-busy={isDownloading}
-                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                {isDownloading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline">{isDownloading ? "Generating…" : "Generate Report"}</span>
-                <span className="sm:hidden">{isDownloading ? "Generating…" : "Report"}</span>
-              </button>
-            </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-gray-500">{shopDate()}</p>
+            <h1 className="mt-0.5 text-xl sm:text-2xl font-semibold text-gray-900">
+              {greeting()}
+              {firstName ? `, ${firstName}` : ''}
+            </h1>
           </div>
+          <div className="flex items-center gap-2 print:hidden">
+            <span className="text-xs text-gray-400" aria-live="polite">
+              {refreshing ? 'Updating…' : updatedAt ? `Updated ${ago(updatedAt)}` : ''}
+            </span>
+            <button
+              onClick={() => load(range)}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              title="Print or save as PDF"
+            >
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">Print</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Period filter: one row, scopes everything below */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <div role="tablist" aria-label="Period" className="flex gap-1 overflow-x-auto rounded-xl bg-white border border-gray-200 p-1 print:hidden">
+            {RANGE_OPTIONS.map((o) => (
+              <button
+                key={o.key}
+                role="tab"
+                aria-selected={range === o.key}
+                onClick={() => pickRange(o.key)}
+                className={`flex-shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  range === o.key ? 'bg-gray-950 text-honey-400' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">
+            <span className="hidden print:inline font-semibold text-gray-900">{data.range.label} · </span>
+            Compared with {data.range.compareLabel}
+          </p>
         </div>
 
-        {/* PDF Content Start */}
-        <div ref={contentRef} className="bg-gray-50">
-          {/* Report Header for PDF */}
-          <div className="mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200">
-            <h2 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900">Dashboard Report</h2>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">
-              Generated on {new Date().toLocaleDateString()} | Period: {timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'This Week' : timeRange === 'month' ? 'This Month' : 'This Year'}
+        <QuickActions />
+
+        {/* Everything below dims while refreshing (no layout jump) */}
+        <div className={`space-y-4 sm:space-y-5 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
+          {error && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Showing the last numbers — {error}
             </p>
-          </div>
+          )}
 
-          {/* Main Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
-          {statsConfig.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.name} className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 hover:shadow-md transition-all duration-200">
-                <div className={`inline-flex p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.iconColor}`} />
+          {/* KPIs: one hero figure + supporting tiles */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="sm:col-span-2 rounded-xl bg-gray-950 p-5 text-white flex flex-col justify-between gap-4 overflow-hidden">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-400">Sales · {data.range.label.toLowerCase()}</p>
+                  <p className="mt-1 text-5xl font-semibold tracking-tight text-honey-400">{formatRs(k.sales)}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                    <Delta now={k.sales} prev={p.sales} dark />
+                    <span>vs {formatRs(p.sales)}</span>
+                  </div>
                 </div>
-                <div className="mt-2 sm:mt-3">
-                  <p className="text-lg sm:text-2xl font-semibold text-gray-900">
-                    {stat.prefix}{stat.value}
-                  </p>
-                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">{stat.name}</p>
-                </div>
+                <span className="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-honey-400">
+                  <Banknote className="h-5 w-5" />
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <Sparkline values={sparkValues} ariaLabel={`Sales ${isToday ? 'by hour today' : 'over the period'}`} />
+            </div>
 
-        {/* Secondary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6">
-          {secondaryStats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.name} className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-2 sm:p-4">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="p-1.5 sm:p-2 bg-gray-100 rounded-lg">
-                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm sm:text-lg font-semibold text-gray-900">{stat.value}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">{stat.name}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Quick Stats */}
-        <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
-          <h3 className="text-xs sm:text-sm md:text-base font-semibold text-gray-900 mb-2 sm:mb-3 md:mb-4">Quick Stats</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
-            {quickStatsConfig.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.name} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-gray-50 rounded-lg">
-                  <div className={`p-1.5 sm:p-2 rounded-lg ${stat.color.split(' ')[1]}`}>
-                    <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color.split(' ')[0]}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm sm:text-lg font-semibold text-gray-900">{stat.value}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">{stat.name}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-6">
-          <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4">
-            <SalesTrendChart
-              data={dashboardData.salesTrend}
-              title="Sales Trend"
-              dataKey="sales"
-              color="#1f2937"
+            <KpiTile
+              label="Gross profit"
+              value={formatRs(k.profit)}
+              icon={<TrendingUp className="h-4 w-4" />}
+              delta={<Delta now={k.profit} prev={p.profit} />}
+              sub={<span>{k.marginPct === null ? 'No sales yet' : `${k.marginPct}% margin`}</span>}
+            />
+            <KpiTile
+              label="Bills"
+              value={k.bills.toLocaleString('en-PK')}
+              icon={<ReceiptText className="h-4 w-4" />}
+              delta={<Delta now={k.bills} prev={p.bills} />}
+              sub={<span>avg {formatRs(Math.round(k.avgBill))}</span>}
             />
           </div>
-          <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4">
-            <SalesTrendChart
-              data={dashboardData.salesTrend}
-              title="Orders Trend"
-              dataKey="orders"
-              color="#059669"
-            />
+
+          <StatStrip
+            items={[
+              { label: 'Items sold', value: k.items.toLocaleString('en-PK'), hint: `${k.itemsPerBill} items per bill` },
+              { label: 'Items per bill', value: String(k.itemsPerBill) },
+              { label: 'Discounts given', value: formatRs(k.discounts) },
+              { label: 'Gifts (cost)', value: formatRs(k.giftCost), hint: 'Free gifts, counted in cost of sales' },
+              { label: 'Refunds', value: k.refunds.count ? `${k.refunds.count} · ${formatRs(k.refunds.amount)}` : '0' },
+            ]}
+          />
+
+          <AttentionGrid items={data.attention} />
+
+          {/* Main grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-5">
+              <Card
+                title={isToday || data.range.key === 'yesterday' ? 'Sales by hour' : data.range.bucket === 'month' ? 'Sales by month' : 'Sales by day'}
+                subtitle={`${formatRs(k.sales)} from ${k.bills} bill${k.bills === 1 ? '' : 's'}`}
+                action={
+                  <button
+                    onClick={() => setTableView((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 print:hidden"
+                    aria-pressed={tableView}
+                  >
+                    {tableView ? <BarChart3 className="h-3.5 w-3.5" /> : <Table2 className="h-3.5 w-3.5" />}
+                    {tableView ? 'Chart' : 'Table'}
+                  </button>
+                }
+              >
+                {tableView ? (
+                  <div className="max-h-72 overflow-y-auto -mx-4 sm:-mx-5">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-white">
+                        <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400">
+                          <th className="px-4 sm:px-5 py-1.5 font-medium">When</th>
+                          <th className="px-2 py-1.5 font-medium text-right">Sales</th>
+                          <th className="px-2 py-1.5 font-medium text-right">Profit</th>
+                          <th className="px-4 sm:px-5 py-1.5 font-medium text-right">Bills</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 tabular-nums">
+                        {data.trend.filter((t) => t.bills > 0).map((t) => (
+                          <tr key={t.key}>
+                            <td className="px-4 sm:px-5 py-1.5 text-gray-700">{t.label}</td>
+                            <td className="px-2 py-1.5 text-right font-medium text-gray-900">{formatRs(t.sales)}</td>
+                            <td className="px-2 py-1.5 text-right text-gray-700">{formatRs(t.profit)}</td>
+                            <td className="px-4 sm:px-5 py-1.5 text-right text-gray-700">{t.bills}</td>
+                          </tr>
+                        ))}
+                        {data.trend.every((t) => t.bills === 0) && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-6 text-center text-xs text-gray-400">
+                              No sales in this period yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <ColumnChart data={trendCols} height={200} ariaLabel="Sales over the period" />
+                )}
+              </Card>
+
+              <Card title="Best sellers" subtitle="Ranked by sales in this period" action={can('products', 'view') ? <CardLink href="/admin/products">All products</CardLink> : undefined}>
+                <TopProductsTable products={data.topProducts} showProfit={can('dashboard', 'view')} />
+              </Card>
+
+              <Card title="Latest bills" action={can('pos_orders', 'view') ? <CardLink href="/admin/pos-orders">All bills</CardLink> : undefined}>
+                <RecentBills bills={data.recentBills} canOpen={canBills} />
+              </Card>
+            </div>
+
+            <div className="space-y-4 sm:space-y-5">
+              <Card
+                title="Busy hours"
+                subtitle={peakHour ? `Busiest at ${peakHour.label} — ${formatRs(peakHour.sales)}` : 'Shows when bills come in'}
+              >
+                <ColumnChart data={hourCols} height={120} emphasis="peak" maxLabels={5} ariaLabel="Sales by hour of day" emptyText="No bills yet" />
+              </Card>
+
+              <Card title="How customers paid">
+                <BarList
+                  emptyText="No payments in this period"
+                  rows={data.payments.map((x) => ({
+                    key: x.method,
+                    label: x.label,
+                    value: formatRs(x.amount),
+                    pct: payTotal ? (x.amount / payTotal) * 100 : 0,
+                    sub: `${x.bills} bill${x.bills === 1 ? '' : 's'}${x.unpaid > 0 ? ` · ${formatRs(x.unpaid)} still unpaid` : ''}`,
+                  }))}
+                />
+              </Card>
+
+              <Card title="Top categories" action={can('report_category_performance', 'view') ? <CardLink href="/admin/reports/category-performance">Details</CardLink> : undefined}>
+                <BarList
+                  emptyText="No category sales yet"
+                  rows={data.topCategories.map((c) => ({
+                    key: c.category,
+                    label: c.category,
+                    value: formatRs(c.revenue),
+                    pct: catMax ? (c.revenue / catMax) * 100 : 0,
+                    sub: `${c.sharePct ?? 0}% of sales · ${c.qty.toLocaleString('en-PK')} pcs`,
+                  }))}
+                />
+              </Card>
+
+              {data.stock && (
+                <Card title="Stock right now" action={can('racks', 'view') ? <CardLink href="/admin/inventory/racks">Racks</CardLink> : undefined}>
+                  <StockPanel stock={data.stock} />
+                </Card>
+              )}
+
+              {data.tills && (
+                <Card title="Tills right now" action={can(['till', 'till_verify'], 'view') ? <CardLink href="/admin/till">Tills</CardLink> : undefined}>
+                  <TillsPanel tills={data.tills} />
+                </Card>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Recent Orders */}
-        <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
-          <RecentOrdersTable orders={dashboardData.recentOrders} />
-        </div>
-
-        {/* Top Products */}
-        <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4">
-          <TopProducts products={dashboardData.topProducts} />
-        </div>
-        </div>
-        {/* PDF Content End */}
       </div>
     </div>
   );
-};
-
-export default AdminDashboardClient;
+}

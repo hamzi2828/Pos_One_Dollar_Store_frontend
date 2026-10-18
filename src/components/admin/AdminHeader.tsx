@@ -232,7 +232,7 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
   };
 
   return (
-    <header className="flex items-center justify-between h-12 sm:h-14 md:h-16 px-3 sm:px-4 bg-white border-b border-gray-200 lg:px-6">
+    <header className="print:hidden flex items-center justify-between h-12 sm:h-14 md:h-16 px-3 sm:px-4 bg-white border-b border-gray-200 lg:px-6">
       <button
         onClick={onToggleSidebar}
         className="p-1.5 sm:p-2 text-gray-500 rounded-md lg:hidden focus:outline-none focus:ring-2 focus:ring-inset focus:ring-honey-500"

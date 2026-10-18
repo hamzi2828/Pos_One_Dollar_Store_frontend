@@ -74,7 +74,7 @@ export default function AdminLayout({
   return (
     <AccessProvider>
     <CurrencyProvider>
-      <div className="admin-layout flex h-screen bg-gray-100 overflow-hidden">
+      <div className="admin-layout flex h-screen bg-gray-100 overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
         <AdminSidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
@@ -83,13 +83,13 @@ export default function AdminLayout({
         />
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden print:block print:overflow-visible">
           <AdminHeader
             isSidebarOpen={sidebarOpen}
             onToggleSidebar={toggleSidebar}
           />
 
-          <main className="flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 admin-page-scroll">
+          <main className="flex-1 overflow-y-auto p-2 sm:p-4 lg:p-6 admin-page-scroll print:overflow-visible print:p-0">
             {children}
           </main>
         </div>

@@ -317,7 +317,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 overflow-visible transition-all duration-300 ease-in-out ${
+        className={`print:hidden fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 overflow-visible transition-all duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:translate-x-0 lg:static lg:inset-0 ${isCollapsed ? 'lg:w-[68px]' : 'lg:w-64'}`}
       >
