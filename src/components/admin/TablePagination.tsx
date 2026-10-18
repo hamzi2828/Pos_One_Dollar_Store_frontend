@@ -1,6 +1,6 @@
 // Shared pagination bar — same visual language as the per-module paginators
-// (see admin/procurement/components/Pagination.tsx), reused across the
-// reports, POS Orders, and procurement Payments tables.
+// reused across the
+// reports and POS Orders tables.
 //
 // Dumb component: given the page / pages / limit numbers it renders the
 // windowed page buttons. Wire the state via `useClientPagination` or your

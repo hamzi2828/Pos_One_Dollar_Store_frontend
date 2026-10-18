@@ -48,12 +48,10 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     iconKey: 'reports',
     groups: [
       { key: 'report_sales', label: 'Sales Reports', actions: ['view', 'export'] },
-      { key: 'report_purchases', label: 'Purchase Reports', actions: ['view', 'export'] },
       { key: 'report_cost_analysis', label: 'Cost Analysis', actions: ['view', 'export'] },
       { key: 'report_labour_revenue', label: 'Labour Revenue', actions: ['view', 'export'] },
       { key: 'report_stock', label: 'Stock', actions: ['view', 'export'] },
       { key: 'report_expenses', label: 'Expenses', actions: ['view', 'export'] },
-      { key: 'report_vendor_payments', label: 'Vendor Payments', actions: ['view', 'export'] },
       { key: 'report_salary', label: 'Salary', actions: ['view', 'export'] },
       { key: 'report_receivables', label: 'Receivables', actions: ['view', 'export'] },
       { key: 'report_cash_in_hand', label: 'Cash in Hand', actions: ['view', 'export'] },
@@ -103,8 +101,6 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     groups: [
       { key: 'banks', label: 'Banks', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'expenses', label: 'Expenses', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'procurement', label: 'Procurement', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'assets', label: 'Assets', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'networks', label: 'Easyload Networks', actions: ['view', 'create', 'edit', 'delete'] },
     ],
   },

@@ -165,11 +165,9 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   // Reports Section — all business analytics reports in one place.
   const reportsMenuItems: MenuItem[] = [
     { name: 'Sales Reports', path: '/admin/reports/sales', icon: <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_sales' },
-    { name: 'Purchase Reports', path: '/admin/reports/purchases', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_purchases' },
     { name: 'Cost Analysis', path: '/admin/reports/cost-analysis', icon: <LineChart className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cost_analysis' },
     { name: 'Stock', path: '/admin/reports/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_stock' },
     { name: 'Expenses', path: '/admin/reports/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_expenses' },
-    { name: 'Vendor Payments', path: '/admin/reports/vendor-payments', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_vendor_payments' },
     { name: 'Receivables', path: '/admin/reports/receivables', icon: <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_receivables' },
     { name: 'Cash in Hand', path: '/admin/reports/cash-in-hand', icon: <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cash_in_hand' },
   ];
@@ -191,8 +189,6 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   const financeMenuItems: MenuItem[] = [
     { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'banks' },
     { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'expenses' },
-    { name: 'Procurement', path: '/admin/procurement', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'procurement' },
-    { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
   ];
 
   // Branches & Staff Section — shops, staff logins, what each role may do, moving stock.

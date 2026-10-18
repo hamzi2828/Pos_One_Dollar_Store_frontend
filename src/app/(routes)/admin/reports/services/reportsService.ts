@@ -84,26 +84,6 @@ export interface SalesSummaryReport {
   }>;
 }
 
-export interface PurchasesSummaryReport {
-  summary: {
-    totalPurchases: number;
-    totalAmount: number;
-    totalPaid: number;
-    totalPending: number;
-    cashPaid: number;
-    bankPaid: number;
-  };
-  purchases: Array<{
-    _id: string;
-    invoiceNumber: string;
-    vendorName: string;
-    purchaseDate: string;
-    total: number;
-    paidAmount: number;
-    pendingAmount: number;
-    paymentStatus: string;
-  }>;
-}
 
 export interface LabourRevenueReport {
   summary: {
@@ -185,58 +165,6 @@ export interface ExpenseReport {
   }>;
 }
 
-export interface VendorPaymentsReport {
-  summary: {
-    total: number;
-    count: number;
-    cashTotal: number;
-    bankTotal: number;
-    uniqueVendors: number;
-    outstanding: {
-      count: number;
-      totalPending: number;
-      totalInvoiced: number;
-      totalPaid: number;
-    };
-  };
-  byVendor: Array<{
-    vendor: string;
-    count: number;
-    amount: number;
-    invoiceCount: number;
-    invoiceTotal: number;
-    invoicePaid: number;
-    invoicePending: number;
-  }>;
-  byMethod: Array<{ method: string; amount: number }>;
-  payments: Array<{
-    _id: string;
-    date: string;
-    amount: number;
-    paymentMethod: string;
-    reference: string;
-    notes: string;
-    invoiceNumber: string;
-    purchaseId: string;
-    vendorName: string;
-    vendorId?: string;
-    invoiceTotal: number;
-    invoicePaid: number;
-    invoicePending: number;
-  }>;
-  outstandingInvoices: Array<{
-    _id: string;
-    invoiceNumber: string;
-    vendorName: string;
-    vendorId?: string;
-    purchaseDate: string;
-    dueDate: string | null;
-    total: number;
-    paidAmount: number;
-    pendingAmount: number;
-    paymentStatus: string;
-  }>;
-}
 
 export interface SalaryReport {
   summary: {
@@ -345,17 +273,6 @@ async function requestWithPagination<T>(
 export function fetchCashInHand(startDate: string, endDate: string, signal?: AbortSignal) {
   return request<CashInHandReport>('/api/reports/cash-in-hand', { startDate, endDate }, signal);
 }
-export function fetchPurchasesSummary(
-  startDate: string,
-  endDate: string,
-  opts: { page?: number; limit?: number } = {},
-  signal?: AbortSignal,
-) {
-  const p: Record<string, string> = { startDate, endDate };
-  if (opts.page) p.page = String(opts.page);
-  if (opts.limit) p.limit = String(opts.limit);
-  return requestWithPagination<PurchasesSummaryReport>('/api/reports/purchases-summary', p, signal);
-}
 export function fetchCostAnalysis(startDate: string, endDate: string, signal?: AbortSignal) {
   return request<CostAnalysisReport>('/api/reports/cost-analysis', { startDate, endDate }, signal);
 }
@@ -409,19 +326,6 @@ export function fetchExpenseReport(
   if (opts.limit) p.limit = String(opts.limit);
   if (opts.search) p.search = opts.search;
   return requestWithPagination<ExpenseReport>('/api/reports/expenses', p, signal);
-}
-export function fetchVendorPayments(
-  startDate: string,
-  endDate: string,
-  opts: { vendorId?: string; page?: number; limit?: number; search?: string } = {},
-  signal?: AbortSignal,
-) {
-  const p: Record<string, string> = { startDate, endDate };
-  if (opts.vendorId) p.vendorId = opts.vendorId;
-  if (opts.page) p.page = String(opts.page);
-  if (opts.limit) p.limit = String(opts.limit);
-  if (opts.search) p.search = opts.search;
-  return requestWithPagination<VendorPaymentsReport>('/api/reports/vendor-payments', p, signal);
 }
 export function fetchSalaryReport(
   params: {

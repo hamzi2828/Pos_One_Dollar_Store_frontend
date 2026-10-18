@@ -18,11 +18,9 @@ import {
 
 const TABS = [
   { href: '/admin/reports/sales', label: 'Sales Reports', icon: TrendingUp },
-  { href: '/admin/reports/purchases', label: 'Purchase Reports', icon: Package },
   { href: '/admin/reports/cost-analysis', label: 'Cost Analysis', icon: LineChart },
   { href: '/admin/reports/stock', label: 'Stock', icon: Boxes },
   { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt },
-  { href: '/admin/reports/vendor-payments', label: 'Vendor Payments', icon: Building2 },
   { href: '/admin/reports/receivables', label: 'Receivables', icon: AlertCircle },
   { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet },
 ];
