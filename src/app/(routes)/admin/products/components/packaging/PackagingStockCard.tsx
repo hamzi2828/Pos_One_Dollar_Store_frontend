@@ -1,15 +1,12 @@
 "use client";
-import React, { useState } from "react";
-import { CheckCircle2, Hash, Info, Layers, LayoutGrid, Loader2, Package, Plus, Trash2 } from "lucide-react";
-import BarcodeChipsInput from "./BarcodeChipsInput";
-import { productService } from "../../services/productService";
+import React from "react";
+import { Info, Layers, LayoutGrid, Package, Plus, Trash2 } from "lucide-react";
 import {
   type PackagingState,
   type SoldAs,
   batchStockOf,
   boxStockOf,
   emptyBatchRow,
-  normalizeCode,
   piecesPerBoxOf,
 } from "./packagingUtils";
 
@@ -44,7 +41,6 @@ export default function PackagingStockCard({
   defaultCostPrice,
   savedStock = 0,
 }: PackagingStockCardProps) {
-  const [shortCodeCheck, setShortCodeCheck] = useState<{ state: "idle" | "checking" | "ok" | "used"; text?: string }>({ state: "idle" });
 
   const set = (patch: Partial<PackagingState>) => onChange({ ...value, ...patch });
   const isBox = value.soldAs === "box";
@@ -76,28 +72,6 @@ export default function PackagingStockCard({
     }
     set({ batches: value.batches.filter((b) => b.key !== key) });
   };
-
-  const checkShortCode = async () => {
-    const code = value.shortCode.trim();
-    if (!code || !/^\d{3,8}$/.test(code)) {
-      setShortCodeCheck({ state: "idle" });
-      return;
-    }
-    setShortCodeCheck({ state: "checking" });
-    try {
-      const res = await productService.checkCode(code, productId);
-      setShortCodeCheck(
-        res.available
-          ? { state: "ok", text: "Available" }
-          : { state: "used", text: `Already used by ${res.usedBy?.name ? `"${res.usedBy.name}"` : "another product"}` }
-      );
-    } catch {
-      setShortCodeCheck({ state: "idle" });
-    }
-  };
-
-  const shortCodeError =
-    errors.shortCode || (value.shortCode.trim() && !/^\d{3,8}$/.test(value.shortCode.trim()) ? "Numbers only, 3 to 8 digits" : "");
 
   const batchTotal = batchStockOf(value);
   const boxTotal = boxStockOf(value);
@@ -355,67 +329,6 @@ export default function PackagingStockCard({
         )}
       </div>
 
-      {/* Codes */}
-      <div className="mt-3 sm:mt-4 md:mt-6 pt-3 sm:pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Short code <span className="text-xs text-gray-400">(Optional)</span>
-          </label>
-          {mode === "edit" && value.shortCode ? (
-            <div className="flex h-[38px] items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2.5 py-1 text-sm font-mono font-semibold text-honey-600">
-                <Hash className="h-3.5 w-3.5" />
-                {value.shortCode}
-              </span>
-              <span className="text-xs text-gray-500">Printed on stickers</span>
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={8}
-                placeholder="Auto (5 digits)"
-                className={inputClass(!!shortCodeError || shortCodeCheck.state === "used")}
-                value={value.shortCode}
-                onChange={(e) => {
-                  set({ shortCode: e.target.value.replace(/\D/g, "") });
-                  setShortCodeCheck({ state: "idle" });
-                }}
-                onBlur={() => void checkShortCode()}
-              />
-              {shortCodeCheck.state === "checking" && (
-                <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-400" />
-              )}
-              {shortCodeCheck.state === "ok" && (
-                <CheckCircle2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-green-600" />
-              )}
-            </div>
-          )}
-          {shortCodeError ? (
-            <p className="mt-1 text-xs text-red-600">{shortCodeError}</p>
-          ) : shortCodeCheck.state === "used" ? (
-            <p className="mt-1 text-xs text-red-600">{shortCodeCheck.text}</p>
-          ) : (
-            <p className="mt-1 text-xs text-gray-500">Small number the cashier can type if scanning fails</p>
-          )}
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Extra barcodes <span className="text-xs text-gray-400">(Optional)</span>
-          </label>
-          <BarcodeChipsInput
-            codes={value.barcodes.map((b) => b.code)}
-            excludeId={productId}
-            otherCodesInForm={[value.shortCode].filter(Boolean)}
-            error={errors.barcodes}
-            onAdd={(code) => set({ barcodes: [...value.barcodes, { code, qty: 1, label: "manufacturer" }] })}
-            onRemove={(code) => set({ barcodes: value.barcodes.filter((b) => normalizeCode(b.code) !== normalizeCode(code)) })}
-          />
-          <p className="mt-1 text-xs text-gray-500">The barcode printed on the item by the maker. Each scan sells 1 piece.</p>
-        </div>
-      </div>
     </div>
   );
 }

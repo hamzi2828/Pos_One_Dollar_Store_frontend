@@ -1,8 +1,7 @@
 "use client";
 import React from "react";
 import { Hash, Layers } from "lucide-react";
-import BarcodeChipsInput from "./BarcodeChipsInput";
-import { isFullBoxBarcode, normalizeCode, type VariantCodeFields } from "./packagingUtils";
+import { type VariantCodeFields } from "./packagingUtils";
 
 interface VariantCodesRowProps {
   variant: VariantCodeFields;
@@ -21,11 +20,8 @@ const optionInputClass =
  * Extra row under a variant in the "Variant Pricing & Stock" table:
  * free options (Storage / RAM / Other, sent as `attributes`), extra barcodes, short code.
  */
-export default function VariantCodesRow({ variant, onChange, colSpan, productId, otherCodesInForm = [], error }: VariantCodesRowProps) {
+export default function VariantCodesRow({ variant, onChange, colSpan, error }: VariantCodesRowProps) {
   const attrs = variant.attributes || {};
-  const allBarcodes = variant.barcodes || [];
-  const fullBox = allBarcodes.filter((b) => isFullBoxBarcode(b, variant.shortCode));
-  const extra = allBarcodes.filter((b) => !isFullBoxBarcode(b, variant.shortCode));
   const batchCount = (variant.batches || []).length;
 
   const setAttr = (key: string, val: string) => onChange({ attributes: { ...attrs, [key]: val } });
@@ -33,6 +29,7 @@ export default function VariantCodesRow({ variant, onChange, colSpan, productId,
   return (
     <tr className="bg-gray-50/60">
       <td colSpan={colSpan} className="px-3 pb-3 pt-1">
+        {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
         <div
           className="grid grid-cols-1 md:grid-cols-12 gap-3 rounded-lg border border-gray-200 bg-white p-3"
           // A barcode scanner presses Enter after the code: never submit the form from here.
@@ -68,21 +65,6 @@ export default function VariantCodesRow({ variant, onChange, colSpan, productId,
               className={optionInputClass}
               value={attrs.Option || ""}
               onChange={(e) => setAttr("Option", e.target.value)}
-            />
-          </div>
-          <div className="md:col-span-4">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Extra barcode (optional)</label>
-            <BarcodeChipsInput
-              compact
-              codes={extra.map((b) => b.code)}
-              excludeId={productId}
-              otherCodesInForm={otherCodesInForm}
-              error={error}
-              placeholder="Scan box / IMEI barcode"
-              onAdd={(code) => onChange({ barcodes: [...extra, { code, qty: 1, label: "manufacturer" }, ...fullBox] })}
-              onRemove={(code) =>
-                onChange({ barcodes: [...extra.filter((b) => normalizeCode(b.code) !== normalizeCode(code)), ...fullBox] })
-              }
             />
           </div>
           <div className="md:col-span-2">

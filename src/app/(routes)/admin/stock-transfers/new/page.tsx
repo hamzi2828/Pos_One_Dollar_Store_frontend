@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -17,11 +17,12 @@ import {
   XCircle,
   Plus,
   ScanLine,
+  RefreshCw,
 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage } from '@/helper/access';
 import { ErrorBox, HelpBox, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
-import { branchService, type Branch } from '../../branches/services/branchService';
+import { branchService, normalizeBranch, type Branch } from '../../branches/services/branchService';
 import {
   transferService,
   variantText,
@@ -60,11 +61,13 @@ const availableFor = (line: Line) => {
 let lineSeq = 0;
 
 export default function NewStockTransferPage() {
-  const { can, isSuperAdmin, branch: ownBranch, currentBranchId } = useAccess();
+  const { can, isSuperAdmin, branch: ownBranch, branches: accessBranches, currentBranchId } = useAccess();
   const canCreate = can('stock_transfers', 'create');
 
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [fetchedBranches, setFetchedBranches] = useState<Branch[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(true);
   const [branchesError, setBranchesError] = useState<string | null>(null);
+  const branchSeq = useRef(0);
   const [fromId, setFromId] = useState<string>('');
   const [toId, setToId] = useState<string>('');
   const [lines, setLines] = useState<Line[]>([]);
@@ -86,23 +89,54 @@ export default function NewStockTransferPage() {
   const [showDetail, setShowDetail] = useState(false);
 
   // Branches: from = own (staff) or picked; to = any other active branch.
-  useEffect(() => {
-    branchService
-      .list({ isActive: 'true' })
-      .then((list) => {
-        const active = list.filter((b) => b.isActive);
-        setBranches(active);
-        if (!isSuperAdmin) {
-          setFromId(ownBranch?.id || '');
-        } else {
-          const start = (currentBranchId && active.find((b) => b.id === currentBranchId)) || active.find((b) => b.isMain) || active[0];
-          setFromId(start?.id || '');
-        }
-      })
-      .catch((e) => setBranchesError(apiErrorMessage(e, 'Could not load branches.')));
-  }, [isSuperAdmin, ownBranch?.id, currentBranchId]);
+  // GET /admin/branches gives every active branch (super admin, and staff with a
+  // stock_transfers permission). The branches the header switcher shows (from
+  // /me/access) and the user's own branch are merged in, so the lists are never
+  // emptier than the header and fill instantly while the request is running.
+  const loadBranches = useCallback(async () => {
+    const seq = ++branchSeq.current;
+    setBranchesLoading(true);
+    setBranchesError(null);
+    try {
+      const list = await branchService.list({ isActive: 'true' });
+      if (seq === branchSeq.current) setFetchedBranches(list);
+    } catch (e) {
+      if (seq === branchSeq.current) setBranchesError(apiErrorMessage(e, 'Could not load branches.'));
+    } finally {
+      if (seq === branchSeq.current) setBranchesLoading(false);
+    }
+  }, []);
 
-  const fromBranch = branches.find((b) => b.id === fromId) || (ownBranch && ownBranch.id === fromId ? { ...ownBranch } : null);
+  useEffect(() => {
+    loadBranches();
+  }, [loadBranches]);
+
+  const branches = useMemo<Branch[]>(() => {
+    const byId = new Map<string, Branch>();
+    for (const b of fetchedBranches) if (b.id && b.isActive) byId.set(b.id, b);
+    const extra = [...(accessBranches || []), ...(ownBranch ? [ownBranch] : [])];
+    for (const b of extra) {
+      if (!b?.id || byId.has(b.id)) continue;
+      byId.set(b.id, normalizeBranch({ id: b.id, name: b.name || undefined, code: b.code || undefined, isMain: b.isMain }));
+    }
+    return [...byId.values()].sort((a, b) => Number(b.isMain) - Number(a.isMain) || a.name.localeCompare(b.name));
+  }, [fetchedBranches, accessBranches, ownBranch]);
+
+  // Default "From": staff -> own branch; super admin -> header branch, else main.
+  useEffect(() => {
+    if (!isSuperAdmin) {
+      setFromId(ownBranch?.id || '');
+      return;
+    }
+    setFromId((cur) => {
+      if (cur && branches.some((b) => b.id === cur)) return cur;
+      const start =
+        (currentBranchId && branches.find((b) => b.id === currentBranchId)) || branches.find((b) => b.isMain) || branches[0];
+      return start?.id || '';
+    });
+  }, [isSuperAdmin, ownBranch?.id, currentBranchId, branches]);
+
+  const fromBranch = branches.find((b) => b.id === fromId) || null;
   const fromName = fromBranch?.name || 'this branch';
   const toOptions = branches.filter((b) => b.id !== fromId);
 
@@ -364,7 +398,20 @@ export default function NewStockTransferPage() {
 
         {/* While saving, every control in the form is disabled. */}
         <fieldset disabled={submitting} className="min-w-0 space-y-4 sm:space-y-5">
-          <ErrorBox message={branchesError} />
+          {branchesError && (
+            <div className="space-y-1.5">
+              <ErrorBox message={branchesError} />
+              <button
+                type="button"
+                onClick={loadBranches}
+                disabled={branchesLoading}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-honey-600 hover:text-honey-700 disabled:opacity-60"
+              >
+                {branchesLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Load branches again
+              </button>
+            </div>
+          )}
 
           {/* Branches */}
           <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5">
@@ -373,7 +420,7 @@ export default function NewStockTransferPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">From branch (stock goes out)</label>
                 {isSuperAdmin ? (
                   <select value={fromId} onChange={(e) => changeFrom(e.target.value)} className={inputClass}>
-                    <option value="">Choose…</option>
+                    <option value="">{branchesLoading && !branches.length ? 'Loading branches…' : 'Choose…'}</option>
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
@@ -382,7 +429,7 @@ export default function NewStockTransferPage() {
                   </select>
                 ) : (
                   <div className={`${inputClass} flex items-center gap-2 bg-gray-50`}>
-                    <Building2 className="h-4 w-4 text-honey-500" /> {ownBranch?.name || 'My branch'}
+                    <Building2 className="h-4 w-4 text-honey-500" /> {ownBranch?.name || fromBranch?.name || 'My branch'}
                   </div>
                 )}
               </div>
@@ -392,14 +439,14 @@ export default function NewStockTransferPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">To branch (stock comes in)</label>
                 <select value={toId} onChange={(e) => setToId(e.target.value)} className={inputClass}>
-                  <option value="">Choose…</option>
+                  <option value="">{branchesLoading && !toOptions.length ? 'Loading branches…' : 'Choose…'}</option>
                   {toOptions.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
                     </option>
                   ))}
                 </select>
-                {branches.length > 0 && toOptions.length === 0 && (
+                {!branchesLoading && !branchesError && branches.length > 0 && toOptions.length === 0 && (
                   <p className="mt-1 text-[11px] text-amber-700">There is no other active branch to send to.</p>
                 )}
               </div>

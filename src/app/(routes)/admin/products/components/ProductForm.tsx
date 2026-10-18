@@ -9,6 +9,7 @@ import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useAccess } from "@/context/AccessContext";
 import { ChevronDown, Hash, Loader2 } from "lucide-react";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
@@ -423,6 +424,24 @@ export default function ProductForm({
   const colorVideoRefs = useRef<Record<string, HTMLInputElement | null>>({});
   
   const isVariant = form.productType === "variant";
+
+  // Branch that gets the stock typed in this form. Super admin picks it (create);
+  // branch staff always use their own branch (shown read-only).
+  const access = useAccess();
+  const branchOptions = access.branches || [];
+  const [stockBranchId, setStockBranchId] = useState<string>("");
+  useEffect(() => {
+    if (stockBranchId || !branchOptions.length) return;
+    const preferred =
+      access.currentBranchId ||
+      branchOptions.find((b) => b.isMain)?.id ||
+      branchOptions[0]?.id ||
+      "";
+    setStockBranchId(preferred);
+  }, [access.currentBranchId, branchOptions, stockBranchId]);
+  const lockedBranchName = !access.isSuperAdmin
+    ? access.branch?.name || access.currentBranch?.name || "Your branch"
+    : null;
   const slug = useMemo(() => slugify(form.name), [form.name]);
   
   
@@ -548,12 +567,11 @@ export default function ProductForm({
     if (!form.category) e.category = "Category is required";
 
     if (!isVariant) {
-      if (!form.price || form.price < 0) e.price = "Price must be a positive number";
       if (form.stock < 0) e.stock = "Stock cannot be negative";
       // Thumbnail is optional so simple items (pens, cables) can be added quickly.
       // Required fields for single products (SKU is optional: the short code is the main code)
       if (form.costPrice === undefined || form.costPrice === null) e.costPrice = "Cost Price is required";
-      if (form.discountedPrice === undefined || form.discountedPrice === null) e.discountedPrice = "Sale Price is required";
+      if (form.discountedPrice === undefined || form.discountedPrice === null || Number(form.discountedPrice) <= 0) e.discountedPrice = "Sale Price is required";
       // Boxes / batches / short code
       Object.assign(e, validatePackaging(packaging, mode));
     } else {
@@ -857,9 +875,14 @@ export default function ProductForm({
       if (form.subCategory) {
         formData.append("subCategory", form.subCategory);
       }
-      formData.append("price", String(form.price ?? 0));
+      // Only "Sale Price" is typed: it is both the price and the sale price.
+      formData.append("price", String(form.discountedPrice ?? form.price ?? 0));
       if (form.discountedPrice !== undefined && form.discountedPrice !== null) {
         formData.append("discountedPrice", String(form.discountedPrice));
+      }
+      // Super admin creating a product: stock goes to the branch picked in the form
+      if (mode === "create" && access.isSuperAdmin && stockBranchId) {
+        formData.append("stockBranchId", stockBranchId);
       }
       formData.append("stock", String(form.stock ?? 0));
       formData.append("status", form.status);
@@ -881,8 +904,8 @@ export default function ProductForm({
 
       formData.append("showGuidelines", String(guidelineEnabled));
 
-      // SKU for single products (optional)
-      if (!isVariant && form.sku?.trim()) {
+      // SKU is made automatically on create; on edit the saved one is sent back
+      if (!isVariant && mode === "edit" && form.sku?.trim()) {
         formData.append("sku", form.sku.trim());
       }
 
@@ -897,19 +920,6 @@ export default function ProductForm({
         formData.append("costPrice", String(form.costPrice));
       }
 
-      // Dimensions (L x W x H) and Weight
-      if (form.dimensionLength) {
-        formData.append("dimensionLength", form.dimensionLength);
-      }
-      if (form.dimensionWidth) {
-        formData.append("dimensionWidth", form.dimensionWidth);
-      }
-      if (form.dimensionHeight) {
-        formData.append("dimensionHeight", form.dimensionHeight);
-      }
-      if (form.weight) {
-        formData.append("weight", form.weight);
-      }
 
       // SEO fields
       formData.append("metaTitle", fallbackMetaTitle);
@@ -925,7 +935,7 @@ export default function ProductForm({
       if (isVariant && form.variants) {
         // Handle variant products
         const variantStock = form.variants.reduce((sum, v) => sum + (Number((v as ProductVariant).stock) || 0), 0);
-        const basePrice = (form.variants[0] as ProductVariant)?.price ?? 0;
+        const basePrice = (form.variants[0] as ProductVariant)?.discountedPrice ?? (form.variants[0] as ProductVariant)?.price ?? 0;
         formData.set("stock", String(variantStock));
         formData.set("price", String(basePrice));
         // Drop view-only fields (branchStock / totalStock) and clean options + barcodes
@@ -1405,32 +1415,6 @@ export default function ProductForm({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price ({currency.symbol}) {!isVariant && <span className="text-red-500">*</span>}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required={!isVariant}
-                      disabled={isVariant}
-                      placeholder="0.00"
-                      className={`block w-full rounded-lg border border-gray-300 pl-7 pr-3 py-2 text-sm ${
-                        isVariant
-                          ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                          : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
-                      }`}
-                      value={isVariant ? 0 : (form.price || "")}
-                      onChange={(e) => setField("price", Number(e.target.value))}
-                    />
-                  </div>
-                  {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price}</p>}
-                  {isVariant && <p className="mt-1 text-xs text-gray-500">Set prices per variant</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Sale Price ({currency.symbol}) {!isVariant && <span className="text-red-500">*</span>}
                   </label>
                   <div className="relative">
@@ -1449,12 +1433,38 @@ export default function ProductForm({
                       value={isVariant ? "" : (form.discountedPrice ?? "")}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setField("discountedPrice", val === "" ? undefined : Number(val));
+                        const n = val === "" ? undefined : Number(val);
+                        setForm((prev) => ({ ...prev, discountedPrice: n, price: n ?? 0 }));
                       }}
                     />
                   </div>
                   {errors.discountedPrice && <p className="mt-1 text-sm text-red-600">{errors.discountedPrice}</p>}
+                  {isVariant && <p className="mt-1 text-xs text-gray-500">Set prices per variant</p>}
                 </div>
+
+                {!isVariant && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Cost Price ({currency.symbol}) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'}`}
+                        value={form.costPrice ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setField("costPrice", val === "" ? undefined : Number(val));
+                        }}
+                      />
+                    </div>
+                    {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1510,51 +1520,66 @@ export default function ProductForm({
 
               </div>
 
-              {/* SKU and Cost Price Row */}
-              {!isVariant && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      SKU <span className="text-xs text-gray-400">(Optional)</span>
-                    </label>
+              {/* Branch / SKU / Short code (SKU + short code are made automatically) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                  {mode === "create" && access.isSuperAdmin ? (
+                    <select
+                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                      value={stockBranchId}
+                      onChange={(e) => setStockBranchId(e.target.value)}
+                    >
+                      {branchOptions.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name || b.code || "Branch"}{b.isMain ? " (main)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
                     <input
                       type="text"
-                      placeholder="e.g., PROD-001, SKU-12345"
-                      className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${(errors.sku || codeErrors.sku) ? 'border-red-300' : 'border-gray-300'}`}
-                      value={form.sku || ""}
-                      onChange={(e) => {
-                        setField("sku", e.target.value);
-                        if (codeErrors.sku) setCodeErrors((prev) => ({ ...prev, sku: "" }));
-                      }}
+                      readOnly
+                      className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
+                      value={
+                        lockedBranchName ||
+                        access.currentBranch?.name ||
+                        (mode === "edit" ? "All branches (pick one in the header to edit its stock)" : "")
+                      }
                     />
-                    {(errors.sku || codeErrors.sku)
-                      ? <p className="mt-1 text-sm text-red-600">{errors.sku || codeErrors.sku}</p>
-                      : <p className="mt-1 text-xs text-gray-500">Your own product code. Not needed if you use the short code.</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cost Price ({currency.symbol}) <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'}`}
-                        value={form.costPrice ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setField("costPrice", val === "" ? undefined : Number(val));
-                        }}
-                      />
-                    </div>
-                    {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
-                  </div>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">The stock you enter goes to this branch</p>
                 </div>
-              )}
+
+                {!isVariant && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                    <input
+                      type="text"
+                      readOnly
+                      className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-600 cursor-not-allowed"
+                      value={form.sku || "Created automatically"}
+                    />
+                  </div>
+                )}
+
+                {!isVariant && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Short code</label>
+                    <div className="flex h-[38px] items-center gap-2">
+                      {packaging.shortCode ? (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2.5 py-1 text-sm font-mono font-semibold text-honey-600">
+                          <Hash className="h-3.5 w-3.5" />
+                          {packaging.shortCode}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-sm text-gray-500">Created automatically</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">Printed under the barcode on the sticker</p>
+                  </div>
+                )}
+              </div>
 
               {/* Packaging & Stock: boxes, batches, barcodes, short code (single products) */}
               {!isVariant && (
@@ -1577,65 +1602,6 @@ export default function ProductForm({
                   />
                 </div>
               )}
-
-              {/* Dimensions and Weight Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                {/* Dimensions */}
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Dimensions <span className="text-xs text-gray-400">(Optional)</span>
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        placeholder="0"
-                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors text-center ${errors.dimensionLength ? 'border-red-300' : 'border-gray-300'}`}
-                        value={form.dimensionLength || ""}
-                        onChange={(e) => setField("dimensionLength", e.target.value)}
-                      />
-                      <p className="mt-0.5 text-xs text-gray-400 text-center">L</p>
-                    </div>
-                    <span className="text-gray-400">×</span>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        placeholder="0"
-                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors text-center ${errors.dimensionWidth ? 'border-red-300' : 'border-gray-300'}`}
-                        value={form.dimensionWidth || ""}
-                        onChange={(e) => setField("dimensionWidth", e.target.value)}
-                      />
-                      <p className="mt-0.5 text-xs text-gray-400 text-center">W</p>
-                    </div>
-                    <span className="text-gray-400">×</span>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        placeholder="0"
-                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors text-center ${errors.dimensionHeight ? 'border-red-300' : 'border-gray-300'}`}
-                        value={form.dimensionHeight || ""}
-                        onChange={(e) => setField("dimensionHeight", e.target.value)}
-                      />
-                      <p className="mt-0.5 text-xs text-gray-400 text-center">H</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Weight */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Weight <span className="text-xs text-gray-400">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., 0.5 kg"
-                    className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.weight ? 'border-red-300' : 'border-gray-300'}`}
-                    value={form.weight || ""}
-                    onChange={(e) => setField("weight", e.target.value)}
-                  />
-                  {errors.weight && <p className="mt-1 text-sm text-red-600">{errors.weight}</p>}
-                </div>
-              </div>
 
               {/* Date Added (shown only in edit mode) */}
               {mode === "edit" && (initialData as ExtendedProduct)?.createdAt && (
@@ -2023,8 +1989,6 @@ export default function ProductForm({
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost ({currency.symbol})</th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price ({currency.symbol})</th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount %</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Price ({currency.symbol})</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Options &amp; Codes</th>
@@ -2033,9 +1997,6 @@ export default function ProductForm({
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {(form.variants as ProductVariant[] || []).map((variant: ProductVariant, index: number) => {
-                            const discountPercent = variant.price && variant.discountedPrice
-                              ? Math.round((1 - variant.discountedPrice / variant.price) * 100)
-                              : 0;
                             const vc = variant as VariantWithCodes;
                             const rowKey = `${variant.color}|${variant.size}`;
                             const rowOpen = !!openVariantRows[rowKey] || !!codeErrors[`variant-${index}`];
@@ -2055,17 +2016,7 @@ export default function ProductForm({
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{variant.size || <span className="text-gray-400">—</span>}</td>
                               <td className="px-3 py-3 whitespace-nowrap">
-                                <input
-                                  type="text"
-                                  placeholder="SKU-001"
-                                  value={variant.sku || ""}
-                                  onChange={(e) => {
-                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
-                                    newVariants[index] = { ...variant, sku: e.target.value };
-                                    setField("variants", newVariants);
-                                  }}
-                                  className="w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                />
+                                <span className="text-xs font-mono text-gray-500">{variant.sku || "Auto"}</span>
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap">
                                 <input
@@ -2087,47 +2038,11 @@ export default function ProductForm({
                                   type="number"
                                   step="0.01"
                                   min="0"
-                                  value={variant.price || ""}
-                                  onChange={(e) => {
-                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
-                                    const newPrice = Number(e.target.value);
-                                    const newDiscountedPrice = discountPercent > 0
-                                      ? Number((newPrice * (1 - discountPercent / 100)).toFixed(2))
-                                      : undefined;
-                                    newVariants[index] = { ...variant, price: newPrice, discountedPrice: newDiscountedPrice };
-                                    setField("variants", newVariants);
-                                  }}
-                                  className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-3 whitespace-nowrap">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  value={discountPercent || ""}
-                                  onChange={(e) => {
-                                    const newVariants = [...(form.variants as ProductVariant[] || [])];
-                                    const percent = Number(e.target.value);
-                                    const discountedPrice = percent > 0 && variant.price
-                                      ? Number((variant.price * (1 - percent / 100)).toFixed(2))
-                                      : undefined;
-                                    newVariants[index] = { ...variant, discountedPrice };
-                                    setField("variants", newVariants);
-                                  }}
-                                  className="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                />
-                              </td>
-                              <td className="px-3 py-3 whitespace-nowrap">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
                                   value={variant.discountedPrice || ""}
                                   onChange={(e) => {
                                     const newVariants = [...(form.variants as ProductVariant[] || [])];
                                     const newDiscountedPrice = e.target.value ? Number(e.target.value) : undefined;
-                                    newVariants[index] = { ...variant, discountedPrice: newDiscountedPrice };
+                                    newVariants[index] = { ...variant, discountedPrice: newDiscountedPrice, price: newDiscountedPrice ?? 0 };
                                     setField("variants", newVariants);
                                   }}
                                   className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
@@ -2190,7 +2105,7 @@ export default function ProductForm({
                             </tr>
                             {rowOpen && (
                               <VariantCodesRow
-                                colSpan={10}
+                                colSpan={8}
                                 variant={vc}
                                 productId={productId}
                                 error={codeErrors[`variant-${index}`]}
@@ -2265,90 +2180,6 @@ export default function ProductForm({
                             <p className="mt-1 text-[11px] text-gray-400">380 × 480px</p>
                           </div>
 
-                          {/* Gallery */}
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="text-xs font-medium text-gray-600">Gallery</label>
-                              <span className="text-[11px] text-gray-400">{colorMedia[color]?.bannerUrls?.length || 0} / 5</span>
-                            </div>
-                            <input
-                              ref={(el) => { colorBannerRefs.current[color] = el; }}
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={(e) => { if (e.target.files) handleColorBannerFiles(color, e.target.files); }}
-                              className="hidden"
-                            />
-                            <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
-                              {colorMedia[color]?.bannerUrls?.filter(isValidUrl).map((url, index) => (
-                                <div key={index} className="relative group aspect-square rounded-md border border-gray-200 overflow-hidden bg-gray-50">
-                                  <Image src={url} alt={`${color} banner ${index + 1}`} fill className="object-cover" unoptimized />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeColorBanner(color, index)}
-                                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-white/90 hover:bg-red-500 text-gray-600 hover:text-white rounded-full flex items-center justify-center shadow-sm transition-colors opacity-0 group-hover:opacity-100"
-                                    aria-label={`Remove ${color} banner ${index + 1}`}
-                                  >
-                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              ))}
-                              {(colorMedia[color]?.bannerUrls?.length || 0) < 5 && (
-                                <button
-                                  type="button"
-                                  onClick={() => colorBannerRefs.current[color]?.click()}
-                                  className="aspect-square rounded-md border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                            <p className="mt-1 text-[11px] text-gray-400">380 × 480px · up to 5 images</p>
-
-                            {/* Video */}
-                            <div className="mt-3">
-                              <div className="flex items-center justify-between mb-1">
-                                <label className="text-xs font-medium text-gray-600">Video</label>
-                                <span className="text-[11px] text-gray-400">Optional</span>
-                              </div>
-                              <input
-                                ref={(el) => { colorVideoRefs.current[color] = el; }}
-                                type="file"
-                                accept="video/mp4,video/webm,video/quicktime,video/*"
-                                onChange={(e) => { if (e.target.files) handleColorVideoFile(color, e.target.files); }}
-                                className="hidden"
-                              />
-                              {colorMedia[color]?.videoUrl ? (
-                                <div className="relative bg-gray-100 rounded-lg overflow-hidden max-w-[200px]">
-                                  <video src={colorMedia[color].videoUrl} controls className="w-full h-28 object-contain bg-black" />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeColorVideo(color)}
-                                    className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow transition-colors"
-                                  >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => colorVideoRefs.current[color]?.click()}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white text-gray-400 hover:text-gray-900 transition-colors text-xs"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                  Upload video
-                                </button>
-                              )}
-                            </div>
-                          </div>
                         </div>
                       </div>
                     ))}
@@ -2412,117 +2243,8 @@ export default function ProductForm({
                     {errors.thumbnail && <p className="mt-1 text-xs text-red-600">{errors.thumbnail}</p>}
                   </div>
 
-                  {/* Gallery */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-sm font-medium text-gray-700">Gallery</label>
-                      <span className="text-[11px] text-gray-400">{form.bannerUrls?.length || 0} / 10</span>
-                    </div>
-                    <input
-                      ref={bannerInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => {
-                        if (e.target.files) {
-                          handleMultipleBannerFiles(e.target.files);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                    <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1.5">
-                      {form.bannerUrls?.filter(url => isValidUrl(url?.toString())).map((url, index) => (
-                        <div key={index} className="relative group aspect-square rounded-md border border-gray-200 overflow-hidden bg-gray-50">
-                          <Image
-                            src={url.toString()}
-                            alt={`Gallery ${index + 1}`}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeBanner(index)}
-                            className="absolute top-0.5 right-0.5 w-4 h-4 bg-white/90 hover:bg-red-500 text-gray-600 hover:text-white rounded-full flex items-center justify-center shadow-sm transition-colors opacity-0 group-hover:opacity-100"
-                            aria-label={`Remove image ${index + 1}`}
-                          >
-                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                      {(form.bannerUrls?.length || 0) < 10 && (
-                        <button
-                          type="button"
-                          onClick={() => bannerInputRef.current?.click()}
-                          className="aspect-square rounded-md border border-dashed border-gray-300 hover:border-gray-900 bg-gray-50 hover:bg-white flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
-                          aria-label="Add gallery images"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                    <p className="mt-1 text-[11px] text-gray-400">380 × 480px · up to 10 images</p>
-                  </div>
                 </div>
 
-                {/* Product Video Upload */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Product Video</label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Optional: Upload a video to showcase your product. <span className="font-semibold">MP4, WebM, MOV</span> formats supported.
-                  </p>
-
-                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-purple-400 transition-colors duration-200">
-                    <input
-                      ref={videoInputRef}
-                      type="file"
-                      accept="video/mp4,video/webm,video/quicktime,video/*"
-                      onChange={handleVideoChange}
-                      className="hidden"
-                    />
-                    <svg className="w-8 h-8 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-gray-500 mb-3">Add a product video</p>
-                    <button
-                      type="button"
-                      onClick={() => videoInputRef.current?.click()}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors duration-200 font-medium"
-                    >
-                      Upload Video
-                    </button>
-                    <p className="text-xs text-gray-400 mt-2">Max file size: 100MB</p>
-                  </div>
-
-                  {form.videoUrl && (
-                    <div className="mt-4">
-                      <h5 className="text-sm font-semibold text-gray-700 mb-3">Uploaded Video</h5>
-                      <div className="relative bg-gray-100 rounded-lg overflow-hidden max-w-md">
-                        <video
-                          src={form.videoUrl}
-                          controls
-                          className="w-full h-48 object-contain bg-black"
-                        >
-                          Your browser does not support the video tag.
-                        </video>
-                        <button
-                          type="button"
-                          onClick={removeVideo}
-                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-colors duration-200"
-                          aria-label="Remove video"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             )}
           </div>

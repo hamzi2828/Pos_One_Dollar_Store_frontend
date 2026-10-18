@@ -30,11 +30,38 @@ export interface BranchPayload {
 
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeader() });
 
+type RawBranch = Partial<Branch> & { _id?: string; id?: string };
+
+/** Same shape whatever the backend sends (`id` or `_id`, missing `isActive` = active). */
+export const normalizeBranch = (b: RawBranch): Branch => ({
+  ...b,
+  id: String(b.id ?? b._id ?? ''),
+  name: b.name || b.code || 'Branch',
+  code: b.code || '',
+  address: b.address || '',
+  phone: b.phone || '',
+  isActive: b.isActive !== false,
+  isMain: !!b.isMain,
+});
+
+/** `data: [...]`, `data: { branches: [...] }` or `branches: [...]` -> Branch[]. */
+const branchesFrom = (body: unknown): Branch[] => {
+  const b = body as { data?: unknown; branches?: unknown } | null | undefined;
+  const raw = Array.isArray(b?.data)
+    ? b?.data
+    : Array.isArray((b?.data as { branches?: unknown } | undefined)?.branches)
+    ? (b?.data as { branches: unknown[] }).branches
+    : Array.isArray(b?.branches)
+    ? b?.branches
+    : [];
+  return (raw as RawBranch[]).filter((x) => x && (x.id || x._id)).map(normalizeBranch);
+};
+
 export const branchService = {
   /** Super admin: all branches (also inactive). Staff: what they may see. */
   async list(params: { search?: string; isActive?: 'true' | 'false' } = {}): Promise<Branch[]> {
     const response = await axios.get(BRANCHES_URL, { headers: headers(), params });
-    return response.data?.data ?? [];
+    return branchesFrom(response.data);
   },
 
   async create(payload: BranchPayload): Promise<Branch> {
