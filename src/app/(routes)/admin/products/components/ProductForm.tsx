@@ -439,6 +439,41 @@ export default function ProductForm({
       "";
     setStockBranchId(preferred);
   }, [access.currentBranchId, branchOptions, stockBranchId]);
+  // New single product: pick a free 5-digit short code now, so the form can show
+  // the real short code + SKU before saving (backend re-checks on save).
+  const pickingCodeRef = useRef(false);
+  const [pickingCode, setPickingCode] = useState(false);
+  useEffect(() => {
+    if (mode !== "create" || isVariant || packaging.shortCode || pickingCodeRef.current) return;
+    pickingCodeRef.current = true;
+    setPickingCode(true);
+    (async () => {
+      let picked = "";
+      for (let i = 0; i < 8 && !picked; i++) {
+        const code = String(10000 + Math.floor(Math.random() * 90000));
+        try {
+          const res = await productService.checkCode(code);
+          if (res.available) picked = code;
+        } catch {
+          break; // offline / no permission: the backend makes one on save
+        }
+      }
+      if (picked) setPackaging((prev) => (prev.shortCode ? prev : { ...prev, shortCode: picked }));
+      pickingCodeRef.current = false;
+      setPickingCode(false);
+    })();
+  }, [mode, isVariant, packaging.shortCode]);
+  const nameInitials = (form.name || "")
+    .split(" ")
+    .map((w) => w.charAt(0))
+    .join("")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  const autoSku =
+    mode === "create" && !isVariant && packaging.shortCode
+      ? `${nameInitials || "P"}-${packaging.shortCode}`
+      : form.sku || "";
+
   const lockedBranchName = !access.isSuperAdmin
     ? access.branch?.name || access.currentBranch?.name || "Your branch"
     : null;
@@ -904,8 +939,11 @@ export default function ProductForm({
 
       formData.append("showGuidelines", String(guidelineEnabled));
 
-      // SKU is made automatically on create; on edit the saved one is sent back
-      if (!isVariant && mode === "edit" && form.sku?.trim()) {
+      // SKU: on create the one shown in the form (name initials + short code);
+      // on edit the saved one is sent back unchanged.
+      if (!isVariant && mode === "create" && autoSku) {
+        formData.append("sku", autoSku);
+      } else if (!isVariant && mode === "edit" && form.sku?.trim()) {
         formData.append("sku", form.sku.trim());
       }
 
@@ -1075,7 +1113,14 @@ export default function ProductForm({
     } catch (error) {
       console.error(`Error ${mode === "create" ? "creating" : "updating"} product:`, error);
       const be = readBackendError(error);
-      if (be && (be.status === 409 || be.code === "INVALID_SHORT_CODE") && (be.duplicateCode || be.code === "INVALID_SHORT_CODE")) {
+      const dupCode = normalizeCode(be?.duplicateCode);
+      if (
+        be && be.status === 409 && mode === "create" && !isVariant && dupCode &&
+        (dupCode === normalizeCode(packaging.shortCode) || dupCode === normalizeCode(autoSku))
+      ) {
+        setPackaging((prev) => ({ ...prev, shortCode: "" })); // effect above picks a new one
+        toast.error("That code was just used by another product. A new code was picked - please click Create Product again.");
+      } else if (be && (be.status === 409 || be.code === "INVALID_SHORT_CODE") && (be.duplicateCode || be.code === "INVALID_SHORT_CODE")) {
         // Show the message next to the field that holds the code
         const dup = normalizeCode(be.duplicateCode);
         const next: Record<string, string> = {};
@@ -1492,7 +1537,7 @@ export default function ProductForm({
                         {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
                         {!isVariant && stockLocked && (
                           <p className="mt-1 text-xs text-gray-500">
-                            {packaging.trackBatches ? "Total of the batches below" : "Calculated from boxes below"}
+                            {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes below"}
                           </p>
                         )}
                         {!isVariant && !stockLocked && mode === "edit" && (
@@ -1558,7 +1603,7 @@ export default function ProductForm({
                       type="text"
                       readOnly
                       className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-600 cursor-not-allowed"
-                      value={form.sku || "Created automatically"}
+                      value={autoSku || (pickingCode ? "Creating…" : "Created when saved")}
                     />
                   </div>
                 )}
@@ -1573,7 +1618,10 @@ export default function ProductForm({
                           {packaging.shortCode}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-sm text-gray-500">Created automatically</span>
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-sm text-gray-500">
+                          {pickingCode && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          {pickingCode ? "Creating…" : "Created when saved"}
+                        </span>
                       )}
                     </div>
                     <p className="mt-1 text-xs text-gray-500">Printed under the barcode on the sticker</p>

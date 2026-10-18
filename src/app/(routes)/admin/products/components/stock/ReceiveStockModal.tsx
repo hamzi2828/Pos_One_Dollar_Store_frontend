@@ -342,7 +342,8 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
               </div>
             )}
 
-            {/* Batch */}
+            {/* Batch: only for old items that already use batches */}
+            {mustBatch && (
             <div className="rounded-lg border border-gray-200 p-3 space-y-3">
               <label className={`flex items-start gap-2 ${mustBatch ? 'cursor-default' : 'cursor-pointer'}`}>
                 <input
@@ -399,6 +400,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                 </div>
               )}
             </div>
+            )}
 
             {error && (
               <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

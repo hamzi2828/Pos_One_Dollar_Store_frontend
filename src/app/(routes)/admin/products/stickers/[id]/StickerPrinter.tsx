@@ -115,13 +115,15 @@ function typeInfos(data: LabelData): TypeInfo[] {
             ? null
             : 'Turn on "full-box code" in Edit product first.',
     },
-    {
-      type: 'batch',
-      title: 'Batch sticker',
-      help: 'Shows the batch number and expiry date.',
-      icon: Layers,
-      disabledReason: hasBatches ? null : 'This item has no batches yet.',
-    },
+    ...(hasBatches
+      ? [{
+          type: 'batch' as const,
+          title: 'Batch sticker',
+          help: 'Shows the batch number and expiry date.',
+          icon: Layers,
+          disabledReason: null,
+        }]
+      : []),
   ];
 }
 
