@@ -1,10 +1,14 @@
 // POS Page - Point of Sale System
+// Scanner first: scan (or type a short code) + Enter adds the item. Every
+// amount comes from the server (POST /api/pos/quote) — rule discounts, manual
+// discount, tax and total are exactly what the sale will charge.
+// Keyboard: F2 = search box, F9 = take payment.
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { POSProduct, POSCart, CartItem, POSCustomer, POSVariant, PaymentMethodType, POSOrderData, POSOrder, POSTax, AppliedTax, CustomerInfo } from './types';
+import { POSProduct, POSCart, CartItem, POSCustomer, POSVariant, PaymentMethodType, POSOrderData, POSOrder, POSTax, CustomerInfo, CartQuote, ManualDiscount } from './types';
 import ProductSearch from './components/ProductSearch';
 import ProductGrid from './components/ProductGrid';
 import CartPanel from './components/CartPanel';
@@ -14,24 +18,52 @@ import PaymentModal from './components/PaymentModal';
 import HeldOrders from './components/HeldOrders';
 import SalesHistory from './components/SalesHistory';
 import PendingPaymentsTab from './components/PendingPaymentsTab';
-import { getPOSProducts } from './services/posProductService';
-import { createPOSOrder, getPOSOrders } from './services/posOrderService';
+import LastSaleBar from './components/LastSaleBar';
+import { getPOSProducts, getProductByBarcode } from './services/posProductService';
+import { createPOSOrder, getPOSOrders, POSApiError } from './services/posOrderService';
 import { createOrFindCustomer } from './services/posCustomerService';
 import { holdCart, getHeldCarts, retrieveHeldCart, clearHeldCart } from './services/posCartService';
+import { useCartQuote } from './hooks/useCartQuote';
+import { cartToOrderItems, giftLineId, paidLineId } from './utils/cartPayload';
+import { getCurrencySymbol } from './utils/currency';
 import { HeldCart } from './types';
-import { Archive, Receipt, Filter, AlertCircle } from 'lucide-react';
+import { Archive, Receipt, Filter, AlertCircle, ShoppingCart, LayoutGrid } from 'lucide-react';
 import { getAuthHeader } from '@/helper/helper';
+import { useAccess } from '@/context/AccessContext';
+import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
+import ProductInsightPanel from '@/components/store/ProductInsightPanel';
 
-const DEFAULT_TAX_RATE = 0.08; // 8% fallback tax rate
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 type POSTab = 'products' | 'held' | 'history' | 'pending';
 
+const emptyCart = (): POSCart => ({
+  items: [],
+  subtotal: 0,
+  tax: 0,
+  taxRate: 0,
+  appliedTaxes: [],
+  discount: 0,
+  total: 0,
+  manualDiscount: null,
+});
+
+// Same rule as the server: the sale price when set and lower, else the price.
+const salePrice = (u: { price: number; discountedPrice?: number }) =>
+  u.discountedPrice && u.discountedPrice > 0 && u.discountedPrice < u.price ? u.discountedPrice : u.price;
+
 export default function POSPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { can } = useAccess();
+  const symbol = getCurrencySymbol('PKR');
 
-  // Get initial tab from URL or default to 'products'
+  // Sales figures are hidden from the plain cashier (cash closing is blind).
+  const canSeeSales = can(['dashboard', 'pos_orders', 'till_verify'], 'view');
+  const canEditPrice = can('pos', 'edit');
+  const canGoBelowList = can('discounts', 'edit');
+  const canGift = can('pos_gifts', 'create');
+
   const urlTab = searchParams.get('tab') as POSTab | null;
   const initialTab: POSTab = urlTab && ['products', 'held', 'history', 'pending'].includes(urlTab) ? urlTab : 'products';
 
@@ -39,15 +71,9 @@ export default function POSPage() {
   const [products, setProducts] = useState<POSProduct[]>([]);
   const [availableTaxes, setAvailableTaxes] = useState<POSTax[]>([]);
   const [selectedTaxIds, setSelectedTaxIds] = useState<string[]>([]);
-  const [cart, setCart] = useState<POSCart>({
-    items: [],
-    subtotal: 0,
-    tax: 0,
-    taxRate: DEFAULT_TAX_RATE,
-    appliedTaxes: [],
-    discount: 0,
-    total: 0,
-  });
+  const [cart, setCart] = useState<POSCart>(emptyCart);
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
   const [customer, setCustomer] = useState<POSCustomer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<POSProduct | null>(null);
@@ -57,49 +83,93 @@ export default function POSPage() {
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
   const [recentOrders, setRecentOrders] = useState<POSOrder[]>([]);
   const [activeTab, setActiveTab] = useState<POSTab>(initialTab);
-  const [storeName, setStoreName] = useState<string>('MIRPUR MOBILE & STATIONERY');
+  const tab: POSTab = activeTab === 'history' && !canSeeSales ? 'products' : activeTab;
+  const [storeName, setStoreName] = useState<string>('DOLLAR & Co');
   // Button busy states: show a spinner and block a second click while saving.
   const [holding, setHolding] = useState(false);
   const [paying, setPaying] = useState(false);
   const payLock = useRef(false);
   const [heldBusy, setHeldBusy] = useState<{ id: string; action: 'retrieve' | 'delete' } | null>(null);
   const actionLock = useRef(false);
-
-  // Handle tab change with URL update (activity logging is handled by HK server-side audit middleware)
-  const handleTabChange = useCallback((tab: POSTab) => {
-    setActiveTab(tab);
-
-    // Update URL
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', tab);
-    router.push(`/admin/pos?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+  const [scanning, setScanning] = useState(false);
+  const scanLock = useRef(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [till, setTill] = useState<TillStatus | null>(null);
+  const [tillMessage, setTillMessage] = useState<string | null>(null);
+  const [insight, setInsight] = useState<{ productId: string; variantId: string | null } | null>(null);
+  const [lastOrder, setLastOrder] = useState<POSOrder | null>(null);
+  // Phones / small tablets: show either the products or the cart.
+  const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
 
   // Modals
   const [showCustomerSelector, setShowCustomerSelector] = useState(false);
   const [showVariantSelector, setShowVariantSelector] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  // Load settings
+  // ---------- server-priced cart
+  const { quote, error: quoteError, loading: quoteLoading, ready: quoteReady, acceptQuote } = useCartQuote(
+    cart.items,
+    cart.manualDiscount,
+    selectedTaxIds
+  );
+  const pricedCart = useMemo<POSCart>(() => {
+    if (!quote || !quoteReady) return cart;
+    return {
+      ...cart,
+      subtotal: quote.subtotal,
+      tax: quote.tax,
+      taxRate: quote.appliedTaxes.reduce((s, t) => s + t.rate, 0),
+      appliedTaxes: quote.appliedTaxes,
+      discount: quote.discount,
+      total: quote.total,
+    };
+  }, [cart, quote, quoteReady]);
+
+  // Keep the cart lines' prices in step with the server (held orders, line totals).
+  useEffect(() => {
+    if (!quote || !quoteReady) return;
+    setCart((prev) => {
+      if (prev.items.length !== quote.lines.length) return prev;
+      let changed = false;
+      const items = prev.items.map((it, i) => {
+        const line = quote.lines[i];
+        if (!line) return it;
+        if (it.unitPrice === line.price && it.subtotal === line.lineTotal) return it;
+        changed = true;
+        return { ...it, unitPrice: line.price, subtotal: line.lineTotal, originalPrice: line.listPrice };
+      });
+      return changed ? { ...prev, items } : prev;
+    });
+  }, [quote, quoteReady]);
+
+  const tillBlocked = till && till.required && !till.open ? 'Open your till (cash drawer) before selling' : null;
+  useEffect(() => {
+    if (till?.open) setTillMessage(null);
+  }, [till]);
+
+  // ---------- tabs
+  const handleTabChange = useCallback(
+    (next: POSTab) => {
+      setActiveTab(next);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', next);
+      router.push(`/admin/pos?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  // ---------- loaders
   const loadSettings = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/settings`, {
-        headers: getAuthHeader(),
-      });
+      const response = await fetch(`${API_BASE_URL}/settings`, { headers: getAuthHeader() });
       if (response.ok) {
         const data = await response.json();
-        if (data.data?.storeName) {
-          setStoreName(data.data.storeName);
-        }
-        // Load taxes
+        if (data.data?.storeName) setStoreName(data.data.storeName);
         if (data.data?.taxes && Array.isArray(data.data.taxes)) {
           const activeTaxes = data.data.taxes.filter((t: POSTax) => t.isActive);
           setAvailableTaxes(activeTaxes);
-          // Auto-select default tax
           const defaultTax = activeTaxes.find((t: POSTax) => t.isDefault);
-          if (defaultTax) {
-            setSelectedTaxIds([defaultTax.taxId]);
-          }
+          if (defaultTax) setSelectedTaxIds([defaultTax.taxId]);
         }
       }
     } catch (error) {
@@ -107,8 +177,7 @@ export default function POSPage() {
     }
   }, []);
 
-  // Load products. Only the newest request may update the list: older ones
-  // are cancelled so a slow reply can't overwrite newer results.
+  // Only the newest product request may update the list.
   const productsRequest = useRef<AbortController | null>(null);
   const loadProducts = useCallback(async (query: string) => {
     productsRequest.current?.abort();
@@ -130,225 +199,197 @@ export default function POSPage() {
     }
   }, []);
 
-  // Load recent orders
+  // Today's sales: only for users who may see sales figures.
   const loadRecentOrders = useCallback(async () => {
+    if (!canSeeSales) return;
     try {
       const { orders } = await getPOSOrders(new Date().toISOString().split('T')[0], 20);
       setRecentOrders(orders);
     } catch (error) {
       console.error('Failed to load recent orders:', error);
     }
-  }, []);
+  }, [canSeeSales]);
 
-  // Load held carts from database
   const loadHeldCarts = useCallback(async () => {
     try {
-      const carts = await getHeldCarts();
-      setHeldCarts(carts);
+      setHeldCarts(await getHeldCarts());
     } catch (error) {
       console.error('Failed to load held carts:', error);
     }
   }, []);
 
-  // Initial load (products load through the search effect below)
   useEffect(() => {
     loadRecentOrders();
     loadSettings();
     loadHeldCarts();
   }, [loadRecentOrders, loadSettings, loadHeldCarts]);
 
-  // Memoized cart signature for detecting changes
-  const cartSignature = useMemo(() => {
-    return cart.items.map(i => `${i.id}:${i.quantity}:${i.subtotal}`).join('|');
-  }, [cart.items]);
-
-  // Update cart totals whenever items or taxes change
-  useEffect(() => {
-    setCart(prev => {
-      const subtotal = prev.items.reduce((sum, item) => sum + item.subtotal, 0);
-
-      // Calculate taxes from selected taxes (rate is stored as percentage e.g. 10 for 10%)
-      const appliedTaxes: AppliedTax[] = selectedTaxIds
-        .map(taxId => {
-          const tax = availableTaxes.find(t => t.taxId === taxId);
-          if (!tax) return null;
-          return {
-            taxId: tax.taxId,
-            name: tax.name,
-            rate: tax.rate,
-            amount: subtotal * (tax.rate / 100),
-          };
-        })
-        .filter((t): t is AppliedTax => t !== null);
-
-      const totalTax = appliedTaxes.reduce((sum, t) => sum + t.amount, 0);
-      const combinedTaxRate = appliedTaxes.reduce((sum, t) => sum + t.rate, 0);
-      const total = subtotal + totalTax - prev.discount;
-
-      return {
-        ...prev,
-        subtotal,
-        tax: totalTax,
-        taxRate: combinedTaxRate,
-        appliedTaxes,
-        total: Math.max(0, total),
-      };
-    });
-  }, [cartSignature, cart.discount, selectedTaxIds, availableTaxes]);
-
-  // Search products (debounced; first load runs straight away)
+  // Search products (debounced; first load runs straight away; same text = no reload)
   const trimmedQuery = searchQuery.trim();
   useEffect(() => {
+    if (loadedQuery !== null && trimmedQuery === loadedQuery) return undefined;
     const delay = loadedQuery === null ? 0 : 300;
-    const debounce = setTimeout(() => {
-      loadProducts(trimmedQuery);
-    }, delay);
+    const debounce = setTimeout(() => loadProducts(trimmedQuery), delay);
     return () => clearTimeout(debounce);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trimmedQuery, loadProducts]);
 
   useEffect(() => () => productsRequest.current?.abort(), []);
 
-  // "Searching" from the first key press until results for that text arrive,
-  // so the cashier sees something is happening during the debounce wait too.
   const isSearching = loading || trimmedQuery !== (loadedQuery ?? '');
 
-  const handleProductSelect = (product: POSProduct) => {
-    if (product.productType === 'variant') {
-      setSelectedProduct(product);
-      setShowVariantSelector(true);
-    } else {
-      addToCart(product);
-    }
-  };
+  // ---------- cart actions
+  /** Add pieces of a unit. Returns false when nothing could be added (no stock). */
+  const addToCart = useCallback(
+    (product: POSProduct, variant?: POSVariant, opts: { qty?: number; scannedCode?: string; batchNo?: string } = {}) => {
+      const qty = Math.max(1, Math.floor(opts.qty || 1));
+      const baseId = variant ? `${product._id}-${variant.variantId}` : product._id;
+      const itemId = opts.batchNo ? `${baseId}@${opts.batchNo}` : baseId;
+      const max = Number(variant ? variant.stock : product.stock) || 0;
+      const inCart = cartRef.current.items.find((i) => i.id === itemId)?.quantity || 0;
+      if (max > 0 && inCart + qty > max) {
+        toast.error(inCart >= max ? `No more ${product.name} in stock` : `Only ${max} of ${product.name} in stock`);
+        if (inCart >= max) return false;
+      }
+      const price = salePrice(variant || product);
+      setCart((prev) => {
+        const existing = prev.items.find((i) => i.id === itemId);
+        if (existing) {
+          const quantity = max > 0 ? Math.min(max, existing.quantity + qty) : existing.quantity + qty;
+          return { ...prev, items: prev.items.map((i) => (i.id === itemId ? { ...i, quantity, subtotal: i.unitPrice * quantity } : i)) };
+        }
+        const quantity = max > 0 ? Math.min(max, qty) : qty;
+        const newItem: CartItem = {
+          id: itemId,
+          product,
+          variantId: variant?.variantId,
+          variant,
+          quantity,
+          unitPrice: price,
+          originalPrice: price,
+          discount: 0,
+          subtotal: price * quantity,
+          color: variant?.color,
+          size: variant?.size,
+          scannedCode: opts.scannedCode,
+          batchNo: opts.batchNo,
+        };
+        return { ...prev, items: [...prev.items, newItem] };
+      });
+      return true;
+    },
+    []
+  );
+
+  const handleProductSelect = useCallback(
+    (product: POSProduct) => {
+      if (product.productType === 'variant') {
+        setSelectedProduct(product);
+        setShowVariantSelector(true);
+      } else {
+        addToCart(product);
+      }
+    },
+    [addToCart]
+  );
 
   const handleVariantSelect = (variant: POSVariant) => {
-    if (selectedProduct) {
-      addToCart(selectedProduct, variant);
-    }
+    if (selectedProduct) addToCart(selectedProduct, variant);
   };
 
-  const addToCart = (product: POSProduct, variant?: POSVariant) => {
-    const itemId = variant ? `${product._id}-${variant.variantId}` : product._id;
-    const existingItem = cart.items.find(item => item.id === itemId);
-
-    if (existingItem) {
-      // Update quantity
-      updateQuantity(itemId, existingItem.quantity + 1);
-    } else {
-      // Add new item
-      const unitPrice = variant
-        ? (variant.discountedPrice || variant.price)
-        : (product.discountedPrice || product.price);
-
-      const newItem: CartItem = {
-        id: itemId,
-        product,
-        variantId: variant?.variantId,
-        variant,
-        quantity: 1,
-        unitPrice,
-        originalPrice: unitPrice, // Store original price as minimum
-        discount: 0,
-        subtotal: unitPrice,
-        color: variant?.color,
-        size: variant?.size,
-      };
-
-      setCart(prev => ({
-        ...prev,
-        items: [...prev.items, newItem],
-      }));
+  /** Enter in the search box: barcode / short code / box code / batch code. */
+  const handleScan = async (code: string): Promise<boolean> => {
+    if (scanLock.current) return false;
+    scanLock.current = true;
+    setScanning(true);
+    try {
+      const r = await getProductByBarcode(code);
+      if (r.ok) {
+        const { product, match } = r;
+        if (product.productType === 'variant' && !match.variantId) {
+          setSelectedProduct(product);
+          setShowVariantSelector(true);
+          return true;
+        }
+        const variant = match.variantId ? product.variants?.find((v) => v.variantId === match.variantId) : undefined;
+        const added = addToCart(product, variant, { qty: match.qty || 1, scannedCode: match.code, batchNo: match.batchNo || undefined });
+        if (added) {
+          const shelf = match.shelfCodes?.[0] ? ` · ${match.shelfCodes[0]}` : '';
+          toast.success(`${product.name}${match.qty > 1 ? ` × ${match.qty}` : ''}${shelf}`, { duration: 1200, id: 'pos-scan' });
+        }
+        return true;
+      }
+      if (r.status === 404) {
+        // Not a code: a typed name with exactly one result adds that product.
+        if (!isSearching && loadedQuery === code && products.length === 1) {
+          handleProductSelect(products[0]);
+          return true;
+        }
+        if (!isSearching && loadedQuery === code && products.length > 1) return false; // pick from the list
+        toast.error(`No product with code "${code}"`, { id: 'pos-scan' });
+        return false;
+      }
+      toast.error(r.message, { id: 'pos-scan' }); // e.g. out of stock
+      return true;
+    } catch {
+      toast.error('Could not look up the code. Check the connection.', { id: 'pos-scan' });
+      return false;
+    } finally {
+      scanLock.current = false;
+      setScanning(false);
     }
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
-    setCart(prev => ({
+    setCart((prev) => ({
       ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId
-          ? { ...item, quantity, subtotal: item.unitPrice * quantity - item.discount }
-          : item
+      items: prev.items.map((item) => (item.id === itemId ? { ...item, quantity, subtotal: item.unitPrice * quantity } : item)),
+    }));
+  };
+
+  // Typed price (the server checks pos edit / discounts edit).
+  const updateUnitPrice = (itemId: string, newPrice: number, minPrice: number) => {
+    if (newPrice < minPrice) {
+      toast.error('Price cannot be less than the original price');
+      return;
+    }
+    setCart((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === itemId ? { ...item, unitPrice: newPrice, priceOverride: true, subtotal: newPrice * item.quantity } : item
       ),
     }));
   };
 
-  const updateUnitPrice = (itemId: string, newPrice: number, minPrice: number) => {
-    // Only allow price increase (not below original/minimum price)
-    if (newPrice < minPrice) {
-      toast.error(`Price cannot be less than the original price`);
-      return;
-    }
-    setCart(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId
-          ? { ...item, unitPrice: newPrice, subtotal: newPrice * item.quantity - item.discount }
-          : item
-      ),
-    }));
+  // Gift on/off. Gift lines get their own id so the next scan adds a paid piece.
+  const toggleGift = (itemId: string, isGift: boolean, reason?: string) => {
+    setCart((prev) => {
+      const item = prev.items.find((i) => i.id === itemId);
+      if (!item) return prev;
+      const targetId = isGift ? giftLineId(itemId) : paidLineId(itemId);
+      const other = prev.items.find((i) => i.id === targetId);
+      const items = other
+        ? prev.items.filter((i) => i.id !== itemId).map((i) => (i.id === targetId ? { ...i, quantity: i.quantity + item.quantity } : i))
+        : prev.items.map((i) =>
+            i.id === itemId
+              ? { ...i, id: targetId, isGift, giftReason: isGift ? reason : undefined, priceOverride: isGift ? false : i.priceOverride }
+              : i
+          );
+      return { ...prev, items };
+    });
   };
 
   const removeItem = (itemId: string) => {
-    setCart(prev => ({
-      ...prev,
-      items: prev.items.filter(item => item.id !== itemId),
-    }));
+    setCart((prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }));
   };
 
-  const addCustomItemToCart = (
-    description: string,
-    salePrice: number,
-    costPrice?: number,
-    performedBy?: { id: string; name: string },
-  ) => {
-    const customId = `custom-${Date.now()}`;
-    const isOutsource = costPrice !== undefined && costPrice > 0;
-
-    const customProduct: POSProduct = {
-      _id: customId,
-      name: description,
-      slug: isOutsource ? 'outsource' : 'custom',
-      price: salePrice,
-      stock: 999,
-      category: isOutsource ? 'Outsource' : 'Custom',
-      productType: 'single',
-    };
-
-    const newItem: CartItem = {
-      id: customId,
-      product: customProduct,
-      quantity: 1,
-      unitPrice: salePrice,
-      originalPrice: salePrice, // Store original price as minimum
-      discount: 0,
-      subtotal: salePrice,
-      performedBy: performedBy?.id,
-      performedByName: performedBy?.name,
-      ...(isOutsource
-        ? { isOutsource: true, outsourceDescription: description, costPrice }
-        : { isLabour: true, labourDescription: description }),
-    };
-
-    setCart(prev => ({
-      ...prev,
-      items: [...prev.items, newItem],
-    }));
+  const resetSale = () => {
+    setCart(emptyCart());
+    setCustomer(null);
   };
 
   const clearCart = () => {
-    if (confirm('Are you sure you want to clear the cart?')) {
-      setCart({
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        taxRate: 0,
-        appliedTaxes: [],
-        discount: 0,
-        total: 0,
-      });
-      setCustomer(null);
-    }
+    if (confirm('Are you sure you want to clear the cart?')) resetSale();
   };
 
   const handleHoldCart = async () => {
@@ -357,29 +398,24 @@ export default function POSPage() {
       toast.error('Cart is empty');
       return;
     }
-
     actionLock.current = true;
     setHolding(true);
     try {
-      const customerName = customer
-        ? `${customer.firstName} ${customer.lastName}`
-        : undefined;
-
-      await holdCart({ ...cart, customer: customer ?? undefined }, customerName);
+      const customerName = customer ? `${customer.firstName} ${customer.lastName}` : undefined;
+      // Only the manual discount is saved (rules are applied again on retrieve).
+      const manualAmount = quote?.manualDiscount || 0;
+      await holdCart(
+        {
+          ...pricedCart,
+          discount: manualAmount,
+          discountType: manualAmount > 0 ? 'fixed' : null,
+          discountReason: cart.manualDiscount?.reason || '',
+          customer: customer ?? undefined,
+        },
+        customerName
+      );
       await loadHeldCarts();
-
-      // Clear current cart
-      setCart({
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        taxRate: 0,
-        appliedTaxes: [],
-        discount: 0,
-        total: 0,
-      });
-      setCustomer(null);
-
+      resetSale();
       toast.success('Order held successfully');
       handleTabChange('held');
     } catch (error) {
@@ -398,7 +434,9 @@ export default function POSPage() {
     try {
       const held = await retrieveHeldCart(cartId);
       if (held) {
-        setCart(held.cart);
+        const manual: ManualDiscount | null =
+          held.cart.discount > 0 ? { type: 'fixed', value: held.cart.discount, reason: held.cart.discountReason || '' } : null;
+        setCart({ ...held.cart, manualDiscount: manual });
         setCustomer(held.cart.customer || null);
         await loadHeldCarts();
         handleTabChange('products');
@@ -431,13 +469,43 @@ export default function POSPage() {
   };
 
   const handleCheckout = () => {
-    if (holding) return;
+    if (holding || paying) return;
     if (cart.items.length === 0) {
       toast.error('Cart is empty');
       return;
     }
+    if (tillBlocked) {
+      toast.error(tillBlocked);
+      return;
+    }
+    if (quoteError) {
+      toast.error(quoteError.message);
+      return;
+    }
+    if (!quoteReady) {
+      toast('Prices are updating — try again in a second', { icon: '⏳', id: 'pos-wait' });
+      return;
+    }
     setShowPaymentModal(true);
   };
+  const checkoutRef = useRef(handleCheckout);
+  checkoutRef.current = handleCheckout;
+
+  // F2 = search, F9 = payment
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        checkoutRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handlePaymentConfirm = async (
     paymentMethod: PaymentMethodType,
@@ -448,22 +516,17 @@ export default function POSPage() {
     customerInfo?: CustomerInfo
   ) => {
     // One payment at a time: a double click must never create two orders.
-    if (payLock.current) return;
+    if (payLock.current || !quote) return;
     payLock.current = true;
     setPaying(true);
     try {
-      // Create or find customer based on customerInfo
       let customerId = customer?._id;
       if (customerInfo && !customerId) {
         try {
-          // Parse name into firstName and lastName
           const nameParts = customerInfo.name.trim().split(' ');
-          const firstName = nameParts[0] || customerInfo.name;
-          const lastName = nameParts.slice(1).join(' ') || '';
-
           const customerResult = await createOrFindCustomer({
-            firstName,
-            lastName,
+            firstName: nameParts[0] || customerInfo.name,
+            lastName: nameParts.slice(1).join(' ') || '',
             phone: customerInfo.phone,
           });
           customerId = customerResult.data._id;
@@ -474,71 +537,62 @@ export default function POSPage() {
         }
       }
 
+      const total = quote.total;
       const orderData: POSOrderData = {
-        items: cart.items.map(item => ({
-          ...(item.isLabour
-            ? { isLabour: true, labourDescription: item.labourDescription }
-            : item.isOutsource
-            ? { isOutsource: true, outsourceDescription: item.outsourceDescription, costPrice: item.costPrice }
-            : { product: item.product._id, variantId: item.variantId }),
-          sku: item.variant?.sku || item.product.sku || '',
-          quantity: item.quantity,
-          price: item.unitPrice,
-          size: item.size,
-          color: item.color,
-          discount: item.discount,
-          ...((item.isLabour || item.isOutsource) && item.performedBy
-            ? { performedBy: item.performedBy, performedByName: item.performedByName }
-            : {}),
-        })),
+        items: cartToOrderItems(cart.items),
         customer: customerId,
-        customerInfo: customerInfo, // Store customer info for invoice display
-        subtotal: cart.subtotal,
-        tax: cart.tax,
-        appliedTaxes: cart.appliedTaxes, // Include tax breakdown
-        discount: cart.discount,
-        discountType: cart.discountType || null,
-        discountReason: cart.discountReason || '',
-        total: cart.total,
+        customerInfo,
+        // Informational only — the server prices the bill itself.
+        subtotal: quote.subtotal,
+        tax: quote.tax,
+        appliedTaxes: quote.appliedTaxes,
+        discount: quote.discount,
+        total,
+        manualDiscount: cart.manualDiscount || null,
+        taxIds: selectedTaxIds,
+        expectedTotal: total,
         paymentMethod,
-        cashAmount: (paymentMethod === 'cash' || paymentMethod === 'bank_transfer') ? cashAmount : undefined,
-        cardAmount: paymentMethod === 'card' ? cart.total : undefined,
-        change: cashAmount && (paymentMethod === 'cash' || paymentMethod === 'bank_transfer') ? cashAmount - cart.total : undefined,
+        cashAmount: paymentMethod === 'cash' || paymentMethod === 'bank_transfer' ? cashAmount : undefined,
+        cardAmount: paymentMethod === 'card' ? total : undefined,
+        change: cashAmount && (paymentMethod === 'cash' || paymentMethod === 'bank_transfer') ? cashAmount - total : undefined,
         bankTransferScreenshot: paymentMethod === 'bank_transfer' ? bankTransferScreenshot : undefined,
         isPOS: true,
-        // Partial Payment Fields
-        isPartialPayment: isPartialPayment,
+        isPartialPayment,
         paidAmount: isPartialPayment ? paidAmount : undefined,
       };
 
       const order = await createPOSOrder(orderData);
 
-      // Success!
-      const pendingAmount = isPartialPayment && paidAmount ? cart.total - paidAmount : 0;
+      const pendingAmount = order.pendingAmount || 0;
       if (pendingAmount > 0) {
-        toast.success(`Order #${order.orderNumber} created. Paid: ${paidAmount?.toFixed(2)} / Pending: ${pendingAmount.toFixed(2)}`);
+        toast.success(`Order #${order.orderNumber} saved. Paid: ${(order.paidAmount || 0).toFixed(2)} / Pending: ${pendingAmount.toFixed(2)}`);
       } else {
-        toast.success(`Order #${order.orderNumber} completed successfully!`);
+        toast.success(`Order #${order.orderNumber} completed`);
       }
-
-      // Clear cart and reset
-      setCart({
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        taxRate: 0,
-        appliedTaxes: [],
-        discount: 0,
-        total: 0,
-      });
-      setCustomer(null);
+      setLastOrder(order);
+      resetSale();
       setShowPaymentModal(false);
-
-      // Reload recent orders
+      setMobileView('products');
       loadRecentOrders();
-      handleTabChange('history');
+      setTimeout(() => searchRef.current?.focus(), 50);
     } catch (error) {
       console.error('Order creation failed:', error);
+      if (error instanceof POSApiError) {
+        if (error.code === 'TILL_NOT_OPEN') {
+          setTillMessage(error.message || 'Your till is not open. Open it in the bar above, then take the payment.');
+          setShowPaymentModal(false);
+          toast.error(error.message || 'Open your till first', { duration: 6000 });
+          return;
+        }
+        if (error.code === 'TOTAL_CHANGED' && error.data) {
+          acceptQuote(error.data as CartQuote);
+          toast.error(error.message, { duration: 6000 });
+          return; // modal stays open with the new total
+        }
+        toast.error(error.message, { duration: 5000 });
+        if (error.status === 403 || error.status === 400) setShowPaymentModal(false);
+        return;
+      }
       toast.error(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       payLock.current = false;
@@ -546,158 +600,151 @@ export default function POSPage() {
     }
   };
 
+  const showInsight = (product: POSProduct, variantId?: string | null) => {
+    if (!product._id || product._id.startsWith('custom-')) return;
+    setInsight({ productId: product._id, variantId: variantId || null });
+  };
+
+  const tabButton = (key: POSTab, label: React.ReactNode, active: string) => (
+    <button
+      onClick={() => handleTabChange(key)}
+      className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors relative whitespace-nowrap ${
+        tab === key ? `${active} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
+
   return (
-    <div className="flex h-[calc(100vh-3rem)] sm:h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] bg-gray-50 -m-2 sm:-m-4 lg:-m-6">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-3rem)] sm:h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] bg-gray-50 -m-2 sm:-m-4 lg:-m-6">
       {/* Left Panel - Products */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">Point of Sale</h1>
-            <div className="text-sm text-gray-500">{storeName}</div>
+      <div className={`flex-1 min-h-0 flex-col overflow-hidden ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
+        <div className="bg-white border-b border-gray-200 p-3 sm:p-4 space-y-3">
+          <TillStatusBar onStatusChange={setTill} />
+
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Point of Sale</h1>
+            <div className="text-xs sm:text-sm text-gray-500 truncate">{storeName}</div>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => handleTabChange('products')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'products'
-                  ? 'bg-[#DC2626] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Filter className="h-4 w-4 inline mr-2" />
-              Products
-            </button>
-            <button
-              onClick={() => handleTabChange('held')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors relative ${
-                activeTab === 'held'
-                  ? 'bg-[#DC2626] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Archive className="h-4 w-4 inline mr-2" />
-              Held Orders
-              {heldCarts.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#DC2626] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {heldCarts.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => handleTabChange('history')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'history'
-                  ? 'bg-[#DC2626] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Receipt className="h-4 w-4 inline mr-2" />
-              Today&apos;s Sales
-            </button>
-            <button
-              onClick={() => handleTabChange('pending')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === 'pending'
-                  ? 'bg-orange-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <AlertCircle className="h-4 w-4 inline mr-2" />
-              Pending Payments
-            </button>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {tabButton('products', <><Filter className="h-4 w-4 inline mr-1.5" />Products</>, 'bg-honey-500')}
+            {tabButton(
+              'held',
+              <>
+                <Archive className="h-4 w-4 inline mr-1.5" />
+                Held Orders
+                {heldCarts.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-honey-500 text-gray-900 text-xs rounded-full w-5 h-5 flex items-center justify-center">{heldCarts.length}</span>
+                )}
+              </>,
+              'bg-honey-500'
+            )}
+            {canSeeSales && tabButton('history', <><Receipt className="h-4 w-4 inline mr-1.5" />Today&apos;s Sales</>, 'bg-honey-500')}
+            {tabButton('pending', <><AlertCircle className="h-4 w-4 inline mr-1.5" />Pending Payments</>, 'bg-orange-600')}
           </div>
 
-          {/* Search - Only show for products tab */}
-          {activeTab === 'products' && (
+          {tillMessage && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span className="flex-1">{tillMessage}</span>
+              <button onClick={() => setTillMessage(null)} className="text-xs underline">OK</button>
+            </div>
+          )}
+          {lastOrder && <LastSaleBar order={lastOrder} storeName={storeName} symbol={symbol} onClose={() => setLastOrder(null)} />}
+
+          {tab === 'products' && (
             <ProductSearch
               value={searchQuery}
               onChange={setSearchQuery}
+              onBarcodeScanned={handleScan}
               searching={isSearching && trimmedQuery !== ''}
+              scanning={scanning}
               resultCount={!isSearching && trimmedQuery ? products.length : undefined}
-              onBarcodeScanned={(barcode) => {
-                // TODO: Implement barcode scanning
-                console.log('Barcode scanned:', barcode);
-              }}
+              inputRef={searchRef}
             />
           )}
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {activeTab === 'products' && (
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 pb-20 lg:pb-4">
+          {tab === 'products' && (
             <ProductGrid
               products={products}
               onSelectProduct={handleProductSelect}
+              onShowInsight={(p) => showInsight(p)}
               loading={isSearching}
               currency={'PKR'}
               searchQuery={trimmedQuery}
               resultsQuery={loadedQuery ?? ''}
             />
           )}
-
-          {activeTab === 'held' && (
-            <HeldOrders
-              heldCarts={heldCarts}
-              onRetrieve={handleRetrieveCart}
-              onDelete={handleDeleteHeldCart}
-              busy={heldBusy}
-              currency={'PKR'}
-            />
+          {tab === 'held' && (
+            <HeldOrders heldCarts={heldCarts} onRetrieve={handleRetrieveCart} onDelete={handleDeleteHeldCart} busy={heldBusy} currency={'PKR'} />
           )}
-
-          {activeTab === 'history' && (
-            <SalesHistory orders={recentOrders} storeName={storeName} currency={'PKR'} />
-          )}
-
-          {activeTab === 'pending' && (
-            <PendingPaymentsTab
-              currency={'PKR'}
-              onPaymentComplete={() => {
-                loadRecentOrders();
-              }}
-            />
-          )}
+          {tab === 'history' && canSeeSales && <SalesHistory orders={recentOrders} storeName={storeName} currency={'PKR'} />}
+          {tab === 'pending' && <PendingPaymentsTab currency={'PKR'} onPaymentComplete={() => loadRecentOrders()} />}
         </div>
       </div>
 
       {/* Right Panel - Cart */}
-      <div className="w-96 flex-shrink-0">
+      <div className={`w-full lg:w-96 flex-shrink-0 min-h-0 flex-1 lg:flex-none pb-16 lg:pb-0 ${mobileView === 'products' ? 'hidden lg:block' : 'block'}`}>
         <CartPanel
           cart={cart}
+          quote={quote}
+          quoteLoading={quoteLoading}
+          quoteError={quoteError}
+          quoteReady={quoteReady}
           customer={customer}
           onUpdateQuantity={updateQuantity}
           onRemoveItem={removeItem}
-          onUpdateUnitPrice={updateUnitPrice}
+          onUpdateUnitPrice={canEditPrice ? updateUnitPrice : undefined}
+          canGoBelowList={canGoBelowList}
+          onToggleGift={canGift ? toggleGift : undefined}
+          onShowInsight={(item) => showInsight(item.product, item.variantId)}
           onClearCart={clearCart}
           onHoldCart={handleHoldCart}
           onCheckout={handleCheckout}
           holding={holding}
           paying={paying}
+          blockedReason={tillBlocked}
           onSelectCustomer={() => setShowCustomerSelector(true)}
           currency={'PKR'}
           availableTaxes={availableTaxes}
           selectedTaxIds={selectedTaxIds}
           onTaxSelectionChange={setSelectedTaxIds}
-          onAddCustomItem={addCustomItemToCart}
-          onApplyDiscount={(discount, discountType, discountReason) => {
-            setCart(prev => {
-              const total = prev.subtotal + prev.tax - discount;
-              return { ...prev, discount, discountType, discountReason, total: Math.max(0, total) };
-            });
-          }}
+          onApplyDiscount={(discount) => setCart((prev) => ({ ...prev, manualDiscount: discount }))}
         />
       </div>
 
+      {/* Phones: switch between products and cart */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 p-2 bg-white border-t border-gray-200 shadow-lg">
+        <button
+          type="button"
+          onClick={() => setMobileView(mobileView === 'products' ? 'cart' : 'products')}
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg bg-honey-500 text-gray-900 font-semibold"
+        >
+          {mobileView === 'products' ? (
+            <>
+              <span className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" /> Cart · {cartCount} pcs
+              </span>
+              <span>{symbol}{(quote?.total ?? 0).toFixed(2)}</span>
+            </>
+          ) : (
+            <span className="flex items-center gap-2 mx-auto">
+              <LayoutGrid className="h-5 w-5" /> Back to products
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Modals */}
-      <CustomerSelector
-        isOpen={showCustomerSelector}
-        onClose={() => setShowCustomerSelector(false)}
-        onSelect={setCustomer}
-        currentCustomer={customer}
-      />
+      <CustomerSelector isOpen={showCustomerSelector} onClose={() => setShowCustomerSelector(false)} onSelect={setCustomer} currentCustomer={customer} />
 
       <VariantSelector
         isOpen={showVariantSelector}
@@ -711,13 +758,17 @@ export default function POSPage() {
 
       <PaymentModal
         isOpen={showPaymentModal}
-        cart={cart}
+        cart={pricedCart}
         customer={customer}
-        onClose={() => { if (!paying) setShowPaymentModal(false); }}
+        onClose={() => {
+          if (!paying) setShowPaymentModal(false);
+        }}
         onConfirm={handlePaymentConfirm}
         processing={paying}
         currency={'PKR'}
       />
+
+      <ProductInsightPanel productId={insight?.productId ?? null} variantId={insight?.variantId ?? null} open={!!insight} onClose={() => setInsight(null)} />
     </div>
   );
 }

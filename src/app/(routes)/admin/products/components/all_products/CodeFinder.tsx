@@ -118,7 +118,7 @@ export default function CodeFinder({ onStickers, onEdit, onReceiveStock }: CodeF
               onClick={() =>
                 onStickers(found.product._id, { variantId: found.match?.variantId, batchNo: found.match?.batchNo })
               }
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
             >
               <Printer className="h-3.5 w-3.5" /> Stickers
             </button>

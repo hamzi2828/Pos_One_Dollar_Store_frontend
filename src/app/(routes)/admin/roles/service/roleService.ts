@@ -6,7 +6,7 @@ import type { Role, PermissionAction, PermissionSection, PermissionGroup } from 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 const ROLES_URL = `${API_BASE_URL}/admin/roles`;
 
-export interface RoleListParams extends BasePagingParams {}
+export type RoleListParams = BasePagingParams;
 
 export interface CreateRolePayload {
   name: string;
@@ -17,6 +17,12 @@ export interface CreateRolePayload {
 export interface UpdateRolePayload {
   name?: string;
   description?: string;
+}
+
+/** Result of POST /admin/roles/defaults: role names that were added / already there. */
+export interface DefaultRolesResult {
+  created: string[];
+  skipped: string[];
 }
 
 const headers = () => ({ 'Content-Type': 'application/json', ...getAuthHeader() });
@@ -67,6 +73,16 @@ export const roleService = {
       { headers: headers() },
     );
     return response.data?.data;
+  },
+
+  /** Super admin: add the ready-made roles (Manager, Cashier, Warehouse Assistant, Purchaser) that are missing. */
+  async createDefaultRoles(): Promise<DefaultRolesResult> {
+    const response = await axios.post(`${ROLES_URL}/defaults`, {}, { headers: headers() });
+    const data = response.data?.data ?? {};
+    return {
+      created: Array.isArray(data.created) ? data.created : [],
+      skipped: Array.isArray(data.skipped) ? data.skipped : [],
+    };
   },
 
   async deleteRole(roleId: string): Promise<void> {

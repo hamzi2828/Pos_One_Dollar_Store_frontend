@@ -34,7 +34,6 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
   const [data, setData] = useState<LabelData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [branchName, setBranchName] = useState<string | null>(null);
 
   const [unitId, setUnitId] = useState<string>('');
   const [mode, setMode] = useState<Mode>('pieces');
@@ -78,10 +77,6 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
 
   useEffect(() => {
     load();
-    labelService
-      .getReceiveBranchName()
-      .then(setBranchName)
-      .catch(() => setBranchName(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
@@ -175,7 +170,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-              <PackagePlus className="h-5 w-5 text-honey-500" />
+              <PackagePlus className="h-5 w-5 text-honey-700" />
               Receive stock
             </h3>
             <p className="text-xs sm:text-sm text-gray-500 truncate max-w-[320px]">{name}</p>
@@ -213,8 +208,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
               <CircleCheck className="h-6 w-6 flex-shrink-0 text-green-600" />
               <div className="text-sm text-green-800">
                 <p className="font-semibold">
-                  Added {result.received} piece{result.received === 1 ? '' : 's'}
-                  {result.branchName ? ` to ${result.branchName}` : ''}.
+                  Added {result.received} piece{result.received === 1 ? '' : 's'}.
                 </p>
                 {result.batch && (
                   <p className="mt-0.5">
@@ -237,7 +231,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                   onClose(true);
                   router.push(url);
                 }}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 shadow-md"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 shadow-md"
               >
                 <Printer className="h-4 w-4" />
                 Print stickers for this delivery
@@ -250,7 +244,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
            <fieldset disabled={saving} className="min-w-0 p-4 space-y-4">
             <p className="flex items-center gap-1.5 text-xs text-gray-500">
               <Info className="h-3.5 w-3.5 flex-shrink-0" />
-              Stock will be added to {branchName ? <strong className="text-gray-700">{branchName}</strong> : 'your current branch'}.
+              New stock goes to the warehouse until it is put on a shelf.
             </p>
 
             {isVariant && (
@@ -351,7 +345,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                   checked={batchOn}
                   disabled={mustBatch}
                   onChange={(e) => setAsBatch(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-honey-500 focus:ring-honey-500"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-honey-700 focus:ring-honey-500"
                 />
                 <span>
                   <span className="flex items-center gap-1 text-sm font-medium text-gray-900">
@@ -422,7 +416,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                 type="submit"
                 disabled={saving || totalPieces <= 0 || (isVariant && !unit)}
                 aria-busy={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-md"
               >
                 {saving ? (
                   <>

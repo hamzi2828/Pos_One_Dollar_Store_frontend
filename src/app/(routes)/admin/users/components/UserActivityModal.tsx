@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  X, Loader2, LogIn, ShoppingCart, Heart, Package, Star,
-  UserCog, Trash2, MapPin, Car, MessageSquare, Mail, Ticket,
-  RefreshCw, Undo2, CreditCard, Shield, Activity, Eye,
-  BookOpen, Wrench, FileText, Globe, LayoutGrid, Search as SearchIcon,
+  X, Loader2, LogIn, Package, UserCog, Trash2, KeyRound,
+  RefreshCw, Shield, Activity, Eye, Globe, LayoutGrid, Search as SearchIcon,
 } from 'lucide-react';
 import { auditLogService, type AuditLogEntry, type AuditSummary } from '../service/auditLogService';
 
@@ -15,66 +13,24 @@ interface Props {
   onClose: () => void;
 }
 
+// Labels for the audit actions the admin panel records. Anything else is
+// shown by its raw action name.
 const ACTION_CONFIG: Record<string, { label: string; icon: typeof Activity; color: string }> = {
-  login:                  { label: 'Logged in',              icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  signup:                 { label: 'Signed up',              icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  google_login:           { label: 'Google login',           icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  stack_auth_sync:        { label: 'Auth synced',            icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  google_oauth_callback:  { label: 'Google OAuth',           icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  update_profile:         { label: 'Updated profile',        icon: UserCog,       color: 'text-blue-600 bg-blue-50' },
-  delete_account:         { label: 'Deleted account',        icon: Trash2,        color: 'text-red-600 bg-red-50' },
-  add_address:            { label: 'Added address',          icon: MapPin,        color: 'text-blue-600 bg-blue-50' },
-  update_address:         { label: 'Updated address',        icon: MapPin,        color: 'text-blue-600 bg-blue-50' },
-  delete_address:         { label: 'Deleted address',        icon: MapPin,        color: 'text-red-600 bg-red-50' },
-  add_car:                { label: 'Added car',              icon: Car,           color: 'text-indigo-600 bg-indigo-50' },
-  update_car:             { label: 'Updated car',            icon: Car,           color: 'text-indigo-600 bg-indigo-50' },
-  remove_car:             { label: 'Removed car',            icon: Car,           color: 'text-red-600 bg-red-50' },
-  add_to_cart:            { label: 'Added to cart',          icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  update_cart:            { label: 'Updated cart',           icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  update_cart_item:       { label: 'Updated cart item',      icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  remove_from_cart:       { label: 'Removed from cart',      icon: ShoppingCart,  color: 'text-red-600 bg-red-50' },
-  clear_cart:             { label: 'Cleared cart',           icon: ShoppingCart,  color: 'text-red-600 bg-red-50' },
-  merge_guest_cart:       { label: 'Merged guest cart',      icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  add_to_wishlist:        { label: 'Added to wishlist',      icon: Heart,         color: 'text-pink-600 bg-pink-50' },
-  toggle_wishlist:        { label: 'Toggled wishlist',       icon: Heart,         color: 'text-pink-600 bg-pink-50' },
-  remove_from_wishlist:   { label: 'Removed from wishlist',  icon: Heart,         color: 'text-red-600 bg-red-50' },
-  place_order:            { label: 'Placed order',           icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  initiate_checkout:      { label: 'Started checkout',       icon: CreditCard,    color: 'text-purple-600 bg-purple-50' },
-  create_review:          { label: 'Posted review',          icon: Star,          color: 'text-yellow-600 bg-yellow-50' },
-  update_review:          { label: 'Updated review',         icon: Star,          color: 'text-yellow-600 bg-yellow-50' },
-  delete_review:          { label: 'Deleted review',         icon: Star,          color: 'text-red-600 bg-red-50' },
-  create_return:          { label: 'Requested return',       icon: Undo2,         color: 'text-orange-600 bg-orange-50' },
-  create_preorder:        { label: 'Created preorder',       icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  cancel_preorder:        { label: 'Cancelled preorder',     icon: Package,       color: 'text-red-600 bg-red-50' },
-  submit_contact:         { label: 'Submitted contact',      icon: MessageSquare, color: 'text-teal-600 bg-teal-50' },
-  newsletter_subscribe:   { label: 'Subscribed newsletter',  icon: Mail,          color: 'text-teal-600 bg-teal-50' },
-  newsletter_unsubscribe: { label: 'Unsubscribed',           icon: Mail,          color: 'text-gray-600 bg-gray-50' },
-  apply_discount:         { label: 'Applied discount',       icon: Ticket,        color: 'text-emerald-600 bg-emerald-50' },
-  post_blog_comment:      { label: 'Blog comment',           icon: MessageSquare, color: 'text-teal-600 bg-teal-50' },
+  login:                    { label: 'Logged in',              icon: LogIn,       color: 'text-green-600 bg-green-50' },
+  update_profile:           { label: 'Updated profile',        icon: UserCog,     color: 'text-blue-600 bg-blue-50' },
+  change_password:          { label: 'Changed password',       icon: KeyRound,    color: 'text-blue-600 bg-blue-50' },
+  delete_account:           { label: 'Deleted account',        icon: Trash2,      color: 'text-red-600 bg-red-50' },
+  view_profile:             { label: 'Viewed profile',         icon: UserCog,     color: 'text-blue-600 bg-blue-50' },
+  view_product:             { label: 'Viewed product',         icon: Eye,         color: 'text-gray-600 bg-gray-50' },
+  browse_products:          { label: 'Browsed products',       icon: LayoutGrid,  color: 'text-gray-600 bg-gray-50' },
+  browse_categories:        { label: 'Browsed categories',     icon: LayoutGrid,  color: 'text-gray-600 bg-gray-50' },
+  view_orders:              { label: 'Viewed orders',          icon: Package,     color: 'text-purple-600 bg-purple-50' },
+  view_order_detail:        { label: 'Viewed order detail',    icon: Package,     color: 'text-purple-600 bg-purple-50' },
+  view_settings:            { label: 'Loaded settings',        icon: Globe,       color: 'text-gray-500 bg-gray-50' },
   admin_update_user_status: { label: 'Status changed (admin)', icon: Shield,      color: 'text-red-600 bg-red-50' },
   admin_update_user_role:   { label: 'Role changed (admin)',   icon: Shield,      color: 'text-red-600 bg-red-50' },
   admin_delete_user:        { label: 'Deleted (admin)',        icon: Shield,      color: 'text-red-600 bg-red-50' },
-  // View/Browse actions
-  view_product:             { label: 'Viewed product',         icon: Eye,          color: 'text-gray-600 bg-gray-50' },
-  browse_products:          { label: 'Browsed products',       icon: LayoutGrid,   color: 'text-gray-600 bg-gray-50' },
-  browse_categories:        { label: 'Browsed categories',     icon: LayoutGrid,   color: 'text-gray-600 bg-gray-50' },
-  view_cart:                { label: 'Viewed cart',            icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  view_wishlist:            { label: 'Viewed wishlist',        icon: Heart,         color: 'text-pink-600 bg-pink-50' },
-  view_orders:              { label: 'Viewed orders',          icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  view_order_detail:        { label: 'Viewed order detail',    icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  view_profile:             { label: 'Viewed profile',         icon: UserCog,       color: 'text-blue-600 bg-blue-50' },
-  view_addresses:           { label: 'Viewed addresses',       icon: MapPin,        color: 'text-blue-600 bg-blue-50' },
-  view_cars:                { label: 'Viewed cars',            icon: Car,           color: 'text-indigo-600 bg-indigo-50' },
-  view_reviews:             { label: 'Viewed reviews',         icon: Star,          color: 'text-yellow-600 bg-yellow-50' },
-  view_returns:             { label: 'Viewed returns',         icon: Undo2,         color: 'text-orange-600 bg-orange-50' },
-  view_preorders:           { label: 'Viewed preorders',       icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  browse_blogs:             { label: 'Browsed blogs',          icon: BookOpen,      color: 'text-gray-600 bg-gray-50' },
-  view_blog:                { label: 'Read blog',              icon: BookOpen,      color: 'text-gray-600 bg-gray-50' },
-  view_services:            { label: 'Viewed services',        icon: Wrench,        color: 'text-gray-600 bg-gray-50' },
-  view_page:                { label: 'Viewed page',            icon: FileText,      color: 'text-gray-600 bg-gray-50' },
-  view_settings:            { label: 'Loaded settings',        icon: Globe,         color: 'text-gray-500 bg-gray-50' },
-  browse_car_makes:         { label: 'Browsed car makes',      icon: Car,           color: 'text-gray-600 bg-gray-50' },
-  admin_view_users:         { label: 'Viewed users (admin)',   icon: SearchIcon,    color: 'text-gray-600 bg-gray-50' },
+  admin_view_users:         { label: 'Viewed customers (admin)', icon: SearchIcon, color: 'text-gray-600 bg-gray-50' },
 };
 
 function timeAgo(dateStr: string) {

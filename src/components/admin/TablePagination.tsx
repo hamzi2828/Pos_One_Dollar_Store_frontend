@@ -59,7 +59,7 @@ export default function TablePagination({
           <span className="font-medium text-gray-700">{to}</span> of{' '}
           <span className="font-medium text-gray-700">{total}</span> {label}
         </span>
-        {loading && <Loader2 className="w-3.5 h-3.5 text-honey-500 animate-spin" aria-label="Loading" />}
+        {loading && <Loader2 className="w-3.5 h-3.5 text-honey-700 animate-spin" aria-label="Loading" />}
         {onLimitChange && (
           <select
             value={limit}
@@ -106,7 +106,7 @@ export default function TablePagination({
             onClick={() => onPageChange(n)}
             disabled={loading}
             className={`px-2 py-1 text-xs rounded-md disabled:opacity-60 disabled:cursor-not-allowed ${
-              n === page ? 'bg-[#DC2626] text-white' : 'text-gray-700 hover:bg-gray-100'
+              n === page ? 'bg-honey-500 text-gray-900' : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
             {n}

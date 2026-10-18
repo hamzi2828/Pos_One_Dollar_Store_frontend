@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { POSProduct } from '../types';
-import { LayoutGrid, ChevronLeft, Package, Plus, ShoppingCart, Loader2 } from 'lucide-react';
+import { LayoutGrid, ChevronLeft, Package, Plus, ShoppingCart, Loader2, Info, MapPin } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface ProductGridProps {
@@ -14,6 +14,8 @@ interface ProductGridProps {
   searchQuery?: string;
   /** Search text the products on screen belong to (can lag while searching). */
   resultsQuery?: string;
+  /** "i" button: product history / vendors / stock panel. */
+  onShowInsight?: (product: POSProduct) => void;
 }
 
 export default function ProductGrid({
@@ -23,6 +25,7 @@ export default function ProductGrid({
   currency = 'PKR',
   searchQuery = '',
   resultsQuery,
+  onShowInsight,
 }: ProductGridProps) {
   const shownQuery = resultsQuery ?? searchQuery;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -57,8 +60,10 @@ export default function ProductGrid({
 
   // Product Row Component
   const ProductRow = ({ product }: { product: POSProduct }) => {
-    const displayPrice = product.discountedPrice || product.price;
-    const hasDiscount = product.discountedPrice && product.discountedPrice < product.price;
+    // Same rule as the server: the sale price when set and lower, else the price.
+    const hasDiscount = !!product.discountedPrice && product.discountedPrice > 0 && product.discountedPrice < product.price;
+    const displayPrice = hasDiscount ? (product.discountedPrice as number) : product.price;
+    const shelves = product.shelfCodes || [];
 
     return (
       <tr
@@ -81,9 +86,18 @@ export default function ProductGrid({
             )}
             <div className="min-w-0">
               <p className="font-medium text-gray-900 text-sm truncate">{product.name}</p>
-              {product.productType === 'variant' && (
-                <span className="text-xs text-[#DC2626]">Has variants</span>
-              )}
+              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                {product.productType === 'variant' && (
+                  <span className="text-xs text-honey-700">Has variants</span>
+                )}
+                {shelves.slice(0, 3).map((code) => (
+                  <span key={code} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold" title="Shelf">
+                    <MapPin className="h-2.5 w-2.5" />
+                    {code}
+                  </span>
+                ))}
+                {shelves.length > 3 && <span className="text-[10px] text-gray-400">+{shelves.length - 3}</span>}
+              </div>
             </div>
           </div>
         </td>
@@ -109,13 +123,27 @@ export default function ProductGrid({
             {product.stock}
           </span>
         </td>
-        <td className="px-3 py-2 text-right">
+        <td className="px-3 py-2 text-right whitespace-nowrap">
+          {onShowInsight && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowInsight(product);
+              }}
+              className="p-2 mr-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Product history: prices, vendors, stock"
+              aria-label="Product history"
+            >
+              <Info className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
               onSelectProduct(product);
             }}
-            className="p-2 bg-[#DC2626] text-white rounded-lg hover:bg-[#b91c1c] transition-colors"
+            className="p-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors"
+            aria-label="Add to cart"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -126,7 +154,7 @@ export default function ProductGrid({
 
   // Products Table Component
   const ProductsTable = ({ productsList }: { productsList: POSProduct[] }) => (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="bg-white rounded-lg shadow overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
@@ -150,7 +178,7 @@ export default function ProductGrid({
   if (loading && products.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow overflow-hidden" role="status" aria-live="polite">
-        <div className="flex items-center justify-center gap-2 py-6 text-sm font-medium text-[#DC2626]">
+        <div className="flex items-center justify-center gap-2 py-6 text-sm font-medium text-honey-700">
           <Loader2 className="h-5 w-5 animate-spin" />
           {searchQuery ? <>Searching for &ldquo;{searchQuery}&rdquo;…</> : 'Loading products…'}
         </div>
@@ -168,7 +196,7 @@ export default function ProductGrid({
     return (
       <div className="relative" aria-busy="true">
         <div className="sticky top-0 z-10 mb-3 flex justify-center">
-          <div role="status" className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-[#DC2626] shadow-md ring-1 ring-red-100">
+          <div role="status" className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-honey-700 shadow-md ring-1 ring-red-100">
             <Loader2 className="h-4 w-4 animate-spin" />
             {searchQuery ? <>Searching for &ldquo;{searchQuery}&rdquo;…</> : 'Loading products…'}
           </div>
@@ -241,10 +269,10 @@ export default function ProductGrid({
         {/* All Products tile */}
         <button
           onClick={() => setSelectedCategory('__all__')}
-          className="bg-gradient-to-br from-[#DC2626] to-[#b91c1c] rounded-xl p-4 text-left hover:shadow-lg transition-all duration-200 hover:scale-[1.02] group"
+          className="bg-gray-950 rounded-xl p-4 text-left hover:shadow-lg transition-all duration-200 hover:scale-[1.02] group"
         >
-          <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mb-3">
-            <Package className="h-6 w-6 text-white" />
+          <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-3">
+            <Package className="h-6 w-6 text-honey-400" />
           </div>
           <h3 className="font-semibold text-white text-sm">All Products</h3>
           <p className="text-white/70 text-xs mt-1">{products.length} items</p>
@@ -260,7 +288,7 @@ export default function ProductGrid({
             <button
               key={cat.name}
               onClick={() => setSelectedCategory(cat.name)}
-              className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:shadow-lg transition-all duration-200 hover:border-[#DC2626] hover:scale-[1.02] group relative overflow-hidden"
+              className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:shadow-lg transition-all duration-200 hover:border-honey-500 hover:scale-[1.02] group relative overflow-hidden"
             >
               {/* Category thumbnail */}
               {thumbnail ? (
@@ -274,10 +302,10 @@ export default function ProductGrid({
                 </div>
               ) : (
                 <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-3">
-                  <LayoutGrid className="h-6 w-6 text-gray-400 group-hover:text-[#DC2626] transition-colors" />
+                  <LayoutGrid className="h-6 w-6 text-gray-400 group-hover:text-honey-700 transition-colors" />
                 </div>
               )}
-              <h3 className="font-semibold text-gray-900 text-sm group-hover:text-[#DC2626] transition-colors">
+              <h3 className="font-semibold text-gray-900 text-sm group-hover:text-honey-700 transition-colors">
                 {cat.name}
               </h3>
               <p className="text-gray-500 text-xs mt-1">{cat.count} item{cat.count !== 1 ? 's' : ''}</p>

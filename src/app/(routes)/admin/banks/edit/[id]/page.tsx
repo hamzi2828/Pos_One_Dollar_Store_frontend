@@ -107,7 +107,7 @@ export default function EditBankPage() {
   if (fetching) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#dc2626]" />
+        <Loader2 className="h-8 w-8 animate-spin text-honey-700" />
       </div>
     );
   }
@@ -139,7 +139,7 @@ export default function EditBankPage() {
         {/* Bank Information */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Building2 className="h-5 w-5 text-[#dc2626]" />
+            <Building2 className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-semibold text-gray-900">Bank Information</h2>
           </div>
 
@@ -152,7 +152,7 @@ export default function EditBankPage() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="HBL, MCB, UBL, etc."
                 disabled={loading}
               />
@@ -165,7 +165,7 @@ export default function EditBankPage() {
                 type="text"
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="1234567890"
                 disabled={loading}
               />
@@ -178,21 +178,21 @@ export default function EditBankPage() {
                 type="text"
                 value={accountTitle}
                 onChange={(e) => setAccountTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="Account holder name"
                 disabled={loading}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Branch
+                Bank location
               </label>
               <input
                 type="text"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
-                placeholder="Branch name or code"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
+                placeholder="e.g. Gulberg, Lahore (0123)"
                 disabled={loading}
               />
             </div>
@@ -204,7 +204,7 @@ export default function EditBankPage() {
                 type="text"
                 value={iban}
                 onChange={(e) => setIban(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="PK00XXXX0000000000000000"
                 disabled={loading}
               />
@@ -216,7 +216,7 @@ export default function EditBankPage() {
               <select
                 value={isActive ? 'active' : 'inactive'}
                 onChange={(e) => setIsActive(e.target.value === 'active')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 disabled={loading}
               >
                 <option value="active">Active</option>
@@ -229,14 +229,14 @@ export default function EditBankPage() {
         {/* Notes */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="h-5 w-5 text-[#dc2626]" />
+            <FileText className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-semibold text-gray-900">Additional Notes</h2>
           </div>
 
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
             placeholder="Any additional information about this bank account..."
             rows={4}
             disabled={loading}
@@ -257,7 +257,7 @@ export default function EditBankPage() {
             type="submit"
             disabled={loading}
             aria-busy={loading}
-            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>

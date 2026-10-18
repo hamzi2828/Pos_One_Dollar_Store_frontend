@@ -21,7 +21,6 @@ export interface ProductBatchDTO {
   expiryDate?: string;
   receivedAt?: string;
   note?: string;
-  branch?: string | null;
 }
 
 export interface ProductVariantDTO {
@@ -38,7 +37,6 @@ export interface ProductVariantDTO {
   barcodes?: ProductBarcodeDTO[];
   batches?: ProductBatchDTO[];
   totalStock?: number;
-  branchStock?: Array<{ branch: string; stock: number }>;
 }
 
 // GET /products/codes/check
@@ -65,7 +63,6 @@ export interface ProductDTO {
   costPrice?: number;
   stock: number;
   status: 'published' | 'draft' | 'out_of_stock';
-  featured?: boolean;
   thumbnailUrl?: string;
   bannerUrls?: string[];
   videoUrl?: string;
@@ -75,21 +72,11 @@ export interface ProductDTO {
   productType?: 'single' | 'variant';
   variants?: ProductVariantDTO[];
   colorMedia?: Record<string, ColorMediaData>;
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
-  metaSchema?: string;
-  preorderEnabled?: boolean;
-  preorderMessage?: string;
-  guidelineId?: string;
-  guidelineImageUrl?: string;
-  showGuidelines?: boolean;
   sku?: string;
   dimensionLength?: string;
   dimensionWidth?: string;
   dimensionHeight?: string;
   weight?: string;
-  relatedProducts?: string[];
   createdAt?: string;
   // Barcodes / boxes / batches (single products; variant products keep them per variant)
   shortCode?: string;
@@ -109,7 +96,6 @@ export interface ProductUI {
   costPrice?: number;
   stock: number;
   status: 'published' | 'draft' | 'out_of_stock';
-  featured?: boolean;
   thumbnailUrl?: string;
   bannerUrls?: string[];
   videoUrl?: string;
@@ -119,21 +105,11 @@ export interface ProductUI {
   productType?: 'single' | 'variant';
   variants?: ProductVariantDTO[];
   colorMedia?: Record<string, ColorMediaData>;
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
-  metaSchema?: string;
-  preorderEnabled?: boolean;
-  preorderMessage?: string;
-  guidelineId?: string;
-  guidelineImageUrl?: string;
-  showGuidelines?: boolean;
   sku?: string;
   dimensionLength?: string;
   dimensionWidth?: string;
   dimensionHeight?: string;
   weight?: string;
-  relatedProducts?: string[];
   createdAt?: string;
   // Barcodes / boxes / batches (single products; variant products keep them per variant)
   shortCode?: string;
@@ -167,7 +143,6 @@ function mapToUI(dto: ProductDTO): ProductUI {
     costPrice: dto.costPrice,
     stock: dto.stock,
     status: dto.status,
-    featured: dto.featured,
     thumbnailUrl: absolutize(dto.thumbnailUrl),
     bannerUrls: absBanners,
     videoUrl: absolutize(dto.videoUrl),
@@ -188,21 +163,11 @@ function mapToUI(dto: ProductDTO): ProductUI {
         }
       ])
     ) : undefined,
-    metaTitle: dto.metaTitle,
-    metaDescription: dto.metaDescription,
-    metaKeywords: dto.metaKeywords,
-    metaSchema: dto.metaSchema,
-    preorderEnabled: dto.preorderEnabled,
-    preorderMessage: dto.preorderMessage,
-    guidelineId: dto.guidelineId,
-    guidelineImageUrl: dto.guidelineImageUrl,
-    showGuidelines: dto.showGuidelines,
     sku: dto.sku,
     dimensionLength: dto.dimensionLength,
     dimensionWidth: dto.dimensionWidth,
     dimensionHeight: dto.dimensionHeight,
     weight: dto.weight,
-    relatedProducts: dto.relatedProducts,
     createdAt: dto.createdAt,
     shortCode: dto.shortCode,
     barcodes: dto.barcodes ?? [],
@@ -368,21 +333,6 @@ export const productService = {
       throw error;
     }
   },
-  async toggleFeatured(id: string, featured: boolean): Promise<ProductUI> {
-    const formData = new FormData();
-    formData.append('featured', featured.toString());
-
-    const res = await axios.put(`${API_BASE_URL}/products/${id}`, formData, {
-      headers: {
-        ...getAuthHeader(),
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    const data = res.data?.data ?? res.data;
-    if (!data || typeof data !== 'object') throw new Error('Unexpected toggleFeatured response');
-    return mapToUI(data as ProductDTO);
-  },
-
   async duplicateProduct(id: string): Promise<ProductUI> {
     // Fetch the original product
     const original = await this.getProductById(id);
@@ -407,7 +357,6 @@ export const productService = {
     }
     formData.append('stock', original.stock.toString());
     formData.append('status', 'draft'); // Always create as draft
-    formData.append('featured', 'false'); // Don't copy featured status
 
     if (original.description) {
       formData.append('description', original.description);
@@ -455,20 +404,6 @@ export const productService = {
     }
     if (original.colorMedia && Object.keys(original.colorMedia).length > 0) {
       formData.append('colorMedia', JSON.stringify(original.colorMedia));
-    }
-
-    // Copy SEO fields
-    if (original.metaTitle) {
-      formData.append('metaTitle', original.metaTitle);
-    }
-    if (original.metaDescription) {
-      formData.append('metaDescription', original.metaDescription);
-    }
-    if (original.metaKeywords) {
-      formData.append('metaKeywords', original.metaKeywords);
-    }
-    if (original.metaSchema) {
-      formData.append('metaSchema', original.metaSchema);
     }
 
     // Create the duplicated product

@@ -1,6 +1,6 @@
 'use client';
 
-// Small shared form pieces for the Branches / Staff / Stock transfer screens
+// Small shared form pieces for the admin screens (staff, roles, store modules)
 // (same look as the Roles modal: white card, red primary button).
 
 import React from 'react';
@@ -10,7 +10,7 @@ export const inputClass =
   'w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500/30 focus:border-honey-500 transition-all placeholder:text-gray-400 disabled:bg-gray-50 disabled:text-gray-500';
 
 export const primaryBtn =
-  'inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed';
 
 export const secondaryBtn =
   'inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50';
@@ -42,7 +42,7 @@ export function Modal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3 min-w-0">
             {icon && (
-              <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-honey-50 text-honey-600 flex-shrink-0">
+              <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-honey-50 text-honey-700 flex-shrink-0">
                 {icon}
               </div>
             )}
@@ -155,7 +155,7 @@ export function HelpBox({ children }: { children: React.ReactNode }) {
 export function LoadingCard({ text }: { text: string }) {
   return (
     <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 text-center py-14">
-      <Loader2 className="h-8 w-8 text-honey-500 mx-auto mb-3 animate-spin" />
+      <Loader2 className="h-8 w-8 text-honey-700 mx-auto mb-3 animate-spin" />
       <p className="text-sm text-gray-500">{text}</p>
     </div>
   );

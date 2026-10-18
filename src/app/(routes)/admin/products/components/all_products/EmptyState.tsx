@@ -41,7 +41,7 @@ export default function EmptyState({
           ) : (
             <Link
               href="/admin/products/create"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
             >
               <Plus className="h-4 w-4" />
               Add Product

@@ -147,7 +147,7 @@ const BanksPage = () => {
   if (loading && banks.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#dc2626]" />
+        <Loader2 className="h-8 w-8 animate-spin text-honey-700" />
       </div>
     );
   }
@@ -171,7 +171,7 @@ const BanksPage = () => {
         </div>
         <Link
           href="/admin/banks/create"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors"
         >
           <Plus className="h-5 w-5" />
           Add Bank
@@ -187,13 +187,13 @@ const BanksPage = () => {
             placeholder="Search banks..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
@@ -214,7 +214,7 @@ const BanksPage = () => {
                   Account Details
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Branch
+                  Bank location
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -240,8 +240,8 @@ const BanksPage = () => {
                   <tr key={bank._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0 bg-[#dc2626]/10 rounded-full flex items-center justify-center">
-                          <Building2 className="h-5 w-5 text-[#dc2626]" />
+                        <div className="h-10 w-10 flex-shrink-0 bg-honey-500/10 rounded-full flex items-center justify-center">
+                          <Building2 className="h-5 w-5 text-honey-700" />
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{bank.name}</div>
@@ -279,7 +279,7 @@ const BanksPage = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => handleEdit(bank)}
-                        className="text-gray-600 hover:text-[#dc2626] mr-3"
+                        className="text-gray-600 hover:text-honey-700 mr-3"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
@@ -313,7 +313,7 @@ const BanksPage = () => {
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="inline-flex items-center gap-1.5 text-sm text-gray-600" aria-busy={loading}>
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#dc2626]" />}
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-honey-700" />}
             Page {clampedPage} of {totalPages}
           </span>
           <button

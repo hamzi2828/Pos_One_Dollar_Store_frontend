@@ -17,7 +17,7 @@ export interface LoginResponse {
     email: string;
     role: 'user' | 'admin' | 'moderator';
   };
-  /** Branch + role + permissions of a staff login (see helper/access.ts). */
+  /** Role + permissions of a staff login (see helper/access.ts). */
   access?: AccessInfo;
 }
 

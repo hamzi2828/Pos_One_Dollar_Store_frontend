@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import Image from "next/image";
-import { Edit2, Trash2, Star, Layers, Package, AlertTriangle, ChevronLeft, ChevronRight, Tag, Copy, Eye, X, Printer, PackagePlus, Barcode, Loader2 } from "lucide-react";
+import { Edit2, Trash2, Layers, Package, ChevronLeft, ChevronRight, Copy, Eye, X, Printer, PackagePlus, Barcode, Loader2, Lightbulb } from "lucide-react";
 import { Product } from "../AllProducts";
 import { useCurrency } from "@/context/CurrencyContext";
 import type { CodeSummary } from "../../services/labelService";
@@ -12,16 +12,16 @@ interface ProductCardProps {
   onDelete?: (id: string) => void;
   onCopy?: (id: string) => void;
   onToggleStatus?: (id: string, newStatus: 'published' | 'draft') => Promise<void>;
-  onToggleFeatured?: (id: string) => void;
   togglingStatus: Set<string>;
   copyingProduct?: Set<string>;
   deletingProduct?: Set<string>;
-  featuringProduct?: Set<string>;
   handleToggleStatus: (productId: string, currentStatus: 'published' | 'draft' | 'out_of_stock') => Promise<void>;
   /** short code / box / batches info for the badges */
   codeSummary?: CodeSummary;
   onStickers?: (id: string) => void;
   onReceiveStock?: (id: string) => void;
+  /** Opens the product insight panel (price history, vendors, stock). */
+  onInsights?: (id: string) => void;
 }
 
 export default function ProductCard({
@@ -30,15 +30,14 @@ export default function ProductCard({
   onDelete,
   onCopy,
   onToggleStatus,
-  onToggleFeatured,
   togglingStatus,
   copyingProduct = new Set(),
   deletingProduct = new Set(),
-  featuringProduct = new Set(),
   handleToggleStatus,
   codeSummary,
   onStickers,
-  onReceiveStock
+  onReceiveStock,
+  onInsights
 }: ProductCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showStockModal, setShowStockModal] = useState(false);
@@ -46,9 +45,8 @@ export default function ProductCard({
   const isToggling = togglingStatus.has(product.id);
   const isCopying = copyingProduct.has(product.id);
   const isDeleting = deletingProduct.has(product.id);
-  const isFeaturing = featuringProduct.has(product.id);
   // Any server action running on this card blocks the others (e.g. no delete while duplicating)
-  const cardBusy = isToggling || isCopying || isDeleting || isFeaturing;
+  const cardBusy = isToggling || isCopying || isDeleting;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -149,11 +147,6 @@ export default function ProductCard({
             {colorCount > 0 ? `${colorCount}C` : `${variantCount}V`}
           </div>
         )}
-        {product.featured && (
-          <div className="absolute top-1 left-1 p-0.5 bg-yellow-500 rounded-full">
-            <Star className="h-2 w-2 text-white fill-current" />
-          </div>
-        )}
         <div className={`absolute top-1 right-1 px-1 py-px text-[7px] font-medium rounded ${getStatusColor(product.status)}`}>
           {product.status === 'published' ? 'Live' : product.status === 'draft' ? 'Draft' : 'OOS'}
         </div>
@@ -217,16 +210,6 @@ export default function ProductCard({
                 )}
               </button>
             )}
-            {/* Featured Toggle */}
-            <button
-              title={isFeaturing ? "Saving…" : product.featured ? "Remove from featured" : "Make featured"}
-              onClick={() => onToggleFeatured?.(product.id)}
-              disabled={cardBusy}
-              aria-busy={isFeaturing}
-              className={`p-0.5 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${product.featured ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
-            >
-              {isFeaturing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Star className={`h-3 w-3 ${product.featured ? 'fill-current' : ''}`} />}
-            </button>
           </div>
           <div className="flex items-center">
             {product.productType === "variant" && product.variants && product.variants.length > 0 && (
@@ -258,13 +241,13 @@ export default function ProductCard({
           </div>
         </div>
 
-        {/* Stickers / stock */}
-        {(onStickers || onReceiveStock) && (
+        {/* Stickers / stock / insights */}
+        {(onStickers || onReceiveStock || onInsights) && (
           <div className="grid grid-cols-2 gap-0.5 mt-1">
             {onStickers && (
               <button
                 onClick={() => onStickers(product.id)}
-                className="inline-flex items-center justify-center gap-0.5 py-0.5 text-[8px] font-medium text-honey-600 bg-honey-50 hover:bg-honey-100 rounded transition-colors"
+                className="inline-flex items-center justify-center gap-0.5 py-0.5 text-[8px] font-medium text-honey-700 bg-honey-50 hover:bg-honey-100 rounded transition-colors"
                 title="Print barcode stickers"
               >
                 <Printer className="h-2.5 w-2.5" />
@@ -279,6 +262,16 @@ export default function ProductCard({
               >
                 <PackagePlus className="h-2.5 w-2.5" />
                 Receive
+              </button>
+            )}
+            {onInsights && (
+              <button
+                onClick={() => onInsights(product.id)}
+                className="col-span-2 inline-flex items-center justify-center gap-0.5 py-0.5 text-[8px] font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded transition-colors"
+                title="Price history, vendors, stock & sales"
+              >
+                <Lightbulb className="h-2.5 w-2.5" />
+                Insights
               </button>
             )}
           </div>

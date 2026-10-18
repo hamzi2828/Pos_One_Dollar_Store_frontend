@@ -14,17 +14,16 @@ import {
 import { categoryService } from "../services/categoryService";
 import ReceiveStockModal from "./stock/ReceiveStockModal";
 import { useCodeSummaries } from "./stock/useCodeSummaries";
+import ProductInsightPanel from "@/components/store/ProductInsightPanel";
 
 export interface ProductVariant {
   color: string;
   size: string;
   price: number;
-  websitePrice?: number;
   stock: number;
   sku?: string;
   costPrice?: number;
   discountedPrice?: number;
-  websiteDiscountedPrice?: number;
 }
 
 export interface Product {
@@ -33,13 +32,10 @@ export interface Product {
   slug?: string;
   category: string;
   price: number;
-  websitePrice?: number;
   discountedPrice?: number;
-  websiteDiscountedPrice?: number;
   costPrice?: number;
   stock: number;
   status: "published" | "draft" | "out_of_stock";
-  featured?: boolean;
   // Deprecated: kept for backward compatibility
   image?: string;
   // New fields
@@ -61,12 +57,6 @@ export interface Product {
     bannerUrls?: string[];
     videoUrl?: string;
   }>;
-  // Preorder fields
-  preorderEnabled?: boolean;
-  preorderMessage?: string;
-  // Guideline fields
-  guidelineId?: string;
-  showGuidelines?: boolean;
   // Color for single products
   color?: string;
   // SKU for single products
@@ -86,14 +76,11 @@ interface AllProductsProps {
   onDelete?: (id: string) => void;
   onCopy?: (id: string) => void;
   onToggleStatus?: (id: string, newStatus: 'published' | 'draft') => Promise<void>;
-  onToggleFeatured?: (id: string) => void;
   loading?: boolean;
   error?: string | null;
   copyingProduct?: Set<string>;
   /** ids of products currently being deleted */
   deletingProduct?: Set<string>;
-  /** ids of products whose featured flag is being saved */
-  featuringProduct?: Set<string>;
   /** called after stock was received, to reload the list */
   onStockChanged?: () => void;
 }
@@ -104,12 +91,10 @@ export default function AllProducts({
   onDelete,
   onCopy,
   onToggleStatus,
-  onToggleFeatured,
   loading = false,
   error = null,
   copyingProduct = new Set(),
   deletingProduct = new Set(),
-  featuringProduct = new Set(),
   onStockChanged
 }: AllProductsProps) {
   const searchParams = useSearchParams();
@@ -120,7 +105,6 @@ export default function AllProducts({
   const searchQuery = searchParams.get("search") || "";
   const statusFilter = (searchParams.get("status") as "all" | "published" | "draft" | "out_of_stock") || "all";
   const categoryFilter = searchParams.get("category") || "all";
-  const featuredFilter = (searchParams.get("featured") as "all" | "featured" | "not_featured") || "all";
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
 
   const [togglingStatus, setTogglingStatus] = useState<Set<string>>(new Set());
@@ -131,6 +115,9 @@ export default function AllProducts({
   // Stickers / receive stock
   const codeSummaries = useCodeSummaries(products);
   const [receiveFor, setReceiveFor] = useState<{ id: string; variantId?: string | null } | null>(null);
+  // Product insight slide-over (price history, vendors, stock)
+  const [insightFor, setInsightFor] = useState<string | null>(null);
+  const closeInsight = useCallback(() => setInsightFor(null), []);
   const openStickers = useCallback(
     (id: string, opts?: { variantId?: string | null; batchNo?: string | null }) => {
       const q = new URLSearchParams();
@@ -185,10 +172,6 @@ export default function AllProducts({
     updateUrlParams({ category, page: "1" });
   }, [updateUrlParams]);
 
-  const setFeaturedFilter = useCallback((featured: "all" | "featured" | "not_featured") => {
-    updateUrlParams({ featured, page: "1" });
-  }, [updateUrlParams]);
-
   const setCurrentPage = useCallback((page: number) => {
     updateUrlParams({ page: page.toString() });
   }, [updateUrlParams]);
@@ -230,12 +213,10 @@ export default function AllProducts({
       const matchesStatus = statusFilter === "all" ||
                            (statusFilter === "out_of_stock" ? product.stock <= 0 : product.status === statusFilter);
       const matchesCategory = categoryFilter === "all" || product.category === categoryFilter;
-      const matchesFeatured = featuredFilter === "all" ||
-                           (featuredFilter === "featured" ? !!product.featured : !product.featured);
 
-      return matchesSearch && matchesStatus && matchesCategory && matchesFeatured;
+      return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [products, searchQuery, statusFilter, categoryFilter, featuredFilter]);
+  }, [products, searchQuery, statusFilter, categoryFilter]);
 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
@@ -297,8 +278,6 @@ export default function AllProducts({
         setStatusFilter={setStatusFilter}
         categoryFilter={categoryFilter}
         setCategoryFilter={setCategoryFilter}
-        featuredFilter={featuredFilter}
-        setFeaturedFilter={setFeaturedFilter}
         availableCategories={availableCategories}
         onCurrentPageReset={resetCurrentPage}
         onClearFilters={handleClearAllFilters}
@@ -322,15 +301,14 @@ export default function AllProducts({
               onDelete={onDelete}
               onCopy={onCopy}
               onToggleStatus={onToggleStatus}
-              onToggleFeatured={onToggleFeatured}
               togglingStatus={togglingStatus}
               copyingProduct={copyingProduct}
               deletingProduct={deletingProduct}
-              featuringProduct={featuringProduct}
               handleToggleStatus={handleToggleStatus}
               codeSummary={codeSummaries[product.id]}
               onStickers={(id) => openStickers(id)}
               onReceiveStock={(id) => setReceiveFor({ id })}
+              onInsights={setInsightFor}
             />
           ))}
         </div>
@@ -354,6 +332,7 @@ export default function AllProducts({
       />
 
       {receiveModal}
+      <ProductInsightPanel productId={insightFor} open={!!insightFor} onClose={closeInsight} />
     </div>
   );
 }

@@ -398,7 +398,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Printer className="h-6 w-6 text-honey-500 flex-shrink-0" />
+            <Printer className="h-6 w-6 text-honey-700 flex-shrink-0" />
             Print Stickers
           </h1>
           <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500 truncate">
@@ -427,7 +427,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
           {isVariant && data.units.length > 1 && (
             <div className="flex gap-2 text-xs">
               <button
-                className="text-honey-600 hover:underline"
+                className="text-honey-700 hover:underline"
                 onClick={() => setSelectedUnits(new Set(data.units.map(unitKey)))}
               >
                 Select all
@@ -439,10 +439,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
             </div>
           )}
         </div>
-        <p className="text-xs text-gray-500 mb-3">
-          Stock shown is for {data.stockBranch ? 'your branch' : 'all branches'}.
-          {isVariant && ' Tick the items you want stickers for.'}
-        </p>
+        {isVariant && <p className="text-xs text-gray-500 mb-3">Tick the items you want stickers for.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
           {data.units.map((u) => {
             const k = unitKey(u);
@@ -460,7 +457,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
                       type="checkbox"
                       checked={on}
                       onChange={() => toggleUnit(k)}
-                      className="mt-1 h-4 w-4 rounded border-gray-300 text-honey-500 focus:ring-honey-500"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-honey-700 focus:ring-honey-500"
                     />
                   )}
                   <div className="min-w-0 flex-1">
@@ -554,12 +551,12 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
                     <input
                       type="radio"
                       name="sticker-type"
-                      className="mt-1 h-4 w-4 border-gray-300 text-honey-500 focus:ring-honey-500"
+                      className="mt-1 h-4 w-4 border-gray-300 text-honey-700 focus:ring-honey-500"
                       checked={on}
                       disabled={disabled}
                       onChange={() => setType(t.type)}
                     />
-                    <Icon className={`mt-0.5 h-5 w-5 flex-shrink-0 ${on ? 'text-honey-500' : 'text-gray-400'}`} />
+                    <Icon className={`mt-0.5 h-5 w-5 flex-shrink-0 ${on ? 'text-honey-700' : 'text-gray-400'}`} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900">{t.title}</p>
                       <p className="text-xs text-gray-500">{disabled ? t.disabledReason : t.help}</p>
@@ -601,7 +598,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
                               [batchKey(r.unit, r.batch!)]: !bChecked,
                             }))
                           }
-                          className="h-4 w-4 rounded border-gray-300 text-honey-500 focus:ring-honey-500"
+                          className="h-4 w-4 rounded border-gray-300 text-honey-700 focus:ring-honey-500"
                         />
                       )}
                       <div className="min-w-0 flex-1">
@@ -699,7 +696,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
                 onClick={handlePrint}
                 disabled={!items.length || printing || tooMany}
                 aria-busy={printing}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 {printing ? (
                   <>

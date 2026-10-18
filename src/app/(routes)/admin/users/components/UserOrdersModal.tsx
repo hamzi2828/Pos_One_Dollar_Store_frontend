@@ -78,7 +78,7 @@ export default function UserOrdersModal({ userId, userName, userEmail, onClose }
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-honey-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-honey-500/30">
-              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+              <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-gray-900" />
             </div>
             <div className="min-w-0">
               <h2 className="text-sm sm:text-base font-semibold text-gray-900 truncate">Order History</h2>
@@ -103,7 +103,7 @@ export default function UserOrdersModal({ userId, userName, userEmail, onClose }
             </div>
             <div className="text-center">
               <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Total Spent</p>
-              <p className="text-base sm:text-lg font-bold text-honey-600">{formatPrice(totalSpent)}</p>
+              <p className="text-base sm:text-lg font-bold text-honey-700">{formatPrice(totalSpent)}</p>
             </div>
             <div className="text-center col-span-2 sm:col-span-1">
               <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Completed</p>
@@ -118,7 +118,7 @@ export default function UserOrdersModal({ userId, userName, userEmail, onClose }
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="h-7 w-7 animate-spin text-honey-500" />
+              <Loader2 className="h-7 w-7 animate-spin text-honey-700" />
               <p className="text-sm text-gray-500">Loading order history...</p>
             </div>
           ) : error ? (
@@ -158,7 +158,7 @@ export default function UserOrdersModal({ userId, userName, userEmail, onClose }
                       <Link
                         href={`/admin/pos/invoice/${order._id}`}
                         onClick={onClose}
-                        className="inline-flex items-center gap-1 text-[11px] text-honey-600 hover:text-honey-700 font-medium mt-0.5"
+                        className="inline-flex items-center gap-1 text-[11px] text-honey-700 hover:text-honey-700 font-medium mt-0.5"
                       >
                         View <ExternalLink className="h-3 w-3" />
                       </Link>

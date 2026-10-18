@@ -118,7 +118,7 @@ export default function VariantSelector({
               <h3 className="font-semibold text-lg">{product.name}</h3>
               <p className="text-sm text-gray-500 mt-1">{product.category}</p>
               {selectedVariant ? (
-                <p className="text-lg font-bold text-[#DC2626] mt-2">
+                <p className="text-lg font-bold text-honey-700 mt-2">
                   {symbol}{(selectedVariant.discountedPrice || selectedVariant.price).toFixed(2)}
                   {selectedVariant.discountedPrice && (
                     <span className="text-sm text-gray-500 line-through ml-2">
@@ -150,7 +150,7 @@ export default function VariantSelector({
                     disabled={!isAvailable}
                     className={`px-4 py-2 rounded-lg border-2 font-medium transition-colors ${
                       isSelected
-                        ? 'border-[#DC2626] bg-red-50 text-[#DC2626]'
+                        ? 'border-honey-500 bg-red-50 text-honey-700'
                         : isAvailable
                         ? 'border-gray-300 hover:border-red-300 text-gray-700'
                         : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -179,7 +179,7 @@ export default function VariantSelector({
                     disabled={!isAvailable}
                     className={`px-4 py-2 rounded-lg border-2 font-medium transition-colors ${
                       isSelected
-                        ? 'border-[#DC2626] bg-red-50 text-[#DC2626]'
+                        ? 'border-honey-500 bg-red-50 text-honey-700'
                         : isAvailable
                         ? 'border-gray-300 hover:border-red-300 text-gray-700'
                         : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -214,7 +214,7 @@ export default function VariantSelector({
             disabled={!selectedVariant || selectedVariant.stock === 0}
             className={`w-full py-3 rounded-lg font-semibold transition-colors ${
               selectedVariant && selectedVariant.stock > 0
-                ? 'bg-[#DC2626] text-white hover:bg-[#b91c1c]'
+                ? 'bg-honey-500 text-gray-900 hover:bg-honey-600'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >

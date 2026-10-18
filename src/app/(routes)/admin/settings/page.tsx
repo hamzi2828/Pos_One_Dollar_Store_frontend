@@ -3,14 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Settings, Image as ImageIcon, RotateCcw, Mail, Zap, Loader2 } from 'lucide-react';
+import { Settings, Image as ImageIcon, RotateCcw, Zap, Loader2 } from 'lucide-react';
 
 import GeneralSettings from './components/GeneralSettings';
 import LogoSettings from './components/LogoSettings';
-import SMTPSettings from './components/SMTPSettings';
 import { settingsService, SettingsData, SettingsBusyAction } from './services/settingsService';
 
-const VALID_TABS = ['general', 'logo', 'smtp'] as const;
+const VALID_TABS = ['general', 'logo'] as const;
 type TabType = typeof VALID_TABS[number];
 
 export default function SettingsPage() {
@@ -78,7 +77,7 @@ export default function SettingsPage() {
       try {
         const data = await settingsService.uploadLogo(file);
         setSettings(prev => prev ? { ...prev, logoUrl: data.logoUrl } : null);
-        toast.success('Header logo uploaded');
+        toast.success('Logo uploaded');
         window.dispatchEvent(new Event('settingsUpdated'));
       } catch (error) {
         console.error('Error uploading logo:', error);
@@ -91,37 +90,11 @@ export default function SettingsPage() {
       try {
         await settingsService.removeLogo();
         setSettings(prev => prev ? { ...prev, logoUrl: '' } : null);
-        toast.success('Header logo removed');
+        toast.success('Logo removed');
         window.dispatchEvent(new Event('settingsUpdated'));
       } catch (error) {
         console.error('Error removing logo:', error);
         toast.error('Failed to remove logo');
-      }
-    });
-
-  const uploadFooterLogo = (file: File) =>
-    runLocked('uploadFooterLogo', async () => {
-      try {
-        const data = await settingsService.uploadFooterLogo(file);
-        setSettings(prev => prev ? { ...prev, footerLogoUrl: data.footerLogoUrl } : null);
-        toast.success('Footer logo uploaded');
-        window.dispatchEvent(new Event('settingsUpdated'));
-      } catch (error) {
-        console.error('Error uploading footer logo:', error);
-        toast.error('Failed to upload footer logo');
-      }
-    });
-
-  const removeFooterLogo = () =>
-    runLocked('removeFooterLogo', async () => {
-      try {
-        await settingsService.removeFooterLogo();
-        setSettings(prev => prev ? { ...prev, footerLogoUrl: '' } : null);
-        toast.success('Footer logo removed');
-        window.dispatchEvent(new Event('settingsUpdated'));
-      } catch (error) {
-        console.error('Error removing footer logo:', error);
-        toast.error('Failed to remove footer logo');
       }
     });
 
@@ -153,7 +126,7 @@ export default function SettingsPage() {
 
   const resetCaches = async () => {
     if (busyRef.current) return;
-    if (!confirm('Clear all server-side caches? Public pages will refetch fresh data on the next request.')) {
+    if (!confirm('Clear all server caches? Lists and reports will load fresh data on the next request.')) {
       return;
     }
     await runLocked('resetCaches', async () => {
@@ -177,6 +150,7 @@ export default function SettingsPage() {
         const data = await settingsService.resetSettings();
         setSettings(data);
         toast.success('Settings reset to defaults');
+        window.dispatchEvent(new Event('settingsUpdated'));
       } catch (error) {
         console.error('Error resetting settings:', error);
         toast.error('Failed to reset settings');
@@ -197,8 +171,7 @@ export default function SettingsPage() {
 
   const tabs: { id: TabType; label: string; icon: typeof Settings }[] = [
     { id: 'general', label: 'General', icon: Settings },
-    { id: 'logo', label: 'Logo', icon: ImageIcon },
-    { id: 'smtp', label: 'SMTP', icon: Mail },
+    { id: 'logo', label: 'Logo & Icon', icon: ImageIcon },
   ];
 
   return (
@@ -210,7 +183,7 @@ export default function SettingsPage() {
             <div>
               <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Settings</h1>
               <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-                Store preferences
+                Shop details, currency, logo and browser icon
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -218,7 +191,7 @@ export default function SettingsPage() {
                 onClick={resetCaches}
                 disabled={isLoading}
                 aria-busy={busyAction === 'resetCaches'}
-                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
                 title="Clear all server caches"
               >
                 {busyAction === 'resetCaches' ? (
@@ -284,28 +257,11 @@ export default function SettingsPage() {
                 currentLogo={settings.logoUrl}
                 onUploadLogo={uploadLogo}
                 onRemoveLogo={removeLogo}
-                headerLogoWidth={settings.headerLogoWidth ?? 160}
-                headerLogoHeight={settings.headerLogoHeight ?? 56}
-                currentFooterLogo={settings.footerLogoUrl || ''}
-                onUploadFooterLogo={uploadFooterLogo}
-                onRemoveFooterLogo={removeFooterLogo}
-                footerLogoWidth={settings.footerLogoWidth ?? 100}
-                footerLogoHeight={settings.footerLogoHeight ?? 36}
                 currentFavicon={settings.faviconUrl || ''}
                 onUploadFavicon={uploadFavicon}
                 onRemoveFavicon={removeFavicon}
                 isLoading={isLoading}
                 busyAction={busyAction}
-                onSaveDimensions={(dims) => updateSettings(dims, 'dimensions')}
-              />
-            )}
-
-            {activeTab === 'smtp' && (
-              <SMTPSettings
-                settings={settings}
-                onUpdate={(data) => updateSettings(data, 'smtp')}
-                isLoading={isLoading}
-                isSaving={busyAction === 'smtp'}
               />
             )}
           </div>

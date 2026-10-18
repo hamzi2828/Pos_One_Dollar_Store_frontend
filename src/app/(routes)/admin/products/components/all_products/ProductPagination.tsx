@@ -88,7 +88,7 @@ export default function ProductPagination({
                   onClick={() => setCurrentPage(page as number)}
                   className={`min-w-[36px] h-9 px-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                     currentPage === page
-                      ? "bg-honey-500 text-white font-semibold shadow-md"
+                      ? "bg-honey-500 text-gray-900 font-semibold shadow-md"
                       : "text-gray-600 hover:bg-sage-100"
                   }`}
                 >

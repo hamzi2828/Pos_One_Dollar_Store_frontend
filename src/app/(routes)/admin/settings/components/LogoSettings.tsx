@@ -6,35 +6,25 @@ import type { SettingsBusyAction } from '../services/settingsService';
 import Image from 'next/image';
 
 interface LogoSettingsProps {
-  // Header logo
   currentLogo?: string;
   onUploadLogo: (file: File) => void;
   onRemoveLogo: () => void;
-  headerLogoWidth: number;
-  headerLogoHeight: number;
-  // Footer logo
-  currentFooterLogo?: string;
-  onUploadFooterLogo: (file: File) => void;
-  onRemoveFooterLogo: () => void;
-  footerLogoWidth: number;
-  footerLogoHeight: number;
-  // Favicon
   currentFavicon?: string;
   onUploadFavicon: (file: File) => void;
   onRemoveFavicon: () => void;
-  // Common
   isLoading?: boolean;
   /** Which settings action is in flight, so only the matching button spins. */
   busyAction?: SettingsBusyAction | null;
-  onSaveDimensions: (dims: Record<string, number>) => void;
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
+// Uploaded files live on the backend (/uploads/...); built-in defaults such as
+// /images/logo.png are files of this app.
 function getImageUrl(src: string) {
-  if (src.startsWith('data:')) return src;
-  if (src.startsWith('http://') || src.startsWith('https://')) return src;
-  if (src.startsWith('/')) return `${BACKEND_URL}${src}`;
+  if (src.startsWith('data:') || /^https?:\/\//.test(src)) return src;
+  if (src.startsWith('/uploads')) return `${BACKEND_URL}${src}`;
+  if (src.startsWith('/')) return src;
   return `${BACKEND_URL}/${src}`;
 }
 
@@ -128,7 +118,7 @@ function ImageUploader({
                 </div>
               </div>
             ) : (
-              <Image src={getImageUrl(src)} alt={label} width={544} height={158} className="max-h-24 w-auto object-contain" unoptimized={src.startsWith('data:')} />
+              <Image src={getImageUrl(src)} alt={label} width={544} height={158} className="max-h-24 w-auto object-contain" unoptimized />
             )}
           </div>
           <div className="flex gap-2 sm:gap-3">
@@ -188,30 +178,16 @@ function ImageUploader({
 }
 
 // ─── Main component ───
-export default function LogoSettings(props: LogoSettingsProps) {
-  const {
-    currentLogo, onUploadLogo, onRemoveLogo, headerLogoWidth, headerLogoHeight,
-    currentFooterLogo, onUploadFooterLogo, onRemoveFooterLogo, footerLogoWidth, footerLogoHeight,
-    currentFavicon, onUploadFavicon, onRemoveFavicon,
-    isLoading, busyAction, onSaveDimensions,
-  } = props;
-  const savingDimensions = busyAction === 'dimensions';
-
-  const [hWidth, setHWidth] = useState(headerLogoWidth);
-  const [hHeight, setHHeight] = useState(headerLogoHeight);
-  const [fWidth, setFWidth] = useState(footerLogoWidth);
-  const [fHeight, setFHeight] = useState(footerLogoHeight);
-
-  const hasChanges =
-    hWidth !== headerLogoWidth || hHeight !== headerLogoHeight ||
-    fWidth !== footerLogoWidth || fHeight !== footerLogoHeight;
-
+export default function LogoSettings({
+  currentLogo, onUploadLogo, onRemoveLogo,
+  currentFavicon, onUploadFavicon, onRemoveFavicon,
+  isLoading, busyAction,
+}: LogoSettingsProps) {
   return (
     <div className="space-y-8">
-      {/* ─── Header Logo ─── */}
       <ImageUploader
-        label="Header Logo"
-        description="This logo appears in the navigation bar."
+        label="Shop Logo"
+        description="Printed on documents such as staff contract letters."
         icon={ImageIcon}
         currentSrc={currentLogo}
         onUpload={onUploadLogo}
@@ -224,63 +200,8 @@ export default function LogoSettings(props: LogoSettingsProps) {
         validateType={(f) => f.type.startsWith('image/')}
       />
 
-      {/* Header dimensions */}
-      <div className="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-4 sm:p-5">
-        <h4 className="text-sm font-semibold text-gray-900 mb-1">Header Logo Display Size</h4>
-        <p className="text-xs text-gray-500 mb-3">Controls logo dimensions in the navigation bar.</p>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Width (px)</label>
-            <input type="number" min={20} max={600} value={hWidth} onChange={(e) => setHWidth(Number(e.target.value))} disabled={isLoading}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all disabled:opacity-50" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Height (px)</label>
-            <input type="number" min={20} max={200} value={hHeight} onChange={(e) => setHHeight(Number(e.target.value))} disabled={isLoading}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all disabled:opacity-50" />
-          </div>
-        </div>
-      </div>
-
       <hr className="border-gray-200" />
 
-      {/* ─── Footer Logo ─── */}
-      <ImageUploader
-        label="Footer Logo"
-        description="This logo appears in the footer. If not set, the header logo will be used."
-        icon={ImageIcon}
-        currentSrc={currentFooterLogo}
-        onUpload={onUploadFooterLogo}
-        onRemove={onRemoveFooterLogo}
-        isLoading={isLoading}
-        isUploading={busyAction === 'uploadFooterLogo'}
-        isRemoving={busyAction === 'removeFooterLogo'}
-        accept="image/*"
-        maxSizeMB={5}
-        validateType={(f) => f.type.startsWith('image/')}
-      />
-
-      {/* Footer dimensions */}
-      <div className="bg-white border border-gray-200 rounded-lg sm:rounded-xl p-4 sm:p-5">
-        <h4 className="text-sm font-semibold text-gray-900 mb-1">Footer Logo Display Size</h4>
-        <p className="text-xs text-gray-500 mb-3">Controls logo dimensions in the footer.</p>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Width (px)</label>
-            <input type="number" min={20} max={600} value={fWidth} onChange={(e) => setFWidth(Number(e.target.value))} disabled={isLoading}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all disabled:opacity-50" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Height (px)</label>
-            <input type="number" min={20} max={200} value={fHeight} onChange={(e) => setFHeight(Number(e.target.value))} disabled={isLoading}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent outline-none transition-all disabled:opacity-50" />
-          </div>
-        </div>
-      </div>
-
-      <hr className="border-gray-200" />
-
-      {/* ─── Favicon ─── */}
       <ImageUploader
         label="Favicon"
         description="The small icon shown in browser tabs. Recommended: 32x32 or 64x64 pixels."
@@ -295,29 +216,6 @@ export default function LogoSettings(props: LogoSettingsProps) {
         maxSizeMB={2}
         validateType={(f) => f.type.startsWith('image/') || f.name.endsWith('.ico')}
       />
-
-      {/* ─── Save Button ─── */}
-      <div className="flex justify-end pt-2">
-        <button
-          type="button"
-          onClick={() => {
-            if (isLoading) return;
-            onSaveDimensions({
-              headerLogoWidth: hWidth, headerLogoHeight: hHeight,
-              footerLogoWidth: fWidth, footerLogoHeight: fHeight,
-            });
-          }}
-          disabled={isLoading || !hasChanges}
-          aria-busy={savingDimensions}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {savingDimensions ? (
-            <><Loader2 className="h-4 w-4 animate-spin" />Saving…</>
-          ) : (
-            'Save Changes'
-          )}
-        </button>
-      </div>
     </div>
   );
 }

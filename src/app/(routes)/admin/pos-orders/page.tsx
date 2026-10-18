@@ -1,7 +1,7 @@
 // POS Orders — all counter sales with filters, summary, and detail view.
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -25,10 +25,16 @@ import {
   ShoppingBag,
   TrendingUp,
   X,
+  Gift,
+  Undo2,
+  Percent,
 } from 'lucide-react';
 import { POSOrder, PaymentMethodType } from '../pos/types';
-import { getPOSOrders, deletePOSOrder, addPaymentToOrder } from '../pos/services/posOrderService';
+import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder } from '../pos/services/posOrderService';
+import WhatsAppBadge from '../pos/components/WhatsAppBadge';
+import { useAccess } from '@/context/AccessContext';
 import { getCurrencySymbol } from '../pos/utils/currency';
+import { orderItemName } from '../pos/utils/receipt';
 import TablePagination from '@/components/admin/TablePagination';
 import { useServerPagination } from '@/helper/useServerPagination';
 
@@ -38,6 +44,14 @@ type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer';
 export default function POSOrdersPage() {
   const currency = 'PKR';
   const symbol = getCurrencySymbol(currency);
+  const { can } = useAccess();
+  const perms = {
+    seeCost: can('dashboard', 'view'),
+    pay: can(['pos', 'pos_orders'], 'edit'),
+    refund: can('pos_orders', 'edit'),
+    remove: can('pos_orders', 'delete'),
+  };
+  const [refunding, setRefunding] = useState<POSOrder | null>(null);
 
   const [orders, setOrders] = useState<POSOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,7 +83,7 @@ export default function POSOrdersPage() {
   }, [startDate, endDate, payment, status, debouncedSearch]);
 
   // Server returns pagination + summary; summary reflects full filtered set.
-  const [summary, setSummary] = useState({ count: 0, total: 0, paid: 0, pending: 0 });
+  const [summary, setSummary] = useState({ count: 0, total: 0, paid: 0, pending: 0, discount: 0, cogs: undefined as number | undefined });
 
   useEffect(() => {
     const ctl = new AbortController();
@@ -89,11 +103,14 @@ export default function POSOrdersPage() {
         setOrders(resp.orders);
         pg.setTotal(resp.total);
         if (resp.summary) {
+          const sum = resp.summary as typeof resp.summary & { totalDiscount?: number; totalCogs?: number };
           setSummary({
-            count: resp.summary.totalOrders,
-            total: resp.summary.totalSales,
-            paid: resp.summary.totalPaid,
-            pending: resp.summary.totalPending,
+            count: sum.totalOrders,
+            total: sum.totalSales,
+            paid: sum.totalPaid,
+            pending: sum.totalPending,
+            discount: sum.totalDiscount || 0,
+            cogs: sum.totalCogs,
           });
         }
       })
@@ -142,7 +159,7 @@ export default function POSOrdersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Receipt className="h-6 w-6 text-[#DC2626]" />
+            <Receipt className="h-6 w-6 text-honey-700" />
             POS Orders
           </h1>
           <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
@@ -161,7 +178,7 @@ export default function POSOrdersPage() {
           </button>
           <Link
             href="/admin/pos"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-[#DC2626] rounded-lg hover:bg-[#B91C1C]"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
           >
             <ShoppingBag className="h-4 w-4" />
             Open POS
@@ -170,7 +187,7 @@ export default function POSOrdersPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3">
         <SummaryCard
           icon={<ShoppingBag className="h-5 w-5" />}
           label="Orders"
@@ -195,6 +212,20 @@ export default function POSOrdersPage() {
           value={`${symbol}${summary.pending.toFixed(2)}`}
           accent="bg-orange-50 text-orange-600"
         />
+        <SummaryCard
+          icon={<Percent className="h-5 w-5" />}
+          label="Discounts given"
+          value={`${symbol}${summary.discount.toFixed(2)}`}
+          accent="bg-lime-50 text-lime-700"
+        />
+        {perms.seeCost && summary.cogs !== undefined && (
+          <SummaryCard
+            icon={<DollarSign className="h-5 w-5" />}
+            label="Cost of sales"
+            value={`${symbol}${summary.cogs.toFixed(2)}`}
+            accent="bg-slate-100 text-slate-700"
+          />
+        )}
       </div>
 
       {/* Filters */}
@@ -210,7 +241,7 @@ export default function POSOrdersPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by order #, customer name, phone..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
             />
           </div>
 
@@ -220,7 +251,7 @@ export default function POSOrdersPage() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
             />
           </div>
           <div className="relative">
@@ -229,14 +260,14 @@ export default function POSOrdersPage() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
             />
           </div>
 
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as StatusFilter)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
           >
             <option value="all">All statuses</option>
             <option value="completed">Completed</option>
@@ -248,7 +279,7 @@ export default function POSOrdersPage() {
           <select
             value={payment}
             onChange={(e) => setPayment(e.target.value as PaymentFilter)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#DC2626] focus:border-[#DC2626]"
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
           >
             <option value="all">All payments</option>
             <option value="cash">Cash</option>
@@ -304,9 +335,11 @@ export default function POSOrdersPage() {
                     key={o._id}
                     order={o}
                     symbol={symbol}
+                    perms={perms}
                     onView={() => setViewing(o)}
                     onDelete={() => handleDelete(o._id)}
                     onPay={() => setPaying(o)}
+                    onRefund={() => setRefunding(o)}
                     deleting={deletingId === o._id}
                     anyDeleting={!!deletingId}
                   />
@@ -327,7 +360,19 @@ export default function POSOrdersPage() {
       </div>
 
       {viewing && (
-        <OrderDetailModal order={viewing} symbol={symbol} onClose={() => setViewing(null)} />
+        <OrderDetailModal order={viewing} symbol={symbol} seeCost={perms.seeCost} onClose={() => setViewing(null)} />
+      )}
+      {refunding && (
+        <RefundModal
+          order={refunding}
+          symbol={symbol}
+          onClose={() => setRefunding(null)}
+          onDone={(updated) => {
+            setRefunding(null);
+            setOrders((prev) => prev.map((o) => (o._id === updated._id ? { ...o, ...updated } : o)));
+            toast.success('Order refunded — stock is back');
+          }}
+        />
       )}
       {paying && (
         <AddPaymentModal
@@ -424,23 +469,30 @@ function StatusBadge({ paymentStatus, orderStatus }: { paymentStatus?: string; o
   );
 }
 
+type RowPerms = { seeCost: boolean; pay: boolean; refund: boolean; remove: boolean };
+
 function OrderRow({
   order,
   symbol,
+  perms,
   onView,
   onDelete,
   onPay,
+  onRefund,
   deleting,
   anyDeleting,
 }: {
   order: POSOrder;
   symbol: string;
+  perms: RowPerms;
   onView: () => void;
   onDelete: () => void;
   onPay: () => void;
+  onRefund: () => void;
   deleting: boolean;
   anyDeleting: boolean;
 }) {
+  const canRefund = perms.refund && !['refunded', 'cancelled'].includes(order.orderStatus) && order.paymentStatus !== 'refunded';
   const hasOpenBalance =
     (order.paymentStatus === 'partial' || order.paymentStatus === 'pending') &&
     (order.pendingAmount || 0) > 0;
@@ -469,7 +521,14 @@ function OrderRow({
           {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </td>
-      <td className="px-4 py-3 text-gray-600">{order.items?.length ?? 0}</td>
+      <td className="px-4 py-3 text-gray-600">
+        {order.items?.length ?? 0}
+        {order.items?.some((i) => i.isGift) && (
+          <span className="ml-1 inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-pink-50 text-pink-700 text-[10px] font-medium" title="Has gift lines">
+            <Gift className="h-2.5 w-2.5" /> gift
+          </span>
+        )}
+      </td>
       <td className="px-4 py-3">
         <PaymentBadge method={order.paymentMethod} />
       </td>
@@ -483,7 +542,10 @@ function OrderRow({
         ) : null}
       </td>
       <td className="px-4 py-3">
-        <StatusBadge paymentStatus={order.paymentStatus} orderStatus={order.orderStatus} />
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge paymentStatus={order.paymentStatus} orderStatus={order.orderStatus} />
+          <WhatsAppBadge status={order.whatsappStatus} compact />
+        </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
@@ -502,7 +564,7 @@ function OrderRow({
           >
             <FileText className="h-4 w-4" />
           </Link>
-          {hasOpenBalance && (
+          {hasOpenBalance && perms.pay && (
             <button
               onClick={onPay}
               disabled={deleting}
@@ -513,16 +575,29 @@ function OrderRow({
               Pay
             </button>
           )}
-          <button
-            onClick={onDelete}
-            disabled={anyDeleting}
-            aria-busy={deleting}
-            aria-label={deleting ? 'Deleting order' : 'Delete order'}
-            className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
-            title={deleting ? 'Deleting…' : 'Delete order'}
-          >
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          </button>
+          {canRefund && (
+            <button
+              onClick={onRefund}
+              disabled={deleting}
+              className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Refund (stock goes back)"
+              aria-label="Refund order"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+          )}
+          {perms.remove && (
+            <button
+              onClick={onDelete}
+              disabled={anyDeleting}
+              aria-busy={deleting}
+              aria-label={deleting ? 'Deleting order' : 'Delete order'}
+              className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
+              title={deleting ? 'Deleting…' : 'Delete order'}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -532,12 +607,15 @@ function OrderRow({
 function OrderDetailModal({
   order,
   symbol,
+  seeCost,
   onClose,
 }: {
   order: POSOrder;
   symbol: string;
+  seeCost: boolean;
   onClose: () => void;
 }) {
+  const discounts = (order.appliedDiscounts || []).filter((d) => d.amount > 0);
   const customerName =
     order.customerInfo?.name ||
     (order.customer ? `${order.customer.firstName} ${order.customer.lastName ?? ''}`.trim() : 'Walk-in');
@@ -555,7 +633,7 @@ function OrderDetailModal({
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
           <div>
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-[#DC2626]" /> {order.orderNumber}
+              <Receipt className="h-5 w-5 text-honey-700" /> {order.orderNumber}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {new Date(order.createdAt).toLocaleString()}
@@ -571,6 +649,9 @@ function OrderDetailModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 rounded-lg p-3 border border-gray-100">
             <Field label="Customer" value={customerName} />
             <Field label="Phone" value={phone || '—'} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <WhatsAppBadge status={order.whatsappStatus} orderId={order._id} />
           </div>
 
           <div>
@@ -589,13 +670,7 @@ function OrderDetailModal({
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {order.items.map((item, i) => {
-                    const name = item.isLabour
-                      ? item.labourDescription || 'Labour'
-                      : item.isOutsource
-                      ? item.outsourceDescription || 'Outsource'
-                      : typeof item.product === 'object'
-                      ? item.product?.name || 'Product'
-                      : 'Product';
+                    const name = orderItemName(item);
                     return (
                       <tr key={i}>
                         <td className="px-3 py-2">
@@ -605,18 +680,31 @@ function OrderDetailModal({
                               {[item.color, item.size].filter(Boolean).join(' / ')}
                             </div>
                           )}
-                          {item.sku && !item.isLabour && !item.isOutsource && (
+                          {item.sku && (
                             <div className="text-[11px] text-gray-400">SKU: {item.sku}</div>
+                          )}
+                          {item.isGift && (
+                            <div className="text-[11px] text-pink-700 inline-flex items-center gap-1">
+                              <Gift className="h-3 w-3" /> Gift{item.giftReason ? `: ${item.giftReason}` : ''}
+                            </div>
+                          )}
+                          {seeCost && item.costPrice !== undefined && (
+                            <div className="text-[11px] text-gray-400">Cost {symbol}{Number(item.costPrice).toFixed(2)} each</div>
                           )}
                         </td>
                         <td className="px-3 py-2 text-center">{item.quantity}</td>
                         <td className="px-3 py-2 text-right">
-                          {symbol}
-                          {item.price.toFixed(2)}
+                          {item.isGift ? '—' : `${symbol}${item.price.toFixed(2)}`}
                         </td>
                         <td className="px-3 py-2 text-right font-medium">
-                          {symbol}
-                          {(item.price * item.quantity - (item.discount || 0)).toFixed(2)}
+                          {item.isGift ? (
+                            <span className="text-pink-700">FREE — gift</span>
+                          ) : (
+                            <>
+                              {symbol}
+                              {(item.price * item.quantity - (item.discount || 0)).toFixed(2)}
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
@@ -644,16 +732,35 @@ function OrderDetailModal({
                 <span>{symbol}{order.tax.toFixed(2)}</span>
               </div>
             ) : null}
-            {order.discount > 0 && (
+            {discounts.length > 0 ? (
+              discounts.map((d, i) => (
+                <div key={i} className="flex justify-between gap-2 text-green-600">
+                  <span className="truncate">{d.name}</span>
+                  <span className="whitespace-nowrap">-{symbol}{d.amount.toFixed(2)}</span>
+                </div>
+              ))
+            ) : order.discount > 0 ? (
               <div className="flex justify-between text-green-600">
                 <span>Discount</span>
                 <span>-{symbol}{order.discount.toFixed(2)}</span>
               </div>
-            )}
+            ) : null}
             <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-200">
               <span>Total</span>
               <span>{symbol}{order.total.toFixed(2)}</span>
             </div>
+            {seeCost && order.cogs !== undefined && (
+              <div className="pt-2 border-t border-dashed border-gray-300 grid grid-cols-2 gap-x-4 text-xs">
+                <div className="flex justify-between"><span className="text-gray-500">Cost of sales</span><span className="font-semibold">{symbol}{(order.cogs || 0).toFixed(2)}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Profit</span>
+                  <span className={`font-semibold ${(order.profit || 0) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{symbol}{(order.profit || 0).toFixed(2)}</span>
+                </div>
+                {(order.giftCost || 0) > 0 && (
+                  <div className="flex justify-between col-span-2"><span className="text-gray-500">of which gifts</span><span className="font-semibold text-pink-700">{symbol}{(order.giftCost || 0).toFixed(2)}</span></div>
+                )}
+              </div>
+            )}
             {(order.paymentStatus === 'partial' || order.paymentStatus === 'pending') && (
               <div className="pt-2 border-t border-dashed border-gray-300">
                 <div className="grid grid-cols-2 text-xs">
@@ -936,6 +1043,70 @@ function AddPaymentModal({
                 <DollarSign className="h-4 w-4" /> Record Payment
               </>
             )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RefundModal({
+  order,
+  symbol,
+  onClose,
+  onDone,
+}: {
+  order: POSOrder;
+  symbol: string;
+  onClose: () => void;
+  onDone: (updated: POSOrder) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const lock = useRef(false);
+  const submit = async () => {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    try {
+      onDone(await refundPOSOrder(order._id, reason.trim() || undefined));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not refund');
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !busy && onClose()}>
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Undo2 className="h-5 w-5 text-amber-600" /> Refund {order.orderNumber}
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">
+            {symbol}
+            {order.total.toFixed(2)} · every piece goes back into stock (shown in the stock ledger).
+          </p>
+        </div>
+        <div className="p-4">
+          <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={busy}
+            placeholder="e.g. customer changed mind, broken item"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+            autoFocus
+          />
+        </div>
+        <div className="flex justify-end gap-2 p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+          <button onClick={onClose} disabled={busy} className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-60">
+            Cancel
+          </button>
+          <button onClick={submit} disabled={busy} aria-busy={busy} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-60">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+            {busy ? 'Refunding…' : 'Refund order'}
           </button>
         </div>
       </div>

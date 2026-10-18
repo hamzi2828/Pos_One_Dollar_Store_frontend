@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FiMenu, FiX, FiLogOut } from 'react-icons/fi';
@@ -8,28 +8,219 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { clearAllAuth, getCurrentUser } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
-import { Building2, ChevronDown, Loader2 } from 'lucide-react';
+import { storeApi, formatDate } from '@/lib/storeApi';
+import { Bell, CheckCheck, Loader2 } from 'lucide-react';
 
 interface AdminHeaderProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
 }
 
+/* ------------------------------------------------------------------ */
+/* Notification bell (Cash & Notifications module)                     */
+/* ------------------------------------------------------------------ */
+
+interface BellNotice {
+  _id: string;
+  title: string;
+  message?: string;
+  level: 'info' | 'warning' | 'critical';
+  link?: string;
+  createdAt: string;
+  read: boolean;
+}
+
+const POLL_MS = 60 * 1000;
+const LEVEL_DOT: Record<BellNotice['level'], string> = {
+  info: 'bg-blue-500',
+  warning: 'bg-amber-500',
+  critical: 'bg-red-600',
+};
+
+function NotificationBell() {
+  const router = useRouter();
+  const { can } = useAccess();
+  const [count, setCount] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<BellNotice[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const failuresRef = useRef(0);
+
+  // Light poll: unread count only, only while the tab is visible; stops after
+  // repeated failures (e.g. older backend without /api/notifications).
+  const poll = useCallback(async () => {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    if (failuresRef.current >= 3) return;
+    try {
+      const res = await storeApi.get<{ count: number }>('/notifications/unread-count');
+      setCount(res.data?.count || 0);
+      failuresRef.current = 0;
+    } catch {
+      failuresRef.current += 1;
+    }
+  }, []);
+
+  useEffect(() => {
+    poll();
+    const timer = window.setInterval(poll, POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [poll]);
+
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await storeApi.get<BellNotice[]>('/notifications', { limit: 8 });
+      setItems(res.data || []);
+      const unread = Number(res.meta?.unread);
+      if (Number.isFinite(unread)) setCount(unread);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) loadList();
+  };
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const openItem = async (n: BellNotice) => {
+    setOpen(false);
+    if (!n.read) {
+      setItems((list) => list.map((x) => (x._id === n._id ? { ...x, read: true } : x)));
+      setCount((c) => Math.max(0, c - 1));
+      storeApi.post(`/notifications/${n._id}/read`).catch(() => undefined);
+    }
+    if (n.link) router.push(n.link);
+  };
+
+  const markAll = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    try {
+      await storeApi.post('/notifications/read-all');
+      setItems((list) => list.map((x) => ({ ...x, read: true })));
+      setCount(0);
+    } catch {
+      /* keep as is */
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        type="button"
+        onClick={toggle}
+        className="relative p-1.5 sm:p-2 text-gray-500 rounded-md hover:bg-gray-100 hover:text-gray-700 transition-colors"
+        aria-label={count ? `Notifications, ${count} unread` : 'Notifications'}
+        aria-expanded={open}
+      >
+        <Bell className="w-5 h-5" />
+        {count > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-honey-500 text-gray-900 text-[10px] font-bold leading-none">
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-[min(92vw,22rem)] bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
+            <span className="text-sm font-semibold text-gray-900">Notifications</span>
+            <button
+              type="button"
+              onClick={markAll}
+              disabled={markingAll || count === 0}
+              className="inline-flex items-center gap-1 text-xs font-medium text-honey-700 hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
+              Mark all read
+            </button>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {loading && items.length === 0 ? (
+              <div className="py-8 text-center">
+                <Loader2 className="h-5 w-5 text-honey-700 animate-spin mx-auto" />
+              </div>
+            ) : items.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">No notifications</p>
+            ) : (
+              items.map((n) => (
+                <button
+                  key={n._id}
+                  type="button"
+                  onClick={() => openItem(n)}
+                  className={`w-full text-left flex gap-2.5 px-4 py-2.5 border-b border-gray-50 hover:bg-gray-50 ${n.read ? '' : 'bg-honey-50/40'}`}
+                >
+                  <span className={`mt-1.5 h-2 w-2 rounded-full flex-shrink-0 ${n.read ? 'bg-gray-300' : LEVEL_DOT[n.level] || 'bg-blue-500'}`} />
+                  <span className="min-w-0">
+                    <span className={`block text-sm truncate ${n.read ? 'text-gray-700' : 'font-semibold text-gray-900'}`}>{n.title}</span>
+                    {n.message && <span className="block text-xs text-gray-500 line-clamp-2">{n.message}</span>}
+                    <span className="block text-[11px] text-gray-400 mt-0.5">{formatDate(n.createdAt, true)}</span>
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+          {can('notifications', 'view') && (
+            <Link
+              href="/admin/notifications"
+              onClick={() => setOpen(false)}
+              className="block text-center text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 py-2.5"
+            >
+              See all notifications
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHeaderProps) {
   const { currency } = useCurrency();
   const router = useRouter();
-  const { access, isSuperAdmin, branch, branches, currentBranchId, currentBranch, switchBranch } = useAccess();
+  const { access } = useAccess();
 
   const tokenUser = getCurrentUser();
   const firstName = access?.user?.firstName || tokenUser?.firstName || '';
   const lastName = access?.user?.lastName || tokenUser?.lastName || '';
   const displayName = `${firstName} ${lastName}`.trim() || 'Admin';
-  const subtitle = describeAccess(access, currentBranch?.name);
+  const subtitle = describeAccess(access);
 
-  // Sign out / branch switch navigate away (router.replace / full reload), which
-  // can take a moment: lock the control and show a spinner until the page goes.
+  // Sign out navigates away (router.replace), which can take a moment:
+  // lock the button and show a spinner until the page goes.
   const [signingOut, setSigningOut] = useState(false);
-  const [switchingBranch, setSwitchingBranch] = useState(false);
   const navLockRef = useRef(false);
 
   const handleLogout = () => {
@@ -38,13 +229,6 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
     setSigningOut(true);
     clearAllAuth();
     router.replace('/authentication');
-  };
-
-  const handleSwitchBranch = (value: string) => {
-    if (navLockRef.current) return;
-    navLockRef.current = true;
-    setSwitchingBranch(true);
-    switchBranch(value === 'all' ? null : value);
   };
 
   return (
@@ -62,52 +246,14 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
       </button>
 
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4 ml-auto">
-        {/* Branch: super admin picks one (or all); staff see their own branch */}
-        {access && isSuperAdmin && (
-          <label
-            className="relative flex items-center gap-1.5 pl-2 pr-1 sm:pl-2.5 py-1 sm:py-1.5 bg-white border border-gray-200 rounded-md sm:rounded-lg hover:border-honey-500/50 transition-colors"
-            title="Choose which branch you are working on"
-          >
-            {switchingBranch ? (
-              <Loader2 className="w-4 h-4 text-honey-500 flex-shrink-0 animate-spin" />
-            ) : (
-              <Building2 className="w-4 h-4 text-honey-500 flex-shrink-0" />
-            )}
-            <select
-              value={currentBranchId || 'all'}
-              onChange={(e) => handleSwitchBranch(e.target.value)}
-              disabled={switchingBranch || signingOut}
-              aria-busy={switchingBranch}
-              className="appearance-none bg-transparent pr-5 text-xs sm:text-sm font-medium text-gray-700 focus:outline-none cursor-pointer max-w-[120px] sm:max-w-[200px] truncate disabled:opacity-60 disabled:cursor-not-allowed"
-              aria-label="Branch"
-            >
-              <option value="all">All branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                  {b.isMain ? ' (main)' : ''}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-1.5 w-3.5 h-3.5 text-gray-400" />
-          </label>
-        )}
-        {access && !isSuperAdmin && branch && (
-          <span
-            className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-honey-50 border border-honey-500/30 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium text-gray-700"
-            title="You work in this branch"
-          >
-            <Building2 className="w-4 h-4 text-honey-500" />
-            <span className="max-w-[110px] sm:max-w-none truncate">{branch.name}</span>
-          </span>
-        )}
+        {access && <NotificationBell />}
 
         <Link
           href="/admin/settings"
           className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-honey-50 border border-honey-500/30 rounded-md sm:rounded-lg hover:bg-honey-100 hover:border-honey-500/50 transition-all duration-200"
           title="Click to change currency"
         >
-          <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-honey-500 rounded-full text-white text-xs sm:text-sm font-bold">
+          <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-honey-500 rounded-full text-gray-900 text-xs sm:text-sm font-bold">
             {currency.symbol}
           </span>
           <span className="text-xs sm:text-sm font-medium text-gray-700">{currency.code}</span>
@@ -115,7 +261,7 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
 
         <div className="flex items-center gap-2" title={`${displayName} — ${subtitle}`}>
           <div
-            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-honey-500 rounded-full flex-shrink-0 text-white text-xs sm:text-sm font-bold"
+            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-honey-500 rounded-full flex-shrink-0 text-gray-900 text-xs sm:text-sm font-bold"
             aria-label={displayName}
           >
             {(firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || 'A'}
@@ -128,7 +274,7 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
 
         <button
           onClick={handleLogout}
-          disabled={signingOut || switchingBranch}
+          disabled={signingOut}
           aria-busy={signingOut}
           className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-gray-500 rounded-md sm:rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
           title="Sign out"

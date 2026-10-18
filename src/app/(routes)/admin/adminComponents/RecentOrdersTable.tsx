@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface Order {
   id: string;
@@ -15,14 +16,13 @@ interface RecentOrdersTableProps {
 }
 
 export const RecentOrdersTable: React.FC<RecentOrdersTableProps> = ({ orders = [] }) => {
+  const { formatPrice } = useCurrency();
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'processing':
         return 'bg-yellow-100 text-yellow-800';
-      case 'shipped':
-        return 'bg-blue-100 text-blue-800';
       case 'cancelled':
         return 'bg-red-100 text-red-800';
       case 'pending':
@@ -47,7 +47,7 @@ export const RecentOrdersTable: React.FC<RecentOrdersTableProps> = ({ orders = [
       <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4">
         <h2 className="text-sm sm:text-base md:text-lg font-medium text-gray-900">Recent Orders</h2>
         <Link
-          href="/admin/orders"
+          href="/admin/pos-orders"
           className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-800 font-medium"
         >
           View All
@@ -78,17 +78,17 @@ export const RecentOrdersTable: React.FC<RecentOrdersTableProps> = ({ orders = [
             {orders.map((order) => (
               <tr key={order.id} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">
-                  <Link href={`/admin/orders/${order.id || ''}`} className="hover:text-indigo-600">
-                    {order.id || 'N/A'}
-                  </Link>
+                  {order.id ? (
+                    <Link href={`/admin/pos/invoice/${order.id}`} className="hover:text-indigo-600">
+                      {order.id}
+                    </Link>
+                  ) : 'N/A'}
                 </td>
                 <td className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 text-xs sm:text-sm text-gray-500 whitespace-nowrap">
-                  <Link href={`/admin/users/${order.customerId || ''}`} className="hover:text-indigo-600">
-                    {order.customerName || 'Unknown'}
-                  </Link>
+                  {order.customerName || 'Walk-in'}
                 </td>
                 <td className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 text-xs sm:text-sm text-right text-gray-500 whitespace-nowrap">
-                  ${(order.amount || 0).toFixed(2)}
+                  {formatPrice(order.amount || 0)}
                 </td>
                 <td className="px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 md:py-4 text-xs sm:text-sm text-center whitespace-nowrap">
                   <span

@@ -2,7 +2,7 @@
 // inventory valuation. Not date-filtered; stock is a balance.
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   Boxes,
@@ -147,7 +147,7 @@ export default function StockReportPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Boxes className="h-6 w-6 text-[#DC2626]" />
+            <Boxes className="h-6 w-6 text-honey-700" />
             Stock Report
           </h1>
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
@@ -217,7 +217,7 @@ export default function StockReportPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Name, category, slug"
-            className="w-full pl-8 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
+            className="w-full pl-8 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500"
           />
         </div>
       </div>
@@ -297,7 +297,7 @@ function FilterBtn({ label, active, onClick }: { label: string; active: boolean;
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active ? 'bg-[#DC2626] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active ? 'bg-honey-500 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
     >
       {label}
     </button>

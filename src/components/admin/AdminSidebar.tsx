@@ -2,35 +2,23 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Users,
   Package,
-  ShoppingCart,
   Settings,
-  BookOpen,
-  Image,
-  FileEdit,
-  MessageSquare,
   X,
   Store,
-  FolderOpen,
-  FileText,
   Undo2,
-  Ticket,
-  Mail,
   Bell,
   Boxes,
   Truck,
   ClipboardList,
   BarChart3,
   Layers,
-  Star,
   Palette,
-  Wrench,
   Briefcase,
-  CalendarCheck,
   Wallet,
   Building2,
   Receipt,
@@ -43,9 +31,31 @@ import {
   TrendingUp,
   LineChart,
   AlertCircle,
-  Signal,
-  ArrowLeftRight,
   UserCog,
+  Warehouse,
+  LayoutGrid,
+  PackageOpen,
+  History,
+  PackageX,
+  ShoppingBasket,
+  SlidersHorizontal,
+  PackageCheck,
+  HandCoins,
+  Handshake,
+  TrendingDown,
+  CalendarRange,
+  Hourglass,
+  Footprints,
+  Target,
+  Calculator,
+  Percent,
+  Tags,
+  Contact,
+  UsersRound,
+  Monitor,
+  Banknote,
+  MessageCircle,
+  Route,
 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
@@ -72,11 +82,11 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onToggleCollapse }: AdminSidebarProps) {
   const pathname = usePathname();
-  const { access, can, isSuperAdmin, currentBranch } = useAccess();
+  const { access, can, isSuperAdmin } = useAccess();
   const tokenUser = getCurrentUser();
   const footerName =
     `${access?.user?.firstName || tokenUser?.firstName || ''} ${access?.user?.lastName || tokenUser?.lastName || ''}`.trim() || 'Admin';
-  const footerRole = describeAccess(access, currentBranch?.name);
+  const footerRole = describeAccess(access);
   const [siteName, setSiteName] = useState<string>('');
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -159,7 +169,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Dashboard', path: '/admin', icon: <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'dashboard' },
     { name: 'POS', path: '/admin/pos', icon: <Store className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'pos' },
     { name: 'POS Orders', path: '/admin/pos-orders', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'pos_orders' },
-    { name: 'Load', path: '/admin/load', icon: <Signal className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'networks' },
+    { name: 'Till & Cash Closing', path: '/admin/till', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['till', 'till_verify'] },
   ];
 
   // Reports Section — all business analytics reports in one place.
@@ -170,6 +180,13 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Expenses', path: '/admin/reports/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_expenses' },
     { name: 'Receivables', path: '/admin/reports/receivables', icon: <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_receivables' },
     { name: 'Cash in Hand', path: '/admin/reports/cash-in-hand', icon: <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cash_in_hand' },
+    { name: 'Demand List', path: '/admin/reports/demand', icon: <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_demand' },
+    { name: 'Sales Trends', path: '/admin/reports/trends', icon: <CalendarRange className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_trends' },
+    { name: 'Slow Moving', path: '/admin/reports/slow-moving', icon: <Hourglass className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_slow_moving' },
+    { name: 'Footfall', path: '/admin/reports/footfall', icon: <Footprints className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_footfall' },
+    { name: 'Category Performance', path: '/admin/reports/category-performance', icon: <Target className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_category_performance' },
+    { name: 'Cash Closing', path: '/admin/reports/cash-closing', icon: <Calculator className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cash_closing' },
+    { name: 'Stock Timeline', path: '/admin/reports/stock-timeline', icon: <Route className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_stock_movement' },
   ];
 
   // Product Management Section
@@ -178,6 +195,28 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Categories', path: '/admin/products/categories', icon: <Layers className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_categories' },
     { name: 'Attributes', path: '/admin/products/attributes', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_attributes' },
     { name: 'Stock', path: '/admin/products/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['product_stock', 'stock_receive'] },
+    { name: 'Discount Rules', path: '/admin/products/discounts', icon: <Percent className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'discounts' },
+    { name: 'Price Tiers', path: '/admin/products/price-tiers', icon: <Tags className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'price_tiers' },
+  ];
+
+  // Purchasing & Vendors — purchase orders (multi-vendor, builty, landed cost), receiving, vendor ledger.
+  const purchasingMenuItems: MenuItem[] = [
+    { name: 'Purchase Orders', path: '/admin/purchasing/orders', icon: <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'purchase_orders' },
+    { name: 'Goods Receiving', path: '/admin/purchasing/receiving', icon: <PackageCheck className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'goods_receiving' },
+    { name: 'Vendors & Ledger', path: '/admin/vendors', icon: <Truck className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendors' },
+    { name: 'Vendor Payments', path: '/admin/vendors/payments', icon: <HandCoins className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendor_payments' },
+    { name: 'Consignment', path: '/admin/vendors/consignment', icon: <Handshake className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'consignment' },
+    { name: 'Vendor Returns', path: '/admin/vendors/returns', icon: <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendor_returns' },
+  ];
+
+  // Inventory & Warehouse — racks/shelves (A1..D20 x 4 shelves), put-away, movement ledger, damages.
+  const inventoryMenuItems: MenuItem[] = [
+    { name: 'Racks & Shelves', path: '/admin/inventory/racks', icon: <LayoutGrid className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'racks' },
+    { name: 'Warehouse → Shop', path: '/admin/inventory/putaway', icon: <PackageOpen className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'stock_putaway' },
+    { name: 'Stock Movements', path: '/admin/inventory/movements', icon: <History className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'stock_movements' },
+    { name: 'Damaged Stock', path: '/admin/inventory/damages', icon: <PackageX className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'damages' },
+    { name: 'Shop Use', path: '/admin/inventory/shop-use', icon: <ShoppingBasket className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'shop_use' },
+    { name: 'Stock Adjustments', path: '/admin/inventory/adjustments', icon: <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'stock_adjustments' },
   ];
 
   // Customer Management Section
@@ -189,20 +228,28 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   const financeMenuItems: MenuItem[] = [
     { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'banks' },
     { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'expenses' },
+    { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
   ];
 
-  // Branches & Staff Section — shops, staff logins, what each role may do, moving stock.
-  const branchMenuItems: MenuItem[] = [
-    { name: 'Branches', path: '/admin/branches', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'branches' },
+  // HR — employees (full details, contract letter) and who looks after which category.
+  const hrMenuItems: MenuItem[] = [
+    { name: 'Employees', path: '/admin/hr/employees', icon: <Contact className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'employees' },
+    { name: 'Category Staff', path: '/admin/hr/category-staff', icon: <UsersRound className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'category_assignments' },
+  ];
+
+  // Staff & Access — staff logins, what each role may do, sale counters.
+  const staffMenuItems: MenuItem[] = [
     { name: 'Staff Logins', path: '/admin/staff', icon: <UserCog className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'staff' },
     { name: 'Roles & Permissions', path: '/admin/roles', icon: <Shield className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'roles' },
-    { name: 'Stock Transfers', path: '/admin/stock-transfers', icon: <ArrowLeftRight className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'stock_transfers' },
+    { name: 'Sale Counters', path: '/admin/counters', icon: <Monitor className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'sale_counters' },
   ];
 
   // System Settings Section
   const systemMenuItems: MenuItem[] = [
     { name: 'Activity Log', path: '/admin/activity-log', icon: <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'activity_log' },
     { name: 'Settings', path: '/admin/settings', icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'settings' },
+    { name: 'Notifications', path: '/admin/notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'notifications' },
+    { name: 'WhatsApp', path: '/admin/whatsapp', icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'whatsapp' },
   ];
 
   const renderMenuItem = (item: MenuItem) => {
@@ -213,7 +260,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     // But exclude cases where another menu item has a more specific match
     if (!isActive && item.path !== '/admin' && pathname?.startsWith(item.path)) {
       // Check if there's a more specific menu item that matches
-      const allItems = [...mainMenuItems, ...reportsMenuItems, ...productMenuItems, ...customerMenuItems, ...financeMenuItems, ...branchMenuItems, ...systemMenuItems];
+      const allItems = [...mainMenuItems, ...reportsMenuItems, ...productMenuItems, ...purchasingMenuItems, ...inventoryMenuItems, ...customerMenuItems, ...financeMenuItems, ...hrMenuItems, ...staffMenuItems, ...systemMenuItems];
       const hasMoreSpecificMatch = allItems.some(
         other => other.path !== item.path &&
                  other.path.startsWith(item.path) &&
@@ -224,7 +271,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
     const baseClasses = `group flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-md sm:rounded-lg transition-all duration-200`;
     const activeClasses = isActive
-      ? 'bg-honey-500 text-white font-semibold'
+      ? 'bg-honey-500 text-gray-900 font-semibold'
       : 'text-gray-600 hover:bg-sage-100 hover:text-charcoal';
 
     return (
@@ -235,7 +282,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
         onClick={onClose}
         title={isCollapsed ? item.name : undefined}
       >
-        <span className={`relative ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-honey-600'}`}>
+        <span className={`relative ${isActive ? 'text-gray-900' : 'text-gray-400 group-hover:text-honey-700'}`}>
           {item.icon}
           {isCollapsed && item.notificationCount !== undefined && item.notificationCount > 0 && (
             <span className="hidden lg:flex absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-1 items-center justify-center text-[9px] font-bold bg-red-500 text-white rounded-full">
@@ -250,7 +297,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
           </span>
         )}
         {item.badge && (
-          <span className={`px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-honey-500 text-white rounded-full ${isCollapsed ? 'lg:hidden' : ''}`}>
+          <span className={`px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium bg-honey-500 text-gray-900 rounded-full ${isCollapsed ? 'lg:hidden' : ''}`}>
             {item.badge}
           </span>
         )}
@@ -290,8 +337,8 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
           {/* Logo Header */}
           <div className={`flex items-center h-12 sm:h-14 md:h-16 px-3 sm:px-4 border-b border-gray-200 ${isCollapsed ? 'lg:justify-center lg:px-2' : 'justify-between'}`}>
             <div className={`flex items-center gap-2 sm:gap-3 ${isCollapsed ? 'lg:gap-0' : ''}`}>
-              <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-honey-500 rounded-md sm:rounded-lg shadow-md flex-shrink-0">
-                <Store className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 bg-gray-950 rounded-md sm:rounded-lg shadow-md flex-shrink-0">
+                <Store className="w-4 h-4 sm:w-5 sm:h-5 text-honey-400" />
               </div>
               <div className={isCollapsed ? 'lg:hidden' : ''}>
                 <h1 className="text-sm sm:text-base font-semibold text-gray-900">{siteName || 'Admin'}</h1>
@@ -337,9 +384,12 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                 { label: 'Main', icon: <LayoutDashboard className="w-3.5 h-3.5" />, items: filterItems(mainMenuItems) },
                 { label: 'Reports', icon: <BarChart3 className="w-3.5 h-3.5" />, items: filterItems(reportsMenuItems) },
                 { label: 'Product Management', icon: <Package className="w-3.5 h-3.5" />, items: filterItems(productMenuItems) },
+                { label: 'Purchasing & Vendors', icon: <Truck className="w-3.5 h-3.5" />, items: filterItems(purchasingMenuItems) },
+                { label: 'Inventory & Warehouse', icon: <Warehouse className="w-3.5 h-3.5" />, items: filterItems(inventoryMenuItems) },
                 { label: 'Customer Management', icon: <Users className="w-3.5 h-3.5" />, items: filterItems(customerMenuItems) },
                 { label: 'Finance', icon: <Wallet className="w-3.5 h-3.5" />, items: filterItems(financeMenuItems) },
-                { label: 'Branches & Staff', icon: <Building2 className="w-3.5 h-3.5" />, items: filterItems(branchMenuItems) },
+                { label: 'HR', icon: <Briefcase className="w-3.5 h-3.5" />, items: filterItems(hrMenuItems) },
+                { label: 'Staff & Access', icon: <Shield className="w-3.5 h-3.5" />, items: filterItems(staffMenuItems) },
                 { label: 'System Settings', icon: <Settings className="w-3.5 h-3.5" />, items: filterItems(systemMenuItems) },
               ];
 
@@ -396,7 +446,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                         {/* Icon */}
                         {isSectionCollapsed && (
                           <span className={`flex items-center justify-center w-5 h-5 rounded-md transition-colors ${
-                            sectionHasActive ? 'bg-honey-500 text-white' : 'bg-white text-gray-400 group-hover:text-honey-600 border border-gray-200 group-hover:border-honey-300'
+                            sectionHasActive ? 'bg-honey-500 text-gray-900' : 'bg-white text-gray-400 group-hover:text-honey-700 border border-gray-200 group-hover:border-honey-300'
                           }`}>
                             {section.icon}
                           </span>
@@ -411,12 +461,12 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                             </span>
                           )}
                           {isSectionCollapsed && itemCount > 0 && (
-                            <span className="text-[9px] font-bold text-gray-400 group-hover:text-honey-600 normal-case tracking-normal tabular-nums">
+                            <span className="text-[9px] font-bold text-gray-400 group-hover:text-honey-700 normal-case tracking-normal tabular-nums">
                               {itemCount}
                             </span>
                           )}
                           <ChevronDown
-                            className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isSectionCollapsed ? 'text-gray-400 group-hover:text-honey-600' : 'text-gray-300 group-hover:text-gray-500'} transition-transform duration-200 ${isSectionCollapsed ? '-rotate-90' : ''}`}
+                            className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${isSectionCollapsed ? 'text-gray-400 group-hover:text-honey-700' : 'text-gray-300 group-hover:text-gray-500'} transition-transform duration-200 ${isSectionCollapsed ? '-rotate-90' : ''}`}
                           />
                         </span>
                       </button>

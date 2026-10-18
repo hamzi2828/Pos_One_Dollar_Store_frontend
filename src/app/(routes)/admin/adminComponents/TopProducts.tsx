@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface Product {
   id: string;
@@ -14,6 +15,7 @@ interface TopProductsProps {
 }
 
 export const TopProducts: React.FC<TopProductsProps> = ({ products }) => {
+  const { formatPrice } = useCurrency();
   const getStockStatus = (stock: number) => {
     if (stock === 0) return { text: 'Out of Stock', color: 'text-red-600 bg-red-100' };
     if (stock < 10) return { text: 'Low Stock', color: 'text-yellow-600 bg-yellow-100' };
@@ -56,7 +58,7 @@ export const TopProducts: React.FC<TopProductsProps> = ({ products }) => {
                       <span className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-gray-200 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold text-gray-600">
                         {index + 1}
                       </span>
-                      <Link href={`/admin/products/${product.id}`} className="ml-2 sm:ml-3 text-xs sm:text-sm font-medium text-gray-900 hover:text-indigo-600">
+                      <Link href={`/admin/products/edit/${product.id}`} className="ml-2 sm:ml-3 text-xs sm:text-sm font-medium text-gray-900 hover:text-indigo-600">
                         {product.name}
                       </Link>
                     </div>
@@ -65,7 +67,7 @@ export const TopProducts: React.FC<TopProductsProps> = ({ products }) => {
                     {product.sales}
                   </td>
                   <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-xs sm:text-sm text-right text-gray-900 font-medium whitespace-nowrap">
-                    ${product.revenue.toLocaleString()}
+                    {formatPrice(product.revenue || 0)}
                   </td>
                   <td className="px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-center whitespace-nowrap">
                     <span className={`inline-flex px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-full ${stockStatus.color}`}>

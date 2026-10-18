@@ -19,7 +19,6 @@ const ProductsPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [copyingProduct, setCopyingProduct] = useState<Set<string>>(new Set());
   const [deletingProduct, setDeletingProduct] = useState<Set<string>>(new Set());
-  const [featuringProduct, setFeaturingProduct] = useState<Set<string>>(new Set());
   // Synchronous locks so a fast double click can't fire the same request twice
   const refreshLockRef = useRef(false);
   const busyIdsRef = useRef<Set<string>>(new Set());
@@ -113,29 +112,6 @@ const ProductsPage = () => {
     }
   };
 
-  // Toggle product featured handler
-  const handleToggleFeaturedProduct = async (id: string) => {
-    const lockKey = `featured:${id}`;
-    if (busyIdsRef.current.has(lockKey)) return;
-    const target = products.find((p) => p.id === id);
-    if (!target) return;
-    busyIdsRef.current.add(lockKey);
-    addId(setFeaturingProduct, id);
-    const nextFeatured = !target.featured;
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, featured: nextFeatured } : p)));
-    try {
-      await productService.toggleFeatured(id, nextFeatured);
-      toast.success(`Product ${nextFeatured ? 'marked as featured' : 'removed from featured'} successfully`);
-    } catch (e) {
-      console.error('Failed to toggle product featured status', e);
-      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, featured: !nextFeatured } : p)));
-      toast.error('Failed to update product featured status');
-    } finally {
-      busyIdsRef.current.delete(lockKey);
-      removeId(setFeaturingProduct, id);
-    }
-  };
-
   // Copy/Duplicate product handler
   const handleCopyProduct = async (id: string) => {
     const lockKey = `copy:${id}`;
@@ -185,7 +161,7 @@ const ProductsPage = () => {
           </button>
           <Link
             href="/admin/products/create"
-            className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
+            className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Add Product</span>
@@ -200,12 +176,10 @@ const ProductsPage = () => {
         onDelete={handleDeleteProduct}
         onCopy={handleCopyProduct}
         onToggleStatus={handleToggleProductStatus}
-        onToggleFeatured={handleToggleFeaturedProduct}
         loading={prodLoading}
         error={prodError}
         copyingProduct={copyingProduct}
         deletingProduct={deletingProduct}
-        featuringProduct={featuringProduct}
         onStockChanged={() => loadProducts(filters)}
       />
     </div>

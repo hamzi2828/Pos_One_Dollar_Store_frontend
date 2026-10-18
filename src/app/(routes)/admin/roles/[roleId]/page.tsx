@@ -23,6 +23,8 @@ import {
   Briefcase,
   ChevronDown,
   Loader2,
+  Truck,
+  Warehouse,
 } from 'lucide-react';
 import {
   type Role,
@@ -43,6 +45,8 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   finance: <Wallet className="h-4 w-4" />,
   hr: <Briefcase className="h-4 w-4" />,
   system: <Settings className="h-4 w-4" />,
+  purchasing: <Truck className="h-4 w-4" />,
+  inventory: <Warehouse className="h-4 w-4" />,
 };
 
 export default function RolePermissionsPage() {
@@ -201,7 +205,7 @@ export default function RolePermissionsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14 text-center">
-          <Loader2 className="h-8 w-8 text-honey-500 mx-auto mb-3 animate-spin" />
+          <Loader2 className="h-8 w-8 text-honey-700 mx-auto mb-3 animate-spin" />
           <p className="text-sm text-gray-500">Loading role…</p>
         </div>
       </div>
@@ -217,7 +221,7 @@ export default function RolePermissionsPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-1">{loadError}</h2>
             <button
               onClick={fetchRole}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-colors"
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-colors"
             >
               Try again
             </button>
@@ -239,7 +243,7 @@ export default function RolePermissionsPage() {
             </p>
             <button
               onClick={() => router.push('/admin/roles')}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Roles
@@ -257,7 +261,7 @@ export default function RolePermissionsPage() {
       <div className="max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3">
-          <Link href="/admin/roles" className="hover:text-honey-600 transition-colors">
+          <Link href="/admin/roles" className="hover:text-honey-700 transition-colors">
             Roles
           </Link>
           <span>/</span>
@@ -270,14 +274,14 @@ export default function RolePermissionsPage() {
             <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
               <Link
                 href="/admin/roles"
-                className="flex items-center justify-center h-9 w-9 rounded-lg text-gray-400 hover:text-honey-600 hover:bg-honey-50 border border-gray-200 hover:border-honey-200 transition-colors flex-shrink-0"
+                className="flex items-center justify-center h-9 w-9 rounded-lg text-gray-400 hover:text-honey-700 hover:bg-honey-50 border border-gray-200 hover:border-honey-200 transition-colors flex-shrink-0"
                 title="Back to roles"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Link>
               <div
                 className={`flex items-center justify-center h-11 w-11 rounded-lg flex-shrink-0 ${
-                  role.isSystem ? 'bg-purple-50 text-purple-600' : 'bg-honey-50 text-honey-600'
+                  role.isSystem ? 'bg-purple-50 text-purple-600' : 'bg-honey-50 text-honey-700'
                 }`}
               >
                 {role.isSystem ? <Lock className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
@@ -324,7 +328,7 @@ export default function RolePermissionsPage() {
                 onClick={handleSave}
                 disabled={!dirty || readOnly || saving}
                 aria-busy={saving}
-                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
               >
                 {saving ? (
                   <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
@@ -366,7 +370,7 @@ export default function RolePermissionsPage() {
         <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 mb-4 sm:mb-6">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center h-8 w-8 rounded-md bg-honey-50 text-honey-600">
+              <div className="flex items-center justify-center h-8 w-8 rounded-md bg-honey-50 text-honey-700">
                 <Key className="h-4 w-4" />
               </div>
               <div>
@@ -441,8 +445,8 @@ export default function RolePermissionsPage() {
                     <span
                       className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors flex-shrink-0 ${
                         sectionHasAny
-                          ? 'bg-honey-500 text-white'
-                          : 'bg-white text-gray-400 border border-gray-200 group-hover:text-honey-600 group-hover:border-honey-300'
+                          ? 'bg-honey-500 text-gray-900'
+                          : 'bg-white text-gray-400 border border-gray-200 group-hover:text-honey-700 group-hover:border-honey-300'
                       }`}
                     >
                       {SECTION_ICONS[section.iconKey] ?? <Settings className="h-4 w-4" />}
@@ -468,7 +472,7 @@ export default function RolePermissionsPage() {
                     disabled={readOnly || saving}
                     className={`px-3 py-1.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                       allFull
-                        ? 'bg-honey-500 text-white hover:bg-honey-600'
+                        ? 'bg-honey-500 text-gray-900 hover:bg-honey-600'
                         : sectionHasAny
                         ? 'bg-honey-50 text-honey-700 hover:bg-honey-100 border border-honey-200'
                         : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
@@ -522,7 +526,7 @@ export default function RolePermissionsPage() {
                               disabled={readOnly || saving}
                               className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                                 allSelected
-                                  ? 'bg-honey-500 text-white hover:bg-honey-600'
+                                  ? 'bg-honey-500 text-gray-900 hover:bg-honey-600'
                                   : someSelected
                                   ? 'bg-honey-50 text-honey-700 hover:bg-honey-100 border border-honey-200'
                                   : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'

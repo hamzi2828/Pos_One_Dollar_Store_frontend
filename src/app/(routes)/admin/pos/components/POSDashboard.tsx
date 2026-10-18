@@ -120,7 +120,7 @@ function SalesLineChart({ data }: { data: { _id: string; totalSales: number; tot
         <path
           d={pathD}
           fill="none"
-          stroke="#DC2626"
+          stroke="#111827"
           strokeWidth="0.8"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -133,7 +133,7 @@ function SalesLineChart({ data }: { data: { _id: string; totalSales: number; tot
             cx={p.x}
             cy={p.y}
             r="1.5"
-            fill="#DC2626"
+            fill="#111827"
             className="cursor-pointer hover:r-2"
           />
         ))}
@@ -141,8 +141,8 @@ function SalesLineChart({ data }: { data: { _id: string; totalSales: number; tot
         {/* Gradient definition */}
         <defs>
           <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#DC2626" />
-            <stop offset="100%" stopColor="#DC2626" stopOpacity="0" />
+            <stop offset="0%" stopColor="#FFD60A" />
+            <stop offset="100%" stopColor="#FFD60A" stopOpacity="0" />
           </linearGradient>
         </defs>
       </svg>
@@ -254,7 +254,7 @@ function HourlyChart({ data, symbol }: { data: { _id: number; totalSales: number
         {hours.map((h) => (
           <div
             key={h.hour}
-            className="flex-1 bg-red-500 rounded-t transition-all hover:bg-[#DC2626]"
+            className="flex-1 bg-red-500 rounded-t transition-all hover:bg-honey-500"
             style={{ height: `${(h.sales / maxSales) * 100}%`, minHeight: h.sales > 0 ? '4px' : '0' }}
             title={`${h.hour}:00 - ${symbol}${h.sales.toFixed(2)} (${h.orders} orders)`}
           />
@@ -345,7 +345,7 @@ function FilterDropdown({
                 key={option.value}
                 onClick={() => handleFilterSelect(option.value)}
                 className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                  selectedFilter === option.value ? 'bg-red-50 text-[#DC2626]' : 'text-gray-700'
+                  selectedFilter === option.value ? 'bg-red-50 text-honey-700' : 'text-gray-700'
                 }`}
               >
                 {option.icon}
@@ -378,7 +378,7 @@ function FilterDropdown({
                   value={tempDates.start}
                   onChange={(e) => setTempDates({ ...tempDates, start: e.target.value })}
                   max={tempDates.end || undefined}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#DC2626] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 />
               </div>
 
@@ -390,7 +390,7 @@ function FilterDropdown({
                   onChange={(e) => setTempDates({ ...tempDates, end: e.target.value })}
                   min={tempDates.start || undefined}
                   max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#DC2626] focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -405,7 +405,7 @@ function FilterDropdown({
               <button
                 onClick={handleApplyCustom}
                 disabled={!tempDates.start || !tempDates.end}
-                className="flex-1 px-4 py-2 bg-[#DC2626] text-white rounded-lg hover:bg-[#b91c1c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Apply
               </button>
@@ -489,7 +489,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#DC2626]" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-honey-500" />
       </div>
     );
   }
@@ -555,7 +555,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
           change={stats.period.salesChange}
           changeType={getChangeType(stats.period.salesChange)}
           comparisonLabel={stats.comparisonLabel}
-          icon={<span className="h-6 w-6 text-[#DC2626] font-bold text-lg">{symbol}</span>}
+          icon={<span className="h-6 w-6 text-honey-700 font-bold text-lg">{symbol}</span>}
         />
         <StatCard
           title="Total Orders"
@@ -563,17 +563,17 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
           change={stats.period.ordersChange}
           changeType={getChangeType(stats.period.ordersChange)}
           comparisonLabel={stats.comparisonLabel}
-          icon={<ShoppingCart className="h-6 w-6 text-[#DC2626]" />}
+          icon={<ShoppingCart className="h-6 w-6 text-honey-700" />}
         />
         <StatCard
           title="Avg Order Value"
           value={`${symbol}${stats.period.avgOrderValue.toFixed(2)}`}
-          icon={<TrendingUp className="h-6 w-6 text-[#DC2626]" />}
+          icon={<TrendingUp className="h-6 w-6 text-honey-700" />}
         />
         <StatCard
           title="Items Sold"
           value={stats.period.totalItems.toString()}
-          icon={<Package className="h-6 w-6 text-[#DC2626]" />}
+          icon={<Package className="h-6 w-6 text-honey-700" />}
         />
       </div>
 
@@ -588,10 +588,10 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
-            <CreditCard className="h-5 w-5 text-[#DC2626]" />
+            <CreditCard className="h-5 w-5 text-honey-700" />
             <h4 className="font-semibold text-gray-800">Card Sales</h4>
           </div>
-          <p className="text-3xl font-bold text-[#DC2626]">{symbol}{stats.period.cardSales.toFixed(2)}</p>
+          <p className="text-3xl font-bold text-honey-700">{symbol}{stats.period.cardSales.toFixed(2)}</p>
         </div>
       </div>
 
@@ -599,7 +599,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-[#DC2626]" />
+            <BarChart3 className="h-5 w-5 text-honey-700" />
             Sales Trend
           </h3>
           <div className="flex gap-2">
@@ -609,7 +609,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
                 onClick={() => setChartPeriod(period)}
                 className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                   chartPeriod === period
-                    ? 'bg-[#DC2626] text-white'
+                    ? 'bg-honey-500 text-gray-900'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
@@ -625,7 +625,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <Clock className="h-5 w-5 text-[#DC2626]" />
+            <Clock className="h-5 w-5 text-honey-700" />
             Hourly Sales (Today)
           </h3>
           {chartData && <HourlyChart data={chartData.hourlyChart} symbol={symbol} />}
@@ -633,7 +633,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <PieChart className="h-5 w-5 text-[#DC2626]" />
+            <PieChart className="h-5 w-5 text-honey-700" />
             Payment Methods
           </h3>
           {chartData && <PaymentPieChart data={chartData.paymentDistribution} symbol={symbol} />}
@@ -654,7 +654,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
             <div className="space-y-3">
               {stats.topProducts.map((product, index) => (
                 <div key={product._id} className="flex items-center gap-3">
-                  <span className="w-6 h-6 bg-red-100 text-[#DC2626] rounded-full flex items-center justify-center text-sm font-bold">
+                  <span className="w-6 h-6 bg-red-100 text-honey-700 rounded-full flex items-center justify-center text-sm font-bold">
                     {index + 1}
                   </span>
                   <div className="flex-1 min-w-0">

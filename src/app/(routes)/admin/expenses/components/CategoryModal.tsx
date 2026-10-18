@@ -103,7 +103,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
-            <Tag className="h-5 w-5 text-[#dc2626]" />
+            <Tag className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-bold text-gray-900">Manage Categories</h2>
           </div>
           <button onClick={onClose} disabled={busy} className="text-gray-400 hover:text-gray-600 disabled:opacity-60 disabled:cursor-not-allowed">
@@ -131,7 +131,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
                 onChange={(e) => setNewCategoryName(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleCreateCategory()}
                 placeholder="Category name..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 disabled={busy}
               />
               <button
@@ -140,7 +140,7 @@ export default function CategoryModal({ isOpen, onClose, onCategoriesChange }: C
                 aria-busy={creating}
                 aria-label={creating ? 'Adding category…' : 'Add category'}
                 title={creating ? 'Adding…' : 'Add category'}
-                className="px-3 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
+                className="px-3 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
               >
                 {creating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

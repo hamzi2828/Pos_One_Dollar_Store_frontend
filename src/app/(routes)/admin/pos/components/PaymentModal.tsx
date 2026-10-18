@@ -284,7 +284,7 @@ export default function PaymentModal({
           {/* Card Payment */}
           {paymentMethod === 'card' && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              Card payment via Stripe. Full amount: {symbol}{cart.total.toFixed(2)}
+              Take the card payment on the card machine. Full amount: {symbol}{cart.total.toFixed(2)}
             </div>
           )}
 

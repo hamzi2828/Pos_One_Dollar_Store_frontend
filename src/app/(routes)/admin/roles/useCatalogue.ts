@@ -1,7 +1,7 @@
 'use client';
 
 // Live permission catalogue from GET /admin/roles/catalogue, so new backend keys
-// (branches, staff, stock_transfers, stock_receive, ...) show up automatically.
+// (staff, stock_receive, ...) show up automatically.
 // Falls back to the copy in rolesStore.ts if the call fails.
 
 import { useEffect, useState } from 'react';

@@ -4,20 +4,15 @@ import Image from "next/image";
 import {
   Edit2,
   Trash2,
-  Star,
-  Sparkles,
   Package,
   Layers,
   Search,
-  Filter,
   CheckCircle,
-  XCircle,
   Grid3X3,
   List,
   ChevronRight,
   ChevronDown,
   FolderTree,
-  X,
   ArrowLeft,
   GripVertical,
   Loader2
@@ -48,15 +43,9 @@ export interface Category {
   description: string;
   thumbnailUrl?: string;
   thumbnailUrls?: string[];
-  bannerUrl?: string;
   active: boolean;
-  featured?: boolean;
   parentId?: string | null;
   parentName?: string | null;
-  shippingCost?: number;
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
 }
 
 export interface CategoryWithCount extends Category {
@@ -70,14 +59,12 @@ interface CategoriesTabProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onToggleActive: (id: string) => void;
-  onToggleFeatured: (id: string) => void;
   onReorder?: (reorderedCategories: Category[]) => void;
-  onFeatureProducts?: (id: string) => void;
   /** category id -> request in progress for it (shows a spinner and disables that row's actions) */
-  busy?: Record<string, "active" | "featured" | "delete">;
+  busy?: Record<string, "active" | "delete">;
 }
 
-export default function CategoriesTab({ categories, onEdit, onDelete, onToggleActive, onToggleFeatured, onReorder, onFeatureProducts, busy = {} }: CategoriesTabProps) {
+export default function CategoriesTab({ categories, onEdit, onDelete, onToggleActive, onReorder, busy = {} }: CategoriesTabProps) {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
@@ -190,7 +177,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
     total: categories.length,
     active: categories.filter(c => c.active).length,
     inactive: categories.filter(c => !c.active).length,
-    featured: categories.filter(c => c.featured).length,
     totalProducts: categories.reduce((acc, c) => acc + c.count, 0),
     parents: parentCategories.length,
     subcategories: categories.filter(c => c.parentId).length,
@@ -239,7 +225,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-sage-100">
-              <span className="text-2xl font-bold text-honey-500">
+              <span className="text-2xl font-bold text-honey-700">
                 {cat.name.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -253,14 +239,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
           }`}>
             {cat.active ? "Active" : "Inactive"}
           </div>
-
-          {/* Featured Badge */}
-          {cat.featured && (
-            <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 bg-yellow-500 text-white text-[10px] font-medium rounded-full">
-              <Star className="h-2.5 w-2.5 fill-current" />
-              Featured
-            </div>
-          )}
         </div>
 
         {/* Category Info */}
@@ -308,33 +286,9 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                 />
                 {busy[cat.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
               </button>
-
-              {/* Featured Toggle */}
-              <button
-                title={cat.featured ? "Remove from featured" : "Make featured"}
-                onClick={() => onToggleFeatured(cat.id)}
-                disabled={!!busy[cat.id]}
-                aria-busy={busy[cat.id] === "featured"}
-                className={`p-1 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-                  cat.featured
-                    ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100"
-                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                {busy[cat.id] === "featured" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Star className={`h-3.5 w-3.5 ${cat.featured ? 'fill-current' : ''}`} />}
-              </button>
             </div>
 
             <div className="flex items-center">
-              {onFeatureProducts && (
-                <button
-                  onClick={() => onFeatureProducts(cat.id)}
-                  className="p-1 text-gray-500 hover:text-honey-600 hover:bg-honey-50 rounded transition-colors"
-                  title="Choose featured products"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                </button>
-              )}
               <button
                 onClick={() => onEdit(cat.id)}
                 className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
@@ -400,7 +354,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               </div>
             ) : (
               <div className="h-10 w-10 rounded-lg bg-sage-200 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg font-bold text-honey-500">
+                <span className="text-lg font-bold text-honey-700">
                   {cat.name.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -451,32 +405,8 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             {busy[cat.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
           </button>
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
-          <button
-            onClick={() => onToggleFeatured(cat.id)}
-            disabled={!!busy[cat.id]}
-            aria-busy={busy[cat.id] === "featured"}
-            className={`p-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-              cat.featured
-                ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100"
-                : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            }`}
-            title={cat.featured ? "Remove from featured" : "Make featured"}
-          >
-            {busy[cat.id] === "featured" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Star className={`h-5 w-5 ${cat.featured ? 'fill-current' : ''}`} />}
-          </button>
-        </td>
         <td className="px-6 py-4 whitespace-nowrap text-right">
           <div className="flex items-center justify-end gap-1">
-            {onFeatureProducts && (
-              <button
-                onClick={() => onFeatureProducts(cat.id)}
-                className="p-2 text-gray-500 hover:text-honey-600 hover:bg-honey-50 rounded-lg transition-colors"
-                title="Choose featured products"
-              >
-                <Sparkles className="h-4 w-4" />
-              </button>
-            )}
             <button
               onClick={() => onEdit(cat.id)}
               className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -506,11 +436,11 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   return (
     <div className="space-y-2 sm:space-y-3 md:space-y-4">
       {/* Stats Cards */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-sm transition-all duration-200">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-sage-200 rounded">
-              <Layers className="h-4 w-4 text-honey-600" />
+              <Layers className="h-4 w-4 text-honey-700" />
             </div>
             <div>
               <p className="text-lg font-semibold text-gray-900">{stats.parents}</p>
@@ -539,18 +469,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <div>
               <p className="text-lg font-semibold text-gray-900">{stats.active}</p>
               <p className="text-[10px] text-gray-500">Active</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-sm transition-all duration-200">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-yellow-100 rounded">
-              <Star className="h-4 w-4 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-gray-900">{stats.featured}</p>
-              <p className="text-[10px] text-gray-500">Featured</p>
             </div>
           </div>
         </div>
@@ -640,7 +558,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                 onClick={() => setViewMode("tree")}
                 className={`p-1.5 transition-all duration-200 ${
                   viewMode === "tree"
-                    ? "bg-honey-500 text-white"
+                    ? "bg-honey-500 text-gray-900"
                     : "bg-white text-gray-500 hover:bg-gray-50"
                 }`}
                 title="Tree view"
@@ -651,7 +569,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                 onClick={() => setViewMode("grid")}
                 className={`p-1.5 transition-all duration-200 ${
                   viewMode === "grid"
-                    ? "bg-honey-500 text-white"
+                    ? "bg-honey-500 text-gray-900"
                     : "bg-white text-gray-500 hover:bg-gray-50"
                 }`}
                 title="Grid view"
@@ -662,7 +580,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                 onClick={() => setViewMode("list")}
                 className={`p-1.5 transition-all duration-200 ${
                   viewMode === "list"
-                    ? "bg-honey-500 text-white"
+                    ? "bg-honey-500 text-gray-900"
                     : "bg-white text-gray-500 hover:bg-gray-50"
                 }`}
                 title="List view"
@@ -742,7 +660,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                     </div>
                   ) : (
                     <div className="h-10 w-10 rounded-md bg-sage-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-honey-500">
+                      <span className="text-sm font-bold text-honey-700">
                         {parent.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
@@ -755,9 +673,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                   >
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-gray-900 truncate">{parent.name}</h3>
-                      {parent.featured && (
-                        <Star className="h-3 w-3 text-yellow-500 fill-current flex-shrink-0" />
-                      )}
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                           parent.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
@@ -772,20 +687,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                   </button>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onToggleFeatured(parent.id)}
-                      disabled={!!busy[parent.id]}
-                      aria-busy={busy[parent.id] === "featured"}
-                      className={`p-1.5 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-                        parent.featured
-                          ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100"
-                          : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                      }`}
-                      title={parent.featured ? "Remove from featured" : "Make featured"}
-                    >
-                      {busy[parent.id] === "featured" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className={`h-4 w-4 ${parent.featured ? "fill-current" : ""}`} />}
-                    </button>
                     <button
                       type="button"
                       onClick={() => onToggleActive(parent.id)}
@@ -803,16 +704,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                       />
                       {busy[parent.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
                     </button>
-                    {onFeatureProducts && (
-                      <button
-                        type="button"
-                        onClick={() => onFeatureProducts(parent.id)}
-                        className="p-1.5 text-gray-500 hover:text-honey-600 hover:bg-honey-50 rounded-md transition-colors"
-                        title="Choose featured products"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={() => onEdit(parent.id)}
@@ -885,16 +776,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                                 />
                                 {busy[sub.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
                               </button>
-                              {onFeatureProducts && (
-                                <button
-                                  type="button"
-                                  onClick={() => onFeatureProducts(sub.id)}
-                                  className="p-1 text-gray-400 hover:text-honey-600 hover:bg-honey-50 rounded transition-colors"
-                                  title="Choose featured products"
-                                >
-                                  <Sparkles className="h-3.5 w-3.5" />
-                                </button>
-                              )}
                               <button
                                 type="button"
                                 onClick={() => onEdit(sub.id)}
@@ -958,9 +839,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Featured
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions

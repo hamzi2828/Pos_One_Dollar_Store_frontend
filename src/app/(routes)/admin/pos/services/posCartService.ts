@@ -17,11 +17,9 @@ interface ApiHeldItem {
   subtotal: number;
   color?: string;
   size?: string;
-  isLabour?: boolean;
-  labourDescription?: string;
-  isOutsource?: boolean;
-  outsourceDescription?: string;
-  costPrice?: number;
+  isGift?: boolean;
+  giftReason?: string;
+  priceOverride?: boolean;
 }
 
 interface ApiHeldOrder {
@@ -76,11 +74,9 @@ function transformToHeldCart(apiOrder: ApiHeldOrder): HeldCart {
         subtotal: item.subtotal,
         color: item.color,
         size: item.size,
-        isLabour: item.isLabour,
-        labourDescription: item.labourDescription,
-        isOutsource: item.isOutsource,
-        outsourceDescription: item.outsourceDescription,
-        costPrice: item.costPrice,
+        isGift: !!item.isGift,
+        giftReason: item.giftReason,
+        priceOverride: !!item.priceOverride,
       })),
       subtotal: apiOrder.subtotal,
       tax: apiOrder.tax,

@@ -54,8 +54,6 @@ interface ProductFiltersProps {
   setStatusFilter: (filter: "all" | "published" | "draft" | "out_of_stock") => void;
   categoryFilter: string;
   setCategoryFilter: (filter: string) => void;
-  featuredFilter: "all" | "featured" | "not_featured";
-  setFeaturedFilter: (filter: "all" | "featured" | "not_featured") => void;
   availableCategories: string[];
   onCurrentPageReset: () => void;
   onClearFilters?: () => void;
@@ -68,8 +66,6 @@ export default function ProductFilters({
   setStatusFilter,
   categoryFilter,
   setCategoryFilter,
-  featuredFilter,
-  setFeaturedFilter,
   availableCategories,
   onCurrentPageReset,
   onClearFilters
@@ -102,7 +98,7 @@ export default function ProductFilters({
   const selectedCategoryOption =
     categoryOptions.find((o) => o.value === categoryFilter) || categoryOptions[0];
 
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || categoryFilter !== "all" || featuredFilter !== "all";
+  const hasActiveFilters = searchQuery || statusFilter !== "all" || categoryFilter !== "all";
 
   return (
     <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-2 sm:p-4">
@@ -149,17 +145,6 @@ export default function ProductFilters({
             <option value="published">Published</option>
             <option value="draft">Draft</option>
             <option value="out_of_stock">Out of Stock</option>
-          </select>
-
-          {/* Featured Filter */}
-          <select
-            value={featuredFilter}
-            onChange={(e) => setFeaturedFilter(e.target.value as "all" | "featured" | "not_featured")}
-            className="h-8 sm:h-10 px-2 sm:px-3 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
-          >
-            <option value="all">All Featured</option>
-            <option value="featured">Featured</option>
-            <option value="not_featured">Not Featured</option>
           </select>
 
           {/* Category Filter — searchable Select2-style dropdown */}

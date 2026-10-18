@@ -148,7 +148,7 @@ export default function EditExpensePage() {
   if (fetching) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#dc2626]" />
+        <Loader2 className="h-8 w-8 animate-spin text-honey-700" />
       </div>
     );
   }
@@ -180,7 +180,7 @@ export default function EditExpensePage() {
         {/* Expense Information */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Receipt className="h-5 w-5 text-[#dc2626]" />
+            <Receipt className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-semibold text-gray-900">Expense Information</h2>
           </div>
 
@@ -193,7 +193,7 @@ export default function EditExpensePage() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="e.g., Office Supplies, Electricity Bill"
                 disabled={loading}
               />
@@ -208,7 +208,7 @@ export default function EditExpensePage() {
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="0.00"
                 disabled={loading}
               />
@@ -220,7 +220,7 @@ export default function EditExpensePage() {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 disabled={loading}
               >
                 {EXPENSE_CATEGORIES.map((cat) => (
@@ -238,7 +238,7 @@ export default function EditExpensePage() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -249,7 +249,7 @@ export default function EditExpensePage() {
               <select
                 value={isActive ? 'active' : 'inactive'}
                 onChange={(e) => setIsActive(e.target.value === 'active')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 disabled={loading}
               >
                 <option value="active">Active</option>
@@ -262,7 +262,7 @@ export default function EditExpensePage() {
         {/* Payment Details */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <CreditCard className="h-5 w-5 text-[#dc2626]" />
+            <CreditCard className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-semibold text-gray-900">Payment Details</h2>
           </div>
 
@@ -274,7 +274,7 @@ export default function EditExpensePage() {
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 disabled={loading}
               >
                 {PAYMENT_METHODS.map((method) => (
@@ -292,7 +292,7 @@ export default function EditExpensePage() {
                 type="text"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="e.g., INV-12345"
                 disabled={loading}
               />
@@ -303,7 +303,7 @@ export default function EditExpensePage() {
         {/* Receipt Upload */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <ImageIcon className="h-5 w-5 text-[#dc2626]" />
+            <ImageIcon className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-semibold text-gray-900">Receipt / Slip Image</h2>
           </div>
 
@@ -355,7 +355,7 @@ export default function EditExpensePage() {
               <div
                 onClick={() => { if (!loading) fileInputRef.current?.click(); }}
                 aria-disabled={loading}
-                className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-[#dc2626]'}`}
+                className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-honey-500'}`}
               >
                 <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm text-gray-600">Click to upload receipt image</p>
@@ -369,7 +369,7 @@ export default function EditExpensePage() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
-                className="text-sm text-[#dc2626] hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                className="text-sm text-honey-700 hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Change receipt image
               </button>
@@ -389,14 +389,14 @@ export default function EditExpensePage() {
         {/* Notes */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="h-5 w-5 text-[#dc2626]" />
+            <FileText className="h-5 w-5 text-honey-700" />
             <h2 className="text-lg font-semibold text-gray-900">Additional Notes</h2>
           </div>
 
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
             placeholder="Any additional information about this expense..."
             rows={4}
             disabled={loading}
@@ -417,7 +417,7 @@ export default function EditExpensePage() {
             type="submit"
             disabled={loading}
             aria-busy={loading}
-            className="px-6 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>

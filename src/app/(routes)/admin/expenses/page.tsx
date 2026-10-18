@@ -263,7 +263,7 @@ const ExpensesPage = () => {
   if (loading && expenses.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-[#dc2626]" />
+        <Loader2 className="h-8 w-8 animate-spin text-honey-700" />
       </div>
     );
   }
@@ -283,8 +283,8 @@ const ExpensesPage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-[#dc2626]/10 rounded-full flex items-center justify-center">
-              <PkrIcon className="h-5 w-5 text-[#dc2626]" />
+            <div className="h-10 w-10 bg-honey-500/10 rounded-full flex items-center justify-center">
+              <PkrIcon className="h-5 w-5 text-honey-700" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Expenses</p>
@@ -313,7 +313,7 @@ const ExpensesPage = () => {
             {categoryTotals.map(([category, amount]) => (
               <div
                 key={category}
-                className="px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#dc2626] transition-colors cursor-pointer"
+                className="px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-honey-500 transition-colors cursor-pointer"
                 onClick={() => {
                   setCategoryFilter(categoryFilter === category ? 'all' : category);
                   setCurrentPage(1);
@@ -344,7 +344,7 @@ const ExpensesPage = () => {
                 setCustomEndDate('');
               }
             }}
-            className="px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+            className="px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500"
           >
             <option value="monthly">This Month</option>
             <option value="weekly">This Week</option>
@@ -358,20 +358,20 @@ const ExpensesPage = () => {
                 type="date"
                 value={customStartDate}
                 onChange={(e) => { setCustomStartDate(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 text-sm text-gray-500 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+                className="px-3 py-2 text-sm text-gray-500 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500"
               />
               <span className="text-gray-400">to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => { setCustomEndDate(e.target.value); setCurrentPage(1); }}
-                className="px-3 py-2 text-sm text-gray-500 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+                className="px-3 py-2 text-sm text-gray-500 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500"
               />
             </>
           )}
           <Link
             href="/admin/expenses/create"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#dc2626] text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors"
           >
             <Plus className="h-5 w-5" />
             Add Expense
@@ -391,7 +391,7 @@ const ExpensesPage = () => {
               setCurrentPage(1);
               setSearchTerm(e.target.value);
             }}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
           />
         </div>
         <select
@@ -400,7 +400,7 @@ const ExpensesPage = () => {
             setCurrentPage(1);
             setCategoryFilter(e.target.value);
           }}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
         >
           <option value="all">All Categories</option>
           {categories.map((cat) => (
@@ -413,7 +413,7 @@ const ExpensesPage = () => {
             setCurrentPage(1);
             setStatusFilter(e.target.value as 'all' | 'active' | 'inactive');
           }}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#dc2626] focus:border-transparent"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
@@ -464,8 +464,8 @@ const ExpensesPage = () => {
                   <tr key={expense._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-10 w-10 flex-shrink-0 bg-[#dc2626]/10 rounded-full flex items-center justify-center">
-                          <Receipt className="h-5 w-5 text-[#dc2626]" />
+                        <div className="h-10 w-10 flex-shrink-0 bg-honey-500/10 rounded-full flex items-center justify-center">
+                          <Receipt className="h-5 w-5 text-honey-700" />
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{expense.title}</div>
@@ -508,7 +508,7 @@ const ExpensesPage = () => {
                       <button
                         onClick={() => handleEdit(expense)}
                         disabled={togglingId === expense._id}
-                        className="text-gray-600 hover:text-[#dc2626] mr-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="text-gray-600 hover:text-honey-700 mr-3 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>

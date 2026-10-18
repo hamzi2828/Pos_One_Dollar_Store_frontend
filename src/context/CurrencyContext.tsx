@@ -2,14 +2,17 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-// Currency configuration
+// The shop sells in Pakistani rupees. Other codes stay selectable in Settings
+// in case the owner ever needs them, but PKR is the default everywhere.
 export const CURRENCY_CONFIG = {
+  PKR: { code: 'PKR', symbol: 'Rs', name: 'Pakistani Rupee', locale: 'en-PK' },
   USD: { code: 'USD', symbol: '$', name: 'US Dollar', locale: 'en-US' },
   GBP: { code: 'GBP', symbol: '£', name: 'British Pound', locale: 'en-GB' },
-  PKR: { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee', locale: 'en-PK' },
 } as const;
 
 export type CurrencyCode = keyof typeof CURRENCY_CONFIG;
+
+export const DEFAULT_CURRENCY: CurrencyCode = 'PKR';
 
 interface CurrencyInfo {
   code: CurrencyCode;
@@ -28,143 +31,119 @@ interface CurrencyContextType {
   setCurrencyCode: (code: CurrencyCode) => void;
 }
 
-const defaultCurrency: CurrencyInfo = CURRENCY_CONFIG.USD;
+const STORAGE_KEY = 'app_currency';
+
+function isCurrencyCode(value: unknown): value is CurrencyCode {
+  return typeof value === 'string' && value in CURRENCY_CONFIG;
+}
+
+function readCachedCurrency(): CurrencyCode | null {
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    return isCurrencyCode(cached) ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "Rs 1,250" / "Rs 99.50" — whole amounts drop the decimals, like the receipts. */
+function formatAmount(amount: number, config: CurrencyInfo, showSymbol = true): string {
+  const n = Number(amount) || 0;
+  const decimals = Number.isInteger(Math.round(n * 100) / 100) ? 0 : 2;
+  const number = n.toLocaleString(config.locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return showSymbol ? `${config.symbol} ${number}` : number;
+}
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrency] = useState<CurrencyInfo>(defaultCurrency);
+  const [currency, setCurrency] = useState<CurrencyInfo>(CURRENCY_CONFIG[DEFAULT_CURRENCY]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch currency from settings API (works with or without auth)
+  // Read the currency from the settings API (public endpoint first, so the
+  // login page works too), falling back to the last value we saw.
   const fetchCurrency = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const headers: HeadersInit = {};
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Build headers - include auth token if available
-      const headers: HeadersInit = {};
       const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch {
+      // Storage blocked — carry on without a token.
+    }
 
-      // Try public settings endpoint first, then fall back to authenticated endpoint
-      const endpoints = [
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/settings/public`,
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/settings`,
-      ];
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL;
+    const endpoints = [`${base}/settings/public`, `${base}/settings`];
 
-      let success = false;
+    try {
       for (const endpoint of endpoints) {
         try {
           const response = await fetch(endpoint, { headers });
-          if (response.ok) {
-            const data = await response.json();
-            const settings = data.data || data;
-            const currencyCode = settings.currency as CurrencyCode;
-
-            if (currencyCode && CURRENCY_CONFIG[currencyCode]) {
-              setCurrency(CURRENCY_CONFIG[currencyCode]);
-              localStorage.setItem('app_currency', currencyCode);
-              success = true;
-              break;
-            }
+          if (!response.ok) continue;
+          const data = await response.json();
+          const code = (data?.data || data)?.currency;
+          if (isCurrencyCode(code)) {
+            setCurrency(CURRENCY_CONFIG[code]);
+            try { localStorage.setItem(STORAGE_KEY, code); } catch { /* ignore */ }
+            return;
           }
         } catch {
-          // Try next endpoint
-          continue;
+          // Try the next endpoint.
         }
       }
 
-      if (!success) {
-        // Use cached currency if API fails
-        const cached = localStorage.getItem('app_currency') as CurrencyCode;
-        if (cached && CURRENCY_CONFIG[cached]) {
-          setCurrency(CURRENCY_CONFIG[cached]);
-        }
-      }
+      const cached = readCachedCurrency();
+      if (cached) setCurrency(CURRENCY_CONFIG[cached]);
     } catch (err) {
       console.error('Failed to fetch currency settings:', err);
       setError('Failed to load currency settings');
-
-      // Try to use cached currency
-      const cached = localStorage.getItem('app_currency') as CurrencyCode;
-      if (cached && CURRENCY_CONFIG[cached]) {
-        setCurrency(CURRENCY_CONFIG[cached]);
-      }
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Initialize currency on mount
   useEffect(() => {
-    // First, check localStorage for cached currency (instant load)
-    const cached = localStorage.getItem('app_currency') as CurrencyCode;
-    if (cached && CURRENCY_CONFIG[cached]) {
-      setCurrency(CURRENCY_CONFIG[cached]);
-    }
-
-    // Then fetch fresh data from API
+    // Cached value first (instant), then the fresh one from the API.
+    const cached = readCachedCurrency();
+    if (cached) setCurrency(CURRENCY_CONFIG[cached]);
     fetchCurrency();
 
-    // Listen for settings updates
-    const handleSettingsUpdate = () => {
-      fetchCurrency();
+    const handleSettingsUpdate = () => fetchCurrency();
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && isCurrencyCode(e.newValue)) {
+        setCurrency(CURRENCY_CONFIG[e.newValue]);
+      }
     };
 
     window.addEventListener('settingsUpdated', handleSettingsUpdate);
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'app_currency' && e.newValue) {
-        const newCode = e.newValue as CurrencyCode;
-        if (CURRENCY_CONFIG[newCode]) {
-          setCurrency(CURRENCY_CONFIG[newCode]);
-        }
-      }
-    });
-
+    window.addEventListener('storage', handleStorage);
     return () => {
       window.removeEventListener('settingsUpdated', handleSettingsUpdate);
+      window.removeEventListener('storage', handleStorage);
     };
   }, [fetchCurrency]);
 
-  // Format price with full formatting
-  const formatPrice = useCallback((amount: number, showSymbol = true): string => {
-    try {
-      const formatted = new Intl.NumberFormat(currency.locale, {
-        style: 'currency',
-        currency: currency.code,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(amount);
+  const formatPrice = useCallback(
+    (amount: number, showSymbol = true): string => formatAmount(amount, currency, showSymbol),
+    [currency]
+  );
 
-      return showSymbol ? formatted : formatted.replace(currency.symbol, '').trim();
-    } catch {
-      // Fallback formatting
-      return showSymbol
-        ? `${currency.symbol}${amount.toFixed(2)}`
-        : amount.toFixed(2);
-    }
-  }, [currency]);
+  const formatPriceShort = useCallback(
+    (amount: number): string => formatAmount(amount, currency),
+    [currency]
+  );
 
-  // Format price short (just symbol + number)
-  const formatPriceShort = useCallback((amount: number): string => {
-    return `${currency.symbol}${amount.toLocaleString(currency.locale, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  }, [currency]);
-
-  // Manually set currency (updates localStorage too)
   const setCurrencyCode = useCallback((code: CurrencyCode) => {
-    if (CURRENCY_CONFIG[code]) {
-      setCurrency(CURRENCY_CONFIG[code]);
-      localStorage.setItem('app_currency', code);
-      // Dispatch event for other tabs/components
-      window.dispatchEvent(new CustomEvent('currencyChanged', { detail: code }));
-    }
+    if (!isCurrencyCode(code)) return;
+    setCurrency(CURRENCY_CONFIG[code]);
+    try { localStorage.setItem(STORAGE_KEY, code); } catch { /* ignore */ }
+    window.dispatchEvent(new CustomEvent('currencyChanged', { detail: code }));
   }, []);
 
   const value: CurrencyContextType = {
@@ -177,14 +156,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     setCurrencyCode,
   };
 
-  return (
-    <CurrencyContext.Provider value={value}>
-      {children}
-    </CurrencyContext.Provider>
-  );
+  return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
 }
 
-// Custom hook to use currency context
 export function useCurrency(): CurrencyContextType {
   const context = useContext(CurrencyContext);
   if (context === undefined) {
@@ -193,17 +167,7 @@ export function useCurrency(): CurrencyContextType {
   return context;
 }
 
-// Standalone format function for use outside React components
-export function formatCurrencyStandalone(amount: number, currencyCode: CurrencyCode = 'USD'): string {
-  const config = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.USD;
-  try {
-    return new Intl.NumberFormat(config.locale, {
-      style: 'currency',
-      currency: config.code,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${config.symbol}${amount.toFixed(2)}`;
-  }
+/** Format outside React components (defaults to PKR: "Rs 1,250"). */
+export function formatCurrencyStandalone(amount: number, currencyCode: CurrencyCode = DEFAULT_CURRENCY): string {
+  return formatAmount(amount, CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG[DEFAULT_CURRENCY]);
 }

@@ -14,7 +14,6 @@ import {
   Loader2,
   AlertCircle,
   Crown,
-  Building2,
   Shield,
   Check,
   Eye,
@@ -35,12 +34,10 @@ import {
   primaryBtn,
   secondaryBtn,
 } from '@/components/admin/FormBits';
-import { staffService, type StaffUser, type StaffPayload } from './services/staffService';
-import { branchService, type Branch } from '../branches/services/branchService';
+import { assignableRoles as pickAssignableRoles, staffService, type StaffUser, type StaffPayload } from './services/staffService';
 import { roleService } from '../roles/service/roleService';
 import type { Role } from '../roles/rolesStore';
 
-const ESCALATION_KEYS = ['staff', 'branches', 'roles'];
 const MIN_PASSWORD = 8;
 
 const formatDate = (iso: string | null | undefined) => {
@@ -51,7 +48,7 @@ const formatDate = (iso: string | null | undefined) => {
 };
 
 export default function StaffPage() {
-  const { access, isSuperAdmin, can, branch: ownBranch, currentBranchId } = useAccess();
+  const { access, isSuperAdmin, can } = useAccess();
   const myId = access?.user?.id;
   const canView = can('staff', 'view');
   const canCreate = can('staff', 'create');
@@ -65,13 +62,11 @@ export default function StaffPage() {
 
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
-  const [branchFilter, setBranchFilter] = useState<string>(() => currentBranchId || 'all');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'true' | 'false'>('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
 
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
 
   const [editing, setEditing] = useState<{ open: boolean; user: StaffUser | null }>({ open: false, user: null });
@@ -88,20 +83,16 @@ export default function StaffPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debounced, branchFilter, roleFilter, statusFilter, limit]);
+  }, [debounced, roleFilter, statusFilter, limit]);
 
-  // Lookups: branches + roles (for filters and the form).
+  // Roles (for the filter and the form).
   useEffect(() => {
     if (!canView) return;
-    branchService
-      .list(isSuperAdmin ? {} : { isActive: 'true' })
-      .then(setBranches)
-      .catch(() => setBranches([]));
     roleService
       .getRoles({ limit: 200 })
       .then(({ items }) => setRoles(items))
       .catch(() => setRoles([]));
-  }, [canView, isSuperAdmin]);
+  }, [canView]);
 
   const load = useCallback(async () => {
     if (!canView) return;
@@ -114,7 +105,6 @@ export default function StaffPage() {
         isActive: statusFilter,
         page,
         limit,
-        branchId: isSuperAdmin ? branchFilter : null,
       });
       setStaff(items);
       setPagination({ page: p.page || page, limit: p.limit || limit, total: p.total || 0, totalPages: p.totalPages || 0 });
@@ -123,25 +113,14 @@ export default function StaffPage() {
     } finally {
       setLoading(false);
     }
-  }, [canView, debounced, roleFilter, statusFilter, page, limit, isSuperAdmin, branchFilter]);
+  }, [canView, debounced, roleFilter, statusFilter, page, limit]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   /** Roles this user may hand out (the backend checks again). */
-  const assignableRoles = useMemo(() => {
-    if (isSuperAdmin) return roles;
-    const mine = access?.permissions || {};
-    return roles.filter((r) => {
-      if (r.isSystem) return false;
-      const perms = r.permissions || {};
-      if (ESCALATION_KEYS.some((k) => (perms[k] || []).length > 0)) return false;
-      return Object.entries(perms).every(([k, acts]) => (acts || []).every((a) => (mine[k] || []).includes(a)));
-    });
-  }, [roles, isSuperAdmin, access]);
-
-  const activeBranches = useMemo(() => branches.filter((b) => b.isActive), [branches]);
+  const assignableRoles = useMemo(() => pickAssignableRoles(roles, access, isSuperAdmin), [roles, isSuperAdmin, access]);
 
   const handleDelete = async (u: StaffUser) => {
     if (rowLockRef.current) return;
@@ -199,9 +178,7 @@ export default function StaffPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Staff Logins</h1>
             <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-              {isSuperAdmin
-                ? 'Each staff member gets their own email + password, one branch and one role.'
-                : `Staff logins of ${ownBranch?.name || 'your branch'}.`}
+              Each staff member gets their own email + password and one role.
             </p>
           </div>
           {canCreate && (
@@ -214,17 +191,25 @@ export default function StaffPage() {
 
         <div className="mb-4 sm:mb-6">
           <HelpBox>
-            A staff login only sees <strong>its own branch</strong> (stock, sales, orders). What it can do comes from its{' '}
+            What a staff login can do comes from its{' '}
             <Link href="/admin/roles" className="font-semibold underline">
               role
-            </Link>
-            . A <strong>super admin</strong> sees every branch and can do everything — give this only to the owner.
+            </Link>{' '}
+            (Manager, Cashier, Warehouse Assistant, Purchaser…). A <strong>super admin</strong> can do everything — give
+            this only to the owner.
+            <span className="block mt-1">
+              Tip: create logins from an employee&apos;s{' '}
+              <Link href="/admin/hr/employees" className="font-semibold underline">
+                profile
+              </Link>{' '}
+              to link them.
+            </span>
           </HelpBox>
         </div>
 
         {/* Filters */}
         <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3">
             <div className="relative md:col-span-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -240,22 +225,6 @@ export default function StaffPage() {
                 </button>
               )}
             </div>
-            {isSuperAdmin ? (
-              <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)} className={inputClass} aria-label="Branch">
-                <option value="all">All branches</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.isActive ? '' : ' (inactive)'}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className={`${inputClass} flex items-center gap-2 bg-gray-50`}>
-                <Building2 className="h-4 w-4 text-honey-500" />
-                {ownBranch?.name || 'My branch'}
-              </div>
-            )}
             <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={inputClass} aria-label="Role">
               <option value="">All roles</option>
               {roles.map((r) => (
@@ -294,7 +263,6 @@ export default function StaffPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className={thClass}>Staff</th>
-                    <th className={thClass}>Branch</th>
                     <th className={thClass}>Role</th>
                     <th className={thClass}>Status</th>
                     <th className={thClass}>Last sign in</th>
@@ -304,7 +272,7 @@ export default function StaffPage() {
                 <tbody className="bg-white divide-y divide-gray-100">
                   {staff.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
                         <UserCog className="h-10 w-10 text-gray-300 mx-auto mb-2" />
                         No staff logins found.
                       </td>
@@ -318,8 +286,8 @@ export default function StaffPage() {
                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-3">
                               <div
-                                className={`flex items-center justify-center w-9 h-9 rounded-full text-white text-sm font-semibold flex-shrink-0 ${
-                                  u.isSuperAdmin ? 'bg-purple-600' : 'bg-honey-500'
+                                className={`flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold flex-shrink-0 ${
+                                  u.isSuperAdmin ? 'bg-purple-600 text-white' : 'bg-honey-500 text-gray-900'
                                 }`}
                               >
                                 {(u.firstName?.charAt(0) || u.email.charAt(0)).toUpperCase()}
@@ -333,19 +301,6 @@ export default function StaffPage() {
                                 {u.phone && <div className="text-[11px] text-gray-400">{u.phone}</div>}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                            {u.isSuperAdmin ? (
-                              <span className="text-xs text-purple-700 font-medium">All branches</span>
-                            ) : u.branch ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <Building2 className="h-3.5 w-3.5 text-gray-400" />
-                                {u.branch.name || '—'}
-                                {u.branch.code && <span className="text-[10px] font-mono text-gray-400">{u.branch.code}</span>}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-amber-700">No branch</span>
-                            )}
                           </td>
                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                             {u.isSuperAdmin ? (
@@ -385,7 +340,7 @@ export default function StaffPage() {
                                   <button
                                     onClick={() => setEditing({ open: true, user: u })}
                                     disabled={busy}
-                                    className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    className="p-1.5 rounded-md text-gray-400 hover:text-honey-700 hover:bg-honey-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                     title="Edit"
                                   >
                                     <Edit2 className="h-4 w-4" />
@@ -438,9 +393,6 @@ export default function StaffPage() {
         <StaffFormModal
           user={editing.user}
           isSuperAdmin={isSuperAdmin}
-          branches={isSuperAdmin ? activeBranches : activeBranches.filter((b) => b.id === ownBranch?.id)}
-          ownBranchId={ownBranch?.id ?? null}
-          defaultBranchId={isSuperAdmin ? (branchFilter !== 'all' ? branchFilter : null) : ownBranch?.id ?? null}
           roles={assignableRoles}
           onClose={() => setEditing({ open: false, user: null })}
           onSaved={async (msg) => {
@@ -469,18 +421,12 @@ export default function StaffPage() {
 function StaffFormModal({
   user,
   isSuperAdmin,
-  branches,
-  ownBranchId,
-  defaultBranchId,
   roles,
   onClose,
   onSaved,
 }: {
   user: StaffUser | null;
   isSuperAdmin: boolean;
-  branches: Branch[];
-  ownBranchId: string | null;
-  defaultBranchId: string | null;
   roles: Role[];
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
@@ -495,9 +441,6 @@ function StaffFormModal({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState(user?.phone ?? '');
-  const [branchId, setBranchId] = useState<string>(
-    user?.branch?.id ?? defaultBranchId ?? (branches.length === 1 ? branches[0].id : ''),
-  );
   const [roleId, setRoleId] = useState<string>(user?.staffRole?.id ?? defaultRole);
   const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const [makeSuper, setMakeSuper] = useState(user?.isSuperAdmin ?? false);
@@ -515,10 +458,7 @@ function StaffFormModal({
     if (!firstName.trim() || !lastName.trim()) return setError('Please enter first and last name.');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.');
     if (!isEdit && password.length < MIN_PASSWORD) return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
-    if (!makeSuper) {
-      if (!branchId && isSuperAdmin) return setError('Please choose the branch this person works in.');
-      if (!roleId) return setError('Please choose a role.');
-    }
+    if (!makeSuper && !roleId) return setError('Please choose a role.');
 
     const payload: StaffPayload = {
       firstName: firstName.trim(),
@@ -532,12 +472,7 @@ function StaffFormModal({
       payload.isSuperAdmin = true;
     } else {
       payload.staffRole = roleId;
-      if (isSuperAdmin) {
-        payload.branch = branchId;
-        payload.isSuperAdmin = false;
-      } else if (!isEdit && ownBranchId) {
-        payload.branch = ownBranchId;
-      }
+      if (isSuperAdmin) payload.isSuperAdmin = false;
     }
 
     saveLockRef.current = true;
@@ -625,38 +560,19 @@ function StaffFormModal({
         </Field>
 
         {!makeSuper && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Branch" required hint="This person only sees this branch.">
-              {isSuperAdmin ? (
-                <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={inputClass}>
-                  <option value="">Choose a branch…</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                  {user?.branch && !branches.some((b) => b.id === user.branch?.id) && (
-                    <option value={user.branch.id}>{user.branch.name} (inactive)</option>
-                  )}
-                </select>
-              ) : (
-                <input value={branches[0]?.name || user?.branch?.name || 'My branch'} disabled className={inputClass} />
+          <Field label="Role" required hint="What this person may do.">
+            <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass}>
+              <option value="">Choose a role…</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+              {user?.staffRole && !roles.some((r) => r.id === user.staffRole?.id) && (
+                <option value={user.staffRole.id}>{user.staffRole.name}</option>
               )}
-            </Field>
-            <Field label="Role" required hint="What this person may do.">
-              <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass}>
-                <option value="">Choose a role…</option>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-                {user?.staffRole && !roles.some((r) => r.id === user.staffRole?.id) && (
-                  <option value={user.staffRole.id}>{user.staffRole.name}</option>
-                )}
-              </select>
-            </Field>
-          </div>
+            </select>
+          </Field>
         )}
 
         <div className="space-y-3 pt-1">
@@ -671,7 +587,7 @@ function StaffFormModal({
               checked={makeSuper}
               onChange={setMakeSuper}
               label="Super admin"
-              hint="Sees ALL branches and can do everything, including managing staff and roles. Only for the owner."
+              hint="Can do everything, including managing staff and roles. Only for the owner."
             />
           )}
         </div>

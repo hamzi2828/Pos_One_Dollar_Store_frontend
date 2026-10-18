@@ -8,16 +8,22 @@ import toast from 'react-hot-toast';
 import { POSOrder } from '../../types';
 import { getPOSOrderById, getSettings } from '../../services/posOrderService';
 import { getCurrencySymbol } from '../../utils/currency';
-import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2, Gift, Printer } from 'lucide-react';
+import { useAccess } from '@/context/AccessContext';
+import WhatsAppBadge from '../../components/WhatsAppBadge';
+import { orderItemName, printReceipt } from '../../utils/receipt';
 
 export default function InvoicePage() {
   const params = useParams();
   const orderId = params.id as string;
+  const { can } = useAccess();
+  // Profit / cost of sales only for dashboard viewers (the server also hides it).
+  const canSeeCost = can('dashboard', 'view');
 
   const [order, setOrder] = useState<POSOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [storeName, setStoreName] = useState<string>('MIRPUR MOBILE & STATIONERY');
+  const [storeName, setStoreName] = useState<string>('DOLLAR & Co');
 
   useEffect(() => {
     const loadData = async () => {
@@ -135,6 +141,9 @@ export default function InvoicePage() {
     }
   };
 
+  // Rule + manual discounts as applied by the server (old orders: one "Discount" row).
+  const discountRows = (order.appliedDiscounts || []).filter((d) => d.amount > 0);
+
   const getOrdinalSuffix = (n: number) => {
     const s = ['th', 'st', 'nd', 'rd'];
     const v = n % 100;
@@ -152,6 +161,14 @@ export default function InvoicePage() {
           >
             <ArrowLeft className="h-4 w-4" />
             Close
+          </button>
+          <div className="flex items-center gap-2">
+          <button
+            onClick={() => printReceipt(order, storeName, symbol)}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
+          >
+            <Printer className="h-4 w-4" />
+            Receipt
           </button>
           <button
             onClick={handleDownload}
@@ -171,6 +188,10 @@ export default function InvoicePage() {
               </>
             )}
           </button>
+          </div>
+        </div>
+        <div className="mt-2 flex justify-end">
+          <WhatsAppBadge status={order.whatsappStatus} orderId={order._id} />
         </div>
       </div>
 
@@ -194,8 +215,8 @@ export default function InvoicePage() {
         <div className="p-6 border-b bg-gray-50">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-[#DC2626] rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-sm">
+              <div className="w-10 h-10 bg-honey-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-gray-900 font-bold text-sm">
                   {(order.customerInfo?.name || order.customer?.firstName || 'W').charAt(0)}
                 </span>
               </div>
@@ -208,7 +229,7 @@ export default function InvoicePage() {
               </div>
             </div>
             <div>
-              <h3 className="text-xs font-medium text-gray-500 uppercase">Mobile</h3>
+              <h3 className="text-xs font-medium text-gray-500 uppercase">Phone</h3>
               <p className="text-gray-900 font-semibold">
                 {order.customerInfo?.phone || order.customer?.phone || '-'}
               </p>
@@ -265,25 +286,30 @@ export default function InvoicePage() {
                 <tr key={index} className="border-b">
                   <td className="py-3">
                     <div className="font-medium text-gray-900">
-                      {item.isLabour
-                        ? item.labourDescription || 'Custom'
-                        : item.isOutsource
-                        ? item.outsourceDescription || 'Custom Item'
-                        : typeof item.product === 'object' ? item.product?.name : 'Product'}
+                      {orderItemName(item)}
                     </div>
                     {(item.color || item.size) && (
                       <div className="text-sm text-gray-500">
                         {[item.color, item.size].filter(Boolean).join(' / ')}
                       </div>
                     )}
-                    {item.sku && !item.isLabour && !item.isOutsource && (
+                    {item.sku && (
                       <div className="text-xs text-gray-400">SKU: {item.sku}</div>
+                    )}
+                    {item.isGift && (
+                      <div className="mt-0.5 inline-flex items-center gap-1 text-xs text-pink-700">
+                        <Gift className="h-3 w-3" /> Gift{item.giftReason ? `: ${item.giftReason}` : ''}
+                      </div>
                     )}
                   </td>
                   <td className="py-3 text-center text-gray-900">{item.quantity}</td>
-                  <td className="py-3 text-right text-gray-900">{symbol}{item.price.toFixed(2)}</td>
+                  <td className="py-3 text-right text-gray-900">{item.isGift ? '—' : `${symbol}${item.price.toFixed(2)}`}</td>
                   <td className="py-3 text-right text-gray-900">
-                    {symbol}{(item.price * item.quantity - (item.discount || 0)).toFixed(2)}
+                    {item.isGift ? (
+                      <span className="font-medium text-pink-700">FREE — gift</span>
+                    ) : (
+                      <>{symbol}{(item.price * item.quantity - (item.discount || 0)).toFixed(2)}</>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -332,16 +358,41 @@ export default function InvoicePage() {
                 <span>{symbol}{order.tax.toFixed(2)}</span>
               </div>
             )}
-            {order.discount > 0 && (
+            {discountRows.length > 0 ? (
+              discountRows.map((d, i) => (
+                <div key={i} className="flex justify-between text-green-600">
+                  <span>{d.name}</span>
+                  <span>-{symbol}{d.amount.toFixed(2)}</span>
+                </div>
+              ))
+            ) : order.discount > 0 ? (
               <div className="flex justify-between text-green-600">
                 <span>Discount</span>
                 <span>-{symbol}{order.discount.toFixed(2)}</span>
               </div>
-            )}
+            ) : null}
             <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t">
               <span>Total</span>
               <span>{symbol}{order.total.toFixed(2)}</span>
             </div>
+            {canSeeCost && order.cogs !== undefined && (
+              <div className="print:hidden mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs bg-white border border-gray-200 rounded-lg p-2">
+                <div>
+                  <div className="text-gray-500">Cost of sales</div>
+                  <div className="font-semibold text-gray-900">{symbol}{(order.cogs || 0).toFixed(2)}</div>
+                </div>
+                {(order.giftCost || 0) > 0 && (
+                  <div>
+                    <div className="text-gray-500">Gift cost</div>
+                    <div className="font-semibold text-pink-700">{symbol}{(order.giftCost || 0).toFixed(2)}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-gray-500">Profit</div>
+                  <div className={`font-semibold ${(order.profit || 0) < 0 ? 'text-red-600' : 'text-emerald-700'}`}>{symbol}{(order.profit || 0).toFixed(2)}</div>
+                </div>
+              </div>
+            )}
             {order.paymentMethod === 'cash' && order.cashAmount && (
               <>
                 <div className="flex justify-between text-gray-600">
@@ -575,7 +626,7 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
   const phone = order.customerInfo?.phone || order.customer?.phone || '-';
 
   writeLine('CUSTOMER', margin, y, { bold: true, size: 9 });
-  writeLine('MOBILE', margin + 180, y, { bold: true, size: 9 });
+  writeLine('PHONE', margin + 180, y, { bold: true, size: 9 });
   y += 14;
   writeLine(customerName, margin, y, { size: 10 });
   writeLine(phone, margin + 180, y, { size: 10 });
@@ -622,11 +673,7 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
   // Items
   for (const item of order.items) {
     ensureSpace(24);
-    const name = item.isLabour
-      ? item.labourDescription || 'Custom'
-      : item.isOutsource
-      ? item.outsourceDescription || 'Custom Item'
-      : typeof item.product === 'object' && item.product ? item.product.name : 'Product';
+    const name = orderItemName(item);
 
     const wrappedName = doc.splitTextToSize(name, 260) as string[];
     let lineY = y;
@@ -635,9 +682,14 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
       lineY += 12;
     }
     writeLine(String(item.quantity), colQty, y, { size: 10, align: 'center' });
-    writeLine(`${symbol}${item.price.toFixed(2)}`, colPrice, y, { size: 10, align: 'right' });
-    const lineTotal = item.price * item.quantity - (item.discount || 0);
-    writeLine(`${symbol}${lineTotal.toFixed(2)}`, colTotal, y, { size: 10, align: 'right' });
+    if (item.isGift) {
+      writeLine('-', colPrice, y, { size: 10, align: 'right' });
+      writeLine('FREE - gift', colTotal, y, { size: 10, align: 'right' });
+    } else {
+      writeLine(`${symbol}${item.price.toFixed(2)}`, colPrice, y, { size: 10, align: 'right' });
+      const lineTotal = item.price * item.quantity - (item.discount || 0);
+      writeLine(`${symbol}${lineTotal.toFixed(2)}`, colTotal, y, { size: 10, align: 'right' });
+    }
     y = Math.max(y + 14, lineY);
 
     // Optional variant info
@@ -677,10 +729,17 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
     y += 14;
   }
 
-  if (order.discount > 0) {
+  const applied = (order.appliedDiscounts || []).filter((d) => d.amount > 0);
+  const discountLines = applied.length
+    ? applied.map((d) => ({ name: d.name, amount: d.amount }))
+    : order.discount > 0
+    ? [{ name: 'Discount', amount: order.discount }]
+    : [];
+  for (const d of discountLines) {
     doc.setTextColor(22, 163, 74);
-    writeLine('Discount:', totalsX, y, { size: 10 });
-    writeLine(`-${symbol}${order.discount.toFixed(2)}`, valueX, y, { size: 10, align: 'right' });
+    const label = (doc.splitTextToSize(`${d.name}:`, 130) as string[])[0];
+    writeLine(label, totalsX, y, { size: 10 });
+    writeLine(`-${symbol}${d.amount.toFixed(2)}`, valueX, y, { size: 10, align: 'right' });
     doc.setTextColor(17, 24, 39);
     y += 14;
   }

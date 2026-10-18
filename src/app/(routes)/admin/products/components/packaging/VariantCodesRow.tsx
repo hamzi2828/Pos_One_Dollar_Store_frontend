@@ -70,7 +70,7 @@ export default function VariantCodesRow({ variant, onChange, colSpan, error }: V
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Short code</label>
             {variant.shortCode ? (
-              <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2 py-1 text-xs font-mono font-semibold text-honey-600">
+              <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2 py-1 text-xs font-mono font-semibold text-honey-700">
                 <Hash className="h-3 w-3" />
                 {variant.shortCode}
               </span>

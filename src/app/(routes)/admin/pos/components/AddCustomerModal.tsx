@@ -116,7 +116,7 @@ export default function AddCustomerModal({
           {/* Customer Type */}
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-3">
-              <User className="h-4 w-4 text-[#DC2626]" />
+              <User className="h-4 w-4 text-honey-700" />
               <h3 className="text-sm font-semibold text-gray-900">Customer Type</h3>
             </div>
             <div className="flex gap-4">
@@ -130,7 +130,7 @@ export default function AddCustomerModal({
                     setCustomerType(e.target.value as CustomerType);
                     setSource('');
                   }}
-                  className="w-4 h-4 text-[#DC2626]"
+                  className="w-4 h-4 text-honey-700"
                   disabled={loading}
                 />
                 <span className="text-sm text-gray-700">Walk-in</span>
@@ -142,7 +142,7 @@ export default function AddCustomerModal({
                   value="online"
                   checked={customerType === 'online'}
                   onChange={(e) => setCustomerType(e.target.value as CustomerType)}
-                  className="w-4 h-4 text-[#DC2626]"
+                  className="w-4 h-4 text-honey-700"
                   disabled={loading}
                 />
                 <span className="text-sm text-gray-700">Online</span>
@@ -156,7 +156,7 @@ export default function AddCustomerModal({
                 <select
                   value={source}
                   onChange={(e) => setSource(e.target.value as CustomerSource)}
-                  className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#DC2626]"
+                  className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500"
                   disabled={loading}
                 >
                   <option value="">Select source...</option>
@@ -172,7 +172,7 @@ export default function AddCustomerModal({
           {/* Personal Information */}
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-3">
-              <User className="h-4 w-4 text-[#DC2626]" />
+              <User className="h-4 w-4 text-honey-700" />
               <h3 className="text-sm font-semibold text-gray-900">Personal Information</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -184,7 +184,7 @@ export default function AddCustomerModal({
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#DC2626]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500"
                   placeholder="John"
                   disabled={loading}
                 />
@@ -195,7 +195,7 @@ export default function AddCustomerModal({
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#DC2626]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500"
                   placeholder="Doe"
                   disabled={loading}
                 />
@@ -209,7 +209,7 @@ export default function AddCustomerModal({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#DC2626]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500"
                   placeholder="john@example.com"
                   disabled={loading}
                 />
@@ -222,7 +222,7 @@ export default function AddCustomerModal({
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#DC2626]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500"
                   placeholder="+92 300 1234567"
                   disabled={loading}
                 />
@@ -244,7 +244,7 @@ export default function AddCustomerModal({
             onClick={handleSubmit}
             disabled={loading}
             aria-busy={loading}
-            className="px-4 py-2 bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <>

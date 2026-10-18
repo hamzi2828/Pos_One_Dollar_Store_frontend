@@ -43,7 +43,7 @@ export default function CashInHandPage() {
   );
   const [customStart, setCustomStart] = useState(searchParams.get('startDate') || '');
   const [customEnd, setCustomEnd] = useState(searchParams.get('endDate') || '');
-  const [storeName, setStoreName] = useState<string>('Mirpur Mobile & Stationery');
+  const [storeName, setStoreName] = useState<string>('DOLLAR & Co');
   const [report, setReport] = useState<CashInHandReport | null>(null);
 
   // Load store name once for PDF header.
@@ -364,7 +364,7 @@ export default function CashInHandPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-[#DC2626]" />
+            <Wallet className="h-6 w-6 text-honey-700" />
             Cash in Hand
           </h1>
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
@@ -410,7 +410,7 @@ export default function CashInHandPage() {
         <select
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#DC2626]"
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-honey-500"
         >
           <option value="today">Today</option>
           <option value="week">This Week</option>

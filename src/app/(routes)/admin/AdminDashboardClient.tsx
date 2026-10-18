@@ -2,23 +2,21 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import {
-  TrendingUp, Users, Package, DollarSign,
-  AlertCircle, Clock, BarChart3,
-  ShoppingCart, Activity, Percent, RefreshCw,
-  ArrowUpRight, ArrowDownRight, Loader2, Download
+  TrendingUp, Users, Package, Banknote,
+  AlertCircle, Clock,
+  ShoppingCart, Percent, RefreshCw,
+  Loader2, Download
 } from 'lucide-react';
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { StatsCard } from './adminComponents/StatsCard';
 import { RecentOrdersTable } from './adminComponents/RecentOrdersTable';
-import { QuickStats } from './adminComponents/QuickStats';
 import { SalesTrendChart } from './adminComponents/SalesTrendChart';
 import { TopProducts } from './adminComponents/TopProducts';
 import { dashboardService, type DashboardData } from '@/app/(routes)/admin/dashboardService';
 import { useCurrency } from '@/context/CurrencyContext';
 
 const AdminDashboardClient = () => {
-  const { currency, formatPrice } = useCurrency();
+  const { formatPrice } = useCurrency();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,18 +165,14 @@ const AdminDashboardClient = () => {
       name: 'Total Sales',
       value: dashboardData.stats.totalSales.toLocaleString(),
       icon: TrendingUp,
-      change: '+12.5%',
-      changeType: 'increase' as const,
       prefix: '',
       bgColor: 'bg-blue-50',
       iconColor: 'text-blue-600'
     },
     {
-      name: 'Total Users',
+      name: 'Customers',
       value: dashboardData.stats.totalUsers.toLocaleString(),
       icon: Users,
-      change: '+8.2%',
-      changeType: 'increase' as const,
       prefix: '',
       bgColor: 'bg-green-50',
       iconColor: 'text-green-600'
@@ -187,19 +181,15 @@ const AdminDashboardClient = () => {
       name: 'Products',
       value: dashboardData.stats.totalProducts.toLocaleString(),
       icon: Package,
-      change: '+5.1%',
-      changeType: 'increase' as const,
       prefix: '',
       bgColor: 'bg-purple-50',
       iconColor: 'text-purple-600'
     },
     {
       name: 'Revenue',
-      value: dashboardData.stats.totalRevenue.toLocaleString(),
-      icon: DollarSign,
-      change: '+18.3%',
-      changeType: 'increase' as const,
-      prefix: currency.symbol,
+      value: formatPrice(dashboardData.stats.totalRevenue || 0),
+      icon: Banknote,
+      prefix: '',
       bgColor: 'bg-yellow-50',
       iconColor: 'text-yellow-600'
     },
@@ -210,29 +200,16 @@ const AdminDashboardClient = () => {
       name: 'Orders Today',
       value: dashboardData.stats.ordersToday.toLocaleString(),
       icon: ShoppingCart,
-      change: '+3.1%',
-      changeType: 'increase' as const,
     },
     {
       name: 'Avg Order Value',
       value: formatPrice(dashboardData.stats.avgOrderValue || 0),
-      icon: DollarSign,
-      change: '+1.8%',
-      changeType: 'increase' as const,
-    },
-    {
-      name: 'Conversion Rate',
-      value: `${(dashboardData.stats.conversionRate || 0).toFixed(1)}%`,
-      icon: Activity,
-      change: '+0.3%',
-      changeType: 'increase' as const,
+      icon: Banknote,
     },
     {
       name: 'Refund Rate',
       value: `${(dashboardData.stats.refundRate || 0).toFixed(1)}%`,
       icon: Percent,
-      change: '-0.1%',
-      changeType: 'decrease' as const,
     },
   ];
 
@@ -255,12 +232,6 @@ const AdminDashboardClient = () => {
       icon: Users,
       color: 'text-blue-600 bg-blue-50'
     },
-    {
-      name: 'Avg Fulfillment',
-      value: `${(dashboardData.quickStats.avgFulfillmentTime || 0).toFixed(1)}d`,
-      icon: Clock,
-      color: 'text-gray-600 bg-gray-100'
-    },
   ];
 
   return (
@@ -272,7 +243,7 @@ const AdminDashboardClient = () => {
             <div>
               <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">Dashboard Overview</h1>
               <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-                Welcome back! Here's what's happening with your store.
+                Sales, customers and stock for the shop at a glance.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -300,7 +271,7 @@ const AdminDashboardClient = () => {
                 onClick={handleGenerateReport}
                 disabled={isDownloading}
                 aria-busy={isDownloading}
-                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 {isDownloading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -330,20 +301,8 @@ const AdminDashboardClient = () => {
             const Icon = stat.icon;
             return (
               <div key={stat.name} className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 hover:shadow-md transition-all duration-200">
-                <div className="flex items-center justify-between">
-                  <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
-                    <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.iconColor}`} />
-                  </div>
-                  <div className={`flex items-center gap-0.5 text-[10px] sm:text-xs font-medium ${
-                    stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {stat.changeType === 'increase' ? (
-                      <ArrowUpRight className="h-3 w-3 sm:h-4 sm:w-4" />
-                    ) : (
-                      <ArrowDownRight className="h-3 w-3 sm:h-4 sm:w-4" />
-                    )}
-                    {stat.change}
-                  </div>
+                <div className={`inline-flex p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.iconColor}`} />
                 </div>
                 <div className="mt-2 sm:mt-3">
                   <p className="text-lg sm:text-2xl font-semibold text-gray-900">
@@ -357,7 +316,7 @@ const AdminDashboardClient = () => {
         </div>
 
         {/* Secondary Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6">
           {secondaryStats.map((stat) => {
             const Icon = stat.icon;
             return (
@@ -379,7 +338,7 @@ const AdminDashboardClient = () => {
         {/* Quick Stats */}
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
           <h3 className="text-xs sm:text-sm md:text-base font-semibold text-gray-900 mb-2 sm:mb-3 md:mb-4">Quick Stats</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
             {quickStatsConfig.map((stat) => {
               const Icon = stat.icon;
               return (

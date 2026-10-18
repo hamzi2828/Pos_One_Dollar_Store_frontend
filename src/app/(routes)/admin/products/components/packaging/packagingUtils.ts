@@ -16,7 +16,7 @@ export interface BatchRow {
   expiryDate: string; // YYYY-MM-DD or ""
   note: string;
   // Saved batch (edit mode): everything the backend sent, sent back unchanged
-  // except the fields above, so batchNo / barcode / receivedAt / branch stay.
+  // except the fields above, so batchNo / barcode / receivedAt stay.
   saved?: ProductBatchDTO;
 }
 
@@ -53,7 +53,6 @@ export interface VariantCodeFields {
   barcodes?: ProductBarcodeDTO[];
   batches?: ProductBatchDTO[];
   totalStock?: number;
-  branchStock?: unknown;
 }
 
 export const normalizeCode = (value: string | undefined | null) => String(value ?? "").trim().toUpperCase();
@@ -214,11 +213,10 @@ export function cleanAttributes(attrs: Record<string, string> | undefined): Reco
   return Object.keys(out).length ? out : undefined;
 }
 
-// Variant ready to send: drop view-only fields the GET returned (branchStock would
-// override the typed stock for the super admin), normalise codes and options.
+// Variant ready to send: drop view-only fields the GET returned, normalise codes and options.
 export function variantPayload<T extends Record<string, unknown>>(v: T): Record<string, unknown> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { branchStock, totalStock, stockBranch, ...rest } = v as Record<string, unknown>;
+  const { totalStock, ...rest } = v as Record<string, unknown>;
   const out: Record<string, unknown> = { ...rest };
   const attrs = cleanAttributes(rest.attributes as Record<string, string> | undefined);
   if (attrs) out.attributes = attrs;

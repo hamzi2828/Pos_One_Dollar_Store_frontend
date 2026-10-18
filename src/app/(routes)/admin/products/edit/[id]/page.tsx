@@ -7,7 +7,6 @@ import { ArrowLeft, Loader2, Edit2 } from 'lucide-react';
 import EditProduct from '../../components/EditProduct';
 import { type Category } from '../../components/CategoriesTab';
 import { loadCreateTabData } from '../../services/productOptionsService';
-import { type Guideline } from '../../services/guidelineService';
 import toast from 'react-hot-toast';
 
 const EditProductPage = () => {
@@ -19,7 +18,6 @@ const EditProductPage = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [colorOptions, setColorOptions] = useState<string[]>([]);
   const [sizeOptions, setSizeOptions] = useState<string[]>([]);
-  const [guidelines, setGuidelines] = useState<Guideline[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load data for edit form
@@ -27,11 +25,10 @@ const EditProductPage = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const { categories: cats, colorOptions: co, sizeOptions: so, guidelines: gl } = await loadCreateTabData();
+        const { categories: cats, colorOptions: co, sizeOptions: so } = await loadCreateTabData();
         setCategories(cats as unknown as Category[]);
         setColorOptions(co);
         setSizeOptions(so);
-        setGuidelines(gl);
       } catch (e) {
         console.error('Failed to load edit tab data', e);
         toast.error('Failed to load form data');
@@ -99,7 +96,6 @@ const EditProductPage = () => {
         categories={categories.filter((c) => c.active)}
         colorOptions={colorOptions}
         sizeOptions={sizeOptions}
-        guidelines={guidelines}
         onManageAttributes={() => router.push('/admin/products/attributes')}
         onCancel={() => router.push('/admin/products')}
         onSuccess={() => {

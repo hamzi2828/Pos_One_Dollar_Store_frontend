@@ -81,13 +81,10 @@ const StockPage = () => {
 
       setProducts(productList as unknown as Product[]);
 
-      // Calculate sold quantities from POS orders. Labour and outsource lines
-      // carry no product, so they are skipped.
+      // Calculate sold quantities from POS orders (lines without a product are skipped).
       const sold: SoldQuantities = {};
       for (const order of ordersResponse?.orders || []) {
         for (const item of order.items) {
-          if (item.isLabour || item.isOutsource) continue;
-
           const productId = typeof item.product === 'object'
             ? item.product?._id
             : item.product;
@@ -497,7 +494,7 @@ const StockPage = () => {
                       <div className="inline-flex items-center gap-1.5">
                         <Link
                           href={`/admin/products/stickers/${row.productId}${row.variantId ? `?variantId=${encodeURIComponent(row.variantId)}` : ''}`}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-honey-600 bg-honey-50 rounded-lg hover:bg-honey-100 transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-honey-700 bg-honey-50 rounded-lg hover:bg-honey-100 transition-colors"
                           title="Print barcode stickers"
                         >
                           <Printer className="h-3.5 w-3.5" />

@@ -6,7 +6,6 @@ import { FiChevronDown } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { categoryService } from '../../services/categoryService';
-import RichTextEditor from '@/components/RichTextEditor';
 
 const slugify = (str: string) =>
   str
@@ -30,12 +29,7 @@ const CreateCategoryPage = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
-  const [featured, setFeatured] = useState(false);
   const [parentId, setParentId] = useState<string>('');
-  const [shippingCost, setShippingCost] = useState<string>('0');
-  const [metaTitle, setMetaTitle] = useState('');
-  const [metaDescription, setMetaDescription] = useState('');
-  const [metaKeywords, setMetaKeywords] = useState('');
   const [parentCategories, setParentCategories] = useState<ParentCategory[]>([]);
   const [thumbnailFiles, setThumbnailFiles] = useState<File[]>([]);
   const [thumbnailPreviews, setThumbnailPreviews] = useState<string[]>([]);
@@ -115,12 +109,7 @@ const CreateCategoryPage = () => {
         formData.append('slug', slug);
         formData.append('description', description);
         formData.append('active', active.toString());
-        formData.append('featured', featured.toString());
         formData.append('parentId', parentId || '');
-        formData.append('shippingCost', shippingCost || '0');
-        formData.append('metaTitle', metaTitle.trim());
-        formData.append('metaDescription', metaDescription.trim());
-        formData.append('metaKeywords', metaKeywords.trim());
 
         for (const file of thumbnailFiles) {
           formData.append('thumbnail', file);
@@ -133,12 +122,7 @@ const CreateCategoryPage = () => {
           slug,
           description,
           active,
-          featured,
           parentId: parentId || null,
-          shippingCost: parseFloat(shippingCost) || 0,
-          metaTitle: metaTitle.trim(),
-          metaDescription: metaDescription.trim(),
-          metaKeywords: metaKeywords.trim(),
         });
       }
 
@@ -164,7 +148,7 @@ const CreateCategoryPage = () => {
             <label className="block text-sm font-medium text-gray-700">Name</label>
             <input
               type="text"
-              placeholder="e.g., Bottoms"
+              placeholder="e.g., Kitchen & Home"
               className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -204,73 +188,14 @@ const CreateCategoryPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <RichTextEditor
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
+              rows={3}
+              placeholder="Short note about this category (optional)"
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
               value={description}
-              onChange={setDescription}
-              placeholder="Describe this category..."
+              onChange={(e) => setDescription(e.target.value)}
             />
-          </div>
-
-          <div className="border-t pt-3 sm:pt-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-1">SEO Meta Details</h4>
-            <p className="text-xs text-gray-500 mb-3">Used for search engines and social previews.</p>
-
-            <div className="space-y-3 sm:space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Meta Title</label>
-                <input
-                  type="text"
-                  maxLength={70}
-                  placeholder="e.g., Mobile Accessories | Mirpur Mobile & Stationery"
-                  className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                  value={metaTitle}
-                  onChange={(e) => setMetaTitle(e.target.value)}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">{metaTitle.length} / 70 characters</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Meta Description</label>
-                <textarea
-                  rows={3}
-                  maxLength={170}
-                  placeholder="Short SEO description (max 170 chars)"
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                  value={metaDescription}
-                  onChange={(e) => setMetaDescription(e.target.value)}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">{metaDescription.length} / 170 characters</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Meta Keywords</label>
-                <input
-                  type="text"
-                  placeholder="comma, separated, keywords"
-                  className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                  value={metaKeywords}
-                  onChange={(e) => setMetaKeywords(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Shipping Cost</label>
-            <p className="text-xs text-gray-500 mb-1">Shipping cost for products in this category</p>
-            <div className="relative mt-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">Rs</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                className="h-11 w-full rounded-md border border-gray-300 bg-white pl-10 pr-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                value={shippingCost}
-                onChange={(e) => setShippingCost(e.target.value)}
-              />
-            </div>
           </div>
 
           {/* Thumbnail Images */}
@@ -338,16 +263,6 @@ const CreateCategoryPage = () => {
                 onChange={(e) => setActive(e.target.checked)}
               />
               <label htmlFor="active" className="text-xs sm:text-sm text-gray-700">Active</label>
-            </div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <input
-                id="featured"
-                type="checkbox"
-                className="h-4 w-4 text-yellow-600 border-gray-300 rounded"
-                checked={featured}
-                onChange={(e) => setFeatured(e.target.checked)}
-              />
-              <label htmlFor="featured" className="text-xs sm:text-sm text-gray-700">Featured</label>
             </div>
           </div>
         </div>

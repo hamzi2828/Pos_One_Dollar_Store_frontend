@@ -53,11 +53,11 @@ export default function CostAnalysisPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <LineChart className="h-6 w-6 text-[#DC2626]" />
+            <LineChart className="h-6 w-6 text-honey-700" />
             Cost Analysis
           </h1>
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
-            Revenue vs COGS vs operating expenses. Product cost uses <code>product.costPrice</code> where available; outsource items use their saved cost.
+            Revenue vs cost of goods sold vs shop expenses. Cost of goods uses the landed cost saved on each bill line at the time of sale (gifts included).
           </p>
         </div>
         <button
@@ -105,8 +105,8 @@ export default function CostAnalysisPage() {
             <Stat label="COGS" value={fmt(data.cogs)} />
             <Stat label="Expenses" value={fmt(data.totalExpenses)} />
             <Stat label="Items Sold" value={data.itemCount.toString()} />
-            <Stat label="Outsource Cost" value={fmt(data.outsourceCost)} />
-            <Stat label="Product Cost (est.)" value={fmt(data.estimatedProductCost)} />
+            <Stat label="Bills" value={data.orderCount.toString()} />
+            <Stat label="Avg. Bill" value={fmt(data.orderCount ? data.revenue / data.orderCount : 0)} />
             <Stat label="Gross Margin" value={`${data.grossMargin.toFixed(1)}%`} />
             <Stat label="Net Margin" value={`${data.netMargin.toFixed(1)}%`} />
           </div>
@@ -133,7 +133,7 @@ export default function CostAnalysisPage() {
           </div>
 
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-            Labour-only items are excluded from COGS. Product cost is only included when the product record has a <code>costPrice</code> value — fill those in under Products for tighter accuracy.
+            Refunded bills are left out. Cost of goods is the landed cost (vendor price + transport, landing and misc charges) saved on each sale — receive stock through Purchase Orders so every product has it.
           </div>
         </>
       ) : null}

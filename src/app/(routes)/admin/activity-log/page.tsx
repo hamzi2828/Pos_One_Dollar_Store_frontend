@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Activity, Loader2, Search, X, ChevronLeft, ChevronRight, RefreshCw,
-  LogIn, ShoppingCart, Heart, Package, Star, UserCog, Trash2, MapPin,
-  Car, MessageSquare, Mail, Ticket, Undo2, CreditCard, Shield, Eye,
-  BookOpen, Wrench, FileText, Globe, LayoutGrid,
+  LogIn, Package, UserCog, Trash2, KeyRound, Shield, Eye, Globe, LayoutGrid,
   Users, BarChart3, Zap, AlertTriangle, Clock, TrendingUp, Database,
 } from 'lucide-react';
 import { getAuthHeader } from '@/helper/helper';
@@ -60,7 +58,6 @@ interface Analytics {
     email?: string;
   }>;
   topProducts: Array<{ _id: string; count: number; uniqueUsers: number }>;
-  topBlogs: Array<{ _id: string; count: number }>;
   topPaths: Array<{
     method: string;
     path: string;
@@ -108,65 +105,24 @@ interface Analytics {
   timeline: Array<{ _id: string; count: number; failed: number }>;
 }
 
+// Labels for the audit actions the admin panel records. Anything else is
+// shown by its raw action name.
 const ACTION_CONFIG: Record<string, { label: string; icon: typeof Activity; color: string }> = {
   login:                    { label: 'Login',                 icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  signup:                   { label: 'Signup',                icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  google_login:             { label: 'Google Login',          icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  stack_auth_sync:          { label: 'Auth Sync',             icon: LogIn,         color: 'text-green-600 bg-green-50' },
-  google_oauth_callback:    { label: 'Google OAuth',          icon: LogIn,         color: 'text-green-600 bg-green-50' },
   update_profile:           { label: 'Update Profile',        icon: UserCog,       color: 'text-blue-600 bg-blue-50' },
   view_profile:             { label: 'View Profile',          icon: UserCog,       color: 'text-blue-600 bg-blue-50' },
+  change_password:          { label: 'Change Password',       icon: KeyRound,      color: 'text-blue-600 bg-blue-50' },
   delete_account:           { label: 'Delete Account',        icon: Trash2,        color: 'text-red-600 bg-red-50' },
-  add_address:              { label: 'Add Address',           icon: MapPin,        color: 'text-blue-600 bg-blue-50' },
-  update_address:           { label: 'Update Address',        icon: MapPin,        color: 'text-blue-600 bg-blue-50' },
-  delete_address:           { label: 'Delete Address',        icon: MapPin,        color: 'text-red-600 bg-red-50' },
-  view_addresses:           { label: 'View Addresses',        icon: MapPin,        color: 'text-blue-600 bg-blue-50' },
-  add_car:                  { label: 'Add Car',               icon: Car,           color: 'text-indigo-600 bg-indigo-50' },
-  update_car:               { label: 'Update Car',            icon: Car,           color: 'text-indigo-600 bg-indigo-50' },
-  remove_car:               { label: 'Remove Car',            icon: Car,           color: 'text-red-600 bg-red-50' },
-  view_cars:                { label: 'View Cars',             icon: Car,           color: 'text-indigo-600 bg-indigo-50' },
-  add_to_cart:              { label: 'Add to Cart',           icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  update_cart:              { label: 'Update Cart',           icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  update_cart_item:         { label: 'Update Cart Item',      icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  remove_from_cart:         { label: 'Remove from Cart',      icon: ShoppingCart,  color: 'text-red-600 bg-red-50' },
-  clear_cart:               { label: 'Clear Cart',            icon: ShoppingCart,  color: 'text-red-600 bg-red-50' },
-  merge_guest_cart:         { label: 'Merge Guest Cart',      icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  view_cart:                { label: 'View Cart',             icon: ShoppingCart,  color: 'text-amber-600 bg-amber-50' },
-  add_to_wishlist:          { label: 'Add to Wishlist',       icon: Heart,         color: 'text-pink-600 bg-pink-50' },
-  toggle_wishlist:          { label: 'Toggle Wishlist',       icon: Heart,         color: 'text-pink-600 bg-pink-50' },
-  remove_from_wishlist:     { label: 'Remove from Wishlist',  icon: Heart,         color: 'text-red-600 bg-red-50' },
-  view_wishlist:            { label: 'View Wishlist',         icon: Heart,         color: 'text-pink-600 bg-pink-50' },
-  place_order:              { label: 'Place Order',           icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  initiate_checkout:        { label: 'Start Checkout',        icon: CreditCard,    color: 'text-purple-600 bg-purple-50' },
   view_orders:              { label: 'View Orders',           icon: Package,       color: 'text-purple-600 bg-purple-50' },
   view_order_detail:        { label: 'View Order Detail',     icon: Package,       color: 'text-purple-600 bg-purple-50' },
   view_product:             { label: 'View Product',          icon: Eye,           color: 'text-gray-600 bg-gray-100' },
   browse_products:          { label: 'Browse Products',       icon: LayoutGrid,    color: 'text-gray-600 bg-gray-100' },
   browse_categories:        { label: 'Browse Categories',     icon: LayoutGrid,    color: 'text-gray-600 bg-gray-100' },
-  create_review:            { label: 'Create Review',         icon: Star,          color: 'text-yellow-600 bg-yellow-50' },
-  update_review:            { label: 'Update Review',         icon: Star,          color: 'text-yellow-600 bg-yellow-50' },
-  delete_review:            { label: 'Delete Review',         icon: Star,          color: 'text-red-600 bg-red-50' },
-  view_reviews:             { label: 'View Reviews',          icon: Star,          color: 'text-yellow-600 bg-yellow-50' },
-  create_return:            { label: 'Create Return',         icon: Undo2,         color: 'text-orange-600 bg-orange-50' },
-  view_returns:             { label: 'View Returns',          icon: Undo2,         color: 'text-orange-600 bg-orange-50' },
-  create_preorder:          { label: 'Create Preorder',       icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  cancel_preorder:          { label: 'Cancel Preorder',       icon: Package,       color: 'text-red-600 bg-red-50' },
-  view_preorders:           { label: 'View Preorders',        icon: Package,       color: 'text-purple-600 bg-purple-50' },
-  submit_contact:           { label: 'Submit Contact',        icon: MessageSquare, color: 'text-teal-600 bg-teal-50' },
-  newsletter_subscribe:     { label: 'Subscribe',             icon: Mail,          color: 'text-teal-600 bg-teal-50' },
-  newsletter_unsubscribe:   { label: 'Unsubscribe',           icon: Mail,          color: 'text-gray-600 bg-gray-100' },
-  apply_discount:           { label: 'Apply Discount',        icon: Ticket,        color: 'text-emerald-600 bg-emerald-50' },
-  post_blog_comment:        { label: 'Blog Comment',          icon: MessageSquare, color: 'text-teal-600 bg-teal-50' },
-  browse_blogs:             { label: 'Browse Blogs',          icon: BookOpen,      color: 'text-gray-600 bg-gray-100' },
-  view_blog:                { label: 'Read Blog',             icon: BookOpen,      color: 'text-gray-600 bg-gray-100' },
-  view_services:            { label: 'View Services',         icon: Wrench,        color: 'text-gray-600 bg-gray-100' },
-  view_page:                { label: 'View Page',             icon: FileText,      color: 'text-gray-600 bg-gray-100' },
   view_settings:            { label: 'Load Settings',         icon: Globe,         color: 'text-gray-500 bg-gray-100' },
-  browse_car_makes:         { label: 'Browse Car Makes',      icon: Car,           color: 'text-gray-600 bg-gray-100' },
   admin_update_user_status: { label: 'Admin: Status Change',  icon: Shield,        color: 'text-red-600 bg-red-50' },
   admin_update_user_role:   { label: 'Admin: Role Change',    icon: Shield,        color: 'text-red-600 bg-red-50' },
   admin_delete_user:        { label: 'Admin: Delete User',    icon: Shield,        color: 'text-red-600 bg-red-50' },
-  admin_view_users:         { label: 'Admin: View Users',     icon: Shield,        color: 'text-gray-600 bg-gray-100' },
+  admin_view_users:         { label: 'Admin: View Customers', icon: Shield,        color: 'text-gray-600 bg-gray-100' },
 };
 
 const METHOD_COLORS: Record<string, string> = {
@@ -232,12 +188,7 @@ function speedClass(ms: number | null | undefined) {
 // ttlSeconds matches backend TTL so we can surface cache status/duration in insights.
 // resetReason is shown in the Cache tab tooltip — describes which admin action invalidates the tag.
 const CACHE_ROUTES: Array<{ method: string; match: 'exact' | 'prefix'; path: string; ttlSeconds: number; tags: string[]; resetReason: string }> = [
-  { method: 'GET', match: 'exact',  path: '/categories/featured-with-products', ttlSeconds: 7 * 24 * 3600, tags: ['categories:featured-with-products'], resetReason: 'Resets when you create, update, delete, reorder, or change featured products in /admin/products/categories.' },
-  { method: 'GET', match: 'exact',  path: '/categories/public',                 ttlSeconds: 7 * 24 * 3600, tags: ['categories:public'], resetReason: 'Resets on any category CRUD (create, update, reorder, delete, set featured) in /admin/products/categories.' },
-  { method: 'GET', match: 'exact',  path: '/blogs/featured',                    ttlSeconds: 3600,          tags: ['blogs:featured'], resetReason: 'Resets when a blog is created, updated, featured-toggled, or deleted in /admin/blogs.' },
-  { method: 'GET', match: 'exact',  path: '/settings/public',                   ttlSeconds: 7 * 24 * 3600, tags: ['settings:public'], resetReason: 'Resets on any save in /admin/settings — General, Logo, Social Links, SMTP, footer logo, favicon, or reset.' },
-  { method: 'GET', match: 'exact',  path: '/hero-slides/active',                ttlSeconds: 7 * 24 * 3600, tags: ['hero-slides:active'], resetReason: 'Resets on any hero-slide CRUD (create, update, status toggle, reorder, delete) in /admin/hero-slides.' },
-  { method: 'GET', match: 'exact',  path: '/api/public/products/featured',      ttlSeconds: 7 * 24 * 3600, tags: ['products:featured'], resetReason: 'Resets on any product create, update, or delete in /admin/products (including toggling the Featured flag).' },
+  { method: 'GET', match: 'exact',  path: '/settings/public',                   ttlSeconds: 7 * 24 * 3600, tags: ['settings:public'], resetReason: 'Resets on any save in /admin/settings (shop details, currency, logo, favicon) or a settings reset.' },
 ];
 
 function getCacheInfo(method: string, path: string): { cached: true; ttlLabel: string } | { cached: false } {
@@ -607,7 +558,7 @@ function FeedTab() {
                         <span className="text-[11px] lg:text-xs text-gray-400 ml-auto">{timeAgo(log.createdAt)}</span>
                       </div>
                       <p className="text-[11px] lg:text-xs text-gray-500 truncate">
-                        {log.userId ? `${log.userId.firstName} ${log.userId.lastName}` : 'Guest'} · {log.path}
+                        {log.userId ? `${log.userId.firstName} ${log.userId.lastName}` : 'Not signed in'} · {log.path}
                         {log.durationMs != null && <span className={`ml-1 ${speedClass(log.durationMs)}`}>· {formatMs(log.durationMs)}</span>}
                       </p>
                       {failed && log.errorMessage && (
@@ -679,7 +630,7 @@ function FeedTab() {
                             <p className="text-[11px] lg:text-xs text-gray-400 truncate max-w-[140px]">{log.userId.email}</p>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">Guest</span>
+                          <span className="text-xs text-gray-400">Not signed in</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5 hidden md:table-cell">
@@ -985,7 +936,7 @@ function RouteDrilldown({
                       <p className="text-[11px] lg:text-xs text-gray-400 truncate max-w-[160px]">{log.userId.email}</p>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">Guest</span>
+                    <span className="text-xs text-gray-400">Not signed in</span>
                   )}
                 </td>
                 <td className="px-4 py-2.5">
@@ -1396,7 +1347,7 @@ function UsersTab({ onUserClick }: { onUserClick: (id: string) => void }) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs text-gray-500">
-          Most active users{totalsInRange && <> · <span className="font-medium">{totalsInRange.unique.toLocaleString()}</span> unique · <span className="font-medium">{totalsInRange.guest.toLocaleString()}</span> guest events</>}
+          Most active users{totalsInRange && <> · <span className="font-medium">{totalsInRange.unique.toLocaleString()}</span> unique · <span className="font-medium">{totalsInRange.guest.toLocaleString()}</span> signed-out requests</>}
         </p>
         <div className="flex items-center gap-2">
           <RangeTabs range={range} onChange={(r) => { setRange(r); setPage(1); }} />
@@ -1672,7 +1623,7 @@ function InsightsTab() {
               icon={TrendingUp}
               label="Total Events"
               value={data.overview.total.toLocaleString()}
-              sub={`${data.overview.uniqueUsers} users · ${data.overview.guestEvents} guest`}
+              sub={`${data.overview.uniqueUsers} users · ${data.overview.guestEvents} signed out`}
               color="text-blue-600 bg-blue-50"
             />
             <StatCard
@@ -2003,7 +1954,8 @@ function InsightsTab() {
             </Card>
 
             {/* Top products */}
-            <Card title="Most Viewed Products" subtitle="What shoppers are browsing">
+            <div className="lg:col-span-2">
+            <Card title="Most Viewed Products" subtitle="Product detail requests in this range">
               {data.topProducts.length === 0 ? (
                 <p className="text-xs text-gray-400 py-6 text-center">No product views in this range</p>
               ) : (
@@ -2020,24 +1972,8 @@ function InsightsTab() {
                 </div>
               )}
             </Card>
+            </div>
 
-            {/* Top blogs */}
-            <Card title="Most Read Blogs" subtitle="Content engagement">
-              {data.topBlogs.length === 0 ? (
-                <p className="text-xs text-gray-400 py-6 text-center">No blog views in this range</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {data.topBlogs.map((b, i) => (
-                    <div key={b._id} className="flex items-center gap-2 py-1 border-b border-gray-100 last:border-0">
-                      <span className="text-[11px] lg:text-xs text-gray-300 w-5">{i + 1}</span>
-                      <BookOpen className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                      <span className="text-xs lg:text-sm font-mono text-gray-700 flex-1 truncate">{b._id}</span>
-                      <span className="text-xs lg:text-sm font-bold text-gray-900 w-10 text-right">{b.count}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
           </div>
         </>
       )}

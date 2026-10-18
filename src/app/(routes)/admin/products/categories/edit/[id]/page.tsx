@@ -7,7 +7,6 @@ import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { categoryService } from '../../../services/categoryService';
 import { type Category } from '../../../components/CategoriesTab';
-import RichTextEditor from '@/components/RichTextEditor';
 
 const slugify = (str: string) =>
   str
@@ -25,6 +24,19 @@ interface ParentCategory {
 
 const MAX_THUMBNAILS = 10;
 
+// Older categories were saved with HTML descriptions; show them as plain text.
+const toPlainText = (html: string) =>
+  html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
 const EditCategoryPage = () => {
   const router = useRouter();
   const params = useParams();
@@ -33,12 +45,7 @@ const EditCategoryPage = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
-  const [featured, setFeatured] = useState(false);
   const [parentId, setParentId] = useState<string>('');
-  const [shippingCost, setShippingCost] = useState<string>('0');
-  const [metaTitle, setMetaTitle] = useState('');
-  const [metaDescription, setMetaDescription] = useState('');
-  const [metaKeywords, setMetaKeywords] = useState('');
   const [parentCategories, setParentCategories] = useState<ParentCategory[]>([]);
   // Existing thumbnails already saved on the server
   const [existingUrls, setExistingUrls] = useState<string[]>([]);
@@ -66,14 +73,9 @@ const EditCategoryPage = () => {
         const category = allCategories.find(c => c.id === categoryId);
         if (category) {
           setName(category.name);
-          setDescription(category.description || '');
+          setDescription(toPlainText(category.description || ''));
           setActive(category.active);
-          setFeatured(category.featured || false);
           setParentId(category.parentId || '');
-          setShippingCost((category as unknown as { shippingCost?: number }).shippingCost?.toString() || '0');
-          setMetaTitle(((category as unknown as { metaTitle?: string }).metaTitle) || '');
-          setMetaDescription(((category as unknown as { metaDescription?: string }).metaDescription) || '');
-          setMetaKeywords(((category as unknown as { metaKeywords?: string }).metaKeywords) || '');
           const initialUrls = (category.thumbnailUrls && category.thumbnailUrls.length > 0)
             ? category.thumbnailUrls
             : (category.thumbnailUrl ? [category.thumbnailUrl] : []);
@@ -151,12 +153,7 @@ const EditCategoryPage = () => {
       formData.append('slug', slug);
       formData.append('description', description);
       formData.append('active', active.toString());
-      formData.append('featured', featured.toString());
       formData.append('parentId', parentId || '');
-      formData.append('shippingCost', shippingCost || '0');
-      formData.append('metaTitle', metaTitle.trim());
-      formData.append('metaDescription', metaDescription.trim());
-      formData.append('metaKeywords', metaKeywords.trim());
       formData.append('existingThumbnailUrls', JSON.stringify(existingUrls));
 
       for (const file of newFiles) {
@@ -194,7 +191,7 @@ const EditCategoryPage = () => {
             <label className="block text-sm font-medium text-gray-700">Name</label>
             <input
               type="text"
-              placeholder="e.g., Bottoms"
+              placeholder="e.g., Kitchen & Home"
               className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -234,73 +231,14 @@ const EditCategoryPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <RichTextEditor
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
+              rows={3}
+              placeholder="Short note about this category (optional)"
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
               value={description}
-              onChange={setDescription}
-              placeholder="Describe this category..."
+              onChange={(e) => setDescription(e.target.value)}
             />
-          </div>
-
-          <div className="border-t pt-3 sm:pt-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-1">SEO Meta Details</h4>
-            <p className="text-xs text-gray-500 mb-3">Used for search engines and social previews.</p>
-
-            <div className="space-y-3 sm:space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Meta Title</label>
-                <input
-                  type="text"
-                  maxLength={70}
-                  placeholder="e.g., Mobile Accessories | Mirpur Mobile & Stationery"
-                  className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                  value={metaTitle}
-                  onChange={(e) => setMetaTitle(e.target.value)}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">{metaTitle.length} / 70 characters</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Meta Description</label>
-                <textarea
-                  rows={3}
-                  maxLength={170}
-                  placeholder="Short SEO description (max 170 chars)"
-                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                  value={metaDescription}
-                  onChange={(e) => setMetaDescription(e.target.value)}
-                />
-                <p className="mt-1 text-[11px] text-gray-400">{metaDescription.length} / 170 characters</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Meta Keywords</label>
-                <input
-                  type="text"
-                  placeholder="comma, separated, keywords"
-                  className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                  value={metaKeywords}
-                  onChange={(e) => setMetaKeywords(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Shipping Cost</label>
-            <p className="text-xs text-gray-500 mb-1">Shipping cost for products in this category</p>
-            <div className="relative mt-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">Rs</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0"
-                className="h-11 w-full rounded-md border border-gray-300 bg-white pl-10 pr-3 text-sm placeholder:text-gray-400 focus:border-indigo-500 focus:ring-indigo-500"
-                value={shippingCost}
-                onChange={(e) => setShippingCost(e.target.value)}
-              />
-            </div>
           </div>
 
           {/* Thumbnail Images */}
@@ -392,16 +330,6 @@ const EditCategoryPage = () => {
                 onChange={(e) => setActive(e.target.checked)}
               />
               <label htmlFor="active" className="text-xs sm:text-sm text-gray-700">Active</label>
-            </div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <input
-                id="featured"
-                type="checkbox"
-                className="h-4 w-4 text-yellow-600 border-gray-300 rounded"
-                checked={featured}
-                onChange={(e) => setFeatured(e.target.checked)}
-              />
-              <label htmlFor="featured" className="text-xs sm:text-sm text-gray-700">Featured</label>
             </div>
           </div>
         </div>

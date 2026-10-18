@@ -89,26 +89,17 @@ export interface JwtBasePayload {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(ROLE_KEY);
-    // Branch access (see helper/access.ts): forget role/branch + picked branch.
+    // Staff role + permissions (see helper/access.ts).
     localStorage.removeItem('auth_access');
-    localStorage.removeItem('selected_branch');
     try {
       document.cookie = `${TOKEN_KEY}=; Max-Age=0; path=/; samesite=lax`;
       document.cookie = `${ROLE_KEY}=; Max-Age=0; path=/; samesite=lax`;
     } catch {}
   }
 
-  // Full logout: clear backend tokens + Stack Auth session cookies
+  // Full logout: forget the token, role and permissions.
   export function clearAllAuth() {
     removeToken();
-    try {
-      document.cookie.split(';').forEach((c) => {
-        const name = c.trim().split('=')[0];
-        if (name.startsWith('stack-') || name.startsWith('x-stack-')) {
-          document.cookie = `${name}=; Max-Age=0; path=/; samesite=lax`;
-        }
-      });
-    } catch {}
   }
 
   // Fetch with Authorization header when token is present

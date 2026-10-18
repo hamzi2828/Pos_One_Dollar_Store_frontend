@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { HeldCart } from '../types';
-import { Archive, Trash2, Clock, Eye, X, User, Phone, Package, Wrench, Tag, Loader2 } from 'lucide-react';
+import { Archive, Trash2, Clock, Eye, X, User, Phone, Package, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface HeldOrdersProps {
@@ -110,7 +110,7 @@ export default function HeldOrders({
                 onClick={() => onRetrieve(held.id)}
                 disabled={!!busy}
                 aria-busy={retrievingThis}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#DC2626] text-white py-2 px-3 rounded text-sm font-medium hover:bg-[#B91C1C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-2 bg-honey-500 text-gray-900 py-2 px-3 rounded text-sm font-medium hover:bg-honey-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {retrievingThis ? (
                   <>
@@ -189,7 +189,7 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
           <div>
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Archive className="h-5 w-5 text-[#DC2626]" />
+              <Archive className="h-5 w-5 text-honey-700" />
               Held Order Details
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -245,25 +245,11 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
             </div>
             <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
               {cart.items.map((item) => {
-                const name = item.isLabour
-                  ? item.labourDescription || 'Labour'
-                  : item.isOutsource
-                  ? item.outsourceDescription || 'Outsource'
-                  : item.product?.name || 'Product';
-                const Icon = item.isLabour ? Wrench : item.isOutsource ? Tag : Package;
-
+                const name = item.product?.name || 'Product';
                 return (
                   <div key={item.id} className="flex items-start gap-3 p-3 bg-white">
-                    <div
-                      className={`h-8 w-8 rounded flex items-center justify-center flex-shrink-0 ${
-                        item.isLabour
-                          ? 'bg-orange-100 text-orange-600'
-                          : item.isOutsource
-                          ? 'bg-purple-100 text-purple-600'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
+                    <div className="h-8 w-8 rounded flex items-center justify-center flex-shrink-0 bg-gray-100 text-gray-600">
+                      <Package className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm text-gray-900 truncate">{name}</div>
@@ -274,9 +260,6 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
                         </span>
                         {(item.color || item.size) && (
                           <span>• {[item.color, item.size].filter(Boolean).join(' / ')}</span>
-                        )}
-                        {item.isOutsource && item.costPrice !== undefined && (
-                          <span>• Cost {symbol}{item.costPrice.toFixed(2)}</span>
                         )}
                       </div>
                     </div>
@@ -372,7 +355,7 @@ function HeldOrderModal({ held, symbol, formatDateTime, onClose, onRetrieve, onD
             onClick={() => onRetrieve(held.id)}
             disabled={isBusy}
             aria-busy={retrieving}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#DC2626] rounded hover:bg-[#B91C1C] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-900 bg-honey-500 rounded hover:bg-honey-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {retrieving ? (
               <>

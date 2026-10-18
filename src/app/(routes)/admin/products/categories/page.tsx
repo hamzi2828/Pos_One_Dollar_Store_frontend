@@ -3,7 +3,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import CategoriesTab, { type Category, type CategoryWithCount } from '../components/CategoriesTab';
-import FeaturedProductsModal from '../components/FeaturedProductsModal';
 import { categoryService } from '../services/categoryService';
 import { productService } from '../services/productService';
 import { type Product } from '../components/AllProducts';
@@ -20,12 +19,9 @@ const CategoriesPage = () => {
   // Products for count calculation
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Featured products modal
-  const [featuredModalCategoryId, setFeaturedModalCategoryId] = useState<string | null>(null);
-
   // Per-category request in progress (spinner + disabled row actions). The ref is the
   // synchronous lock so a fast double click can't send the same request twice.
-  type BusyAction = 'active' | 'featured' | 'delete';
+  type BusyAction = 'active' | 'delete';
   const [busy, setBusy] = useState<Record<string, BusyAction>>({});
   const busyRef = useRef<Set<string>>(new Set());
   const loadingRef = useRef(false);
@@ -147,23 +143,6 @@ const CategoriesPage = () => {
     }
   };
 
-  const handleToggleFeaturedCategory = async (id: string) => {
-    const target = categories.find((c) => c.id === id);
-    if (!target) return;
-    if (!lockRow(id, 'featured')) return;
-    const nextFeatured = !target.featured;
-    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, featured: nextFeatured } : c)));
-    try {
-      await categoryService.setFeatured(id, nextFeatured);
-    } catch (e) {
-      console.error('Failed to update category featured status', e);
-      setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, featured: !nextFeatured } : c)));
-      alert('Failed to update category featured status');
-    } finally {
-      unlockRow(id);
-    }
-  };
-
   const handleReorder = async (reorderedCategories: Category[]) => {
     const prev = categories;
     setCategories(reorderedCategories);
@@ -199,7 +178,7 @@ const CategoriesPage = () => {
         </button>
         <button
           onClick={() => router.push('/admin/products/categories/create')}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
         >
           <Plus className="h-4 w-4" />
           Add Category
@@ -215,7 +194,7 @@ const CategoriesPage = () => {
         <Header />
         <div className="min-h-[400px] flex items-center justify-center">
           <div className="flex flex-col items-center gap-2 sm:gap-3">
-            <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-honey-500" />
+            <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-honey-700" />
             <p className="text-xs sm:text-sm text-gray-500">Loading categories...</p>
           </div>
         </div>
@@ -239,7 +218,7 @@ const CategoriesPage = () => {
               <button
                 onClick={loadCategories}
                 disabled={catLoading}
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <RefreshCw className="h-4 w-4" />
                 Try Again
@@ -258,7 +237,7 @@ const CategoriesPage = () => {
         <Header />
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-6 sm:p-8 md:p-12 text-center">
           <div className="mx-auto w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-sage-200 rounded-full flex items-center justify-center mb-3 sm:mb-4">
-            <Layers className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-honey-500" />
+            <Layers className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-honey-700" />
           </div>
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1.5 sm:mb-2">No categories yet</h3>
           <p className="text-xs sm:text-sm text-gray-500 mb-4 sm:mb-6 max-w-sm mx-auto">
@@ -266,7 +245,7 @@ const CategoriesPage = () => {
           </p>
           <button
             onClick={() => router.push('/admin/products/categories/create')}
-            className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
+            className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
           >
             <Plus className="h-4 w-4" />
             Create Category
@@ -284,20 +263,9 @@ const CategoriesPage = () => {
         onEdit={openEditCategory}
         onDelete={handleDeleteCategory}
         onToggleActive={handleToggleActiveCategory}
-        onToggleFeatured={handleToggleFeaturedCategory}
         onReorder={handleReorder}
-        onFeatureProducts={(id) => setFeaturedModalCategoryId(id)}
         busy={busy}
       />
-      {featuredModalCategoryId && (
-        <FeaturedProductsModal
-          categoryId={featuredModalCategoryId}
-          categoryName={
-            categories.find((c) => c.id === featuredModalCategoryId)?.name ?? ''
-          }
-          onClose={() => setFeaturedModalCategoryId(null)}
-        />
-      )}
     </div>
   );
 };

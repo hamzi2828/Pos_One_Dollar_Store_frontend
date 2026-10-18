@@ -10,21 +10,9 @@ export interface CategoryDTO {
   description?: string;
   thumbnailUrl?: string;
   thumbnailUrls?: string[];
-  bannerUrl?: string;
   active: boolean;
-  featured?: boolean;
   parentId?: { _id: string; name: string; slug: string } | string | null;
   children?: CategoryDTO[];
-  shippingCost?: number;
-  estimatedDays?: string;
-  sizeChartRegularCm?: string;
-  sizeChartRegularInch?: string;
-  sizeChartRelaxedCm?: string;
-  sizeChartRelaxedInch?: string;
-  measuringTipImage?: string;
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -35,20 +23,8 @@ export interface CategoryInput {
   description?: string;
   thumbnailUrl?: string;
   thumbnailUrls?: string[];
-  bannerUrl?: string;
   active: boolean;
-  featured?: boolean;
   parentId?: string | null;
-  shippingCost?: number;
-  estimatedDays?: string;
-  sizeChartRegularCm?: string;
-  sizeChartRegularInch?: string;
-  sizeChartRelaxedCm?: string;
-  sizeChartRelaxedInch?: string;
-  measuringTipImage?: string;
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
 }
 
 export interface CategoryUI {
@@ -58,22 +34,10 @@ export interface CategoryUI {
   description: string;
   thumbnailUrl?: string;
   thumbnailUrls: string[];
-  bannerUrl?: string;
   active: boolean;
-  featured: boolean;
   parentId: string | null;
   parentName: string | null;
   children: CategoryUI[];
-  shippingCost: number;
-  estimatedDays: string;
-  sizeChartRegularCm?: string;
-  sizeChartRegularInch?: string;
-  sizeChartRelaxedCm?: string;
-  sizeChartRelaxedInch?: string;
-  measuringTipImage?: string;
-  metaTitle: string;
-  metaDescription: string;
-  metaKeywords: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -114,22 +78,10 @@ function mapCategory(dto: CategoryDTO): CategoryUI {
     description: dto.description ?? '',
     thumbnailUrl: absolutize(dto.thumbnailUrl),
     thumbnailUrls,
-    bannerUrl: absolutize(dto.bannerUrl),
     active: dto.active,
-    featured: dto.featured ?? false,
     parentId,
     parentName,
     children: dto.children?.map(child => mapCategory(child)) ?? [],
-    shippingCost: dto.shippingCost ?? 0,
-    estimatedDays: dto.estimatedDays ?? '',
-    sizeChartRegularCm: absolutize(dto.sizeChartRegularCm),
-    sizeChartRegularInch: absolutize(dto.sizeChartRegularInch),
-    sizeChartRelaxedCm: absolutize(dto.sizeChartRelaxedCm),
-    sizeChartRelaxedInch: absolutize(dto.sizeChartRelaxedInch),
-    measuringTipImage: absolutize(dto.measuringTipImage),
-    metaTitle: dto.metaTitle ?? '',
-    metaDescription: dto.metaDescription ?? '',
-    metaKeywords: dto.metaKeywords ?? '',
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
@@ -245,75 +197,6 @@ export const categoryService = {
   // Set active flag (helper around update)
   async setActive(id: string, active: boolean): Promise<ReturnType<typeof mapCategory>> {
     return this.updateCategory(id, { active });
-  },
-
-  // Set featured flag (helper around update)
-  async setFeatured(id: string, featured: boolean): Promise<ReturnType<typeof mapCategory>> {
-    return this.updateCategory(id, { featured });
-  },
-
-  // Fetch products belonging to a category + currently featured product ids
-  async listCategoryProducts(id: string): Promise<{
-    products: Array<{
-      _id: string;
-      name: string;
-      category: string;
-      price: number;
-      stock: number;
-      status: string;
-      thumbnailUrl?: string;
-    }>;
-    featuredProductIds: string[];
-  }> {
-    try {
-      const res = await axios.get(`${API_BASE_URL}/categories/${id}/products`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(),
-        },
-      });
-      const data = res.data?.data ?? {};
-      const absolutize = (u?: string) => {
-        if (!u) return u;
-        if (/^https?:\/\//i.test(u)) return u;
-        const base = (API_BASE_URL || '').replace(/\/$/, '');
-        const path = u.startsWith('/') ? u : `/${u}`;
-        return `${base}${path}`;
-      };
-      const products = Array.isArray(data.products)
-        ? data.products.map((p: { thumbnailUrl?: string } & Record<string, unknown>) => ({
-            ...p,
-            thumbnailUrl: absolutize(p.thumbnailUrl),
-          }))
-        : [];
-      const featuredProductIds = Array.isArray(data.featuredProductIds)
-        ? data.featuredProductIds.map((id: unknown) => String(id))
-        : [];
-      return { products, featuredProductIds };
-    } catch (err) {
-      console.error('Error fetching category products:', err);
-      throw err;
-    }
-  },
-
-  // Save admin-selected featured products for a category
-  async setFeaturedProducts(id: string, productIds: string[]): Promise<boolean> {
-    try {
-      await axios.put(
-        `${API_BASE_URL}/categories/${id}/featured-products`,
-        { productIds },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(),
-          },
-        }
-      );
-      return true;
-    } catch (err) {
-      console.error('Error saving featured products:', err);
-      throw err;
-    }
   },
 
   // Reorder categories

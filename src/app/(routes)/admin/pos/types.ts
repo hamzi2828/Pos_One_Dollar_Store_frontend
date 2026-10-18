@@ -16,6 +16,10 @@ export interface POSProduct {
   productType: 'single' | 'variant';
   variants?: POSVariant[];
   colorMedia?: Record<string, ColorMedia>;
+  /** Shelves holding this item (e.g. ['A1-S2']). */
+  shelfCodes?: string[];
+  shortCode?: string;
+  priceTier?: string | null;
 }
 
 export interface POSVariant {
@@ -27,6 +31,7 @@ export interface POSVariant {
   stock: number;
   sku: string;
   discountedPrice?: number;
+  shelfCodes?: string[];
 }
 
 export interface ColorMedia {
@@ -46,13 +51,14 @@ export interface CartItem {
   subtotal: number;
   color?: string;
   size?: string;
-  isLabour?: boolean;
-  labourDescription?: string;
-  isOutsource?: boolean;
-  outsourceDescription?: string;
-  costPrice?: number; // Cost price for outsource products (saved for records)
-  performedBy?: string; // Employee ID who performed the labour/outsource work
-  performedByName?: string; // Employee display name snapshot
+  /** Free gift: sold at 0, its cost goes to cost of sales (needs pos_gifts). */
+  isGift?: boolean;
+  giftReason?: string;
+  /** Cashier typed this price (needs pos edit; the server checks). */
+  priceOverride?: boolean;
+  /** Barcode / batch the cashier scanned (stock comes from that batch first). */
+  scannedCode?: string;
+  batchNo?: string;
 }
 
 // Tax type for POS
@@ -84,7 +90,67 @@ export interface POSCart {
   discountReason?: string;
   total: number;
   customer?: POSCustomer;
+  /** Cashier's own discount (the server checks the limit). */
+  manualDiscount?: ManualDiscount | null;
 }
+
+export interface ManualDiscount {
+  type: 'fixed' | 'percentage';
+  value: number;
+  reason?: string;
+}
+
+/** One discount on a bill (rule or manual), as the server applied it. */
+export interface AppliedDiscount {
+  rule?: string | null;
+  name: string;
+  kind: 'overall' | 'threshold' | 'manual' | string;
+  valueType: 'percentage' | 'fixed' | string;
+  value: number;
+  amount: number;
+  label?: string;
+}
+
+/** POST /api/pos/quote line (server prices). */
+export interface QuoteLine {
+  index: number;
+  product?: string;
+  variantId?: string;
+  name: string;
+  quantity: number;
+  price: number;
+  listPrice: number;
+  priceOverride: boolean;
+  lineTotal: number;
+  isGift: boolean;
+  giftReason?: string;
+  available?: number;
+  costPrice?: number;
+}
+
+/** POST /api/pos/quote — the exact numbers the sale will use. */
+export interface CartQuote {
+  lines: QuoteLine[];
+  itemCount: number;
+  subtotal: number;
+  appliedDiscounts: AppliedDiscount[];
+  ruleDiscount: number;
+  manualDiscount: number;
+  discount: number;
+  tax: number;
+  appliedTaxes: AppliedTax[];
+  total: number;
+  giftCount: number;
+  giftValue: number;
+  cogs?: number;
+  giftCost?: number;
+  profit?: number;
+  canSeeCost?: boolean;
+  nextDiscount: { name: string; label: string; minSubtotal: number; missing: number; message: string } | null;
+  limits: { maxManualDiscountPct: number; maxManualDiscount: number; unlimitedManualDiscount: boolean };
+}
+
+export type WhatsAppStatus = 'none' | 'queued' | 'sent' | 'failed' | 'skipped';
 
 export interface POSAddress {
   street?: string;
@@ -112,7 +178,6 @@ export interface PaymentMethod {
   cashAmount?: number;
   cardAmount?: number;
   change?: number;
-  stripePaymentIntentId?: string;
   bankTransferScreenshot?: string; // URL of uploaded screenshot
 }
 
@@ -151,13 +216,14 @@ export interface POSOrderItem {
   size?: string;
   color?: string;
   discount?: number;
-  isLabour?: boolean;
-  labourDescription?: string;
-  isOutsource?: boolean;
-  outsourceDescription?: string;
-  costPrice?: number; // Cost price for outsource products (saved for records)
-  performedBy?: string;
-  performedByName?: string;
+  /** Cost per piece at the time of sale (cost viewers only). */
+  costPrice?: number;
+  isGift?: boolean;
+  giftReason?: string;
+  priceOverride?: boolean;
+  scannedCode?: string;
+  batchNo?: string;
+  category?: string;
 }
 
 export interface CustomerInfo {
@@ -188,6 +254,11 @@ export interface POSOrderData {
   // Partial Payment Fields
   isPartialPayment?: boolean;
   paidAmount?: number;
+  /** Server-priced fields (the server ignores client prices / totals). */
+  manualDiscount?: ManualDiscount | null;
+  taxIds?: string[];
+  /** Total the cashier saw; the server answers 409 TOTAL_CHANGED if it differs. */
+  expectedTotal?: number;
 }
 
 export interface POSOrder {
@@ -210,6 +281,13 @@ export interface POSOrder {
   paidAmount?: number;
   pendingAmount?: number;
   paymentHistory?: PaymentHistoryEntry[];
+  appliedDiscounts?: AppliedDiscount[];
+  discountReason?: string;
+  /** Cost of sales (dashboard viewers only). */
+  cogs?: number;
+  giftCost?: number;
+  profit?: number;
+  whatsappStatus?: WhatsAppStatus;
   cashier?: {
     _id: string;
     firstName: string;

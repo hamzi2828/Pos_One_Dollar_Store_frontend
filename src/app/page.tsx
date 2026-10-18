@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
-// This app is the POS admin panel only — there is no public storefront.
-// Middleware sends unauthenticated visitors on to /authentication.
+// Admin panel only: the home page goes straight to the POS.
+// Middleware sends signed-out visitors on to /authentication.
 export default function Home() {
   redirect('/admin/pos');
 }

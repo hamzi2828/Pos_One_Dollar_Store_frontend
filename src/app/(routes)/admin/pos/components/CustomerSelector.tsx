@@ -85,7 +85,7 @@ export default function CustomerSelector({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAddCustomerModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[#DC2626] rounded-lg hover:bg-[#b91c1c]"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
             >
               <Plus className="h-4 w-4" />
               Add Customer
@@ -145,7 +145,7 @@ function ListStage({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, phone, or email..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#DC2626] focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
             autoFocus
           />
         </div>
@@ -155,7 +155,7 @@ function ListStage({
         <button
           onClick={onGuest}
           className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${
-            !currentCustomer ? 'border-[#DC2626] bg-red-50' : 'border-gray-200 hover:border-[#DC2626]/50'
+            !currentCustomer ? 'border-honey-500 bg-red-50' : 'border-gray-200 hover:border-honey-500/50'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -173,7 +173,7 @@ function ListStage({
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-[#DC2626] mx-auto" />
+            <Loader2 className="h-8 w-8 animate-spin text-honey-700 mx-auto" />
             <p className="mt-2 text-gray-500">Loading customers...</p>
           </div>
         ) : customers.length === 0 ? (
@@ -189,13 +189,13 @@ function ListStage({
                 onClick={() => onPick(customer)}
                 className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${
                   currentCustomer?._id === customer._id
-                    ? 'border-[#DC2626] bg-red-50'
-                    : 'border-gray-200 hover:border-[#DC2626]/50'
+                    ? 'border-honey-500 bg-red-50'
+                    : 'border-gray-200 hover:border-honey-500/50'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#DC2626]/10 rounded-full flex items-center justify-center">
-                    <span className="text-[#DC2626] font-semibold text-lg">
+                  <div className="w-12 h-12 bg-honey-500/10 rounded-full flex items-center justify-center">
+                    <span className="text-honey-700 font-semibold text-lg">
                       {customer.firstName?.charAt(0) || 'C'}
                       {customer.lastName?.charAt(0) || ''}
                     </span>

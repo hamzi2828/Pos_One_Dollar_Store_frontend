@@ -11,7 +11,6 @@ import {
   Calendar,
   Download,
   Eye,
-  Store,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import ReportsNav from '../components/ReportsNav';
@@ -169,7 +168,7 @@ export default function SalesReportPage() {
       <div className="flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="h-6 w-6 text-[#DC2626]" />
+            <TrendingUp className="h-6 w-6 text-honey-700" />
             POS Sales Report
           </h1>
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">Counter-level transaction summary.</p>

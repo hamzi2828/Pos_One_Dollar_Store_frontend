@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Package, Star, CheckCircle, FileEdit, Layers, AlertTriangle } from "lucide-react";
+import { Package, CheckCircle, FileEdit, Layers, AlertTriangle } from "lucide-react";
 import { Product } from "../AllProducts";
 
 interface ProductStatsProps {
@@ -12,7 +12,6 @@ export default function ProductStats({ products, filteredCount }: ProductStatsPr
   const publishedCount = products.filter(p => p.status === 'published').length;
   const draftCount = products.filter(p => p.status === 'draft').length;
   const variantCount = products.filter(p => p.productType === 'variant').length;
-  const featuredCount = products.filter(p => p.featured).length;
   const outOfStockCount = products.filter(p => p.status === 'out_of_stock' || p.stock === 0).length;
 
   const stats = [
@@ -45,13 +44,6 @@ export default function ProductStats({ products, filteredCount }: ProductStatsPr
       iconColor: 'text-purple-600',
     },
     {
-      name: 'Featured',
-      value: featuredCount,
-      icon: Star,
-      bgColor: 'bg-orange-50',
-      iconColor: 'text-orange-600',
-    },
-    {
       name: 'Out of Stock',
       value: outOfStockCount,
       icon: AlertTriangle,
@@ -61,7 +53,7 @@ export default function ProductStats({ products, filteredCount }: ProductStatsPr
   ];
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4">
+    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4">
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (

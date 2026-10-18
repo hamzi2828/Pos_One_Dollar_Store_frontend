@@ -367,7 +367,7 @@ const UsersPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-honey-500" />
+              <Loader2 className="h-8 w-8 animate-spin text-honey-700" />
               <p className="text-sm text-gray-500">Loading users...</p>
             </div>
           </div>
@@ -403,7 +403,7 @@ const UsersPage = () => {
             <div>
               <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Customers</h1>
               <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-                Registered users and customers on your website
+                Customer and staff accounts, with their POS order history
                 {statsRefreshing && (
                   <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-gray-400">
                     <Loader2 className="h-3 w-3 animate-spin" /> refreshing stats…
@@ -494,7 +494,7 @@ const UsersPage = () => {
                         <button onClick={() => { setActivityUserId(user._id); setActivityUserName(user.name || 'Unknown'); }} className="p-1 text-gray-400 hover:text-blue-500 flex-shrink-0" title="Activity log">
                           <Eye className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => setOrdersUser({ id: user._id, name: user.name || 'Unknown', email: user.email })} className="p-1 text-gray-400 hover:text-honey-600 flex-shrink-0" title="Order history">
+                        <button onClick={() => setOrdersUser({ id: user._id, name: user.name || 'Unknown', email: user.email })} className="p-1 text-gray-400 hover:text-honey-700 flex-shrink-0" title="Order history">
                           <History className="h-3.5 w-3.5" />
                         </button>
                         <button
@@ -581,7 +581,7 @@ const UsersPage = () => {
                               <ActionTip label="Order history">
                                 <button
                                   onClick={() => setOrdersUser({ id: user._id, name: user.name || 'Unknown', email: user.email })}
-                                  className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 transition-colors"
+                                  className="p-1.5 rounded-md text-gray-400 hover:text-honey-700 hover:bg-honey-50 transition-colors"
                                   aria-label="View order history"
                                 >
                                   <History className="h-4 w-4" />
@@ -664,7 +664,7 @@ const UsersPage = () => {
                           onClick={() => setCurrentPage(p)}
                           className={`min-w-[36px] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                             clampedPage === p
-                              ? 'bg-honey-500 text-white font-semibold shadow-md'
+                              ? 'bg-honey-500 text-gray-900 font-semibold shadow-md'
                               : 'text-gray-600 hover:bg-honey-50 hover:text-honey-700'
                           }`}
                           aria-current={clampedPage === p ? 'page' : undefined}

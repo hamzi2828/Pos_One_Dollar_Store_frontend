@@ -115,7 +115,7 @@ export default function PackagingStockCard({
                 active ? "border-gray-900 bg-gray-50" : "border-gray-200 hover:border-gray-300"
               }`}
             >
-              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${active ? "bg-honey-50 text-honey-500" : "bg-gray-100 text-gray-400"}`}>
+              <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${active ? "bg-honey-50 text-honey-700" : "bg-gray-100 text-gray-400"}`}>
                 <Icon className="h-5 w-5" />
               </span>
               <span>
@@ -237,7 +237,7 @@ export default function PackagingStockCard({
           <label className="mt-3 sm:mt-4 flex items-start gap-2 cursor-pointer">
             <input
               type="checkbox"
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-honey-500 focus:ring-honey-500"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-honey-700 focus:ring-honey-500"
               checked={value.addFullBoxBarcode}
               onChange={(e) => set({ addFullBoxBarcode: e.target.checked })}
             />

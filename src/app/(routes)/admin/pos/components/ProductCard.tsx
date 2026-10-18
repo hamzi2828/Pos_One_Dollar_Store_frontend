@@ -22,7 +22,7 @@ export default function ProductCard({ product, onSelect, currency = 'PKR' }: Pro
   return (
     <button
       onClick={() => onSelect(product)}
-      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 hover:border-[#DC2626] text-left w-full"
+      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 hover:border-honey-500 text-left w-full"
       disabled={product.stock === 0}
     >
       <div className="aspect-square bg-gray-100 rounded-md mb-2 overflow-hidden relative">
@@ -66,7 +66,7 @@ export default function ProductCard({ product, onSelect, currency = 'PKR' }: Pro
         <div className="flex items-center justify-between text-xs text-gray-500">
           <span>Stock: {product.stock}</span>
           {product.productType === 'variant' && (
-            <span className="bg-red-100 text-[#DC2626] px-2 py-0.5 rounded">
+            <span className="bg-red-100 text-honey-700 px-2 py-0.5 rounded">
               Variants
             </span>
           )}

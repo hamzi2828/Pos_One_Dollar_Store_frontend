@@ -51,7 +51,6 @@ export interface LabelUnit {
 export interface LabelData {
   product: { id: string; name: string; productType: 'single' | 'variant'; piecesPerBox: number };
   shop: { name: string; currency: string };
-  stockBranch: string | null;
   units: LabelUnit[];
   types: string[];
   sizes: { key: string; label: string; widthMm: number; heightMm: number; kind: 'thermal' | 'sheet'; perPage: number }[];
@@ -84,9 +83,6 @@ export interface ReceiveStockBody {
 export interface ReceiveStockResult {
   received: number;
   variantId: string | null;
-  branchId: string | null;
-  /** branch name parsed from the backend message ("... in Branch 1") */
-  branchName: string | null;
   batch: { batchNo: string; barcode?: string; quantity?: number; expiryDate?: string | null } | null;
   message: string;
 }
@@ -239,12 +235,9 @@ export const labelService = {
     const res = await axios.post(`${API_BASE_URL}/products/${productId}/stock/receive`, body, { headers: jsonHeaders() });
     const d = res.data || {};
     const message: string = d.message || '';
-    const m = /\bin (.+)$/.exec(message);
     return {
       received: Number(d.received) || 0,
       variantId: d.variantId ?? null,
-      branchId: d.branchId ?? null,
-      branchName: m ? m[1] : null,
       batch: d.batch || null,
       message,
     };
@@ -255,24 +248,6 @@ export const labelService = {
       headers: jsonHeaders(),
     });
     return { product: res.data?.data, match: res.data?.match };
-  },
-
-  /**
-   * Name of the branch that receives stock for this login (GET /me/access):
-   * staff -> own branch; super admin -> picked branch, else the main branch.
-   */
-  async getReceiveBranchName(): Promise<string | null> {
-    const res = await axios.get(`${API_BASE_URL}/me/access`, { headers: jsonHeaders() });
-    const d = res.data?.data;
-    if (!d) return null;
-    if (d.branch?.name) return String(d.branch.name);
-    const list: { id?: string; _id?: string; name?: string; isMain?: boolean }[] = Array.isArray(d.branches)
-      ? d.branches
-      : [];
-    const cur = d.currentBranchId
-      ? list.find((b) => String(b.id ?? b._id) === String(d.currentBranchId))
-      : undefined;
-    return (cur || list.find((b) => b.isMain))?.name || null;
   },
 
   /**

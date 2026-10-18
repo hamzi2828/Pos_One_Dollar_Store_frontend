@@ -5,12 +5,8 @@ import { getAuthHeader } from "@/helper/helper";
 export type SettingsBusyAction =
   | 'fetch'
   | 'general'
-  | 'smtp'
-  | 'dimensions'
   | 'uploadLogo'
   | 'removeLogo'
-  | 'uploadFooterLogo'
-  | 'removeFooterLogo'
   | 'uploadFavicon'
   | 'removeFavicon'
   | 'resetCaches'
@@ -18,65 +14,26 @@ export type SettingsBusyAction =
 
 interface SettingsData {
   siteName: string;
-  siteUrl: string;
   logoUrl: string;
-  headerLogoWidth?: number;
-  headerLogoHeight?: number;
-  footerLogoUrl?: string;
-  footerLogoWidth?: number;
-  footerLogoHeight?: number;
   faviconUrl?: string;
   timezone: string;
   dateFormat: string;
   currency: string;
-  taxRate: number;
-  emailNotifications: boolean;
-  marketingEmails: boolean;
-  securityAlerts: boolean;
-  twoFactorAuth: boolean;
   isActive: boolean;
   version: string;
-  posUrl?: string;
   mobileNumber?: string;
   address?: string;
   businessHours?: string;
-  youtubeUrl?: string;
-  facebookUrl?: string;
-  instagramUrl?: string;
-  twitterUrl?: string;
-  tiktokUrl?: string;
-  // SMTP Settings
-  smtpHost?: string;
-  smtpPort?: string;
-  smtpUser?: string;
-  smtpPassword?: string;
-  smtpFromEmail?: string;
-  smtpFromName?: string;
-  smtpSecure?: boolean;
-  // Stripe Settings
-  stripePublishableKey?: string;
-  stripeSecretKey?: string;
-  stripeWebhookSecret?: string;
-  stripeEnabled?: boolean;
 }
 
-// Module-level dedupe: Header, Footer, DynamicFavicon and OrderSummary all
-// call getPublicSettings() independently on the home page. We share a single
-// in-flight promise + a short-lived result cache so they collapse into one
-// network round-trip per page load.
+// DynamicFavicon, the currency context and the sidebar all read the public
+// settings on load. Share one in-flight promise + a short-lived cache so they
+// collapse into a single request.
 const PUBLIC_SETTINGS_TTL_MS = 5 * 60 * 1000;
 let publicSettingsPromise: Promise<SettingsData> | null = null;
 let publicSettingsCache: { data: SettingsData; expires: number } | null = null;
 
 class SettingsService {
-
-  private getAuthHeadersForFormData() {
-    const token = localStorage.getItem('token');
-    return {
-      'Authorization': `Bearer ${token}`,
-    };
-  }
-
   async getPublicSettings(): Promise<SettingsData> {
     if (publicSettingsCache && publicSettingsCache.expires > Date.now()) {
       return publicSettingsCache.data;
@@ -194,27 +151,6 @@ class SettingsService {
       console.error('Error removing logo:', error);
       throw error;
     }
-  }
-
-  async uploadFooterLogo(file: File): Promise<{ footerLogoUrl: string }> {
-    const formData = new FormData();
-    formData.append('logo', file);
-    const response = await fetch(`${API_BASE_URL}/settings/footer-logo`, {
-      method: 'POST',
-      headers: getAuthHeader(),
-      body: formData,
-    });
-    if (!response.ok) throw new Error(`Failed to upload footer logo: ${response.statusText}`);
-    const data = await response.json();
-    return data.data || data;
-  }
-
-  async removeFooterLogo(): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/settings/footer-logo`, {
-      method: 'DELETE',
-      headers: getAuthHeader(),
-    });
-    if (!response.ok) throw new Error(`Failed to remove footer logo: ${response.statusText}`);
   }
 
   async uploadFavicon(file: File): Promise<{ faviconUrl: string }> {

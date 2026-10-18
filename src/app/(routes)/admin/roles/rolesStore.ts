@@ -36,10 +36,37 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     groups: [
       { key: 'dashboard', label: 'Dashboard', actions: ['view', 'export'] },
       { key: 'pos', label: 'POS', actions: ['view', 'create', 'edit', 'delete', 'export'] },
-      { key: 'orders', label: 'Online Orders', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'pos_orders', label: 'POS Orders', actions: ['view', 'create', 'edit', 'delete', 'export'] },
-      { key: 'preorders', label: 'Pre-Orders', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'returns', label: 'Returns', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'pos_gifts', label: 'POS Gifts', actions: ['view', 'create'] },
+      { key: 'till', label: 'Till & Cash Closing', actions: ['view', 'create', 'edit'] },
+      { key: 'till_verify', label: 'Verify Cash Closing', actions: ['view', 'edit', 'export'] },
+      { key: 'sale_counters', label: 'Sale Counters', actions: ['view', 'create', 'edit', 'delete'] },
+    ],
+  },
+  {
+    key: 'purchasing',
+    label: 'Purchasing & Vendors',
+    iconKey: 'purchasing',
+    groups: [
+      { key: 'purchase_orders', label: 'Purchase Orders', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'goods_receiving', label: 'Goods Receiving', actions: ['view', 'create', 'edit'] },
+      { key: 'vendors', label: 'Vendors & Ledger', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'vendor_payments', label: 'Vendor Payments', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'consignment', label: 'Consignment', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'vendor_returns', label: 'Vendor Returns', actions: ['view', 'create', 'edit', 'delete'] },
+    ],
+  },
+  {
+    key: 'inventory',
+    label: 'Inventory & Warehouse',
+    iconKey: 'inventory',
+    groups: [
+      { key: 'racks', label: 'Racks & Shelves', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'stock_putaway', label: 'Put-away / Move', actions: ['view', 'create'] },
+      { key: 'stock_movements', label: 'Stock Movements', actions: ['view', 'export'] },
+      { key: 'damages', label: 'Damaged Stock', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'shop_use', label: 'Shop Use', actions: ['view', 'create', 'delete'] },
+      { key: 'stock_adjustments', label: 'Stock Adjustments', actions: ['view', 'create'] },
     ],
   },
   {
@@ -49,12 +76,17 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     groups: [
       { key: 'report_sales', label: 'Sales Reports', actions: ['view', 'export'] },
       { key: 'report_cost_analysis', label: 'Cost Analysis', actions: ['view', 'export'] },
-      { key: 'report_labour_revenue', label: 'Labour Revenue', actions: ['view', 'export'] },
       { key: 'report_stock', label: 'Stock', actions: ['view', 'export'] },
       { key: 'report_expenses', label: 'Expenses', actions: ['view', 'export'] },
-      { key: 'report_salary', label: 'Salary', actions: ['view', 'export'] },
       { key: 'report_receivables', label: 'Receivables', actions: ['view', 'export'] },
       { key: 'report_cash_in_hand', label: 'Cash in Hand', actions: ['view', 'export'] },
+      { key: 'report_demand', label: 'Demand List', actions: ['view', 'edit', 'export'] },
+      { key: 'report_trends', label: 'Sales Trends', actions: ['view', 'export'] },
+      { key: 'report_slow_moving', label: 'Slow Moving', actions: ['view', 'edit', 'export'] },
+      { key: 'report_footfall', label: 'Footfall', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'report_category_performance', label: 'Category Performance', actions: ['view', 'export'] },
+      { key: 'report_cash_closing', label: 'Cash Closing', actions: ['view', 'export'] },
+      { key: 'report_stock_movement', label: 'Stock Timeline', actions: ['view', 'export'] },
     ],
   },
   {
@@ -67,31 +99,16 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'product_attributes', label: 'Attributes', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'product_stock', label: 'Stock', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'stock_receive', label: 'Receive Stock', actions: ['view', 'create'] },
-      { key: 'stock_transfers', label: 'Stock Transfers', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'reviews', label: 'Reviews', actions: ['view', 'edit', 'delete'] },
       { key: 'discounts', label: 'Discounts', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'price_tiers', label: 'Price Tiers', actions: ['view', 'create', 'edit', 'delete'] },
     ],
   },
   {
     key: 'customer_management',
-    label: 'Customer Management',
+    label: 'Customers',
     iconKey: 'customers',
     groups: [
       { key: 'customers', label: 'Customers', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'subscribers', label: 'Subscribers', actions: ['view', 'edit', 'delete', 'export'] },
-      { key: 'queries', label: 'Contact Queries', actions: ['view', 'edit', 'delete'] },
-    ],
-  },
-  {
-    key: 'content_management',
-    label: 'Content Management',
-    iconKey: 'content',
-    groups: [
-      { key: 'hero_slides', label: 'Hero Slides', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'blogs', label: 'All Blogs', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'blog_categories', label: 'Categories', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'blog_authors', label: 'Authors', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'blog_settings', label: 'Blog Settings', actions: ['view', 'edit'] },
     ],
   },
   {
@@ -101,17 +118,16 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     groups: [
       { key: 'banks', label: 'Banks', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'expenses', label: 'Expenses', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'networks', label: 'Easyload Networks', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'assets', label: 'Assets', actions: ['view', 'create', 'edit', 'delete', 'export'] },
     ],
   },
   {
     key: 'hr',
-    label: 'HR & Payroll',
+    label: 'HR',
     iconKey: 'hr',
     groups: [
       { key: 'employees', label: 'Employees', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'attendance', label: 'Attendance', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'salary', label: 'Salary', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'category_assignments', label: 'Category Staff', actions: ['view', 'edit'] },
     ],
   },
   {
@@ -121,18 +137,14 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     groups: [
       { key: 'roles', label: 'Roles & Permissions', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'staff', label: 'Staff Users', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'branches', label: 'Branches', actions: ['view'] },
       { key: 'activity_log', label: 'Activity Log', actions: ['view', 'export'] },
-      { key: 'services', label: 'Services', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'shipping', label: 'Shipping', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'pages', label: 'Dynamic Pages', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'guidelines', label: 'Guidelines', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'settings', label: 'Settings', actions: ['view', 'edit'] },
+      { key: 'notifications', label: 'Notifications', actions: ['view', 'edit'] },
+      { key: 'whatsapp', label: 'WhatsApp', actions: ['view', 'edit'] },
     ],
   },
 ];
 
-/** Flat list of every permission group — used for stats, coverage, etc. */
 export const PERMISSION_GROUPS: PermissionGroup[] = PERMISSION_SECTIONS.flatMap((s) => s.groups);
 
 export const ACTION_COLORS: Record<PermissionAction, string> = {

@@ -5,22 +5,10 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Lock, Mail, AlertCircle } from "lucide-react";
 import { login } from "../service/authService";
 import { setRole, setToken } from "@/helper/helper";
-import { accessCan, setSelectedBranchId, setStoredAccess } from "@/helper/access";
-
-// Demo logins (backend Seeder/createDemoBranches.js). Shown only while
-// NEXT_PUBLIC_SHOW_DEMO_LOGINS=true — turn it off in Vercel before real use,
-// because anyone opening the page can read these.
-const SHOW_DEMO_LOGINS = process.env.NEXT_PUBLIC_SHOW_DEMO_LOGINS === "true";
-const DEMO_ACCOUNTS = [
-  { label: "Super Admin (all branches)", email: "superadmin@demo.local", password: "mk9hPnfGWLDH" },
-  { label: "Branch 1 · Manager", email: "manager.b1@demo.local", password: "qipHfZn4MJ6Y" },
-  { label: "Branch 1 · Cashier", email: "cashier.b1@demo.local", password: "P247kXDRJQZM" },
-  { label: "Branch 2 · Manager", email: "manager.b2@demo.local", password: "UHanJXtuZ2LC" },
-  { label: "Branch 2 · Cashier", email: "cashier.b2@demo.local", password: "PS4gDetXWzqY" },
-];
+import { accessCan, setStoredAccess } from "@/helper/access";
 
 // Staff-only sign in. There is no registration or password reset here on
-// purpose — accounts are created by an admin from Customers/Employees.
+// purpose — staff accounts are created by the shop admin.
 export const LoginForm: React.FC = () => {
   const router = useRouter();
 
@@ -52,9 +40,7 @@ export const LoginForm: React.FC = () => {
       // Persist to localStorage + cookie so middleware can gate /admin.
       setToken(res.token);
       if (res.data?.role) setRole(res.data.role);
-      // Branch + role + permissions (refreshed by the admin layout via /me/access).
-      // A new login never keeps the previous user's picked branch.
-      setSelectedBranchId(null);
+      // Role + permissions (refreshed by the admin layout via /me/access).
       setStoredAccess(res.access ?? null);
 
       if (res.data?.role === "admin") {
@@ -77,7 +63,7 @@ export const LoginForm: React.FC = () => {
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-4" noValidate>
       <div className="text-center">
-        <h1 className="text-xl font-bold text-gray-900">Sign in</h1>
+        <h2 className="text-xl font-bold text-gray-900">Sign in</h2>
         <p className="mt-1 text-xs text-gray-500">Enter your credentials to open the POS</p>
       </div>
 
@@ -106,7 +92,7 @@ export const LoginForm: React.FC = () => {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             disabled={loading}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-[#dc2626] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#dc2626] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 disabled:opacity-60"
           />
         </div>
       </div>
@@ -126,7 +112,7 @@ export const LoginForm: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter password"
             disabled={loading}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-10 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-[#dc2626] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#dc2626] disabled:opacity-60"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-10 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-gray-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-900 disabled:opacity-60"
           />
           <button
             type="button"
@@ -144,7 +130,7 @@ export const LoginForm: React.FC = () => {
         type="submit"
         disabled={loading}
         aria-busy={loading}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#dc2626] py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#b91c1c] focus:outline-none focus:ring-2 focus:ring-[#dc2626] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-yellow py-2.5 text-sm font-bold text-brand-ink shadow-sm transition-colors hover:bg-yellow-300 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
       >
         {loading ? (
           <>
@@ -155,38 +141,6 @@ export const LoginForm: React.FC = () => {
           "Sign in"
         )}
       </button>
-
-      {SHOW_DEMO_LOGINS && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-            Demo logins
-          </p>
-          <ul className="mt-1.5 divide-y divide-gray-200 text-xs">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <li key={acc.email} className="flex items-center justify-between gap-2 py-1.5">
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-800">{acc.label}</p>
-                  <p className="truncate font-mono text-gray-600">
-                    {acc.email} · {acc.password}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail(acc.email);
-                    setPassword(acc.password);
-                    setError(null);
-                  }}
-                  disabled={loading}
-                  className="shrink-0 text-[11px] font-semibold text-[#dc2626] transition-colors hover:text-[#b91c1c] disabled:opacity-60"
-                >
-                  Autofill
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </form>
   );
 };

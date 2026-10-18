@@ -6,14 +6,12 @@ import ProductForm from "./ProductForm";
 import type { Product } from "./AllProducts";
 import type { Category } from "./CategoriesTab";
 import { productService } from "../services/productService";
-import { type Guideline } from "../services/guidelineService";
 
 interface EditProductProps {
   productId: string;
   categories: Category[];
   colorOptions: string[];
   sizeOptions: string[];
-  guidelines?: Guideline[];
   onManageAttributes?: () => void;
   onCancel: () => void;
   onSuccess: () => void;
@@ -24,7 +22,6 @@ export default function EditProduct({
   categories,
   colorOptions,
   sizeOptions,
-  guidelines = [],
   onManageAttributes,
   onCancel,
   onSuccess
@@ -98,7 +95,6 @@ export default function EditProduct({
       categories={categories}
       colorOptions={colorOptions}
       sizeOptions={sizeOptions}
-      guidelines={guidelines}
       onCancel={onCancel}
       onSuccess={onSuccess}
       onManageAttributes={onManageAttributes}

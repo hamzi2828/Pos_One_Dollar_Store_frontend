@@ -1,43 +1,47 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Store, Globe, DollarSign, Check, Phone, MapPin, Percent, Clock, Loader2 } from 'lucide-react';
-import { useCurrency, CurrencyCode } from '@/context/CurrencyContext';
+import { Store, Banknote, Check, Phone, MapPin, Clock, Loader2 } from 'lucide-react';
+import { useCurrency, CurrencyCode, CURRENCY_CONFIG, DEFAULT_CURRENCY } from '@/context/CurrencyContext';
+import { SHOP_NAME } from '@/components/ui/wordmark';
+import type { SettingsData } from '../services/settingsService';
 
 interface GeneralSettingsProps {
-  settings: any;
-  onUpdate: (data: any) => void;
+  settings: SettingsData | null;
+  onUpdate: (data: Partial<SettingsData>) => void;
   isLoading?: boolean;
   /** True only while this form's own save is in flight (drives the spinner). */
   isSaving?: boolean;
 }
 
-export default function GeneralSettings({ settings, onUpdate, isLoading, isSaving }: GeneralSettingsProps) {
-  const { setCurrencyCode } = useCurrency();
+type FormState = {
+  siteName: string;
+  mobileNumber: string;
+  address: string;
+  businessHours: string;
+  currency: CurrencyCode;
+};
 
-  const [formData, setFormData] = useState({
-    siteName: settings?.siteName || 'Mirpur Mobile & Stationery',
-    siteUrl: settings?.siteUrl || 'https://mirpur-pos.vercel.app',
+const inputClass =
+  'w-full px-4 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400';
+
+function toForm(settings: SettingsData | null): FormState {
+  const currency = settings?.currency as CurrencyCode;
+  return {
+    siteName: settings?.siteName || SHOP_NAME,
     mobileNumber: settings?.mobileNumber || '',
     address: settings?.address || '',
     businessHours: settings?.businessHours || '',
-    currency: settings?.currency || 'USD',
-    taxRate: settings?.taxRate ?? 0,
-  });
+    currency: currency in CURRENCY_CONFIG ? currency : DEFAULT_CURRENCY,
+  };
+}
 
-  // Sync form data when settings prop changes
+export default function GeneralSettings({ settings, onUpdate, isLoading, isSaving }: GeneralSettingsProps) {
+  const { setCurrencyCode } = useCurrency();
+  const [formData, setFormData] = useState<FormState>(() => toForm(settings));
+
   useEffect(() => {
-    if (settings) {
-      setFormData({
-        siteName: settings.siteName || 'Mirpur Mobile & Stationery',
-        siteUrl: settings.siteUrl || 'https://mirpur-pos.vercel.app',
-        mobileNumber: settings.mobileNumber || '',
-        address: settings.address || '',
-        businessHours: settings.businessHours || '',
-        currency: settings.currency || 'USD',
-        taxRate: settings.taxRate ?? 0,
-      });
-    }
+    if (settings) setFormData(toForm(settings));
   }, [settings]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -45,88 +49,51 @@ export default function GeneralSettings({ settings, onUpdate, isLoading, isSavin
     // Enter-key submits must respect the parent's in-flight lock too.
     if (isLoading) return;
 
-    // Ensure taxRate is sent as a number
-    const dataToSend = {
-      ...formData,
-      taxRate: Number(formData.taxRate) || 0,
-    };
+    const siteName = formData.siteName.trim() || SHOP_NAME;
+    onUpdate({ ...formData, siteName });
 
-    onUpdate(dataToSend);
-
-    // Update localStorage and dispatch event to notify sidebar
-    if (formData.siteName) {
-      localStorage.setItem('siteName', formData.siteName);
-    }
-
-    // Store tax rate in localStorage for checkout calculations
-    localStorage.setItem('taxRate', dataToSend.taxRate.toString());
-
-    // Update global currency context
-    setCurrencyCode(formData.currency as CurrencyCode);
-
+    // The sidebar shows the shop name from this cache until settings reload.
+    try { localStorage.setItem('siteName', siteName); } catch { /* ignore */ }
+    setCurrencyCode(formData.currency);
     window.dispatchEvent(new Event('settingsUpdated'));
   };
 
-  const handleChange = (field: string, value: string | number) => {
-    if (field === 'taxRate') {
-      const numValue = parseFloat(value as string) || 0;
-      setFormData(prev => ({ ...prev, [field]: Math.min(100, Math.max(0, numValue)) }));
-    } else {
-      setFormData(prev => ({ ...prev, [field]: value }));
-    }
+  const handleChange = <K extends keyof FormState>(field: K, value: FormState[K]) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const currencies = [
-    { value: 'USD', label: 'USD', name: 'US Dollar', symbol: '$' },
-    { value: 'GBP', label: 'GBP', name: 'British Pound', symbol: '£' },
-    { value: 'PKR', label: 'PKR', name: 'Pakistani Rupee', symbol: '₨' },
-  ];
+  const currencies = Object.values(CURRENCY_CONFIG);
 
   return (
     <form onSubmit={handleSubmit} aria-busy={isSaving} className="space-y-5 sm:space-y-6 md:space-y-8">
-      {/* Site Information Section */}
+      {/* Shop details */}
       <div>
         <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
           <Store className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700" />
-          <h3 className="text-sm sm:text-base font-semibold text-gray-900">Site Information</h3>
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900">Shop Details</h3>
         </div>
+        <p className="-mt-2 mb-4 text-xs sm:text-sm text-gray-500">
+          Shown on receipts, invoices and printed documents.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
           <div>
             <label htmlFor="siteName" className="block text-sm font-medium text-gray-700 mb-2">
-              Site Name
+              Shop Name
             </label>
             <input
               id="siteName"
               type="text"
               value={formData.siteName}
               onChange={(e) => handleChange('siteName', e.target.value)}
-              placeholder="Enter site name"
+              placeholder={SHOP_NAME}
               required
-              className="w-full px-4 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+              className={inputClass}
             />
           </div>
 
           <div>
-            <label htmlFor="siteUrl" className="block text-sm font-medium text-gray-700 mb-2">
-              Site URL
-            </label>
-            <div className="relative">
-              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                id="siteUrl"
-                type="url"
-                value={formData.siteUrl}
-                onChange={(e) => handleChange('siteUrl', e.target.value)}
-                placeholder="https://your-site.com"
-                required
-                className="w-full pl-10 pr-4 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
-              />
-            </div>
-          </div>
-
-          <div>
             <label htmlFor="mobileNumber" className="block text-sm font-medium text-gray-700 mb-2">
-              Mobile Number
+              Phone Number
             </label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -135,15 +102,15 @@ export default function GeneralSettings({ settings, onUpdate, isLoading, isSavin
                 type="tel"
                 value={formData.mobileNumber}
                 onChange={(e) => handleChange('mobileNumber', e.target.value)}
-                placeholder="+1 234 567 8900"
-                className="w-full pl-10 pr-4 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                placeholder="0300 1234567"
+                className={`${inputClass} pl-10`}
               />
             </div>
           </div>
 
           <div className="md:col-span-2">
             <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-              Business Address
+              Shop Address
             </label>
             <div className="relative">
               <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -151,16 +118,16 @@ export default function GeneralSettings({ settings, onUpdate, isLoading, isSavin
                 id="address"
                 value={formData.address}
                 onChange={(e) => handleChange('address', e.target.value)}
-                placeholder="Enter your business address"
+                placeholder="Street, area, city"
                 rows={3}
-                className="w-full pl-10 pr-4 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400 resize-none"
+                className={`${inputClass} pl-10 resize-none`}
               />
             </div>
           </div>
 
           <div className="md:col-span-2">
             <label htmlFor="businessHours" className="block text-sm font-medium text-gray-700 mb-2">
-              Business Hours
+              Opening Hours
             </label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -169,80 +136,55 @@ export default function GeneralSettings({ settings, onUpdate, isLoading, isSavin
                 type="text"
                 value={formData.businessHours}
                 onChange={(e) => handleChange('businessHours', e.target.value)}
-                placeholder="e.g. Mon–Sat · 8am–8pm"
-                className="w-full pl-10 pr-4 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                placeholder="e.g. Mon–Sun · 10am–11pm"
+                className={`${inputClass} pl-10`}
               />
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* Currency & Tax Section */}
+      {/* Currency */}
       <div className="pt-4 sm:pt-5 md:pt-6 border-t border-gray-200">
         <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-          <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700" />
-          <h3 className="text-sm sm:text-base font-semibold text-gray-900">Currency & Tax</h3>
+          <Banknote className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700" />
+          <h3 className="text-sm sm:text-base font-semibold text-gray-900">Currency</h3>
         </div>
 
-        {/* Currency Selection */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-6">
-          {currencies.map((currency) => (
-            <button
-              key={currency.value}
-              type="button"
-              onClick={() => handleChange('currency', currency.value)}
-              className={`relative flex items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${
-                formData.currency === currency.value
-                  ? 'border-honey-500 bg-sage-100 shadow-md'
-                  : 'border-gray-200 hover:border-honey-500 hover:bg-sage-100/50 bg-white'
-              }`}
-            >
-              <div className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold ${
-                formData.currency === currency.value
-                  ? 'bg-honey-500 text-white'
-                  : 'bg-gray-100 text-gray-700'
-              }`}>
-                {currency.symbol}
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-gray-900">{currency.label}</p>
-                <p className="text-sm text-gray-500">{currency.name}</p>
-              </div>
-              {formData.currency === currency.value && (
-                <div className="absolute top-2 right-2">
-                  <div className="w-5 h-5 rounded-full bg-honey-500 flex items-center justify-center">
-                    <Check className="h-3 w-3 text-charcoal" />
-                  </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+          {currencies.map((c) => {
+            const selected = formData.currency === c.code;
+            return (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => handleChange('currency', c.code)}
+                aria-pressed={selected}
+                className={`relative flex items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${
+                  selected
+                    ? 'border-honey-500 bg-sage-100 shadow-md'
+                    : 'border-gray-200 hover:border-honey-500 hover:bg-sage-100/50 bg-white'
+                }`}
+              >
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold ${
+                  selected ? 'bg-honey-500 text-gray-900' : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {c.symbol}
                 </div>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Tax Rate */}
-        <div className="max-w-xs">
-          <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700 mb-2">
-            Tax Rate
-          </label>
-          <div className="relative">
-            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              id="taxRate"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={formData.taxRate}
-              onChange={(e) => handleChange('taxRate', e.target.value)}
-              placeholder="0"
-              className="w-full pl-10 pr-12 py-2.5 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">%</span>
-          </div>
-          <p className="mt-1.5 text-xs text-gray-500">
-            This tax rate will be applied to all orders at checkout
-          </p>
+                <div className="text-left">
+                  <p className="font-medium text-gray-900">{c.code}</p>
+                  <p className="text-sm text-gray-500">{c.name}</p>
+                </div>
+                {selected && (
+                  <div className="absolute top-2 right-2">
+                    <div className="w-5 h-5 rounded-full bg-honey-500 flex items-center justify-center">
+                      <Check className="h-3 w-3 text-gray-900" />
+                    </div>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -252,7 +194,7 @@ export default function GeneralSettings({ settings, onUpdate, isLoading, isSavin
           type="submit"
           disabled={isLoading}
           aria-busy={isSaving}
-          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 focus:ring-2 focus:ring-offset-2 focus:ring-honey-500 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 focus:ring-2 focus:ring-offset-2 focus:ring-honey-500 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isSaving ? (
             <>

@@ -18,11 +18,14 @@ import {
   Package,
   Loader2,
   AlertCircle,
+  Sparkles,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { type Role } from './rolesStore';
 import { roleService } from './service/roleService';
 import { usePermissionCatalogue } from './useCatalogue';
 import { useAccess } from '@/context/AccessContext';
+import { apiErrorMessage } from '@/helper/access';
 
 export default function RolesPage() {
   const { isSuperAdmin } = useAccess();
@@ -37,6 +40,8 @@ export default function RolesPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteLockRef = useRef(false);
+  const [addingDefaults, setAddingDefaults] = useState(false);
+  const defaultsLockRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchRoles = useCallback(async () => {
@@ -82,6 +87,33 @@ export default function RolesPage() {
       totalPerms,
     };
   }, [roles]);
+
+  /** Adds the ready-made shop roles that are missing, then reloads the list. */
+  const addDefaultRoles = async () => {
+    if (defaultsLockRef.current) return;
+    defaultsLockRef.current = true;
+    setAddingDefaults(true);
+    try {
+      const { created, skipped } = await roleService.createDefaultRoles();
+      if (created.length) {
+        toast.success(
+          `Added: ${created.join(', ')}${skipped.length ? `. Already there: ${skipped.join(', ')}` : ''}.`,
+          { duration: 6000 },
+        );
+      } else {
+        toast.success(
+          skipped.length ? `All default roles are already there (${skipped.join(', ')}).` : 'Nothing to add.',
+          { duration: 5000 },
+        );
+      }
+      await fetchRoles();
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not add the default roles.'), { duration: 6000 });
+    } finally {
+      defaultsLockRef.current = false;
+      setAddingDefaults(false);
+    }
+  };
 
   const openCreate = () => {
     setEditingRole(null);
@@ -138,7 +170,7 @@ export default function RolesPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Roles & Permissions</h1>
             <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-              A role is a set of things a staff login may do (for example Cashier or Branch Manager). Create a role,
+              A role is a set of things a staff login may do (for example Manager or Cashier). Create a role,
               click it to tick its permissions, then give it to staff on the Staff Logins page.
             </p>
             {!isSuperAdmin && (
@@ -146,20 +178,34 @@ export default function RolesPage() {
             )}
           </div>
           {isSuperAdmin && (
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Role</span>
-          </button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:flex-shrink-0">
+              <button
+                type="button"
+                onClick={addDefaultRoles}
+                disabled={addingDefaults}
+                aria-busy={addingDefaults}
+                title="Adds Manager, Cashier, Warehouse Assistant and Purchaser if they are missing"
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-honey-700 bg-white border border-honey-300 rounded-lg hover:bg-honey-50 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {addingDefaults ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                <span>{addingDefaults ? 'Adding…' : 'Add default roles'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={openCreate}
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create Role</span>
+              </button>
+            </div>
           )}
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 sm:gap-3 mb-4 sm:mb-6">
           <StatTile
-            icon={<Shield className="h-3 w-3 sm:h-4 sm:w-4 text-honey-600" />}
+            icon={<Shield className="h-3 w-3 sm:h-4 sm:w-4 text-honey-700" />}
             bg="bg-honey-50"
             value={stats.total}
             label="Total Roles"
@@ -210,7 +256,7 @@ export default function RolesPage() {
         {/* States */}
         {loading ? (
           <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 text-center py-14">
-            <Loader2 className="h-8 w-8 text-honey-500 mx-auto mb-3 animate-spin" />
+            <Loader2 className="h-8 w-8 text-honey-700 mx-auto mb-3 animate-spin" />
             <p className="text-sm text-gray-500">Loading roles…</p>
           </div>
         ) : error ? (
@@ -219,7 +265,7 @@ export default function RolesPage() {
             <p className="text-sm text-red-700 mb-4">{error}</p>
             <button
               onClick={fetchRoles}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-honey-500 rounded-lg hover:bg-honey-600"
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
             >
               Try again
             </button>
@@ -243,7 +289,11 @@ export default function RolesPage() {
             <Shield className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3" />
             <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-1">No roles found</h3>
             <p className="text-sm text-gray-500">
-              {search ? 'Try a different search term.' : 'Click "Create Role" to add your first role.'}
+              {search
+                ? 'Try a different search term.'
+                : isSuperAdmin
+                  ? 'Click "Add default roles" for Manager, Cashier, Warehouse Assistant and Purchaser, or "Create Role".'
+                  : 'No roles yet.'}
             </p>
           </div>
         )}
@@ -285,7 +335,7 @@ const RoleCard: React.FC<{
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <div
               className={`flex items-center justify-center h-10 w-10 rounded-lg flex-shrink-0 ${
-                role.isSystem ? 'bg-purple-50 text-purple-600' : 'bg-honey-50 text-honey-600'
+                role.isSystem ? 'bg-purple-50 text-purple-600' : 'bg-honey-50 text-honey-700'
               }`}
             >
               {role.isSystem ? <Lock className="h-5 w-5" /> : <Shield className="h-5 w-5" />}
@@ -306,7 +356,7 @@ const RoleCard: React.FC<{
               </p>
             </div>
           </div>
-          <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-honey-500 flex-shrink-0 transition-colors" />
+          <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-honey-700 flex-shrink-0 transition-colors" />
         </div>
 
         <div className="mt-4">
@@ -354,7 +404,7 @@ const RoleCard: React.FC<{
               onEdit();
             }}
             disabled={role.isSystem || deleting}
-            className="p-1.5 rounded-md text-gray-400 hover:text-honey-600 hover:bg-honey-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="p-1.5 rounded-md text-gray-400 hover:text-honey-700 hover:bg-honey-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title={role.isSystem ? 'System role cannot be edited' : 'Rename role'}
           >
             <Edit2 className="h-3.5 w-3.5" />
@@ -416,7 +466,7 @@ const RoleFormModal: React.FC<{
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-honey-50 text-honey-600">
+            <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-honey-50 text-honey-700">
               <Shield className="h-5 w-5" />
             </div>
             <div>
@@ -486,7 +536,7 @@ const RoleFormModal: React.FC<{
               type="submit"
               disabled={saving}
               aria-busy={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

@@ -61,8 +61,6 @@ export interface SalesSummaryReport {
     avgOrderValue: number;
     posOrders: number;
     posSales: number;
-    onlineOrders: number;
-    onlineSales: number;
   };
   orders: Array<{
     _id: string;
@@ -80,7 +78,7 @@ export interface SalesSummaryReport {
     items: unknown[];
     customerInfo?: { name?: string; phone?: string };
     customer?: { firstName?: string; lastName?: string; phone?: string };
-    source: 'pos' | 'online';
+    source: 'pos';
   }>;
 }
 
@@ -204,12 +202,11 @@ export interface SalaryReport {
 export interface CostAnalysisReport {
   revenue: number;
   cogs: number;
-  outsourceCost: number;
-  estimatedProductCost: number;
   totalExpenses: number;
   grossProfit: number;
   netProfit: number;
   itemCount: number;
+  orderCount: number;
   grossMargin: number;
   netMargin: number;
 }
@@ -281,7 +278,7 @@ export function fetchCostAnalysis(startDate: string, endDate: string, signal?: A
 export function fetchSalesSummary(
   startDate: string,
   endDate: string,
-  opts: { page?: number; limit?: number; source?: 'all' | 'pos' | 'online' } = {},
+  opts: { page?: number; limit?: number; source?: 'pos' } = {},
   signal?: AbortSignal,
 ) {
   const p: Record<string, string> = { startDate, endDate };

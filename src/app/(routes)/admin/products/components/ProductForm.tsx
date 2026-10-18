@@ -3,13 +3,11 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import Image from "next/image";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { FiPlus, FiX } from "react-icons/fi";
 import type { Product, ProductVariant } from "./AllProducts";
 import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
-import { useAccess } from "@/context/AccessContext";
 import { ChevronDown, Hash, Loader2 } from "lucide-react";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
@@ -25,43 +23,24 @@ import {
   validatePackaging,
   variantPayload,
 } from "./packaging/packagingUtils";
+import PriceTierSelect, { syncProductTier, type TierChoice } from "../price-tiers/components/PriceTierSelect";
 
-// Guideline type
-interface Guideline {
-  id: string;
-  name: string;
-  slug: string;
-  imageUrl: string | null;
-  active: boolean;
-}
-
-// Extended Product type with SEO and description fields
+// Product as loaded for editing (fields not shown in the list type)
 interface ExtendedProduct extends Product {
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
-  metaSchema?: string;
   description?: string;
   shortDescription?: string;
-  guidelineId?: string;
   sku?: string;
   costPrice?: number;
   dimensionLength?: string;
   dimensionWidth?: string;
   dimensionHeight?: string;
   weight?: string;
-  relatedProducts?: string[];
   createdAt?: string;
 }
 
 export interface ProductFormData extends Omit<Product, "id"> {
-  metaTitle?: string;
-  metaDescription?: string;
-  metaKeywords?: string;
-  metaSchema?: string;
   description?: string;
   shortDescription?: string;
-  guidelineId?: string;
   subCategory?: string;
   sku?: string;
   costPrice?: number;
@@ -70,8 +49,6 @@ export interface ProductFormData extends Omit<Product, "id"> {
   dimensionWidth?: string;
   dimensionHeight?: string;
   weight?: string;
-  relatedProducts?: string[];
-  compatibleCars?: string[];
 }
 
 interface ProductFormProps {
@@ -80,7 +57,6 @@ interface ProductFormProps {
   categories: Category[];
   colorOptions: string[];
   sizeOptions: string[];
-  guidelines?: Guideline[];
   onSubmit?: (data: ProductFormData) => void;
   onCancel?: () => void;
   // Gets the saved product (create: use its id to open the stickers page)
@@ -90,17 +66,14 @@ interface ProductFormProps {
 
 type VariantWithCodes = ProductVariant & VariantCodeFields;
 
+// Per-colour picture. Banner images / video saved on older products are kept as they are.
 interface ColorMediaData {
   thumbnailUrl?: string;
   bannerUrls: string[];
   thumbFile?: File;
-  bannerFiles?: File[];
   videoUrl?: string;
-  videoFile?: File;
   modified?: boolean;
 }
-
-const META_TITLE_LIMIT = 60;
 
 // Helper to validate URLs before passing to Image component
 const isValidUrl = (url: string | undefined): url is string => {
@@ -112,7 +85,6 @@ const isValidUrl = (url: string | undefined): url is string => {
     return false;
   }
 };
-const META_DESC_LIMIT = 155;
 
 const initialFormData: ProductFormData = {
   name: "",
@@ -128,30 +100,19 @@ const initialFormData: ProductFormData = {
   videoUrl: "",
   productType: "single",
   variants: [],
-  metaTitle: "",
-  metaDescription: "",
-  metaKeywords: "",
-  metaSchema: "",
   description: "",
   shortDescription: "",
   features: "",
-  preorderEnabled: false,
-  preorderMessage: "",
-  guidelineId: "",
   sku: "",
   dimensionLength: "",
   dimensionWidth: "",
   dimensionHeight: "",
-  weight: "",
-  relatedProducts: [],
-  compatibleCars: []
+  weight: ""
 };
 
-// Valid tab keys
-// Description, SEO & Meta, Compatible Cars, Pre-Order and Guidelines were removed
-// from the form (not used by this shop). Saved values on old products are kept.
-type TabKey = "content" | "variant" | "related";
-const VALID_TABS: TabKey[] = ["content", "variant", "related"];
+// Valid tab keys (the variant tab is only shown when editing a variant product)
+type TabKey = "content" | "variant";
+const VALID_TABS: TabKey[] = ["content", "variant"];
 
 export default function ProductForm({
   mode,
@@ -159,7 +120,6 @@ export default function ProductForm({
   categories,
   colorOptions,
   sizeOptions,
-  guidelines = [],
   onSubmit,
   onCancel,
   onSuccess,
@@ -170,7 +130,7 @@ export default function ProductForm({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Get valid tabs based on mode (related tab only in edit mode)
+  // Create: one step. Edit: the variant tab only for variant products.
   const wasVariant = mode === "edit" && (initialData as { productType?: string } | undefined)?.productType === "variant";
   const effectiveValidTabs: TabKey[] =
     mode === "edit" ? (wasVariant ? VALID_TABS : VALID_TABS.filter((t) => t !== "variant")) : ["content"];
@@ -198,16 +158,9 @@ export default function ProductForm({
             ? url
             : `${process.env.NEXT_PUBLIC_BACKEND_URL}${url}`)
       : initialData.bannerUrls,
-    metaTitle: (initialData as ExtendedProduct)?.metaTitle || "",
-    metaDescription: (initialData as ExtendedProduct)?.metaDescription || "",
-    metaKeywords: (initialData as ExtendedProduct)?.metaKeywords || "",
-    metaSchema: (initialData as ExtendedProduct)?.metaSchema || "",
     description: (initialData as ExtendedProduct)?.description || "",
     shortDescription: (initialData as ExtendedProduct)?.shortDescription || "",
     features: (initialData as ExtendedProduct)?.features || "",
-    preorderEnabled: initialData.preorderEnabled || false,
-    preorderMessage: initialData.preorderMessage || "",
-    guidelineId: (initialData as ExtendedProduct)?.guidelineId || "",
     subCategory: (initialData as any)?.subCategory || "",
     sku: (initialData as ExtendedProduct)?.sku || "",
     costPrice: (initialData as ExtendedProduct)?.costPrice,
@@ -215,8 +168,7 @@ export default function ProductForm({
     dimensionLength: (initialData as ExtendedProduct)?.dimensionLength || "",
     dimensionWidth: (initialData as ExtendedProduct)?.dimensionWidth || "",
     dimensionHeight: (initialData as ExtendedProduct)?.dimensionHeight || "",
-    weight: (initialData as ExtendedProduct)?.weight || "",
-    relatedProducts: (initialData as ExtendedProduct)?.relatedProducts || []
+    weight: (initialData as ExtendedProduct)?.weight || ""
   } : initialFormData);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -224,6 +176,9 @@ export default function ProductForm({
   const [isLoading, setIsLoading] = useState(false);
   // Synchronous lock: Enter + click (or a double click) must not create/update the product twice
   const submittingRef = useRef(false);
+  // Price tier (dollar-store price point): locks the sale price; saved after the product.
+  const [priceTier, setPriceTier] = useState<TierChoice>(null);
+  const savedTierId = useRef<string | null>(null);
 
   // Packaging / barcodes / batches (single products). Edit: loaded from the product.
   const [packaging, setPackaging] = useState<PackagingState>(() =>
@@ -252,22 +207,13 @@ export default function ProductForm({
     }
   }, [searchParams, effectiveValidTabs]);
   
-  // File handling state
+  // Picked thumbnail (single products)
   const [thumbFile, setThumbFile] = useState<File | null>(null);
-  const [bannerFiles, setBannerFiles] = useState<File[]>([]);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  // Removed unused thumbName state
-
-  // Compatible cars (no longer edited here): send back what the product already had
-  const selectedCarVariants: string[] = (initialData as any)?.compatibleCars || [];
 
   // Variant state
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [colorMedia, setColorMedia] = useState<Record<string, ColorMediaData>>({});
-
-  // Show Guidelines (no longer edited here): keep the product's saved value
-  const guidelineEnabled = !!(initialData as any)?.showGuidelines;
 
   // Product type change confirmation modal
   const [showTypeChangeModal, setShowTypeChangeModal] = useState<{ show: boolean; targetType: 'single' | 'variant' }>({ show: false, targetType: 'single' });
@@ -291,13 +237,6 @@ export default function ProductForm({
   const [variantSizeDropdownOpen, setVariantSizeDropdownOpen] = useState(false);
   const [variantSizeSearchQuery, setVariantSizeSearchQuery] = useState("");
   const variantSizeDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Related products search state
-  const [relatedProductSearch, setRelatedProductSearch] = useState("");
-  const [availableProducts, setAvailableProducts] = useState<Array<{ id: string; name: string; thumbnailUrl?: string }>>([]);
-  const [relatedProductsLoading, setRelatedProductsLoading] = useState(false);
-  const [relatedProductDropdownOpen, setRelatedProductDropdownOpen] = useState(false);
-  const relatedProductDropdownRef = useRef<HTMLDivElement>(null);
 
   // Top-level (parent) categories for Category Select2
   const parentCategories = useMemo(
@@ -360,87 +299,17 @@ export default function ProductForm({
         setVariantSizeDropdownOpen(false);
         setVariantSizeSearchQuery("");
       }
-      if (relatedProductDropdownRef.current && !relatedProductDropdownRef.current.contains(event.target as Node)) {
-        setRelatedProductDropdownOpen(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Load available products for related products selector
-  useEffect(() => {
-    const loadProducts = async () => {
-      if (mode !== "edit") return;
-      setRelatedProductsLoading(true);
-      try {
-        const products = await productService.listProducts({ limit: 100 });
-        // Exclude the current product from the list
-        const filtered = products.filter(p => p.id !== initialData?.id);
-        setAvailableProducts(filtered.map(p => ({ id: p.id, name: p.name, thumbnailUrl: p.thumbnailUrl })));
-      } catch (err) {
-        console.error("Error loading products for related products:", err);
-      } finally {
-        setRelatedProductsLoading(false);
-      }
-    };
-    loadProducts();
-  }, [mode, initialData?.id]);
-
-  // Filter available products based on search
-  const filteredAvailableProducts = useMemo(() => {
-    if (!relatedProductSearch.trim()) return availableProducts;
-    return availableProducts.filter(p =>
-      p.name.toLowerCase().includes(relatedProductSearch.toLowerCase())
-    );
-  }, [availableProducts, relatedProductSearch]);
-
-  // Get selected related products with details
-  const selectedRelatedProducts = useMemo(() => {
-    const relatedIds = form.relatedProducts || [];
-    return availableProducts.filter(p => relatedIds.includes(p.id));
-  }, [availableProducts, form.relatedProducts]);
-
-  // Handle adding a related product
-  const addRelatedProduct = (productId: string) => {
-    const current = form.relatedProducts || [];
-    if (!current.includes(productId)) {
-      setForm(prev => ({ ...prev, relatedProducts: [...current, productId] }));
-    }
-    setRelatedProductSearch("");
-    setRelatedProductDropdownOpen(false);
-  };
-
-  // Handle removing a related product
-  const removeRelatedProduct = (productId: string) => {
-    const current = form.relatedProducts || [];
-    setForm(prev => ({ ...prev, relatedProducts: current.filter(id => id !== productId) }));
-  };
-
   // Refs
   const thumbInputRef = useRef<HTMLInputElement>(null);
-  const bannerInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
   const colorThumbRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const colorBannerRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const colorVideoRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  
+
   const isVariant = form.productType === "variant";
 
-  // Branch that gets the stock typed in this form. Super admin picks it (create);
-  // branch staff always use their own branch (shown read-only).
-  const access = useAccess();
-  const branchOptions = access.branches || [];
-  const [stockBranchId, setStockBranchId] = useState<string>("");
-  useEffect(() => {
-    if (stockBranchId || !branchOptions.length) return;
-    const preferred =
-      access.currentBranchId ||
-      branchOptions.find((b) => b.isMain)?.id ||
-      branchOptions[0]?.id ||
-      "";
-    setStockBranchId(preferred);
-  }, [access.currentBranchId, branchOptions, stockBranchId]);
   // New single product: pick a free 5-digit short code now, so the form can show
   // the real short code + SKU before saving (backend re-checks on save).
   const pickingCodeRef = useRef(false);
@@ -476,9 +345,6 @@ export default function ProductForm({
       ? `${nameInitials || "P"}-${packaging.shortCode}`
       : form.sku || "";
 
-  const lockedBranchName = !access.isSuperAdmin
-    ? access.branch?.name || access.currentBranch?.name || "Your branch"
-    : null;
   const slug = useMemo(() => slugify(form.name), [form.name]);
   
   
@@ -532,13 +398,11 @@ export default function ProductForm({
                 bannerUrls: Array.isArray(media.bannerUrls)
                   ? media.bannerUrls.map((url: string) => resolveBackendUrl(url, backendUrl))
                   : [],
-                bannerFiles: [], // No files initially since these are existing URLs
                 videoUrl: (media as any).videoUrl ? resolveBackendUrl((media as any).videoUrl, backendUrl) : undefined,
                 modified: false // Mark as not modified initially
               };
             }
           });
-          console.log('Initializing colorMedia for edit mode:', colorMediaData);
           setColorMedia(colorMediaData);
         }
       }
@@ -641,13 +505,7 @@ export default function ProductForm({
   };
   
   const setField = useCallback(<K extends keyof ProductFormData>(key: K, value: ProductFormData[K]) => {
-    setForm((prev) => {
-      if (key === 'name' && typeof value === 'string') {
-        const metaTitle = prev.metaTitle ? prev.metaTitle : value.slice(0, META_TITLE_LIMIT);
-        return { ...prev, [key]: value, metaTitle };
-      }
-      return { ...prev, [key]: value };
-    });
+    setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   // Box / batch mode: stock is computed (boxes x pieces + loose, or sum of batches)
@@ -670,136 +528,27 @@ export default function ProductForm({
     if (codeErrors[`variant-${index}`]) setCodeErrors((prev) => ({ ...prev, [`variant-${index}`]: "" }));
   };
   
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: "thumbnail" | "banner") => {
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     if (!file.type.startsWith("image/")) {
       toast.error("Please upload an image file");
       return;
     }
-    
-    if (type === "thumbnail") {
-      if (form.thumbnailUrl && form.thumbnailUrl.toString().startsWith("blob:")) {
-        safeRevoke(form.thumbnailUrl.toString());
-      }
-      const url = URL.createObjectURL(file);
-      setThumbFile(file);
-      // Removed setThumbName since it was unused
-      setField("thumbnailUrl", url);
-      setErrors(prev => ({ ...prev, thumbnail: "" }));
-    } else {
-      const existing = form.bannerUrls || [];
-      if (existing.length >= 10) {
-        toast.error("Maximum 10 banner images allowed");
-        return;
-      }
-      const url = URL.createObjectURL(file);
-      setField("bannerUrls", [...existing, url]);
-      setBannerFiles(prev => [...prev, file]);
+
+    if (form.thumbnailUrl && form.thumbnailUrl.toString().startsWith("blob:")) {
+      safeRevoke(form.thumbnailUrl.toString());
     }
-  };
-  
-  const handleMultipleBannerFiles = (files: FileList) => {
-    const existing = form.bannerUrls || [];
-    const spaceLeft = 5 - existing.length;
-    const filesToAdd = Array.from(files).slice(0, spaceLeft);
-    
-    if (filesToAdd.length < files.length) {
-      toast.error(`Only ${spaceLeft} more banner images can be added`);
-    }
-    
-    filesToAdd.forEach(file => {
-      if (file.type.startsWith("image/")) {
-        const url = URL.createObjectURL(file);
-        setField("bannerUrls", [...(form.bannerUrls || []), url]);
-        setBannerFiles(prev => [...prev, file]);
-      }
-    });
-  };
-  
-  const removeBanner = (index: number) => {
-    const banners = [...(form.bannerUrls || [])];
-    const [removed] = banners.splice(index, 1);
-    if (removed) safeRevoke(removed.toString());
-    setField("bannerUrls", banners);
-    setBannerFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("video/")) {
-      toast.error("Please upload a video file");
-      return;
-    }
-
-    // Revoke old video URL if exists
-    if (form.videoUrl && form.videoUrl.toString().startsWith("blob:")) {
-      safeRevoke(form.videoUrl.toString());
-    }
-    const url = URL.createObjectURL(file);
-    setVideoFile(file);
-    setField("videoUrl", url);
-  };
-
-  const removeVideo = () => {
-    if (form.videoUrl) safeRevoke(form.videoUrl.toString());
-    setVideoFile(null);
-    setField("videoUrl", "");
-    if (videoInputRef.current) videoInputRef.current.value = "";
-  };
-
-  const handleColorVideoFile = (color: string, files: FileList | File[]) => {
-    const file = Array.from(files)[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("video/")) {
-      toast.error("Please upload a video file");
-      return;
-    }
-
-    setColorMedia((prev) => {
-      const prevUrl = prev[color]?.videoUrl;
-      if (prevUrl && prevUrl.startsWith("blob:")) {
-        safeRevoke(prevUrl);
-      }
-      const url = URL.createObjectURL(file);
-      return {
-        ...prev,
-        [color]: {
-          ...prev[color],
-          videoUrl: url,
-          videoFile: file,
-          bannerUrls: prev[color]?.bannerUrls || [],
-          modified: true
-        },
-      };
-    });
-  };
-
-  const removeColorVideo = (color: string) => {
-    setColorMedia((prev) => {
-      const curr = prev[color];
-      if (curr?.videoUrl) safeRevoke(curr.videoUrl);
-      return {
-        ...prev,
-        [color]: {
-          ...prev[color],
-          videoUrl: undefined,
-          videoFile: undefined,
-          modified: true
-        }
-      };
-    });
-    if (colorVideoRefs.current[color]) colorVideoRefs.current[color]!.value = "";
+    setThumbFile(file);
+    setField("thumbnailUrl", URL.createObjectURL(file));
+    setErrors(prev => ({ ...prev, thumbnail: "" }));
   };
 
   const handleColorThumbFiles = (color: string, files: FileList | File[]) => {
     const file = Array.from(files)[0];
     if (!file) return;
-    
+
     setColorMedia((prev) => {
       const prevUrl = prev[color]?.thumbnailUrl;
       if (prevUrl && prevUrl.startsWith("blob:")) {
@@ -818,50 +567,7 @@ export default function ProductForm({
       };
     });
   };
-  
-  const handleColorBannerFiles = (color: string, files: FileList | File[]) => {
-    const incoming = Array.from(files);
-    if (!incoming.length) return;
-    
-    setColorMedia((prev) => {
-      const curr = prev[color] || { bannerUrls: [], bannerFiles: [] };
-      const existing = curr.bannerUrls || [];
-      const existingFiles = curr.bannerFiles || [];
-      const spaceLeft = 10 - existing.length;
-      const toAdd = incoming.slice(0, Math.max(0, spaceLeft));
-      const urls = toAdd.map((f) => URL.createObjectURL(f));
-      
-      return { 
-        ...prev, 
-        [color]: { 
-          ...curr, 
-          bannerUrls: [...existing, ...urls],
-          bannerFiles: [...existingFiles, ...toAdd],
-          modified: true 
-        } 
-      };
-    });
-  };
-  
-  const removeColorBanner = (color: string, index: number) => {
-    setColorMedia((prev) => {
-      const banners = [...(prev[color]?.bannerUrls || [])];
-      const files = [...(prev[color]?.bannerFiles || [])];
-      const [removed] = banners.splice(index, 1);
-      files.splice(index, 1);
-      if (removed) safeRevoke(removed);
-      return { 
-        ...prev, 
-        [color]: { 
-          ...prev[color], 
-          bannerUrls: banners,
-          bannerFiles: files,
-          modified: true 
-        } 
-      };
-    });
-  };
-  
+
   const clearColorMedia = (color: string) => {
     setColorMedia((prev) => {
       const curr = prev[color];
@@ -870,14 +576,12 @@ export default function ProductForm({
       if (curr?.videoUrl) safeRevoke(curr.videoUrl);
       return {
         ...prev,
-        [color]: { bannerUrls: [], bannerFiles: [], videoUrl: undefined, videoFile: undefined, modified: true }
+        [color]: { bannerUrls: [], videoUrl: undefined, modified: true }
       };
     });
     if (colorThumbRefs.current[color]) colorThumbRefs.current[color]!.value = "";
-    if (colorBannerRefs.current[color]) colorBannerRefs.current[color]!.value = "";
-    if (colorVideoRefs.current[color]) colorVideoRefs.current[color]!.value = "";
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submittingRef.current) return;
@@ -901,8 +605,6 @@ export default function ProductForm({
     submittingRef.current = true;
     setIsLoading(true);
     try {
-      const fallbackMetaTitle = (form.metaTitle || form.name || "").slice(0, META_TITLE_LIMIT);
-      
       const formData = new FormData();
       
       // Basic fields
@@ -917,16 +619,9 @@ export default function ProductForm({
       if (form.discountedPrice !== undefined && form.discountedPrice !== null) {
         formData.append("discountedPrice", String(form.discountedPrice));
       }
-      // Super admin creating a product: stock goes to the branch picked in the form
-      if (mode === "create" && access.isSuperAdmin && stockBranchId) {
-        formData.append("stockBranchId", stockBranchId);
-      }
       formData.append("stock", String(form.stock ?? 0));
       formData.append("status", form.status);
       formData.append("productType", form.productType || "single");
-
-      // Compatible cars (always send, even empty array, so edit can clear them)
-      formData.append("compatibleCars", JSON.stringify(selectedCarVariants));
 
       // Description fields
       formData.append("description", form.description || "");
@@ -934,12 +629,6 @@ export default function ProductForm({
 
       // Features as a simple string
       formData.append("features", form.features || "");
-
-      // Preorder fields
-      formData.append("preorderEnabled", String(form.preorderEnabled || false));
-      formData.append("preorderMessage", form.preorderMessage || "");
-
-      formData.append("showGuidelines", String(guidelineEnabled));
 
       // SKU: on create the one shown in the form (name initials + short code);
       // on edit the saved one is sent back unchanged.
@@ -960,44 +649,17 @@ export default function ProductForm({
         formData.append("costPrice", String(form.costPrice));
       }
 
-
-      // SEO fields
-      formData.append("metaTitle", fallbackMetaTitle);
-      formData.append("metaDescription", form.metaDescription || "");
-      formData.append("metaKeywords", form.metaKeywords || "");
-      formData.append("metaSchema", form.metaSchema || "");
-
-      // Related products (only in edit mode)
-      if (mode === "edit" && form.relatedProducts && form.relatedProducts.length > 0) {
-        formData.append("relatedProducts", JSON.stringify(form.relatedProducts));
-      }
-
       if (isVariant && form.variants) {
         // Handle variant products
         const variantStock = form.variants.reduce((sum, v) => sum + (Number((v as ProductVariant).stock) || 0), 0);
         const basePrice = (form.variants[0] as ProductVariant)?.discountedPrice ?? (form.variants[0] as ProductVariant)?.price ?? 0;
         formData.set("stock", String(variantStock));
         formData.set("price", String(basePrice));
-        // Drop view-only fields (branchStock / totalStock) and clean options + barcodes
+        // Drop view-only fields (totalStock) and clean options + barcodes
         formData.append("variants", JSON.stringify((form.variants as VariantWithCodes[]).map((v) => variantPayload(v as unknown as Record<string, unknown>))));
         
-        // Handle color-specific media
-        console.log('Processing colorMedia for submission:', colorMedia);
-        
-        // If no colorMedia exists but we have variants, ensure each color gets processed
-        if (Object.keys(colorMedia).length === 0 && selectedColors.length > 0) {
-          console.log('No colorMedia found, but have selected colors:', selectedColors);
-          // Initialize empty colorMedia for each selected color
-          selectedColors.forEach(color => {
-            if (!colorMedia[color]) {
-              colorMedia[color] = { bannerUrls: [], modified: false };
-            }
-          });
-        }
-        
+        // Colour pictures
         for (const [color, media] of Object.entries(colorMedia)) {
-          console.log(`Processing color ${color}:`, media);
-          
           // Always process media in edit mode, regardless of modified status
           if (mode === "edit" || media.modified) {
             // Send new thumbnail file if uploaded
@@ -1010,17 +672,9 @@ export default function ProductForm({
               const cleanUrl = cleanUrlForBackend(media.thumbnailUrl);
               formData.append("existingColorThumbnails", JSON.stringify({ color, url: cleanUrl }));
             }
-            
-            // Send new banner files if uploaded
-            if (media.bannerFiles && media.bannerFiles.length > 0) {
-              media.bannerFiles.forEach((file, index) => {
-                const bannerFileName = `${color}_${index}_${file.name}`;
-                const renamedBannerFile = new File([file], bannerFileName, { type: file.type });
-                formData.append("colorBanner", renamedBannerFile);
-              });
-            }
 
-            // Always send existing banner URLs in edit mode
+
+            // Keep saved banner images
             const existingBanners = (media.bannerUrls || []).filter(url =>
               typeof url === 'string' && !url.startsWith('blob:')
             );
@@ -1029,23 +683,16 @@ export default function ProductForm({
               formData.append("existingColorBanners", JSON.stringify({ color, urls: cleanUrls }));
             }
 
-            // Send new video file if uploaded
-            if (media.videoFile) {
-              const videoFileName = `${color}_${media.videoFile.name}`;
-              const renamedVideoFile = new File([media.videoFile], videoFileName, { type: media.videoFile.type });
-              formData.append("colorVideo", renamedVideoFile);
-            } else if (media.videoUrl && !media.videoUrl.startsWith('blob:')) {
-              // Keep existing video if no new file uploaded
+            // Keep a saved video
+            if (media.videoUrl && !media.videoUrl.startsWith('blob:')) {
               const cleanUrl = cleanUrlForBackend(media.videoUrl);
               formData.append("existingColorVideos", JSON.stringify({ color, url: cleanUrl }));
             }
           }
         }
       } else {
-        // Handle single products
+        // Single products
         if (thumbFile) formData.append("thumbnail", thumbFile);
-        bannerFiles.forEach((f) => formData.append("banners", f));
-        if (videoFile) formData.append("video", videoFile);
       }
       
       // For edit mode, preserve existing images and video
@@ -1061,17 +708,25 @@ export default function ProductForm({
           const existingServerBanners = (form.bannerUrls || []).filter(url =>
             typeof url === 'string' && !url.startsWith('blob:')
           ).map(cleanUrlForBackend);
-          if (existingServerBanners.length > 0 || bannerFiles.length > 0) {
+          if (existingServerBanners.length > 0) {
             formData.append("existingBanners", JSON.stringify(existingServerBanners));
           }
-          // Preserve existing video if no new video uploaded
-          if (!videoFile && form.videoUrl && !form.videoUrl.startsWith('blob:')) {
+          // Keep a video saved on older products
+          if (form.videoUrl && !form.videoUrl.startsWith('blob:')) {
             const cleanVideoUrl = cleanUrlForBackend(form.videoUrl);
             formData.append("existingVideo", cleanVideoUrl);
           }
         }
       }
       
+      // Leaving a price tier: unlink FIRST. While a product is on a tier the
+      // server keeps its sale price at the tier price, so a newly typed price
+      // would otherwise be overwritten by the old tier.
+      if (mode !== "create" && !priceTier && savedTierId.current) {
+        await syncProductTier(productId, null, savedTierId.current);
+        savedTierId.current = null;
+      }
+
       let saved: ProductUI;
       if (mode === "create") {
         saved = await productService.createProduct(formData);
@@ -1080,18 +735,15 @@ export default function ProductForm({
       }
       
       if (onSubmit) {
-        const submitData: ProductFormData = {
-          ...form,
-          slug,
-          metaTitle: fallbackMetaTitle,
-          metaDescription: form.metaDescription || "",
-          metaKeywords: form.metaKeywords || "",
-          metaSchema: form.metaSchema || ""
-        };
-        onSubmit(submitData);
+        onSubmit({ ...form, slug });
       }
       
       toast.success(mode === "create" ? "Product successfully added and saved." : "Product successfully updated and saved.");
+
+      // Price tier link (needs price_tiers edit; never fails the product save).
+      await syncProductTier(saved?.id || productId, priceTier?._id ?? null, savedTierId.current);
+      savedTierId.current = mode === "create" ? null : priceTier?._id ?? null;
+      if (mode === "create") setPriceTier(null);
 
       if (mode === "create") {
         // Reset form
@@ -1100,12 +752,7 @@ export default function ProductForm({
         setSelectedSizes([]);
         setColorMedia({});
         setThumbFile(null);
-        setBannerFiles([]);
-        setVideoFile(null);
-        // Removed setThumbName since it was unused
         if (thumbInputRef.current) thumbInputRef.current.value = "";
-        if (bannerInputRef.current) bannerInputRef.current.value = "";
-        if (videoInputRef.current) videoInputRef.current.value = "";
         setPackaging(initPackaging(null));
       }
       setCodeErrors({});
@@ -1184,11 +831,6 @@ export default function ProductForm({
                 label: "Product Variant",
                 icon: "M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z",
               },
-              ...(mode === "edit" ? [{
-                key: "related",
-                label: "Related Products",
-                icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-              }] : []),
             ].filter((t) => effectiveValidTabs.includes(t.key as TabKey)).map((t) => (
               <button
                 key={t.key}
@@ -1227,7 +869,7 @@ export default function ProductForm({
                   <input
                     type="text"
                     required
-                    placeholder="e.g., Premium Compression T-Shirt"
+                    placeholder="e.g., Steel Water Bottle 500 ml"
                     className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
                     value={form.name}
                     onChange={(e) => setField("name", e.target.value)}
@@ -1336,7 +978,7 @@ export default function ProductForm({
                               >
                                 <span className="text-sm flex-1">{cat.name}</span>
                                 {form.category === cat.name && (
-                                  <svg className="w-4 h-4 text-honey-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-4 h-4 text-honey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                   </svg>
                                 )}
@@ -1437,7 +1079,7 @@ export default function ProductForm({
                                 >
                                   <span className="text-sm flex-1">{cat.name}</span>
                                   {form.subCategory === cat.name && (
-                                    <svg className="w-4 h-4 text-honey-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-honey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                     </svg>
                                   )}
@@ -1472,10 +1114,10 @@ export default function ProductForm({
                       type="number"
                       step="0.01"
                       min="0"
-                      disabled={isVariant || packaging.soldAs === "box"}
+                      disabled={isVariant || packaging.soldAs === "box" || !!priceTier}
                       placeholder="0.00"
                       className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm ${
-                        isVariant || packaging.soldAs === "box"
+                        isVariant || packaging.soldAs === "box" || !!priceTier
                           ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-300'
                           : errors.discountedPrice ? 'border-red-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900' : 'border-gray-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
                       }`}
@@ -1491,6 +1133,17 @@ export default function ProductForm({
                   {isVariant && <p className="mt-1 text-xs text-gray-500">Set prices per variant</p>}
                   {!isVariant && packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set per piece in the Box section below</p>}
                 </div>
+
+                <PriceTierSelect
+                  productId={productId}
+                  value={priceTier}
+                  isVariant={isVariant}
+                  onChange={(tier, initial) => {
+                    setPriceTier(tier);
+                    if (initial) savedTierId.current = tier?._id ?? null;
+                    if (tier && !isVariant) setForm((prev) => ({ ...prev, discountedPrice: tier.price, price: tier.price }));
+                  }}
+                />
 
                 {!isVariant && (
                   <div>
@@ -1547,9 +1200,6 @@ export default function ProductForm({
                             {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes below"}
                           </p>
                         )}
-                        {!isVariant && !stockLocked && mode === "edit" && (
-                          <p className="mt-1 text-xs text-gray-500">Pieces in the branch you are working in</p>
-                        )}
                       </>
                     );
                   })()}
@@ -1572,38 +1222,9 @@ export default function ProductForm({
 
               </div>
 
-              {/* Branch / SKU / Short code (SKU + short code are made automatically) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                  {mode === "create" && access.isSuperAdmin ? (
-                    <select
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                      value={stockBranchId}
-                      onChange={(e) => setStockBranchId(e.target.value)}
-                    >
-                      {branchOptions.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name || b.code || "Branch"}{b.isMain ? " (main)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      readOnly
-                      className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
-                      value={
-                        lockedBranchName ||
-                        access.currentBranch?.name ||
-                        (mode === "edit" ? "All branches (pick one in the header to edit its stock)" : "")
-                      }
-                    />
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">The stock you enter goes to this branch</p>
-                </div>
-
-                {!isVariant && (
+              {/* SKU / Short code (made automatically) */}
+              {!isVariant && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
                     <input
@@ -1613,14 +1234,12 @@ export default function ProductForm({
                       value={autoSku || (pickingCode ? "Creating…" : "Created when saved")}
                     />
                   </div>
-                )}
 
-                {!isVariant && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Short code</label>
                     <div className="flex h-[38px] items-center gap-2">
                       {packaging.shortCode ? (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2.5 py-1 text-sm font-mono font-semibold text-honey-600">
+                        <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2.5 py-1 text-sm font-mono font-semibold text-honey-700">
                           <Hash className="h-3.5 w-3.5" />
                           {packaging.shortCode}
                         </span>
@@ -1633,8 +1252,8 @@ export default function ProductForm({
                     </div>
                     <p className="mt-1 text-xs text-gray-500">Printed under the barcode on the sticker</p>
                   </div>
-                )}
               </div>
+              )}
 
               {/* Packaging & Stock: boxes, batches, barcodes, short code (single products) */}
               {!isVariant && (
@@ -1679,7 +1298,7 @@ export default function ProductForm({
                         ref={thumbInputRef}
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileChange(e, "thumbnail")}
+                        onChange={handleThumbnailChange}
                         className="hidden"
                       />
                       <button
@@ -1949,7 +1568,7 @@ export default function ProductForm({
                                     selectedColors.includes(color) ? 'border-honey-500 bg-honey-500' : 'border-gray-300'
                                   }`}>
                                     {selectedColors.includes(color) && (
-                                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-3 h-3 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                       </svg>
                                     )}
@@ -2077,7 +1696,7 @@ export default function ProductForm({
                                     selectedSizes.includes(size) ? 'border-honey-500 bg-honey-500' : 'border-gray-300'
                                   }`}>
                                     {selectedSizes.includes(size) && (
-                                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <svg className="w-3 h-3 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                       </svg>
                                     )}
@@ -2130,7 +1749,7 @@ export default function ProductForm({
                               <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                                 {variant.color || <span className="text-gray-400">—</span>}
                                 {vc.shortCode && (
-                                  <span className="mt-1 flex w-fit items-center gap-0.5 rounded bg-honey-50 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-honey-600">
+                                  <span className="mt-1 flex w-fit items-center gap-0.5 rounded bg-honey-50 px-1.5 py-0.5 text-[11px] font-mono font-semibold text-honey-700">
                                     <Hash className="h-3 w-3" />{vc.shortCode}
                                   </span>
                                 )}
@@ -2312,133 +1931,6 @@ export default function ProductForm({
           </div>
         )}
 
-        {/* RELATED PRODUCTS TAB */}
-        {activeTab === "related" && mode === "edit" && (
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            <div>
-              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-1.5 sm:mb-2">Related Products</h4>
-              <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
-                Select products that are related to this product. These will be displayed as suggestions to customers.
-              </p>
-
-              {/* Search and Select Products */}
-              <div ref={relatedProductDropdownRef} className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Search Products
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Type to search products..."
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                    value={relatedProductSearch}
-                    onChange={(e) => {
-                      setRelatedProductSearch(e.target.value);
-                      setRelatedProductDropdownOpen(true);
-                    }}
-                    onFocus={() => setRelatedProductDropdownOpen(true)}
-                  />
-                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-
-                {/* Dropdown */}
-                {relatedProductDropdownOpen && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {relatedProductsLoading ? (
-                      <div className="p-3 text-center text-sm text-gray-500">Loading products...</div>
-                    ) : filteredAvailableProducts.length === 0 ? (
-                      <div className="p-3 text-center text-sm text-gray-500">
-                        {relatedProductSearch ? "No products found" : "No products available"}
-                      </div>
-                    ) : (
-                      filteredAvailableProducts
-                        .filter(p => !(form.relatedProducts || []).includes(p.id))
-                        .slice(0, 10)
-                        .map((product) => (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => addRelatedProduct(product.id)}
-                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left"
-                          >
-                            {product.thumbnailUrl ? (
-                              <Image
-                                src={product.thumbnailUrl}
-                                alt={product.name}
-                                width={32}
-                                height={32}
-                                className="rounded object-cover"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
-                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                            )}
-                            <span className="text-sm text-gray-900 truncate">{product.name}</span>
-                          </button>
-                        ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Selected Related Products */}
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Selected Products ({selectedRelatedProducts.length})
-                </label>
-                {selectedRelatedProducts.length === 0 ? (
-                  <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center">
-                    <svg className="mx-auto w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    <p className="text-sm text-gray-500">No related products selected</p>
-                    <p className="text-xs text-gray-400 mt-1">Use the search above to add products</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {selectedRelatedProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg group"
-                      >
-                        {product.thumbnailUrl ? (
-                          <Image
-                            src={product.thumbnailUrl}
-                            alt={product.name}
-                            width={40}
-                            height={40}
-                            className="rounded object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                          </div>
-                        )}
-                        <span className="text-sm text-gray-900 truncate flex-1">{product.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeRelatedProduct(product.id)}
-                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                          title="Remove"
-                        >
-                          <FiX className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         </div>
 
         {/* Actions */}
@@ -2480,7 +1972,7 @@ export default function ProductForm({
                   type="button"
                   onClick={goToNextTab}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   Next
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2494,7 +1986,7 @@ export default function ProductForm({
                   type="submit"
                   disabled={isLoading}
                   aria-busy={isLoading}
-                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-white bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+                  className="inline-flex items-center gap-2 px-6 py-2 text-sm font-semibold text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   {isLoading ? (
                     <>

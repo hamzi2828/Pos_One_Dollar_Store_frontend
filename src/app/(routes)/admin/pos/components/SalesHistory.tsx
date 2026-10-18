@@ -5,6 +5,8 @@ import { useRef, useState } from 'react';
 import { POSOrder } from '../types';
 import { Receipt, Clock, Eye, Image as ImageIcon, Printer, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
+import { printReceipt } from '../utils/receipt';
+import WhatsAppBadge from './WhatsAppBadge';
 
 interface SalesHistoryProps {
   orders: POSOrder[];
@@ -14,7 +16,7 @@ interface SalesHistoryProps {
   currency?: string;
 }
 
-export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'MIRPUR MOBILE & STATIONERY', currency = 'PKR' }: SalesHistoryProps) {
+export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'DOLLAR & Co', currency = 'PKR' }: SalesHistoryProps) {
   const symbol = getCurrencySymbol(currency);
   // Brief lock while the print dialog spins up, so a double click doesn't queue two prints.
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
     });
   };
 
-  // Print thermal receipt
+  // Print thermal receipt (utils/receipt.ts: discounts + gift lines included)
   const printThermalReceipt = (order: POSOrder) => {
     if (printLock.current) return;
     printLock.current = true;
@@ -54,254 +56,7 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
       printLock.current = false;
       setPrintingId(null);
     }, 1500);
-
-    const receiptDate = new Date(order.createdAt);
-    const formattedDate = receiptDate.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    const formattedTime = receiptDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const paymentMethodLabel = order.paymentMethod === 'bank_transfer' ? 'Bank Transfer' :
-      order.paymentMethod.charAt(0).toUpperCase() + order.paymentMethod.slice(1);
-
-    const receiptHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${order.orderNumber}</title>
-        <style>
-          @page {
-            size: 72mm auto;
-            margin: 0;
-          }
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          html, body {
-            width: 72mm;
-            margin: 0;
-            padding: 0;
-          }
-          body {
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            width: 72mm;
-            padding: 3mm;
-            background: white;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 8px;
-            border-bottom: 1px dashed #000;
-            padding-bottom: 8px;
-          }
-          .store-name {
-            font-size: 14px;
-            font-weight: bold;
-          }
-          .order-info {
-            margin: 8px 0;
-            border-bottom: 1px dashed #000;
-            padding-bottom: 8px;
-          }
-          .row {
-            display: flex;
-            justify-content: space-between;
-            margin: 2px 0;
-          }
-          .items {
-            margin: 8px 0;
-            border-bottom: 1px dashed #000;
-            padding-bottom: 8px;
-          }
-          .item {
-            margin: 4px 0;
-          }
-          .item-name {
-            font-weight: bold;
-          }
-          .item-details {
-            display: flex;
-            justify-content: space-between;
-            padding-left: 8px;
-          }
-          .totals {
-            margin: 8px 0;
-          }
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 2px 0;
-          }
-          .grand-total {
-            font-size: 13px;
-            font-weight: bold;
-            border-top: 1px solid #000;
-            padding-top: 4px;
-            margin-top: 4px;
-          }
-          .payment-info {
-            margin: 8px 0;
-            border-top: 1px dashed #000;
-            padding-top: 8px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 10px;
-            border-top: 1px dashed #000;
-            padding-top: 8px;
-          }
-          @media print {
-            html, body {
-              width: 72mm;
-            }
-            @page {
-              size: 72mm auto;
-              margin: 0;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="store-name">${storeName}</div>
-          <div style="font-size: 10px; margin-top: 4px;">${order.orderNumber}</div>
-          <div>Thank you for your purchase!</div>
-        </div>
-
-        <div class="order-info">
-          <div class="row">
-            <span>Order #:</span>
-            <span>${order.orderNumber}</span>
-          </div>
-          <div class="row">
-            <span>Date:</span>
-            <span>${formattedDate}</span>
-          </div>
-          <div class="row">
-            <span>Time:</span>
-            <span>${formattedTime}</span>
-          </div>
-          ${order.customer ? `
-          <div class="row">
-            <span>Customer:</span>
-            <span>${order.customer.firstName} ${order.customer.lastName}</span>
-          </div>
-          ` : ''}
-          ${order.cashier ? `
-          <div class="row">
-            <span>Cashier:</span>
-            <span>${order.cashier.firstName}</span>
-          </div>
-          ` : ''}
-        </div>
-
-        <div class="items">
-          ${order.items.map(item => {
-            const productName = typeof item.product === 'object' && item.product ? item.product.name : (item.labourDescription || item.outsourceDescription || 'Product');
-            return `
-            <div class="item">
-              <div class="item-name">${productName}</div>
-              ${item.size || item.color ? `<div style="font-size: 10px; color: #666;">${item.size || ''} ${item.color || ''}</div>` : ''}
-              <div class="item-details">
-                <span>${item.quantity} x ${symbol}${item.price.toFixed(2)}</span>
-                <span>${symbol}${(item.quantity * item.price).toFixed(2)}</span>
-              </div>
-            </div>
-            `;
-          }).join('')}
-        </div>
-
-        <div class="totals">
-          <div class="total-row">
-            <span>Subtotal:</span>
-            <span>${symbol}${order.subtotal.toFixed(2)}</span>
-          </div>
-          <div class="total-row">
-            <span>Tax:</span>
-            <span>${symbol}${order.tax.toFixed(2)}</span>
-          </div>
-          ${order.discount > 0 ? `
-          <div class="total-row">
-            <span>Discount:</span>
-            <span>-${symbol}${order.discount.toFixed(2)}</span>
-          </div>
-          ` : ''}
-          <div class="total-row grand-total">
-            <span>TOTAL:</span>
-            <span>${symbol}${order.total.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div class="payment-info">
-          <div class="row">
-            <span>Payment:</span>
-            <span>${paymentMethodLabel}</span>
-          </div>
-          ${order.cashAmount ? `
-          <div class="row">
-            <span>Cash:</span>
-            <span>${symbol}${order.cashAmount.toFixed(2)}</span>
-          </div>
-          ` : ''}
-          ${order.changeGiven ? `
-          <div class="row">
-            <span>Change:</span>
-            <span>${symbol}${order.changeGiven.toFixed(2)}</span>
-          </div>
-          ` : ''}
-        </div>
-
-        <div class="footer">
-          <div>Thank you!</div>
-          <div>Please come again</div>
-        </div>
-
-        <script>
-          window.onload = function() {
-            window.print();
-            window.onafterprint = function() {
-              window.close();
-            };
-            setTimeout(function() {
-              window.close();
-            }, 1000);
-          }
-        </script>
-      </body>
-      </html>
-    `;
-
-    // Use hidden iframe for silent printing
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.top = '-10000px';
-    iframe.style.left = '-10000px';
-    iframe.style.width = '80mm';
-    iframe.style.height = '0';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(receiptHTML);
-      iframeDoc.close();
-
-      iframe.onload = () => {
-        iframe.contentWindow?.print();
-        // Remove iframe after printing
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000);
-      };
-    }
+    printReceipt(order, storeName, symbol);
   };
 
   const getPaymentBadge = (method: string) => {
@@ -362,8 +117,17 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {order.items.length} item(s)
+            <div className="flex flex-wrap items-center gap-1.5 text-sm text-gray-600">
+              <span>{order.items.length} item(s)</span>
+              {order.items.some((i) => i.isGift) && (
+                <span className="px-1.5 py-0.5 rounded bg-pink-50 text-pink-700 text-[11px] font-medium">Gift</span>
+              )}
+              {order.discount > 0 && (
+                <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-[11px] font-medium">
+                  −{symbol}{order.discount.toFixed(0)}
+                </span>
+              )}
+              <WhatsAppBadge status={order.whatsappStatus} compact />
             </div>
             <div className="flex items-center gap-1">
               {order.paymentMethod === 'bank_transfer' && order.bankTransferScreenshot && (
