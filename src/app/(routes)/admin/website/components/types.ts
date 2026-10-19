@@ -157,7 +157,6 @@ export const TABS: { key: TabKey; label: string; sections: SectionKey[] }[] = [
   { key: 'whatYouGet', label: 'What you get', sections: ['whatYouGet'] },
   { key: 'prices', label: 'Prices', sections: ['prices'] },
   { key: 'categories', label: 'Categories', sections: ['categories'] },
-  { key: 'offers', label: 'Offers', sections: ['offers'] },
   { key: 'gallery', label: 'Gallery', sections: ['gallery'] },
   { key: 'faq', label: 'Questions (FAQ)', sections: ['faq'] },
   { key: 'visit', label: 'Visit us', sections: ['visit'] },

@@ -33,7 +33,6 @@ const ERROR_TABS: [string, TabKey][] = [
   ['What you get', 'whatYouGet'],
   ['Prices', 'prices'],
   ['Categories', 'categories'],
-  ['Offers', 'offers'],
   ['Gallery', 'gallery'],
   ['Questions', 'faq'],
   ['Visit us', 'visit'],
