@@ -1,22 +1,38 @@
 'use client';
 
-// Investment: everything put into the shop (racks, renovation, AC, signboard,
-// opening stock...). Add one entry per bill; the total adds up by itself.
+// Investment: everything partners put into the shop (racks, renovation, AC,
+// signboard, opening stock...). Add partners, then one entry per bill with the
+// partner who paid; the totals and each partner's share add up by themselves.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Download, Edit2, FileText, Loader2, PiggyBank, Plus, Search, Trash2, X } from 'lucide-react';
+import { Download, Edit2, FileText, Loader2, PiggyBank, Plus, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { BACKEND_URL, apiErrorMessage, formatDate, formatRs, storeApi, type PageMeta } from '@/lib/storeApi';
 import { getAuthHeader } from '@/helper/helper';
 import { ErrorBox, Field, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
-import { BarList } from '../adminComponents/charts';
+import { SERIES, TRACK } from '../adminComponents/charts';
+
+interface PartnerRef {
+  _id: string;
+  name: string;
+  phone?: string;
+}
+
+interface Partner extends PartnerRef {
+  phone: string;
+  note: string;
+  invested: number;
+  bills: number;
+  /** % of all money invested, 1 decimal. */
+  share: number;
+}
 
 interface Investment {
   _id: string;
   title: string;
   amount: number;
   date: string;
-  category: string;
+  partner: PartnerRef | null;
   billNo: string;
   paidTo: string;
   note: string;
@@ -29,35 +45,41 @@ interface Summary {
   since: string | null;
   thisMonth: number;
   filteredTotal: number;
-  byCategory: { category: string; amount: number; count: number }[];
+  /** Bills saved before partners existed. */
+  noPartner: number;
 }
 
-type ListMeta = PageMeta & { summary: Summary; categories: string[] };
+type ListMeta = PageMeta & { summary: Summary; partners: Partner[] };
 
 const fileUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : `${BACKEND_URL}${u}`);
 const isPdf = (u: string) => /\.pdf($|\?)/i.test(u);
 const todayKey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
+const bills = (n: number) => `${n} bill${n === 1 ? '' : 's'}`;
 
 export default function InvestmentsPage() {
   const { can } = useAccess();
   const canView = can('investments', 'view');
+  const canCreate = can('investments', 'create');
   const [rows, setRows] = useState<Investment[]>([]);
   const [meta, setMeta] = useState<ListMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
+  const [partner, setPartner] = useState(''); // '' = all, 'none' = no partner, else id
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Investment | 'new' | null>(null);
+  const [partnerEdit, setPartnerEdit] = useState<Partner | 'new' | null>(null);
+  // A partner just added from inside the investment form: the form selects it.
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const res = await storeApi.get<Investment[]>('/investments', { search, category, from, to, page, limit: 50 });
+      const res = await storeApi.get<Investment[]>('/investments', { search, partner, from, to, page, limit: 50 });
       setRows(res.data);
       setMeta(res.meta as unknown as ListMeta);
     } catch (e) {
@@ -65,13 +87,18 @@ export default function InvestmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, category, from, to, page]);
+  }, [search, partner, from, to, page]);
 
   useEffect(() => {
     if (!canView) return;
     const t = window.setTimeout(load, search ? 300 : 0);
     return () => window.clearTimeout(t);
   }, [canView, load, search]);
+
+  const pickPartner = (id: string) => {
+    setPartner((cur) => (cur === id ? '' : id));
+    setPage(1);
+  };
 
   const remove = async (row: Investment) => {
     if (deleting) return;
@@ -88,11 +115,31 @@ export default function InvestmentsPage() {
     }
   };
 
+  const removePartner = async (p: Partner) => {
+    if (deleting) return;
+    if (p.bills > 0) {
+      toast.error(`${p.name} has ${bills(p.bills)}. Move them to another partner or delete them first.`);
+      return;
+    }
+    if (!window.confirm(`Remove partner "${p.name}"?`)) return;
+    setDeleting(p._id);
+    try {
+      await storeApi.del(`/investment-partners/${p._id}`);
+      toast.success('Partner removed');
+      if (partner === p._id) setPartner('');
+      await load();
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not remove the partner.'));
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   const exportCsv = async () => {
     if (exporting) return;
     setExporting(true);
     try {
-      const q = new URLSearchParams(Object.entries({ search, category, from, to }).filter(([, v]) => v) as [string, string][]);
+      const q = new URLSearchParams(Object.entries({ search, partner, from, to }).filter(([, v]) => v) as [string, string][]);
       const res = await fetch(`${BACKEND_URL}/api/investments/export?${q}`, { headers: getAuthHeader() });
       if (!res.ok) throw new Error('Download failed');
       const blob = await res.blob();
@@ -117,8 +164,9 @@ export default function InvestmentsPage() {
   }
 
   const s = meta?.summary;
-  const catMax = s ? Math.max(0, ...s.byCategory.map((c) => c.amount)) : 0;
-  const filtered = !!(search || category || from || to);
+  const partners = meta?.partners || [];
+  const filtered = !!(search || partner || from || to);
+  const partnerName = partner === 'none' ? 'No partner' : partners.find((p) => p._id === partner)?.name;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,15 +176,20 @@ export default function InvestmentsPage() {
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
               <PiggyBank className="h-6 w-6 text-honey-700" /> Investment
             </h1>
-            <p className="mt-0.5 text-sm text-gray-500">Everything you put into the shop. Add each bill and the total adds up by itself.</p>
+            <p className="mt-0.5 text-sm text-gray-500">Money each partner put into the shop. Add each bill and the totals add up by themselves.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {can('investments', 'export') && (
               <button onClick={exportCsv} disabled={exporting} className={secondaryBtn}>
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} CSV
               </button>
             )}
-            {can('investments', 'create') && (
+            {canCreate && (
+              <button onClick={() => setPartnerEdit('new')} className={secondaryBtn}>
+                <UserPlus className="h-4 w-4" /> Add partner
+              </button>
+            )}
+            {canCreate && (
               <button onClick={() => setEditing('new')} className={primaryBtn}>
                 <Plus className="h-4 w-4" /> Add investment
               </button>
@@ -144,14 +197,14 @@ export default function InvestmentsPage() {
           </div>
         </header>
 
-        {/* Total */}
+        {/* Total + partners */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 rounded-xl bg-gray-950 p-5 text-white flex flex-col justify-between gap-4">
             <div>
               <p className="text-sm font-medium text-gray-400">Total invested</p>
-              <p className="mt-1 text-5xl font-semibold tracking-tight text-honey-400">{s ? formatRs(s.totalInvested) : '…'}</p>
+              <p className="mt-1 text-4xl sm:text-5xl font-semibold tracking-tight text-honey-400 break-words">{s ? formatRs(s.totalInvested) : '…'}</p>
               <p className="mt-2 text-sm text-gray-400">
-                {s ? `${s.entries} bill${s.entries === 1 ? '' : 's'}${s.since ? ` since ${formatDate(s.since)}` : ''}` : ''}
+                {s ? `${bills(s.entries)}${s.since ? ` since ${formatDate(s.since)}` : ''} · ${partners.length} partner${partners.length === 1 ? '' : 's'}` : ''}
               </p>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
@@ -165,18 +218,67 @@ export default function InvestmentsPage() {
               )}
             </div>
           </div>
+
           <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">By category</h2>
-            <BarList
-              emptyText="No investments added yet"
-              rows={(s?.byCategory || []).slice(0, 6).map((c) => ({
-                key: c.category,
-                label: c.category,
-                value: formatRs(c.amount),
-                pct: catMax ? (c.amount / catMax) * 100 : 0,
-                sub: `${c.count} bill${c.count === 1 ? '' : 's'}`,
-              }))}
-            />
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-gray-500" /> Partners
+              </h2>
+              {canCreate && (
+                <button onClick={() => setPartnerEdit('new')} className="inline-flex items-center gap-1 text-xs font-medium text-honey-700 hover:underline">
+                  <Plus className="h-3.5 w-3.5" /> Add partner
+                </button>
+              )}
+            </div>
+            {partners.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-xs text-gray-500">No partners yet. Add each person who puts money into the shop.</p>
+                {canCreate && (
+                  <button onClick={() => setPartnerEdit('new')} className={`${primaryBtn} mt-3`}>
+                    <UserPlus className="h-4 w-4" /> Add partner
+                  </button>
+                )}
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {partners.map((p) => (
+                  <li key={p._id} className={`group rounded-md -mx-1.5 px-1.5 py-1 ${partner === p._id ? 'bg-honey-50 ring-1 ring-honey-300' : ''}`}>
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <button onClick={() => pickPartner(p._id)} className="min-w-0 truncate text-left font-medium text-gray-800 hover:underline" title="Show this partner's bills">
+                        {p.name}
+                      </button>
+                      <span className="flex-shrink-0 font-semibold text-gray-900 tabular-nums">{formatRs(p.invested)}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full rounded-full" style={{ backgroundColor: TRACK }}>
+                      <div className="h-1.5 rounded-full" style={{ width: `${p.invested > 0 ? Math.max(2, Math.min(100, p.share)) : 0}%`, backgroundColor: SERIES }} />
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">
+                      <span>
+                        {p.share}% of total · {bills(p.bills)}
+                        {p.phone ? ` · ${p.phone}` : ''}
+                      </span>
+                      <span className="flex gap-0.5">
+                        {can('investments', 'edit') && (
+                          <button onClick={() => setPartnerEdit(p)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-800" aria-label={`Edit ${p.name}`}>
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {can('investments', 'delete') && (
+                          <button onClick={() => removePartner(p)} disabled={deleting === p._id} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50" aria-label={`Remove ${p.name}`}>
+                            {deleting === p._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {s && s.noPartner > 0 && (
+              <button onClick={() => pickPartner('none')} className="mt-3 w-full rounded-md bg-amber-50 px-2.5 py-2 text-left text-xs text-amber-800 hover:bg-amber-100">
+                {formatRs(s.noPartner)} has no partner yet. Show those bills and edit them to pick one.
+              </button>
+            )}
           </div>
         </div>
 
@@ -190,29 +292,31 @@ export default function InvestmentsPage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search what, bill no, paid to…"
+              placeholder="Search what, partner, bill no, paid to…"
               className={`${inputClass} pl-9`}
             />
           </div>
           <select
-            value={category}
+            value={partner}
             onChange={(e) => {
-              setCategory(e.target.value);
+              setPartner(e.target.value);
               setPage(1);
             }}
             className={`${inputClass} sm:w-52`}
+            aria-label="Partner"
           >
-            <option value="">All categories</option>
-            {(meta?.categories || []).map((c) => (
-              <option key={c} value={c}>
-                {c}
+            <option value="">All partners</option>
+            {partners.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.name}
               </option>
             ))}
+            {(partner === 'none' || (s && s.noPartner > 0)) && <option value="none">No partner</option>}
           </select>
           <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputClass} sm:w-40`} aria-label="From" />
           <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputClass} sm:w-40`} aria-label="To" />
           {filtered && (
-            <button onClick={() => { setSearch(''); setCategory(''); setFrom(''); setTo(''); setPage(1); }} className={secondaryBtn}>
+            <button onClick={() => { setSearch(''); setPartner(''); setFrom(''); setTo(''); setPage(1); }} className={secondaryBtn}>
               <X className="h-4 w-4" /> Clear
             </button>
           )}
@@ -220,18 +324,28 @@ export default function InvestmentsPage() {
 
         {/* List */}
         <div className="bg-white rounded-xl border border-gray-200">
+          {partnerName && (
+            <div className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-600">
+              Showing <span className="font-semibold text-gray-900">{partnerName}</span>
+              {s ? <> · {formatRs(s.filteredTotal)}</> : null}
+            </div>
+          )}
           {error && <div className="p-4"><ErrorBox message={error} /></div>}
           {loading ? (
             <div className="py-16 flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-honey-700" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="py-14 text-center">
+            <div className="py-14 text-center px-4">
               <PiggyBank className="mx-auto h-10 w-10 text-gray-300" />
               <p className="mt-2 text-sm font-medium text-gray-700">{filtered ? 'Nothing matches these filters' : 'No investments yet'}</p>
-              {!filtered && can('investments', 'create') && (
-                <button onClick={() => setEditing('new')} className={`${primaryBtn} mt-4`}>
-                  <Plus className="h-4 w-4" /> Add the first bill
+              {!filtered && canCreate && (
+                <p className="mt-1 text-xs text-gray-500">{partners.length ? 'Add the first bill.' : 'First add a partner, then add their bills.'}</p>
+              )}
+              {!filtered && canCreate && (
+                <button onClick={() => (partners.length ? setEditing('new') : setPartnerEdit('new'))} className={`${primaryBtn} mt-4`}>
+                  {partners.length ? <Plus className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                  {partners.length ? 'Add the first bill' : 'Add partner'}
                 </button>
               )}
             </div>
@@ -243,7 +357,11 @@ export default function InvestmentsPage() {
                     <p className="font-medium text-gray-900 truncate">{r.title}</p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                       <span>{formatDate(r.date)}</span>
-                      {r.category && <span className="rounded-full bg-honey-50 px-2 py-0.5 text-honey-800">{r.category}</span>}
+                      {r.partner ? (
+                        <span className="rounded-full bg-honey-50 px-2 py-0.5 font-medium text-honey-800">{r.partner.name}</span>
+                      ) : (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800">No partner</span>
+                      )}
                       {r.billNo && <span>Bill {r.billNo}</span>}
                       {r.paidTo && <span>· {r.paidTo}</span>}
                     </p>
@@ -295,10 +413,31 @@ export default function InvestmentsPage() {
       {editing && (
         <InvestmentForm
           row={editing === 'new' ? null : editing}
-          categories={meta?.categories || []}
-          onClose={() => setEditing(null)}
+          partners={partners}
+          defaultPartner={partner && partner !== 'none' ? partner : ''}
+          justAdded={justAdded}
+          canAddPartner={canCreate}
+          onAddPartner={() => setPartnerEdit('new')}
+          onClose={() => {
+            setEditing(null);
+            setJustAdded(null);
+          }}
           onSaved={async () => {
             setEditing(null);
+            setJustAdded(null);
+            await load();
+          }}
+        />
+      )}
+
+      {/* After the investment form so it opens on top of it. */}
+      {partnerEdit && (
+        <PartnerForm
+          row={partnerEdit === 'new' ? null : partnerEdit}
+          onClose={() => setPartnerEdit(null)}
+          onSaved={async (saved, isNew) => {
+            setPartnerEdit(null);
+            if (isNew && editing) setJustAdded(saved._id);
             await load();
           }}
         />
@@ -307,21 +446,103 @@ export default function InvestmentsPage() {
   );
 }
 
+function PartnerForm({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: Partner | null;
+  onClose: () => void;
+  onSaved: (saved: PartnerRef, isNew: boolean) => void;
+}) {
+  const [name, setName] = useState(row?.name || '');
+  const [phone, setPhone] = useState(row?.phone || '');
+  const [note, setNote] = useState(row?.note || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lock = useRef(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (lock.current) return;
+    if (!name.trim()) return setError("Write the partner's name.");
+    lock.current = true;
+    setSaving(true);
+    setError(null);
+    try {
+      const body = { name: name.trim(), phone: phone.trim(), note: note.trim() };
+      const res = row
+        ? await storeApi.put<PartnerRef>(`/investment-partners/${row._id}`, body)
+        : await storeApi.post<PartnerRef>('/investment-partners', body);
+      toast.success(row ? 'Partner saved' : `${res.data.name} added`);
+      onSaved(res.data, !row);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the partner.'));
+    } finally {
+      lock.current = false;
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={row ? 'Edit partner' : 'Add partner'}
+      subtitle="A person who puts money into the shop"
+      icon={<UserPlus className="h-5 w-5" />}
+      onClose={onClose}
+      busy={saving}
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
+            Cancel
+          </button>
+          <button type="submit" form="partner-form" disabled={saving} className={primaryBtn}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {saving ? 'Saving…' : row ? 'Save' : 'Add partner'}
+          </button>
+        </>
+      }
+    >
+      <form id="partner-form" onSubmit={submit} className="space-y-3">
+        {error && <ErrorBox message={error} />}
+        <Field label="Name" required>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Usman" className={inputClass} autoFocus maxLength={120} />
+        </Field>
+        <Field label="Phone">
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="03xx-xxxxxxx" className={inputClass} maxLength={40} />
+        </Field>
+        <Field label="Note">
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} maxLength={500} />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
 function InvestmentForm({
   row,
-  categories,
+  partners,
+  defaultPartner,
+  justAdded,
+  canAddPartner,
+  onAddPartner,
   onClose,
   onSaved,
 }: {
   row: Investment | null;
-  categories: string[];
+  partners: Partner[];
+  defaultPartner: string;
+  justAdded: string | null;
+  canAddPartner: boolean;
+  onAddPartner: () => void;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [title, setTitle] = useState(row?.title || '');
   const [amount, setAmount] = useState(row ? String(row.amount) : '');
   const [date, setDate] = useState(row ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(row.date)) : todayKey());
-  const [category, setCategory] = useState(row?.category || '');
+  const [partnerId, setPartnerId] = useState(row ? row.partner?._id || '' : defaultPartner || (partners.length === 1 ? partners[0]._id : ''));
   const [billNo, setBillNo] = useState(row?.billNo || '');
   const [paidTo, setPaidTo] = useState(row?.paidTo || '');
   const [note, setNote] = useState(row?.note || '');
@@ -331,9 +552,15 @@ function InvestmentForm({
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
 
+  // A partner was just added with "+ New partner": pick them.
+  useEffect(() => {
+    if (justAdded) setPartnerId(justAdded);
+  }, [justAdded]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (lock.current) return;
+    if (!partnerId) return setError('Pick the partner who put this money in.');
     if (!title.trim()) return setError('Write what the investment was for.');
     if (!(Number(amount) > 0)) return setError('Enter an amount more than 0.');
     if (keep.length + files.length > 5) return setError('Up to 5 bills per entry.');
@@ -342,10 +569,10 @@ function InvestmentForm({
     setError(null);
     try {
       const form = new FormData();
+      form.append('partner', partnerId);
       form.append('title', title.trim());
       form.append('amount', String(Number(amount)));
       form.append('date', date);
-      form.append('category', category.trim());
       form.append('billNo', billNo.trim());
       form.append('paidTo', paidTo.trim());
       form.append('note', note.trim());
@@ -384,8 +611,25 @@ function InvestmentForm({
     >
       <form id="investment-form" onSubmit={submit} className="space-y-3">
         {error && <ErrorBox message={error} />}
+        <Field label="Partner" required>
+          <div className="flex gap-2">
+            <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className={`${inputClass} flex-1 min-w-0`}>
+              <option value="">{partners.length ? 'Pick a partner' : 'No partners yet: add one'}</option>
+              {partners.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {canAddPartner && (
+              <button type="button" onClick={onAddPartner} className={`${secondaryBtn} flex-shrink-0`}>
+                <UserPlus className="h-4 w-4" /> New
+              </button>
+            )}
+          </div>
+        </Field>
         <Field label="What was it for?" required>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Steel racks for the shop" className={inputClass} autoFocus maxLength={200} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Steel racks for the shop" className={inputClass} autoFocus={!!partners.length} maxLength={200} />
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Amount (Rs)" required>
@@ -394,21 +638,13 @@ function InvestmentForm({
           <Field label="Date">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </Field>
-          <Field label="Category">
-            <input list="investment-categories" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Pick or type" className={inputClass} maxLength={80} />
-            <datalist id="investment-categories">
-              {categories.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </Field>
           <Field label="Bill no">
             <input value={billNo} onChange={(e) => setBillNo(e.target.value)} className={inputClass} maxLength={80} />
           </Field>
+          <Field label="Paid to">
+            <input value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder="Shop / person" className={inputClass} maxLength={120} />
+          </Field>
         </div>
-        <Field label="Paid to">
-          <input value={paidTo} onChange={(e) => setPaidTo(e.target.value)} placeholder="Shop / person" className={inputClass} maxLength={120} />
-        </Field>
         <Field label="Note">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} maxLength={1000} />
         </Field>
