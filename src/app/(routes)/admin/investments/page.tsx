@@ -562,7 +562,7 @@ function MoneyTile({ label, value, tone = 'plain' }: { label: string; value: str
   );
 }
 
-/** A bill's payments: pay part (or all) of the balance, see each payment, undo a wrong one. */
+/** A bill's payments: pay part (or all) of the balance, see each payment, fix or undo a wrong one. */
 function PaymentsModal({
   row,
   canPay,
@@ -582,6 +582,8 @@ function PaymentsModal({
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  // Payment being fixed in the history (amount / date / note).
+  const [edit, setEdit] = useState<{ id: string; amount: string; date: string; note: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
   const busy = saving || !!removing;
@@ -613,6 +615,35 @@ function PaymentsModal({
       setNote('');
       setDate(todayKey());
       toast.success(res.data.balance > 0 ? `${formatRs(num)} paid. Balance ${formatRs(res.data.balance)}` : `${formatRs(num)} paid. The bill is paid in full`);
+      onChanged();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the payment.'));
+    } finally {
+      lock.current = false;
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (p: Payment) => {
+    setError(null);
+    setEdit({ id: p._id, amount: String(p.amount), date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(p.date)), note: p.note || '' });
+  };
+
+  const saveEdit = async (p: Payment) => {
+    if (!edit || lock.current) return;
+    const n = Number(edit.amount);
+    const most = round2(bill.amount - bill.paidAmount + p.amount);
+    if (!(n > 0)) return setError('Enter the amount paid (more than 0).');
+    if (n > most) return setError(`At most ${formatRs(most)} for this payment (bill total ${formatRs(bill.amount)}).`);
+    if (edit.date > todayKey()) return setError('The payment date cannot be in the future.');
+    lock.current = true;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await storeApi.put<Investment>(`/investments/${bill._id}/payments/${p._id}`, { amount: n, date: edit.date, note: edit.note.trim() });
+      setBill(res.data);
+      setEdit(null);
+      toast.success(res.data.balance > 0 ? `Payment saved. Balance ${formatRs(res.data.balance)}` : 'Payment saved. The bill is paid in full');
       onChanged();
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save the payment.'));
@@ -715,32 +746,76 @@ function PaymentsModal({
             <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-500">No payments yet.</p>
           ) : (
             <ol className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-              {history.map((p, i) => (
-                <li key={p._id} className="flex items-center gap-3 px-3 py-2.5">
-                  <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold text-gray-600">{i + 1}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-500">
-                      <span className="font-semibold text-gray-900 tabular-nums">{formatRs(p.amount)}</span> paid on {formatDate(p.date)}
-                    </p>
-                    <p className="truncate text-[11px] text-gray-500">
-                      {p.after > 0 ? <>Balance after: <span className="text-amber-700">{formatRs(p.after)}</span></> : <span className="text-green-700">Paid in full</span>}
-                      {p.note ? ` · ${p.note}` : ''}
-                    </p>
-                  </div>
-                  {canRemove && (
-                    <button
-                      type="button"
-                      onClick={() => removePayment(p)}
-                      disabled={busy}
-                      className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      aria-label={`Remove the payment of ${formatRs(p.amount)}`}
-                      title="Remove this payment (if saved by mistake)"
-                    >
-                      {removing === p._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </button>
-                  )}
-                </li>
-              ))}
+              {history.map((p, i) =>
+                edit?.id === p._id ? (
+                  <li key={p._id} className="space-y-2 bg-honey-50/40 px-3 py-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Field label={`Payment ${i + 1}: amount (Rs)`} required>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="any"
+                          value={edit.amount}
+                          onChange={(e) => setEdit({ ...edit, amount: e.target.value })}
+                          className={inputClass}
+                          autoFocus
+                        />
+                      </Field>
+                      <Field label="Date paid">
+                        <input type="date" value={edit.date} max={todayKey()} onChange={(e) => setEdit({ ...edit, date: e.target.value })} className={inputClass} />
+                      </Field>
+                    </div>
+                    <input value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="Note" className={inputClass} maxLength={300} aria-label="Note" />
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setEdit(null)} disabled={saving} className={`${secondaryBtn} !py-1.5`}>
+                        Cancel
+                      </button>
+                      <button type="button" onClick={() => saveEdit(p)} disabled={saving} className={`${primaryBtn} !py-1.5`}>
+                        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Save
+                      </button>
+                    </div>
+                  </li>
+                ) : (
+                  <li key={p._id} className="flex items-center gap-2 px-3 py-2.5">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold text-gray-600">{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-500">
+                        <span className="font-semibold text-gray-900 tabular-nums">{formatRs(p.amount)}</span> paid on {formatDate(p.date)}
+                      </p>
+                      <p className="truncate text-[11px] text-gray-500">
+                        {p.after > 0 ? <>Balance after: <span className="text-amber-700">{formatRs(p.after)}</span></> : <span className="text-green-700">Paid in full</span>}
+                        {p.note ? ` · ${p.note}` : ''}
+                      </p>
+                    </div>
+                    {canPay && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p)}
+                        disabled={busy}
+                        className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
+                        aria-label={`Edit the payment of ${formatRs(p.amount)}`}
+                        title="Edit this payment"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    {canRemove && (
+                      <button
+                        type="button"
+                        onClick={() => removePayment(p)}
+                        disabled={busy}
+                        className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        aria-label={`Remove the payment of ${formatRs(p.amount)}`}
+                        title="Remove this payment (if saved by mistake)"
+                      >
+                        {removing === p._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </button>
+                    )}
+                  </li>
+                ),
+              )}
             </ol>
           )}
         </div>
@@ -844,8 +919,11 @@ function InvestmentForm({
 }) {
   const [title, setTitle] = useState(row?.title || '');
   const [amount, setAmount] = useState(row ? String(row.amount) : '');
-  const [payMode, setPayMode] = useState<PayMode>('full');
-  const [paidNow, setPaidNow] = useState('');
+  // A bill paid in one go (or not at all) edits "paid" here; one paid in parts
+  // changes its payments in the payment history.
+  const simple = !row || row.payments.length <= 1;
+  const [payMode, setPayMode] = useState<PayMode>(row && row.balance > 0 ? 'part' : 'full');
+  const [paidNow, setPaidNow] = useState(row && row.balance > 0 ? String(row.paidAmount) : '');
   const [date, setDate] = useState(row ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(row.date)) : todayKey());
   const [partnerId, setPartnerId] = useState(row ? row.partner?._id || '' : defaultPartner || (partners.length === 1 ? partners[0]._id : ''));
   const [billNo, setBillNo] = useState(row?.billNo || '');
@@ -858,8 +936,7 @@ function InvestmentForm({
   const lock = useRef(false);
 
   const total = round2(Number(amount) || 0);
-  // New bill: what is paid now. Edit: what was paid already (payments are changed with Pay).
-  const paid = row ? row.paidAmount : payMode === 'full' ? total : round2(Number(paidNow) || 0);
+  const paid = !simple && row ? row.paidAmount : payMode === 'full' ? total : round2(Number(paidNow) || 0);
   const balance = round2(total - paid);
 
   // A partner was just added with "+ New partner": pick them.
@@ -873,10 +950,10 @@ function InvestmentForm({
     if (!partnerId) return setError('Pick the partner who put this money in.');
     if (!title.trim()) return setError('Write what the investment was for.');
     if (!(total > 0)) return setError('Enter the bill total (more than 0).');
-    if (!row && payMode === 'part' && Number(paidNow) < 0) return setError('Paid now cannot be less than 0.');
-    if (!row && paid > total) return setError(`Paid now (${formatRs(paid)}) is more than the bill total (${formatRs(total)}).`);
-    if (row && total < row.paidAmount) {
-      return setError(`${formatRs(row.paidAmount)} is already paid on this bill, so the total cannot be less. Remove a payment first.`);
+    if (simple && payMode === 'part' && Number(paidNow) < 0) return setError('Paid cannot be less than 0.');
+    if (simple && paid > total) return setError(`Paid (${formatRs(paid)}) is more than the bill total (${formatRs(total)}).`);
+    if (!simple && row && total < row.paidAmount) {
+      return setError(`${formatRs(row.paidAmount)} is already paid on this bill, so the total cannot be less. Change a payment in the payment history first.`);
     }
     if (keep.length + files.length > 5) return setError('Up to 5 bills per entry.');
     lock.current = true;
@@ -887,7 +964,7 @@ function InvestmentForm({
       form.append('partner', partnerId);
       form.append('title', title.trim());
       form.append('amount', String(total));
-      if (!row) form.append('paidAmount', String(paid));
+      if (simple) form.append('paidAmount', String(paid));
       form.append('date', date);
       form.append('billNo', billNo.trim());
       form.append('paidTo', paidTo.trim());
@@ -957,10 +1034,10 @@ function InvestmentForm({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-3 space-y-3">
-          {row ? (
+          {!simple && row ? (
             <p className="text-xs text-gray-600">
-              {formatRs(row.paidAmount)} paid so far in {payments(row.payments.length)}. To pay more or fix a payment, close this and use{' '}
-              <span className="font-semibold">Pay</span> or the payment history on the bill.
+              {formatRs(row.paidAmount)} paid in {payments(row.payments.length)}. To change what was paid, close this and use{' '}
+              <span className="font-semibold">Pay</span> or the payment history on the bill (edit or remove a payment).
             </p>
           ) : (
             <>
@@ -968,8 +1045,11 @@ function InvestmentForm({
                 <Chips options={PAY_MODES} value={payMode} onChange={setPayMode} disabled={saving} />
               </Field>
               {payMode === 'part' && (
-                <Field label="Paid now (Rs)" hint="Money paid on this bill so far. 0 = nothing paid yet. Pay the rest later with the Pay button.">
-                  <input type="number" inputMode="decimal" min={0} step="any" value={paidNow} onChange={(e) => setPaidNow(e.target.value)} placeholder="0" className={inputClass} autoFocus />
+                <Field
+                  label={row ? 'Paid (Rs)' : 'Paid now (Rs)'}
+                  hint="Money paid on this bill so far. 0 = nothing paid yet. Pay the rest later with the Pay button."
+                >
+                  <input type="number" inputMode="decimal" min={0} step="any" value={paidNow} onChange={(e) => setPaidNow(e.target.value)} placeholder="0" className={inputClass} autoFocus={!row} />
                 </Field>
               )}
             </>
@@ -983,7 +1063,7 @@ function InvestmentForm({
               ) : balance === 0 ? (
                 <MoneyTile label="Balance" value="Paid in full" tone="green" />
               ) : (
-                <MoneyTile label="Balance" value={row ? 'Total too low' : 'Paid too much'} tone="due" />
+                <MoneyTile label="Balance" value={simple ? 'Paid too much' : 'Total too low'} tone="due" />
               )}
             </div>
           )}
