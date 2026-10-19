@@ -11,6 +11,7 @@ import AssetFormModal from './components/AssetFormModal';
 import AssetDetailModal from './components/AssetDetailModal';
 import CategoriesModal from './components/CategoriesModal';
 import { STATUS_LABEL, STATUS_STYLE, assetApi, type Asset, type AssetCategory, type AssetSummary } from './services/assetApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type StatusFilter = 'in_use' | '' | 'active' | 'maintenance' | 'sold' | 'disposed';
 
@@ -193,14 +194,14 @@ export default function AssetsPage() {
                 </button>
               )}
             </div>
-            <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className={inputClass} aria-label="Status">
+            <SearchSelect value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className={inputClass} aria-label="Status">
               <option value="in_use">In use + maintenance</option>
               <option value="">All statuses</option>
               <option value="active">In use</option>
               <option value="maintenance">Maintenance</option>
               <option value="sold">Sold</option>
               <option value="disposed">Disposed</option>
-            </select>
+            </SearchSelect>
           </div>
         </div>
 

@@ -24,6 +24,7 @@ import {
   variantPayload,
 } from "./packaging/packagingUtils";
 import PriceTierSelect, { syncProductTier, type TierChoice } from "../price-tiers/components/PriceTierSelect";
+import { SearchSelect } from "@/components/ui/SearchSelect";
 
 // Product as loaded for editing (fields not shown in the list type)
 interface ExtendedProduct extends Product {
@@ -1209,7 +1210,7 @@ export default function ProductForm({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
-                  <select
+                  <SearchSelect
                     className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
                     value={form.status}
                     onChange={(e) => setField("status", e.target.value as ProductFormData["status"])}
@@ -1217,7 +1218,7 @@ export default function ProductForm({
                     <option value="published">Published</option>
                     <option value="draft">Draft</option>
                     <option value="out_of_stock">Out of Stock</option>
-                  </select>
+                  </SearchSelect>
                 </div>
 
               </div>

@@ -9,6 +9,7 @@ import { Banknote, Check, Clock, Loader2, ScrollText, Timer, Umbrella, Wallet } 
 import { apiErrorMessage } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { EXAMPLE_DAY_HOURS, exampleLines, policyApi, summaryParts, type FieldLimit, type Policy, type PolicyInput, type PolicyRules } from '../services/policyApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Obj = Record<string, unknown>;
 const getAt = (o: unknown, path: string): unknown => path.split('.').reduce<unknown>((x, k) => (x && typeof x === 'object' ? (x as Obj)[k] : undefined), o);
@@ -106,13 +107,13 @@ export default function PolicyEditor({
   );
   const sel = (path: string, label: string, options: [string, string][], hint?: string) => (
     <Field label={label} hint={hint}>
-      <select value={String(getAt(form, path))} onChange={(e) => set(path, e.target.value)} disabled={off} className={inputClass}>
+      <SearchSelect value={String(getAt(form, path))} onChange={(e) => set(path, e.target.value)} disabled={off} className={inputClass}>
         {options.map(([v, l]) => (
           <option key={v} value={v}>
             {l}
           </option>
         ))}
-      </select>
+      </SearchSelect>
     </Field>
   );
 

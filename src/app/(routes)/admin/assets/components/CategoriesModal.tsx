@@ -8,6 +8,7 @@ import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { assetApi, type AssetCategory, type DepMethod } from '../services/assetApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Draft = { _id: string | null; name: string; code: string; description: string; depreciationMethod: DepMethod; usefulLifeYears: string; isActive: boolean };
 
@@ -144,10 +145,10 @@ export default function CategoriesModal({ categories, onClose, onChanged }: { ca
                 <input value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value.toUpperCase() })} disabled={!!draft._id} maxLength={10} className={`${inputClass} font-mono uppercase`} />
               </Field>
               <Field label="Depreciation">
-                <select value={draft.depreciationMethod} onChange={(e) => setDraft({ ...draft, depreciationMethod: e.target.value as DepMethod })} className={inputClass}>
+                <SearchSelect value={draft.depreciationMethod} onChange={(e) => setDraft({ ...draft, depreciationMethod: e.target.value as DepMethod })} className={inputClass}>
                   <option value="straight_line">Straight line</option>
                   <option value="none">None</option>
-                </select>
+                </SearchSelect>
               </Field>
               <Field label="Useful life (years)">
                 <input type="number" min={0} max={100} step="0.5" value={draft.usefulLifeYears} onChange={(e) => setDraft({ ...draft, usefulLifeYears: e.target.value })} disabled={draft.depreciationMethod === 'none'} className={inputClass} />

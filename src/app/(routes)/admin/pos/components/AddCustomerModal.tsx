@@ -6,6 +6,7 @@ import { X, Loader2, User, Plus, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { createOrFindCustomer } from '../services/posCustomerService';
 import { POSCustomer } from '../types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -153,7 +154,7 @@ export default function AddCustomerModal({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Source <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SearchSelect
                   value={source}
                   onChange={(e) => setSource(e.target.value as CustomerSource)}
                   className="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-honey-500"
@@ -164,7 +165,7 @@ export default function AddCustomerModal({
                   <option value="tiktok">TikTok</option>
                   <option value="instagram">Instagram</option>
                   <option value="word-of-mouth">Word of Mouth</option>
-                </select>
+                </SearchSelect>
               </div>
             )}
           </div>

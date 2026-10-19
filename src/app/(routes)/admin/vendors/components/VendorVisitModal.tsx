@@ -24,6 +24,7 @@ import {
 } from '../services/vendorApi';
 import ProductSearch from './ProductSearch';
 import { BalanceText } from './ui';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type StepState = 'todo' | 'done' | 'failed' | 'skip';
 
@@ -312,13 +313,13 @@ export default function VendorVisitModal({ vendorId, onClose, onDone }: { vendor
                       <input value={payAmount} onChange={(e) => setPayAmount(e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" />
                     </Field>
                     <Field label="Method">
-                      <select value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentMethod)} className={inputClass}>
+                      <SearchSelect value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentMethod)} className={inputClass}>
                         {PAYMENT_METHODS.map((m) => (
                           <option key={m.value} value={m.value}>
                             {m.label}
                           </option>
                         ))}
-                      </select>
+                      </SearchSelect>
                     </Field>
                     <Field label={payMethod === 'cheque' ? 'Cheque no.' : 'Reference'} required={payMethod === 'cheque'}>
                       <input value={payRef} onChange={(e) => setPayRef(e.target.value)} className={inputClass} />

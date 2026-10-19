@@ -14,6 +14,7 @@ import { getAuthHeader } from '@/helper/helper';
 import { ErrorBox, Field, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { Chips } from '../purchasing/_shared/ui';
 import { SERIES, TRACK } from '../adminComponents/charts';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface PartnerRef {
   _id: string;
@@ -358,7 +359,7 @@ export default function InvestmentsPage() {
               className={`${inputClass} pl-9`}
             />
           </div>
-          <select
+          <SearchSelect
             value={partner}
             onChange={(e) => {
               setPartner(e.target.value);
@@ -374,12 +375,12 @@ export default function InvestmentsPage() {
               </option>
             ))}
             {(partner === 'none' || (s && s.noPartnerBills > 0)) && <option value="none">No partner</option>}
-          </select>
-          <select value={status} onChange={(e) => pickStatus(e.target.value as Status)} className={`${inputClass} md:w-40`} aria-label="Paid or balance left">
-            <option value="">Paid and balance</option>
+          </SearchSelect>
+          <SearchSelect value={status} onChange={(e) => pickStatus(e.target.value as Status)} className={`${inputClass} md:w-40`} aria-label="Paid or balance left">
+            <option value="">All bills</option>
             <option value="due">Balance left</option>
             <option value="paid">Paid in full</option>
-          </select>
+          </SearchSelect>
           <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={`${inputClass} md:w-36`} aria-label="From" />
           <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={`${inputClass} md:w-36`} aria-label="To" />
           {filtered && (
@@ -1006,14 +1007,14 @@ function InvestmentForm({
         {error && <ErrorBox message={error} />}
         <Field label="Partner" required>
           <div className="flex gap-2">
-            <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className={`${inputClass} flex-1 min-w-0`}>
+            <SearchSelect value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className={`${inputClass} flex-1 min-w-0`}>
               <option value="">{partners.length ? 'Pick a partner' : 'No partners yet: add one'}</option>
               {partners.map((p) => (
                 <option key={p._id} value={p._id}>
                   {p.name}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
             {canAddPartner && (
               <button type="button" onClick={onAddPartner} className={`${secondaryBtn} flex-shrink-0`}>
                 <UserPlus className="h-4 w-4" /> New

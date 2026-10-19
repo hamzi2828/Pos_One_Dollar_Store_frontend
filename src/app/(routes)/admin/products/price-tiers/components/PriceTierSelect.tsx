@@ -9,6 +9,7 @@ import { Tags, Lock } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { PriceTier, tierApi } from './tierApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export type TierChoice = Pick<PriceTier, '_id' | 'name' | 'price' | 'color'> | null;
 
@@ -57,7 +58,7 @@ export default function PriceTierSelect({ productId, value, onChange, isVariant 
         <Tags className="inline h-3.5 w-3.5 mr-1 text-gray-400" />
         Price tier <span className="text-gray-400 font-normal">(optional)</span>
       </label>
-      <select
+      <SearchSelect
         className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
         value={value?._id || ''}
         disabled={!canEdit || loading}
@@ -73,7 +74,7 @@ export default function PriceTierSelect({ productId, value, onChange, isVariant 
             {!t.isActive ? ' (off)' : ''}
           </option>
         ))}
-      </select>
+      </SearchSelect>
       {value && (
         <p className="mt-1 text-xs text-gray-500 flex items-center gap-1">
           <Lock className="h-3 w-3" />

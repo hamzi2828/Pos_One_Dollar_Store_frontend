@@ -17,6 +17,7 @@ import { vendorApi, type Vendor, type VendorSummary } from './services/vendorApi
 import { BalanceText, Badge, EmptyCard, ErrorCard, StatCard, VendorsNav, cardClass, tdClass, thClass } from './components/ui';
 import VendorFormModal from './components/VendorFormModal';
 import PaymentModal from './components/PaymentModal';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function VendorsPage() {
   const { can } = useAccess();
@@ -169,16 +170,16 @@ export default function VendorsPage() {
             )}
           </div>
           <div className="grid grid-cols-2 sm:flex gap-2">
-            <select value={status} onChange={(e) => setStatus(e.target.value as '' | 'true' | 'false')} className={`${inputClass} sm:w-36`} aria-label="Status">
+            <SearchSelect value={status} onChange={(e) => setStatus(e.target.value as '' | 'true' | 'false')} className={`${inputClass} sm:w-36`} aria-label="Status">
               <option value="true">Active</option>
               <option value="false">Inactive</option>
               <option value="">All vendors</option>
-            </select>
-            <select value={balance} onChange={(e) => setBalance(e.target.value as '' | 'payable' | 'receivable')} className={`${inputClass} sm:w-44`} aria-label="Balance">
+            </SearchSelect>
+            <SearchSelect value={balance} onChange={(e) => setBalance(e.target.value as '' | 'payable' | 'receivable')} className={`${inputClass} sm:w-44`} aria-label="Balance">
               <option value="">Any balance</option>
               <option value="payable">We owe (payable)</option>
               <option value="receivable">They owe us</option>
-            </select>
+            </SearchSelect>
             <label className="col-span-2 inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg bg-white cursor-pointer whitespace-nowrap">
               <input type="checkbox" checked={consignment} onChange={(e) => setConsignment(e.target.checked)} className="accent-honey-500" />
               Consignment only

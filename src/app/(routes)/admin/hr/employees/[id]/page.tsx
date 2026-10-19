@@ -44,6 +44,7 @@ import {
   type Employee,
   type EmployeeStatus,
 } from '../services/employeeApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const fmtTime = (t?: string | null) => {
   if (!t) return '';
@@ -367,13 +368,13 @@ export default function EmployeeProfilePage() {
           action={
             canEdit ? (
               <div className="flex items-center gap-1.5">
-                <select value={docType} onChange={(e) => setDocType(e.target.value as DocumentType)} className="text-xs border border-gray-300 rounded-md px-1.5 py-1" aria-label="Document type">
+                <SearchSelect value={docType} onChange={(e) => setDocType(e.target.value as DocumentType)} className="text-xs border border-gray-300 rounded-md px-1.5 py-1" aria-label="Document type">
                   {(Object.keys(DOCUMENT_LABEL) as DocumentType[]).map((t) => (
                     <option key={t} value={t}>
                       {DOCUMENT_LABEL[t]}
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
                 <label className={`inline-flex items-center gap-1 text-xs font-medium text-honey-700 hover:text-honey-800 cursor-pointer ${busy === 'upload' ? 'opacity-60 pointer-events-none' : ''}`}>
                   {busy === 'upload' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />} Upload
                   <input

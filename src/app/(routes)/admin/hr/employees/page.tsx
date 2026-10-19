@@ -18,6 +18,7 @@ import {
   type EmployeeStatus,
   type EmploymentType,
 } from './services/employeeApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -109,7 +110,7 @@ export default function EmployeesPage() {
               </button>
             )}
           </div>
-          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass} aria-label="Status">
+          <SearchSelect value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={inputClass} aria-label="Status">
             <option value="active,on_leave">Working (active + on leave)</option>
             <option value="">All statuses</option>
             {(Object.keys(STATUS_LABEL) as EmployeeStatus[]).map((s) => (
@@ -117,23 +118,23 @@ export default function EmployeesPage() {
                 {STATUS_LABEL[s]}
               </option>
             ))}
-          </select>
-          <select value={department} onChange={(e) => setDepartment(e.target.value)} className={inputClass} aria-label="Department">
+          </SearchSelect>
+          <SearchSelect value={department} onChange={(e) => setDepartment(e.target.value)} className={inputClass} aria-label="Department">
             <option value="">All departments</option>
             {(meta?.departments || []).map((d) => (
               <option key={d} value={d}>
                 {d}
               </option>
             ))}
-          </select>
-          <select value={employmentType} onChange={(e) => setEmploymentType(e.target.value as typeof employmentType)} className={inputClass} aria-label="Employment type">
+          </SearchSelect>
+          <SearchSelect value={employmentType} onChange={(e) => setEmploymentType(e.target.value as typeof employmentType)} className={inputClass} aria-label="Employment type">
             <option value="">All employment types</option>
             {(Object.keys(EMPLOYMENT_LABEL) as EmploymentType[]).map((t) => (
               <option key={t} value={t}>
                 {EMPLOYMENT_LABEL[t]}
               </option>
             ))}
-          </select>
+          </SearchSelect>
         </div>
 
         {loading && !rows.length ? (

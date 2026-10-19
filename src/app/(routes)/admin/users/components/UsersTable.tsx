@@ -1,5 +1,6 @@
 import { FiTrash2 } from 'react-icons/fi';
 import type { User, UserRole } from '../types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Props = {
   users: User[];
@@ -70,7 +71,7 @@ export default function UsersTable({
                   </td>
 
                   <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
-                    <select
+                    <SearchSelect
                       value={user.role}
                       onChange={(e) => onRoleUpdate(user._id, e.target.value as UserRole)}
                       className="text-xs font-medium rounded border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
@@ -78,7 +79,7 @@ export default function UsersTable({
                       <option value="user">User</option>
                       <option value="admin">Admin</option>
                       <option value="moderator">Moderator</option>
-                    </select>
+                    </SearchSelect>
                   </td>
 
                   <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">

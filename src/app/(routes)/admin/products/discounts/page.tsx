@@ -12,6 +12,7 @@ import { storeApi, apiErrorMessage, formatRs, formatDate, type PageMeta } from '
 import { Modal, Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
 import TablePagination from '@/components/admin/TablePagination';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type RuleStatus = 'running' | 'scheduled' | 'ended' | 'off';
 
@@ -469,10 +470,10 @@ function RuleForm({ rule, onClose, onSaved }: { rule: DiscountRule | null; onClo
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Field label="Discount type" required>
-            <select className={inputClass} value={form.valueType} onChange={(e) => set('valueType', e.target.value as FormState['valueType'])}>
+            <SearchSelect className={inputClass} value={form.valueType} onChange={(e) => set('valueType', e.target.value as FormState['valueType'])}>
               <option value="percentage">Percent (%)</option>
               <option value="fixed">Fixed amount (Rs)</option>
-            </select>
+            </SearchSelect>
           </Field>
           <Field label={form.valueType === 'percentage' ? 'Percent off' : 'Rupees off'} required>
             <input type="number" min={0} className={inputClass} value={form.value} onChange={(e) => set('value', e.target.value)} />

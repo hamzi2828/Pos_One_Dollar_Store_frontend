@@ -15,6 +15,7 @@ import jsPDF from 'jspdf';
 import { Calendar, Download, FileText, Inbox, Loader2, RefreshCw, Search, AlertCircle } from 'lucide-react';
 import { API_URL, storeApi, apiErrorMessage, formatRs, type PageMeta } from '@/lib/storeApi';
 import { getAuthHeader } from '@/helper/helper';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export { formatRs };
 
@@ -124,7 +125,7 @@ export function DateRangePicker({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Calendar className="h-4 w-4 text-gray-400 hidden sm:block" />
-      <select
+      <SearchSelect
         value={state.preset}
         onChange={(e) => state.setPreset(e.target.value as RangePreset)}
         className={selectClass}
@@ -135,7 +136,7 @@ export function DateRangePicker({
             {PRESET_LABELS[p]}
           </option>
         ))}
-      </select>
+      </SearchSelect>
       {state.preset === 'custom' && (
         <>
           <input type="date" value={state.customFrom} max={pktToday()} onChange={(e) => state.setCustomFrom(e.target.value)} className={selectClass} aria-label="From" />

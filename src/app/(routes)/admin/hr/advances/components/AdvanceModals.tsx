@@ -18,6 +18,7 @@ import {
   type StaffOption,
 } from '../../payroll/_shared/payrollApi';
 import { StaffPicker } from '../../payroll/_shared/PayrollBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 function useSubmit() {
   const lock = useRef(false);
@@ -123,13 +124,13 @@ export function GiveAdvanceModal({ onClose, onDone }: { onClose: () => void; onD
             <input type="date" value={date} max={todayPKT()} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Given by" required>
-            <select value={method} onChange={(e) => setMethod(e.target.value as PayMethod)} className={inputClass}>
+            <SearchSelect value={method} onChange={(e) => setMethod(e.target.value as PayMethod)} className={inputClass}>
               {METHODS.map((m) => (
                 <option key={m} value={m}>
                   {METHOD_LABEL[m]}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
         </div>
         <Field label="Reference" hint={method === 'cash' ? 'Optional' : 'Transaction ID from the bank / wallet'}>
@@ -180,10 +181,10 @@ export function AddDeductionModal({ canApprove, onClose, onDone }: { canApprove:
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Type" required>
-            <select value={type} onChange={(e) => setType(e.target.value as 'damage' | 'other')} className={inputClass}>
+            <SearchSelect value={type} onChange={(e) => setType(e.target.value as 'damage' | 'other')} className={inputClass}>
               <option value="damage">Damage</option>
               <option value="other">Other</option>
-            </select>
+            </SearchSelect>
           </Field>
           <Field label="Amount (Rs)" required>
             <input type="number" inputMode="numeric" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} />

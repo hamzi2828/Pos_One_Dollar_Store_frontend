@@ -37,6 +37,7 @@ import {
 import { assignableRoles as pickAssignableRoles, staffService, type StaffUser, type StaffPayload } from './services/staffService';
 import { roleService } from '../roles/service/roleService';
 import type { Role } from '../roles/rolesStore';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const MIN_PASSWORD = 8;
 
@@ -225,15 +226,15 @@ export default function StaffPage() {
                 </button>
               )}
             </div>
-            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={inputClass} aria-label="Role">
+            <SearchSelect value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={inputClass} aria-label="Role">
               <option value="">All roles</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
               ))}
-            </select>
-            <select
+            </SearchSelect>
+            <SearchSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as '' | 'true' | 'false')}
               className={inputClass}
@@ -242,7 +243,7 @@ export default function StaffPage() {
               <option value="">Active and inactive</option>
               <option value="true">Active only</option>
               <option value="false">Inactive only</option>
-            </select>
+            </SearchSelect>
           </div>
         </div>
 
@@ -561,7 +562,7 @@ function StaffFormModal({
 
         {!makeSuper && (
           <Field label="Role" required hint="What this person may do.">
-            <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass}>
+            <SearchSelect value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass}>
               <option value="">Choose a role…</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -571,7 +572,7 @@ function StaffFormModal({
               {user?.staffRole && !roles.some((r) => r.id === user.staffRole?.id) && (
                 <option value={user.staffRole.id}>{user.staffRole.name}</option>
               )}
-            </select>
+            </SearchSelect>
           </Field>
         )}
 

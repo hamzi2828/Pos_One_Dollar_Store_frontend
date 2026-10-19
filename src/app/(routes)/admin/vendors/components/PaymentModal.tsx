@@ -11,6 +11,7 @@ import VendorPicker, { type VendorPickerOption } from '@/components/store/Vendor
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { vendorApi, pkToday, PAYMENT_METHODS, type BankOption, type PaymentMethod, type VendorPayment } from '../services/vendorApi';
 import { BalanceText } from './ui';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function PaymentModal({
   vendorId: initialVendorId = null,
@@ -164,14 +165,14 @@ export default function PaymentModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(method === 'bank' || method === 'cheque') && (
             <Field label="From our bank account">
-              <select value={bankId} onChange={(e) => setBankId(e.target.value)} className={inputClass}>
+              <SearchSelect value={bankId} onChange={(e) => setBankId(e.target.value)} className={inputClass}>
                 <option value="">— Not set —</option>
                 {banks.map((b) => (
                   <option key={b._id} value={b._id}>
                     {b.name} · {b.accountTitle} ({b.accountNumber.slice(-4)})
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </Field>
           )}
           <Field label={refLabel} required={method === 'cheque'}>

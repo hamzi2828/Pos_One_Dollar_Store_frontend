@@ -2,10 +2,10 @@
 
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiChevronDown } from 'react-icons/fi';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { categoryService } from '../../services/categoryService';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const slugify = (str: string) =>
   str
@@ -170,8 +170,8 @@ const CreateCategoryPage = () => {
             <label className="block text-sm font-medium text-gray-700">Parent Category (Optional)</label>
             <p className="text-xs text-gray-500 mb-1">Select a parent to create this as a subcategory</p>
             <div className="relative">
-              <select
-                className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none cursor-pointer"
+              <SearchSelect
+                className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
                 disabled={loadingParents}
@@ -182,8 +182,7 @@ const CreateCategoryPage = () => {
                     {cat.name}
                   </option>
                 ))}
-              </select>
-              <FiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </SearchSelect>
             </div>
           </div>
 

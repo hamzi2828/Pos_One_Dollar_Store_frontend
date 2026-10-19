@@ -1,51 +1,7 @@
 "use client";
-import React, { useMemo } from "react";
+import React from "react";
 import { Search, X, Filter } from "lucide-react";
-import Select, { type StylesConfig, type SingleValue } from "react-select";
-
-type CategoryOption = { value: string; label: string };
-
-// Select2-like styling — tuned to match existing filter controls
-const selectStyles: StylesConfig<CategoryOption, false> = {
-  control: (base, state) => ({
-    ...base,
-    minHeight: 40,
-    borderRadius: 8,
-    borderColor: state.isFocused ? "#111827" : "#d1d5db",
-    boxShadow: state.isFocused ? "0 0 0 1px #111827" : "none",
-    fontSize: 14,
-    backgroundColor: "white",
-    cursor: "pointer",
-    "&:hover": { borderColor: state.isFocused ? "#111827" : "#9ca3af" },
-  }),
-  valueContainer: (base) => ({ ...base, padding: "0 8px" }),
-  input: (base) => ({ ...base, margin: 0, padding: 0 }),
-  indicatorSeparator: () => ({ display: "none" }),
-  dropdownIndicator: (base) => ({ ...base, padding: 6, color: "#6b7280" }),
-  clearIndicator: (base) => ({ ...base, padding: 4, color: "#9ca3af" }),
-  menu: (base) => ({
-    ...base,
-    borderRadius: 10,
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-    overflow: "hidden",
-    zIndex: 40,
-  }),
-  option: (base, state) => ({
-    ...base,
-    fontSize: 13,
-    padding: "8px 12px",
-    backgroundColor: state.isSelected
-      ? "#111827"
-      : state.isFocused
-        ? "#f3f4f6"
-        : "white",
-    color: state.isSelected ? "white" : "#111827",
-    cursor: "pointer",
-  }),
-  placeholder: (base) => ({ ...base, color: "#9ca3af", fontSize: 13 }),
-  singleValue: (base) => ({ ...base, color: "#111827", fontSize: 13 }),
-};
+import { SearchSelect } from "@/components/ui/SearchSelect";
 
 interface ProductFiltersProps {
   searchQuery: string;
@@ -78,25 +34,11 @@ export default function ProductFilters({
     setStatusFilter(value);
   };
 
-  const handleCategoryChange = (option: SingleValue<CategoryOption>) => {
-    setCategoryFilter(option?.value || "all");
-  };
+
 
   const clearSearch = () => {
     setSearchQuery("");
   };
-
-  // Build options for react-select
-  const categoryOptions = useMemo<CategoryOption[]>(
-    () => [
-      { value: "all", label: "All Categories" },
-      ...availableCategories.map((c) => ({ value: c, label: c })),
-    ],
-    [availableCategories]
-  );
-
-  const selectedCategoryOption =
-    categoryOptions.find((o) => o.value === categoryFilter) || categoryOptions[0];
 
   const hasActiveFilters = searchQuery || statusFilter !== "all" || categoryFilter !== "all";
 
@@ -136,8 +78,9 @@ export default function ProductFilters({
           </div>
 
           {/* Status Filter */}
-          <select
+          <SearchSelect
             value={statusFilter}
+            aria-label="Status"
             onChange={(e) => handleStatusChange(e.target.value as "all" | "published" | "draft" | "out_of_stock")}
             className="h-8 sm:h-10 px-2 sm:px-3 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
           >
@@ -145,23 +88,23 @@ export default function ProductFilters({
             <option value="published">Published</option>
             <option value="draft">Draft</option>
             <option value="out_of_stock">Out of Stock</option>
-          </select>
+          </SearchSelect>
 
-          {/* Category Filter — searchable Select2-style dropdown */}
-          <div className="min-w-[180px] sm:min-w-[220px]">
-            <Select<CategoryOption, false>
-              instanceId="product-category-filter"
-              value={selectedCategoryOption}
-              onChange={handleCategoryChange}
-              options={categoryOptions}
-              placeholder="All Categories"
-              isSearchable
-              isClearable={categoryFilter !== "all"}
-              styles={selectStyles}
-              noOptionsMessage={() => "No categories found"}
-              menuPlacement="auto"
-            />
-          </div>
+          {/* Category Filter */}
+          <SearchSelect
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value || "all")}
+            searchable
+            aria-label="Category"
+            className="h-8 sm:h-10 min-w-[180px] sm:min-w-[220px] px-2 sm:px-3 rounded-lg border border-gray-300 bg-white text-xs sm:text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-all duration-200"
+          >
+            <option value="all">All Categories</option>
+            {availableCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </SearchSelect>
 
           {/* Clear Filters */}
           {hasActiveFilters && onClearFilters && (

@@ -9,6 +9,7 @@ import { Bell, CheckCheck, Check, AlertTriangle, Info, AlertOctagon, Loader2, Re
 import { storeApi, apiErrorMessage, formatDate, type PageMeta } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface Notice {
   _id: string;
@@ -137,7 +138,7 @@ export default function NotificationsPage() {
               {o.label}
             </button>
           ))}
-          <select
+          <SearchSelect
             value={level}
             onChange={(e) => {
               setPage(1);
@@ -150,7 +151,7 @@ export default function NotificationsPage() {
             <option value="critical">Critical</option>
             <option value="warning">Warning</option>
             <option value="info">Info</option>
-          </select>
+          </SearchSelect>
         </div>
 
         {loading && rows.length === 0 ? (

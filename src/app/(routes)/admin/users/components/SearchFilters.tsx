@@ -1,5 +1,6 @@
 import { FiSearch, FiFilter } from 'react-icons/fi';
 import type { UserRole } from '../types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Props = {
   searchTerm: string;
@@ -33,7 +34,7 @@ export default function SearchFilters({
         />
       </div>
       <div className="flex items-center space-x-2">
-        <select
+        <SearchSelect
           value={roleFilter}
           onChange={(e) => onRoleFilterChange(e.target.value as 'all' | UserRole)}
           className="px-2 sm:px-3 py-2 text-xs sm:text-sm text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -42,9 +43,9 @@ export default function SearchFilters({
           <option value="admin">Admin</option>
           <option value="moderator">Moderator</option>
           <option value="user">User</option>
-        </select>
+        </SearchSelect>
 
-        <select
+        <SearchSelect
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value as 'all' | 'active' | 'inactive')}
           className="px-2 sm:px-3 py-2 text-xs sm:text-sm text-gray-700 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -52,7 +53,7 @@ export default function SearchFilters({
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
-        </select>
+        </SearchSelect>
 
         <button
           type="button"

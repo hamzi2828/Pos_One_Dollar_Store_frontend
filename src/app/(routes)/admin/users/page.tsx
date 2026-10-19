@@ -12,6 +12,7 @@ import UserActivityModal from './components/UserActivityModal';
 import UserOrdersModal from './components/UserOrdersModal';
 import { getPOSOrders } from '../pos/services/posOrderService';
 import type { POSOrder } from '../pos/types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface UserOrderStats { count: number; total: number; }
 
@@ -449,7 +450,7 @@ const UsersPage = () => {
               </div>
 
               {/* Status Filter */}
-              <select
+              <SearchSelect
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500/30 focus:border-honey-500 transition-all duration-200"
@@ -457,7 +458,7 @@ const UsersPage = () => {
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
-              </select>
+              </SearchSelect>
             </div>
 
             {/* Customers Table */}
@@ -628,7 +629,7 @@ const UsersPage = () => {
                   </span>
                   <span className="hidden sm:inline-flex items-center gap-1.5">
                     <label htmlFor="pageSize" className="text-gray-500">Rows:</label>
-                    <select
+                    <SearchSelect
                       id="pageSize"
                       value={pageSize}
                       onChange={(e) => setPageSize(Number(e.target.value))}
@@ -637,7 +638,7 @@ const UsersPage = () => {
                       {PAGE_SIZE_OPTIONS.map((n) => (
                         <option key={n} value={n}>{n}</option>
                       ))}
-                    </select>
+                    </SearchSelect>
                   </span>
                 </div>
 

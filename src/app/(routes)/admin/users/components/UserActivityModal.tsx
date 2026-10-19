@@ -6,6 +6,7 @@ import {
   RefreshCw, Shield, Activity, Eye, Globe, LayoutGrid, Search as SearchIcon,
 } from 'lucide-react';
 import { auditLogService, type AuditLogEntry, type AuditSummary } from '../service/auditLogService';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface Props {
   userId: string;
@@ -163,7 +164,7 @@ export default function UserActivityModal({ userId, userName, onClose }: Props) 
             {/* Filter */}
             {uniqueActions.length > 1 && (
               <div className="px-4 py-2 border-b border-gray-100">
-                <select
+                <SearchSelect
                   value={actionFilter}
                   onChange={(e) => setActionFilter(e.target.value)}
                   className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-gray-300"
@@ -172,7 +173,7 @@ export default function UserActivityModal({ userId, userName, onClose }: Props) 
                   {uniqueActions.map((a) => (
                     <option key={a} value={a}>{ACTION_CONFIG[a]?.label || a}</option>
                   ))}
-                </select>
+                </SearchSelect>
               </div>
             )}
 

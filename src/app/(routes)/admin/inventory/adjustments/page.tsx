@@ -13,6 +13,7 @@ import { storeApi, apiErrorMessage, formatRs, formatDate, type PageMeta } from '
 import { ADJUSTMENT_REASONS, adjustmentReasonLabel, type StockAdjustment } from '../movements/_shared/stockOpsApi';
 import { ErrorCard, PageHeader, StatusPill, cardClass, thClass } from '../movements/_shared/StockOpsBits';
 import CountSheet, { emptySheet, sheetFromAdjustment, type SheetDraft } from './components/CountSheet';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type View = 'sheet' | 'history';
 
@@ -118,20 +119,20 @@ export default function AdjustmentsPage() {
           <>
             <div className={`${cardClass} p-3 sm:p-4 mb-4`}>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
+                <SearchSelect value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
                   <option value="">Any status</option>
                   <option value="draft">Draft</option>
                   <option value="applied">Applied</option>
                   <option value="cancelled">Cancelled</option>
-                </select>
-                <select value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} aria-label="Reason">
+                </SearchSelect>
+                <SearchSelect value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass} aria-label="Reason">
                   <option value="">Any reason</option>
                   {ADJUSTMENT_REASONS.map((r) => (
                     <option key={r.value} value={r.value}>
                       {r.label}
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
               </div>
             </div>
 

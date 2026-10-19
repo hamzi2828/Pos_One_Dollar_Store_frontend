@@ -8,6 +8,7 @@ import {
   Users, BarChart3, Zap, AlertTriangle, Clock, TrendingUp, Database,
 } from 'lucide-react';
 import { getAuthHeader } from '@/helper/helper';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
@@ -492,7 +493,7 @@ function FeedTab() {
             </button>
           )}
         </div>
-        <select
+        <SearchSelect
           value={methodFilter}
           onChange={(e) => setMethodFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-gray-300"
@@ -502,7 +503,7 @@ function FeedTab() {
           <option value="POST">POST</option>
           <option value="PUT">PUT</option>
           <option value="DELETE">DELETE</option>
-        </select>
+        </SearchSelect>
         <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg p-0.5">
           <button
             onClick={() => setViewMode('all')}

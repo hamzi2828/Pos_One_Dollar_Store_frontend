@@ -8,6 +8,7 @@ import { Truck, Loader2, Check } from 'lucide-react';
 import { apiErrorMessage } from '@/helper/access';
 import { Modal, Field, Toggle, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { vendorApi, pkToday, type Vendor, type VendorDetail, type VendorPayload } from '../services/vendorApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function VendorFormModal({
   vendor,
@@ -200,10 +201,10 @@ export default function VendorFormModal({
                   <input value={f.openingAmount} onChange={(e) => set('openingAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" placeholder="0" />
                 </Field>
                 <Field label="Who owes">
-                  <select value={f.openingSide} onChange={(e) => set('openingSide', e.target.value as 'payable' | 'receivable')} className={inputClass}>
+                  <SearchSelect value={f.openingSide} onChange={(e) => set('openingSide', e.target.value as 'payable' | 'receivable')} className={inputClass}>
                     <option value="payable">We owe the vendor</option>
                     <option value="receivable">Vendor owes us</option>
-                  </select>
+                  </SearchSelect>
                 </Field>
                 <Field label="As of date">
                   <input type="date" value={f.openingDate} max={pkToday()} onChange={(e) => set('openingDate', e.target.value)} className={inputClass} />

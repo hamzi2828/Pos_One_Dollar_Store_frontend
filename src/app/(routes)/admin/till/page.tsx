@@ -18,6 +18,7 @@ import {
   type TillSession,
 } from '@/components/store/TillStatusBar';
 import { SessionDetailModal, StatusBadge, varianceClass, varianceLabel } from './components/tillUi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Tab = 'mine' | 'verify';
 
@@ -324,21 +325,21 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
     <div className="space-y-4">
       {/* Filters */}
       <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3">
-        <select value={status} onChange={(e) => resetPage(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
+        <SearchSelect value={status} onChange={(e) => resetPage(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
           {STATUS_FILTERS.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
             </option>
           ))}
-        </select>
-        <select value={counter} onChange={(e) => resetPage(setCounter)(e.target.value)} className={inputClass} aria-label="Counter">
+        </SearchSelect>
+        <SearchSelect value={counter} onChange={(e) => resetPage(setCounter)(e.target.value)} className={inputClass} aria-label="Counter">
           <option value="">All counters</option>
           {counters.map((c) => (
             <option key={c._id} value={c._id}>
               {c.name}
             </option>
           ))}
-        </select>
+        </SearchSelect>
         <input type="date" value={from} onChange={(e) => resetPage(setFrom)(e.target.value)} className={inputClass} aria-label="From" />
         <input type="date" value={to} onChange={(e) => resetPage(setTo)(e.target.value)} className={inputClass} aria-label="To" />
         <div className="relative col-span-2">

@@ -37,6 +37,7 @@ import {
   type EmployeePayload,
   type EmploymentType,
 } from '../services/employeeApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Form = {
   firstName: string;
@@ -357,21 +358,21 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
                 <input type="date" {...input('dateOfBirth')} />
               </Field>
               <Field label="Gender">
-                <select {...input('gender')}>
+                <SearchSelect {...input('gender')}>
                   <option value="">—</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
-                </select>
+                </SearchSelect>
               </Field>
               <Field label="Marital status">
-                <select {...input('maritalStatus')}>
+                <SearchSelect {...input('maritalStatus')}>
                   <option value="">—</option>
                   <option value="single">Single</option>
                   <option value="married">Married</option>
                   <option value="widowed">Widowed</option>
                   <option value="divorced">Divorced</option>
-                </select>
+                </SearchSelect>
               </Field>
               <Field label="Mobile number">
                 <input {...input('phone')} inputMode="tel" placeholder="03xx xxxxxxx" />
@@ -420,13 +421,13 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
                 <input {...input('department')} placeholder="e.g. Sales, Store, Accounts" />
               </Field>
               <Field label="Employment type">
-                <select {...input('employmentType')}>
+                <SearchSelect {...input('employmentType')}>
                   {(Object.keys(EMPLOYMENT_LABEL) as EmploymentType[]).map((t) => (
                     <option key={t} value={t}>
                       {EMPLOYMENT_LABEL[t]}
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
               </Field>
               <Field label="Joining date">
                 <input type="date" {...input('joiningDate')} />
@@ -441,14 +442,14 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
                 <input type="date" {...input('contractEndDate')} />
               </Field>
               <Field label="Staff login (optional)" hint="Link if this person also signs in to the POS">
-                <select {...input('user')}>
+                <SearchSelect {...input('user')}>
                   <option value="">Not linked</option>
                   {[...linkedNow, ...logins].map((l) => (
                     <option key={l._id} value={l._id}>
                       {l.name} — {l.email}
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
               </Field>
               <Field label="Shift start">
                 <input type="time" {...input('shiftStart')} />
@@ -485,20 +486,20 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
                 <input type="number" min={0} step="1" inputMode="numeric" {...input('basic')} placeholder="e.g. 30000" />
               </Field>
               <Field label="Paid by (day of next month)">
-                <select {...input('salaryPayDay')}>
+                <SearchSelect {...input('salaryPayDay')}>
                   {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
               </Field>
               <Field label="Paid in">
-                <select {...input('salaryPaymentMethod')}>
+                <SearchSelect {...input('salaryPaymentMethod')}>
                   <option value="cash">Cash</option>
                   <option value="bank_transfer">Bank transfer</option>
                   <option value="cheque">Cheque</option>
-                </select>
+                </SearchSelect>
               </Field>
             </div>
             <div className="mt-4">
@@ -615,13 +616,13 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
               </p>
             )}
             <div className="flex flex-col sm:flex-row gap-2">
-              <select value={docType} onChange={(e) => setDocType(e.target.value as DocumentType)} className={`${inputClass} sm:max-w-[12rem]`} aria-label="Document type">
+              <SearchSelect value={docType} onChange={(e) => setDocType(e.target.value as DocumentType)} className={`${inputClass} sm:max-w-[12rem]`} aria-label="Document type">
                 {(Object.keys(DOCUMENT_LABEL) as DocumentType[]).map((t) => (
                   <option key={t} value={t}>
                     {DOCUMENT_LABEL[t]}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
               <label className={`${secondaryBtn} cursor-pointer`}>
                 <UploadCloud className="h-4 w-4" /> Choose files
                 <input

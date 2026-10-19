@@ -29,6 +29,7 @@ import {
   type DateFilter,
 } from '../services/reportsService';
 import { getCurrencySymbol } from '../../pos/utils/currency';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const CURRENCY = 'PKR';
 
@@ -407,7 +408,7 @@ export default function CashInHandPage() {
           <Calendar className="h-4 w-4" />
           Period:
         </div>
-        <select
+        <SearchSelect
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value as DateFilter)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-honey-500"
@@ -416,7 +417,7 @@ export default function CashInHandPage() {
           <option value="week">This Week</option>
           <option value="month">This Month</option>
           <option value="custom">Custom Range</option>
-        </select>
+        </SearchSelect>
         {dateFilter === 'custom' && (
           <>
             <input

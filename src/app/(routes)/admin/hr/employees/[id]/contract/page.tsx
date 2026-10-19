@@ -14,6 +14,7 @@ import { BACKEND_URL, apiErrorMessage, formatDate } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import TemplateEditorModal from '../../components/TemplateEditorModal';
 import { employeeApi, type ContractRender, type ContractTemplate, type Placeholder } from '../../services/employeeApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 // Uploaded logos live on the backend; '/images/...' defaults are frontend files.
 const logoSrc = (url: string) => (!url ? '' : /^https?:\/\//.test(url) ? url : url.startsWith('/uploads') ? `${BACKEND_URL}${url}` : url);
@@ -133,7 +134,7 @@ export default function ContractLetterPage() {
               <p className="text-xs text-gray-500">Print it, or choose “Save as PDF” in the print window.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchSelect
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
                 className="text-sm border border-gray-300 rounded-lg px-2.5 py-2 bg-white max-w-[14rem]"
@@ -147,7 +148,7 @@ export default function ContractLetterPage() {
                   </option>
                 ))}
                 <option value="builtin">Built-in standard</option>
-              </select>
+              </SearchSelect>
               <button type="button" onClick={() => setEditorOpen(true)} className={secondaryBtn}>
                 <FilePen className="h-4 w-4" /> Templates
               </button>

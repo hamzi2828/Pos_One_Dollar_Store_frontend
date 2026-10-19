@@ -14,6 +14,7 @@ import { useAccess } from '@/context/AccessContext';
 import { storeApi, apiErrorMessage, formatRs, formatDate, type PageMeta } from '@/lib/storeApi';
 import { MOVEMENT_TYPES, downloadCsv, unitTitle, type MovementRow, type MovementSummary } from './_shared/stockOpsApi';
 import { ErrorCard, MovementTypeBadge, PageHeader, ProductPicker, StatCard, cardClass, thClass } from './_shared/StockOpsBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Filters = {
   search: string;
@@ -170,20 +171,20 @@ function MovementsInner() {
                 className={`${inputClass} pl-8`}
               />
             </div>
-            <select value={filters.type} onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value }))} className={inputClass} aria-label="Type">
+            <SearchSelect value={filters.type} onChange={(e) => setFilters((f) => ({ ...f, type: e.target.value }))} className={inputClass} aria-label="Type">
               <option value="">All types</option>
               {MOVEMENT_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
                 </option>
               ))}
-            </select>
-            <select value={filters.direction} onChange={(e) => setFilters((f) => ({ ...f, direction: e.target.value }))} className={inputClass} aria-label="Direction">
+            </SearchSelect>
+            <SearchSelect value={filters.direction} onChange={(e) => setFilters((f) => ({ ...f, direction: e.target.value }))} className={inputClass} aria-label="Direction">
               <option value="">In & out</option>
               <option value="in">Stock in</option>
               <option value="out">Stock out</option>
               <option value="move">Moves inside the shop</option>
-            </select>
+            </SearchSelect>
             <input type="text" value={filters.ref} onChange={(e) => setFilters((f) => ({ ...f, ref: e.target.value }))} placeholder="Ref no (PO-, SU-, DMG-…)" className={inputClass} />
             <div className="hidden lg:block" />
             <div className="col-span-2 md:col-span-2 flex items-center gap-1">

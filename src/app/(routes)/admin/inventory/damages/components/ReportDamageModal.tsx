@@ -10,6 +10,7 @@ import { ErrorBox, Field, HelpBox, Modal, Toggle, inputClass, primaryBtn, second
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { DAMAGE_REASONS, newRequestId, unitTitle, type DamageReason, type DamageRecord } from '../../movements/_shared/stockOpsApi';
 import { ProductPicker, type PickedUnit } from '../../movements/_shared/StockOpsBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const MAX_PHOTOS = 5;
 
@@ -128,7 +129,7 @@ export default function ReportDamageModal({
                 {tooMany && <p className="mt-1 text-[11px] text-red-600">Only {unit.available} in stock</p>}
               </Field>
               <Field label="Reason" required>
-                <select
+                <SearchSelect
                   value={reason}
                   onChange={(e) => {
                     const r = e.target.value as DamageReason;
@@ -142,27 +143,27 @@ export default function ReportDamageModal({
                       {r.label}
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
               </Field>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Found on">
-                <select value={location} onChange={(e) => setLocation(e.target.value as 'shelf' | 'warehouse')} className={inputClass}>
+                <SearchSelect value={location} onChange={(e) => setLocation(e.target.value as 'shelf' | 'warehouse')} className={inputClass}>
                   <option value="shelf">Shelf</option>
                   <option value="warehouse">Warehouse</option>
-                </select>
+                </SearchSelect>
               </Field>
               {location === 'shelf' && (
                 <Field label="Shelf" hint={unit.shelves.length ? undefined : 'Not on any shelf yet'}>
-                  <select value={shelfId} onChange={(e) => setShelfId(e.target.value)} className={inputClass} disabled={!unit.shelves.length}>
+                  <SearchSelect value={shelfId} onChange={(e) => setShelfId(e.target.value)} className={inputClass} disabled={!unit.shelves.length}>
                     <option value="">Any shelf</option>
                     {unit.shelves.map((s) => (
                       <option key={s.shelfId || s.code} value={s.shelfId || ''}>
                         {s.code} ({s.qty} pcs)
                       </option>
                     ))}
-                  </select>
+                  </SearchSelect>
                 </Field>
               )}
             </div>

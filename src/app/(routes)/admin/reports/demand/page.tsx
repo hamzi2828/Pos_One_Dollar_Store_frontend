@@ -37,6 +37,7 @@ import {
   pktToday,
   selectClass,
 } from './_shared/reportKit';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Urgency = 'critical' | 'high' | 'medium';
 
@@ -250,35 +251,35 @@ export default function DemandPage() {
       </HelpBox>
 
       <FilterBar>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
+        <SearchSelect value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
           <option value="">All categories</option>
           {opts.categories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-        </select>
-        <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={selectClass} aria-label="Vendor">
+        </SearchSelect>
+        <SearchSelect value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={selectClass} aria-label="Vendor">
           <option value="">All vendors</option>
           {opts.vendors.map((v) => (
             <option key={v._id} value={v._id}>
               {v.name}
             </option>
           ))}
-        </select>
-        <select value={urgency} onChange={(e) => setUrgency(e.target.value as Urgency | '')} className={selectClass} aria-label="Urgency">
+        </SearchSelect>
+        <SearchSelect value={urgency} onChange={(e) => setUrgency(e.target.value as Urgency | '')} className={selectClass} aria-label="Urgency">
           <option value="">Any urgency</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Watch</option>
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className={selectClass} aria-label="Sort">
+        </SearchSelect>
+        <SearchSelect value={sort} onChange={(e) => setSort(e.target.value)} className={selectClass} aria-label="Sort">
           <option value="urgency">Most urgent first</option>
           <option value="pctLeft">Lowest % left</option>
           <option value="daysToCross">Fastest to fall</option>
           <option value="suggestedQty">Biggest order</option>
           <option value="name">Name</option>
-        </select>
+        </SearchSelect>
         <SearchBox value={search} onChange={setSearch} placeholder="Product, code, SKU" />
       </FilterBar>
 

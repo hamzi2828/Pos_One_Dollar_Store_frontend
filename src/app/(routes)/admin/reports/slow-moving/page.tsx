@@ -35,6 +35,7 @@ import {
   pktToday,
   selectClass,
 } from '../demand/_shared/reportKit';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Action = 'reduce' | 'replace' | 'return' | 'swap';
 
@@ -236,29 +237,29 @@ export default function SlowMovingPage() {
             <Save className="h-3.5 w-3.5" /> Save as default
           </button>
         )}
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
+        <SearchSelect value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
           <option value="">All categories</option>
           {opts.categories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-        </select>
-        <select value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={selectClass} aria-label="Vendor">
+        </SearchSelect>
+        <SearchSelect value={vendorId} onChange={(e) => setVendorId(e.target.value)} className={selectClass} aria-label="Vendor">
           <option value="">All vendors</option>
           {opts.vendors.map((v) => (
             <option key={v._id} value={v._id}>
               {v.name}
             </option>
           ))}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className={selectClass} aria-label="Sort">
+        </SearchSelect>
+        <SearchSelect value={sort} onChange={(e) => setSort(e.target.value)} className={selectClass} aria-label="Sort">
           <option value="value">Most money stuck</option>
           <option value="days">Longest in shop</option>
           <option value="soldPct">Lowest sold %</option>
           <option value="stock">Most pieces</option>
           <option value="name">Name</option>
-        </select>
+        </SearchSelect>
         <SearchBox value={search} onChange={setSearch} placeholder="Product, code, SKU" />
       </FilterBar>
 

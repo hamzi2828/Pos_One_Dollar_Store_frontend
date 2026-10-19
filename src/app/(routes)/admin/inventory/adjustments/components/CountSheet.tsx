@@ -10,6 +10,7 @@ import { ErrorBox, Field, HelpBox, inputClass, primaryBtn, secondaryBtn } from '
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ADJUSTMENT_REASONS, newRequestId, unitKey, unitTitle, type AdjustmentReason, type StockAdjustment } from '../../movements/_shared/stockOpsApi';
 import { ProductPicker, cardClass, thClass, type PickedUnit } from '../../movements/_shared/StockOpsBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export interface SheetLine {
   unit: Pick<PickedUnit, 'productId' | 'variantId' | 'name' | 'variantLabel' | 'code' | 'available' | 'costPrice'> & { packQty?: number };
@@ -122,7 +123,7 @@ export default function CountSheet({ sheet, setSheet, onSaved }: { sheet: SheetD
       <div className={`${cardClass} p-3 sm:p-4`}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Field label="Reason" hint={reasonInfo?.hint}>
-            <select
+            <SearchSelect
               value={sheet.reason}
               onChange={(e) => setSheet({ ...sheet, reason: e.target.value as AdjustmentReason, lines: sheet.lines.map((l) => ({ ...l, value: '' })) })}
               disabled={!!saving}
@@ -133,7 +134,7 @@ export default function CountSheet({ sheet, setSheet, onSaved }: { sheet: SheetD
                   {r.label}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
           <div className="md:col-span-2">
             <Field label="Add items" hint={countMode ? 'Scan every piece you count — each scan adds 1 — or type the count.' : 'Scan or type a name.'}>

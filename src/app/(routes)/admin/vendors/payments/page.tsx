@@ -17,6 +17,7 @@ import { vendorApi, pkToday, PAYMENT_METHODS, type PaymentSummary, type VendorPa
 import { ErrorCard, StatCard, VendorsNav, cardClass } from '../components/ui';
 import PaymentModal from '../components/PaymentModal';
 import PaymentsTable from '../components/PaymentsTable';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function VendorPaymentsPage() {
   const { can } = useAccess();
@@ -103,19 +104,19 @@ export default function VendorPaymentsPage() {
           <div className="lg:col-span-2">
             <VendorPicker value={vendorId} onChange={(id) => setVendorId(id)} includeInactive placeholder="All vendors (search to filter)" />
           </div>
-          <select value={method} onChange={(e) => setMethod(e.target.value)} className={inputClass} aria-label="Method">
+          <SearchSelect value={method} onChange={(e) => setMethod(e.target.value)} className={inputClass} aria-label="Method">
             <option value="">All methods</option>
             {PAYMENT_METHODS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>
             ))}
-          </select>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
+          </SearchSelect>
+          <SearchSelect value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
             <option value="">Active + voided</option>
             <option value="active">Active only</option>
             <option value="voided">Voided only</option>
-          </select>
+          </SearchSelect>
           <div className="grid grid-cols-2 gap-2 lg:col-span-2">
             <input type="date" value={from} max={to || pkToday()} onChange={(e) => setFrom(e.target.value)} className={inputClass} aria-label="From" />
             <input type="date" value={to} min={from || undefined} max={pkToday()} onChange={(e) => setTo(e.target.value)} className={inputClass} aria-label="To" />

@@ -18,6 +18,7 @@ import {
   type AssetPayload,
   type DepMethod,
 } from '../services/assetApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type EmployeeOption = { _id: string; name: string; employeeCode?: string; designation?: string };
 
@@ -173,19 +174,19 @@ export default function AssetFormModal({
               <input {...bind('name')} placeholder="e.g. Steel rack 6 ft, POS computer, 1.5 ton AC" autoFocus />
             </Field>
             <Field label="Category" required>
-              <select {...bind('category')}>
+              <SearchSelect {...bind('category')}>
                 {activeCats.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </Field>
             <Field label="Location in the shop">
               <input {...bind('location')} placeholder='e.g. "Counter 1", "Rack A1", "Store room"' />
             </Field>
             <Field label="In the care of" hint={canSeeEmployees ? undefined : 'Needs permission to view employees'}>
-              <select {...bind('assignedTo')} disabled={!canSeeEmployees && !asset?.assignedTo}>
+              <SearchSelect {...bind('assignedTo')} disabled={!canSeeEmployees && !asset?.assignedTo}>
                 <option value="">Nobody / shared</option>
                 {asset?.assignedTo && !employees.some((e) => e._id === asset.assignedTo?._id) && (
                   <option value={asset.assignedTo._id}>
@@ -198,14 +199,14 @@ export default function AssetFormModal({
                     {e.designation ? ` — ${e.designation}` : ''}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </Field>
             {!asset && (
               <Field label="Status">
-                <select {...bind('status')}>
+                <SearchSelect {...bind('status')}>
                   <option value="active">In use</option>
                   <option value="maintenance">In maintenance</option>
-                </select>
+                </SearchSelect>
               </Field>
             )}
           </div>
@@ -227,11 +228,11 @@ export default function AssetFormModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Field label="Depreciation">
-              <select {...bind('depreciationMethod')}>
+              <SearchSelect {...bind('depreciationMethod')}>
                 <option value="">Category default ({cat?.depreciationMethod === 'none' ? 'none' : `straight line, ${cat?.usefulLifeYears ?? '—'} yrs`})</option>
                 <option value="straight_line">Straight line</option>
                 <option value="none">None (keeps its value)</option>
-              </select>
+              </SearchSelect>
             </Field>
             <Field label="Useful life (years)">
               <input type="number" min={0} max={100} step="0.5" {...bind('usefulLifeYears')} placeholder={cat ? String(cat.usefulLifeYears) : ''} disabled={method === 'none'} />

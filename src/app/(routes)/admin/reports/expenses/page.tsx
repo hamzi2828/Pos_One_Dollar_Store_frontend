@@ -35,6 +35,7 @@ import {
   fmtShortRs,
   selectClass,
 } from '../demand/_shared/reportKit';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type GroupBy = 'day' | 'week' | 'month';
 
@@ -188,19 +189,19 @@ export default function ExpenseReportPage() {
             </button>
           ))}
         </div>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
+        <SearchSelect value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
           <option value="">All categories</option>
           {knownCats.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-        </select>
-        <select value={source} onChange={(e) => setSource(e.target.value)} className={selectClass} aria-label="Type">
+        </SearchSelect>
+        <SearchSelect value={source} onChange={(e) => setSource(e.target.value)} className={selectClass} aria-label="Type">
           <option value="">All expenses</option>
           <option value="shop_use">Shop use only</option>
           <option value="other">Without shop use</option>
-        </select>
+        </SearchSelect>
         <SearchBox value={search} onChange={setSearch} placeholder="Title, reference, note" />
       </FilterBar>
 

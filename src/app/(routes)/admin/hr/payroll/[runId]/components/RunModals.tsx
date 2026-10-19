@@ -7,6 +7,7 @@ import { CheckCircle2, Loader2, Lock, RotateCcw, Wallet } from 'lucide-react';
 import { ErrorBox, Field, HelpBox, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { METHODS, METHOD_LABEL, newRequestId, payrollApi, todayPKT, type PayMethod, type PayrollLine, type PayrollRun } from '../../_shared/payrollApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 /** Shared submit lock + error for the dialogs. */
 function useSubmit() {
@@ -137,13 +138,13 @@ export function PayModal({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Paid by" required>
-            <select value={method} onChange={(e) => setMethod(e.target.value as PayMethod)} className={inputClass}>
+            <SearchSelect value={method} onChange={(e) => setMethod(e.target.value as PayMethod)} className={inputClass}>
               {METHODS.map((m) => (
                 <option key={m} value={m}>
                   {METHOD_LABEL[m]}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
           <Field label="Payment date" required>
             <input type="date" value={date} max={todayPKT()} onChange={(e) => setDate(e.target.value)} className={inputClass} />

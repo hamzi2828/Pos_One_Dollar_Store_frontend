@@ -37,6 +37,7 @@ import { getCurrencySymbol } from '../pos/utils/currency';
 import { orderItemName } from '../pos/utils/receipt';
 import TablePagination from '@/components/admin/TablePagination';
 import { useServerPagination } from '@/helper/useServerPagination';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type StatusFilter = 'all' | 'completed' | 'pending' | 'refunded' | 'cancelled';
 type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer';
@@ -264,7 +265,7 @@ export default function POSOrdersPage() {
             />
           </div>
 
-          <select
+          <SearchSelect
             value={status}
             onChange={(e) => setStatus(e.target.value as StatusFilter)}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
@@ -274,9 +275,9 @@ export default function POSOrdersPage() {
             <option value="pending">Pending</option>
             <option value="refunded">Refunded</option>
             <option value="cancelled">Cancelled</option>
-          </select>
+          </SearchSelect>
 
-          <select
+          <SearchSelect
             value={payment}
             onChange={(e) => setPayment(e.target.value as PaymentFilter)}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
@@ -285,7 +286,7 @@ export default function POSOrdersPage() {
             <option value="cash">Cash</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
-          </select>
+          </SearchSelect>
 
           {(search || status !== 'all' || payment !== 'all' || startDate || endDate) && (
             <button

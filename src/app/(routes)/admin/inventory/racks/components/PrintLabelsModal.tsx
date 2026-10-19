@@ -9,6 +9,7 @@ import { Modal, Field, ErrorBox, HelpBox, inputClass, primaryBtn, secondaryBtn }
 import { apiErrorMessage } from '@/lib/storeApi';
 import { racksApi, LABEL_SIZES, type LabelSize, type LabelType, type RackView, type ZoneSummary } from '../services/racksApi';
 import { printLabelHtml } from './shared';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Scope = 'rack' | 'zone' | 'all';
 
@@ -113,7 +114,7 @@ export default function PrintLabelsModal({
         </Field>
         {scope === 'rack' && (
           <Field label="Rack">
-            <select value={rackId} onChange={(e) => setRackId(e.target.value)} className={inputClass}>
+            <SearchSelect value={rackId} onChange={(e) => setRackId(e.target.value)} className={inputClass}>
               {racks.map((r) => (
                 <option key={r._id} value={r._id}>
                   {r.code}
@@ -121,18 +122,18 @@ export default function PrintLabelsModal({
                   {r.isActive ? '' : ' (inactive)'}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
         )}
         {scope === 'zone' && (
           <Field label="Zone">
-            <select value={zoneKey} onChange={(e) => setZoneKey(e.target.value)} className={inputClass}>
+            <SearchSelect value={zoneKey} onChange={(e) => setZoneKey(e.target.value)} className={inputClass}>
               {zones.map((z) => (
                 <option key={z.zone} value={z.zone}>
                   Zone {z.zone} ({z.racks} racks)
                 </option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
         )}
         <Field label="Labels">
@@ -151,13 +152,13 @@ export default function PrintLabelsModal({
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
             <Field label="Label size">
-              <select value={size} onChange={(e) => setSize(e.target.value as LabelSize)} className={inputClass}>
+              <SearchSelect value={size} onChange={(e) => setSize(e.target.value as LabelSize)} className={inputClass}>
                 {LABEL_SIZES.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </Field>
           </div>
           <Field label="Copies each">

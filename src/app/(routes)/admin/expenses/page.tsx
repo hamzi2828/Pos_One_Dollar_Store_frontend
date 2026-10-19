@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, Loader2, AlertCircle, Receipt } from 'lucide-react';
 import { useDebounced } from '@/helper/useDebounced';
 import { EMPTY_PAGINATION, type Pagination } from '@/helper/pagination';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 // Custom PKR icon component
 const PkrIcon = ({ className }: { className?: string }) => (
@@ -334,7 +335,7 @@ const ExpensesPage = () => {
           <p className="mt-1 text-sm text-gray-500">Track and manage your business expenses</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <SearchSelect
             value={dateRange}
             onChange={(e) => {
               setDateRange(e.target.value as 'all' | 'daily' | 'weekly' | 'monthly' | 'custom');
@@ -351,7 +352,7 @@ const ExpensesPage = () => {
             <option value="daily">Today</option>
             <option value="custom">Custom</option>
             <option value="all">All Time</option>
-          </select>
+          </SearchSelect>
           {dateRange === 'custom' && (
             <>
               <input
@@ -394,7 +395,7 @@ const ExpensesPage = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
           />
         </div>
-        <select
+        <SearchSelect
           value={categoryFilter}
           onChange={(e) => {
             setCurrentPage(1);
@@ -406,8 +407,8 @@ const ExpensesPage = () => {
           {categories.map((cat) => (
             <option key={cat._id} value={cat.name}>{cat.name}</option>
           ))}
-        </select>
-        <select
+        </SearchSelect>
+        <SearchSelect
           value={statusFilter}
           onChange={(e) => {
             setCurrentPage(1);
@@ -418,7 +419,7 @@ const ExpensesPage = () => {
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
-        </select>
+        </SearchSelect>
       </div>
 
 

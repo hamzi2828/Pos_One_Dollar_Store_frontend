@@ -19,6 +19,7 @@ import { vendorApi, pkToday, type VendorReturn } from '../services/vendorApi';
 import { ErrorCard, StatCard, VendorsNav, cardClass } from '../components/ui';
 import ReturnsList from '../components/ReturnsList';
 import ReturnFormModal from '../components/ReturnFormModal';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Summary = Record<'completed' | 'draft' | 'cancelled', { count: number; total: number; qty: number }>;
 type Prefill = { vendorId?: string | null; productId?: string | null; variantId?: string | null; qty?: number | null };
@@ -126,12 +127,12 @@ function ReturnsPageInner() {
           <div className="lg:col-span-2">
             <VendorPicker value={vendorId} onChange={(id) => setVendorId(id)} includeInactive placeholder="All vendors (search to filter)" />
           </div>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
+          <SearchSelect value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
             <option value="">All statuses</option>
             <option value="draft">Drafts</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
-          </select>
+          </SearchSelect>
           <div className="grid grid-cols-2 gap-2 lg:col-span-2">
             <input type="date" value={from} max={to || pkToday()} onChange={(e) => setFrom(e.target.value)} className={inputClass} aria-label="From" />
             <input type="date" value={to} min={from || undefined} max={pkToday()} onChange={(e) => setTo(e.target.value)} className={inputClass} aria-label="To" />

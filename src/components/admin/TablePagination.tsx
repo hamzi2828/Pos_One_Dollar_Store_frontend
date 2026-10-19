@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface TablePaginationProps {
   page: number;
@@ -61,7 +62,7 @@ export default function TablePagination({
         </span>
         {loading && <Loader2 className="w-3.5 h-3.5 text-honey-700 animate-spin" aria-label="Loading" />}
         {onLimitChange && (
-          <select
+          <SearchSelect
             value={limit}
             onChange={(e) => onLimitChange(Number(e.target.value))}
             disabled={loading}
@@ -72,7 +73,7 @@ export default function TablePagination({
                 {n} / page
               </option>
             ))}
-          </select>
+          </SearchSelect>
         )}
       </div>
 

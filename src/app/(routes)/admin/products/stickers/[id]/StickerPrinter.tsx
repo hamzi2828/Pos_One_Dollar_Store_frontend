@@ -36,6 +36,7 @@ import {
   type StickerType,
 } from '../../services/labelService';
 import ReceiveStockModal from '../../components/stock/ReceiveStockModal';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 // ---------- pure helpers ----------
 
@@ -645,7 +646,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
           {/* Size + price */}
           <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 space-y-3">
             <h2 className="text-sm font-semibold text-gray-900">3. Sticker size</h2>
-            <select
+            <SearchSelect
               value={size}
               onChange={(e) => setSize(e.target.value as StickerSize)}
               className="h-10 w-full px-3 rounded-lg border border-gray-300 bg-white text-sm focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
@@ -655,7 +656,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
                   {s.label}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
             <p className="text-xs text-gray-500">Pick the size of the sticker roll in your printer.</p>
             <label className="flex items-center justify-between gap-3 cursor-pointer">
               <span>

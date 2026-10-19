@@ -35,6 +35,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export interface Category {
   id: string;
@@ -522,7 +523,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
           </div>
 
           <div className="flex items-center gap-2">
-            <select
+            <SearchSelect
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as "all" | "active" | "inactive")}
               className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:ring-1 focus:ring-honey-500 focus:border-honey-500 transition-all duration-200"
@@ -530,7 +531,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               <option value="all">All</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
-            </select>
+            </SearchSelect>
 
             {viewMode === "tree" && !isViewingSubcategories && (
               <div className="flex items-center gap-1">

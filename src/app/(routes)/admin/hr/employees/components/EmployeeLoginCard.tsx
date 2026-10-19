@@ -15,6 +15,7 @@ import { employeeApi, type Employee, type EmployeeLogin } from '../services/empl
 import { roleService } from '../../../roles/service/roleService';
 import type { Role } from '../../../roles/rolesStore';
 import { assignableRoles } from '../../../staff/services/staffService';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const MIN_PASSWORD = 8;
 // No look-alike characters (0/O, 1/l/I) so the password is easy to read out.
@@ -294,14 +295,14 @@ function CreateLoginModal({
             </div>
           </Field>
           <Field label="Role" required hint="What this person may do.">
-            <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass} disabled={rolesLoading && !roles.length}>
+            <SearchSelect value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass} disabled={rolesLoading && !roles.length}>
               <option value="">{rolesLoading && !roles.length ? 'Loading roles…' : 'Choose a role…'}</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
           {!rolesLoading && roles.length === 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

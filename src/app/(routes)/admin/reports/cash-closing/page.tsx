@@ -14,6 +14,7 @@ import { LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from 
 import ReportsNav from '../components/ReportsNav';
 import { formatTime, type TillSession } from '@/components/store/TillStatusBar';
 import { SessionDetailModal, StatusBadge, varianceClass, varianceLabel } from '../../till/components/tillUi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface Summary {
   sessions?: number;
@@ -184,20 +185,20 @@ export default function CashClosingReportPage() {
         <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3">
           <input type="date" value={from} onChange={(e) => setFilter(setFrom)(e.target.value)} className={inputClass} aria-label="From" />
           <input type="date" value={to} onChange={(e) => setFilter(setTo)(e.target.value)} className={inputClass} aria-label="To" />
-          <select value={counter} onChange={(e) => setFilter(setCounter)(e.target.value)} className={inputClass} aria-label="Counter">
+          <SearchSelect value={counter} onChange={(e) => setFilter(setCounter)(e.target.value)} className={inputClass} aria-label="Counter">
             <option value="">All counters</option>
             {counters.map((c) => (
               <option key={c._id} value={c._id}>
                 {c.name}
               </option>
             ))}
-          </select>
-          <select value={status} onChange={(e) => setFilter(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
+          </SearchSelect>
+          <SearchSelect value={status} onChange={(e) => setFilter(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
             <option value="">All closed</option>
             <option value="closed">To verify</option>
             <option value="verified">Verified</option>
             <option value="disputed">Disputed</option>
-          </select>
+          </SearchSelect>
           <div className="relative col-span-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input

@@ -9,6 +9,7 @@ import { inputClass, primaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { Card, Disclosure } from '../../_shared/ui';
 import type { AllocationMethod, ChargeType, Costing, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 // ---------------------------------------------------------------- trip costs
 
@@ -91,13 +92,13 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
       {editable && (
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            <select value={type} onChange={(e) => setType(e.target.value as ChargeType)} className={inputClass} aria-label="What for">
+            <SearchSelect value={type} onChange={(e) => setType(e.target.value as ChargeType)} className={inputClass} aria-label="What for">
               {(meta?.chargeTypes || []).map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
                 </option>
               ))}
-            </select>
+            </SearchSelect>
             <input
               type="number"
               min={0}
@@ -163,13 +164,13 @@ export function CostingCard({
       }
       actions={
         editable ? (
-          <select value={po.allocationMethod} onChange={(e) => onMethod(e.target.value as AllocationMethod)} className={`${inputClass} !py-1 !w-auto`} aria-label="Share trip costs">
+          <SearchSelect value={po.allocationMethod} onChange={(e) => onMethod(e.target.value as AllocationMethod)} className={`${inputClass} !py-1 !w-auto`} aria-label="Share trip costs">
             {(meta?.allocationMethods || []).map((m) => (
               <option key={m.value} value={m.value}>
                 Share costs {m.label.toLowerCase()}
               </option>
             ))}
-          </select>
+          </SearchSelect>
         ) : (
           <span className="text-xs text-gray-500">Costs shared by {po.allocationMethod}</span>
         )
@@ -310,11 +311,11 @@ export function SuggestedItems({
         po.bills.length > 1 && (
           <label className="block text-xs text-gray-600 mb-3">
             Add to bill of{' '}
-            <select value={target?._id} onChange={(e) => setBillId(e.target.value)} className={`${inputClass} !inline-block !w-auto !py-1 ml-1`}>
+            <SearchSelect value={target?._id} onChange={(e) => setBillId(e.target.value)} className={`${inputClass} !inline-block !w-auto !py-1 ml-1`}>
               {po.bills.map((b) => (
                 <option key={b._id} value={b._id}>{b.vendorName}{b.billNo ? ` (${b.billNo})` : ''}</option>
               ))}
-            </select>
+            </SearchSelect>
           </label>
         )
       )}

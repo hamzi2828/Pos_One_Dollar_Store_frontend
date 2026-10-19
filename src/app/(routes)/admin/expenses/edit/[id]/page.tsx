@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { expenseService } from '../../service/expenseService';
 import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod } from '../../types';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -217,7 +218,7 @@ export default function EditExpensePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Category <span className="text-red-500">*</span>
               </label>
-              <select
+              <SearchSelect
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
@@ -228,7 +229,7 @@ export default function EditExpensePage() {
                     {cat}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -246,7 +247,7 @@ export default function EditExpensePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
-              <select
+              <SearchSelect
                 value={isActive ? 'active' : 'inactive'}
                 onChange={(e) => setIsActive(e.target.value === 'active')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
@@ -254,7 +255,7 @@ export default function EditExpensePage() {
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
-              </select>
+              </SearchSelect>
             </div>
           </div>
         </div>
@@ -271,7 +272,7 @@ export default function EditExpensePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Payment Method
               </label>
-              <select
+              <SearchSelect
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
@@ -282,7 +283,7 @@ export default function EditExpensePage() {
                     {method}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

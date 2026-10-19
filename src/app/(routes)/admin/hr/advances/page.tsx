@@ -13,6 +13,7 @@ import { apiErrorMessage, formatDate, formatRs, type PageMeta } from '@/lib/stor
 import { METHOD_LABEL, payrollApi, type DeductionSummary, type PayrollDeduction, type SalaryAdvance } from '../payroll/_shared/payrollApi';
 import { ErrorCard, PageHeader, StatTile, StatusChip, cardClass, tdClass, thClass } from '../payroll/_shared/PayrollBits';
 import { AddDeductionModal, ApproveDeductionModal, CancelAdvanceModal, GiveAdvanceModal, WaiveDeductionModal } from './components/AdvanceModals';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Tab = 'advances' | 'deductions';
 const ADV_STATUS = [
@@ -37,13 +38,13 @@ const DED_TYPE = [
 
 function Filter<T extends string>({ value, options, onChange, label }: { value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; label: string }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value as T)} className="text-sm border border-gray-300 rounded-lg px-2.5 py-2 bg-white" aria-label={label}>
+    <SearchSelect value={value} onChange={(e) => onChange(e.target.value as T)} className="text-sm border border-gray-300 rounded-lg px-2.5 py-2 bg-white" aria-label={label}>
       {options.map(([k, l]) => (
         <option key={k} value={k}>
           {l}
         </option>
       ))}
-    </select>
+    </SearchSelect>
   );
 }
 

@@ -14,6 +14,7 @@ import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/
 import { SectionCard } from './EmployeeBits';
 import { DAYS, type Day } from '../services/employeeApi';
 import { fmtDuration, fmtTime, type Shift } from '../../roster/services/rosterApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface PolicyOption {
   _id: string;
@@ -101,7 +102,7 @@ function SettingsModal({ data, onClose, onSaved }: { data: TimeSettings; onClose
       <fieldset disabled={saving} className="space-y-4">
         <ErrorBox message={error} />
         <Field label="Default shift" hint="Planned on normal days. Change single days on the roster.">
-          <select value={form.defaultShift || ''} onChange={(e) => set('defaultShift', e.target.value || null)} className={inputClass}>
+          <SearchSelect value={form.defaultShift || ''} onChange={(e) => set('defaultShift', e.target.value || null)} className={inputClass}>
             <option value="">No default shift</option>
             {data.options.shifts.map((s) => (
               <option key={s._id} value={s._id} disabled={!s.isActive && s._id !== data.defaultShift?._id}>
@@ -109,7 +110,7 @@ function SettingsModal({ data, onClose, onSaved }: { data: TimeSettings; onClose
                 {s.isActive ? '' : ' (switched off)'}
               </option>
             ))}
-          </select>
+          </SearchSelect>
           {shift && <p className="mt-1 text-[11px] text-gray-500">{fmtDuration(shift.workMinutes)} paid{shift.overnight ? ' · ends next day' : ''}</p>}
           {data.options.shifts.length === 0 && <p className="mt-1 text-[11px] text-amber-700">No shifts yet — create them under HR → Shifts &amp; Roster.</p>}
         </Field>
@@ -156,7 +157,7 @@ function SettingsModal({ data, onClose, onSaved }: { data: TimeSettings; onClose
         )}
 
         <Field label="HR policy" hint="Attendance & pay rules (grace time, late and absent cuts, overtime, leave).">
-          <select value={form.hrPolicy || ''} onChange={(e) => set('hrPolicy', e.target.value || null)} className={inputClass}>
+          <SearchSelect value={form.hrPolicy || ''} onChange={(e) => set('hrPolicy', e.target.value || null)} className={inputClass}>
             <option value="">Default{defaultPolicy ? ` — ${defaultPolicy.name}` : ''}</option>
             {data.options.policies.map((p) => (
               <option key={p._id} value={p._id}>
@@ -164,7 +165,7 @@ function SettingsModal({ data, onClose, onSaved }: { data: TimeSettings; onClose
                 {p.isDefault ? ' (the default)' : ''}
               </option>
             ))}
-          </select>
+          </SearchSelect>
           {chosenPolicy && <p className="mt-1 text-[11px] text-gray-600 bg-gray-50 rounded-md px-2 py-1">{chosenPolicy.summary}</p>}
         </Field>
       </fieldset>

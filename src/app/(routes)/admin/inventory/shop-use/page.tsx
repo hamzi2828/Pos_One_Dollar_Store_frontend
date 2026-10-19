@@ -13,6 +13,7 @@ import { storeApi, apiErrorMessage, formatRs, formatDate, type PageMeta } from '
 import { type ShopUseRecord } from '../movements/_shared/stockOpsApi';
 import { ErrorCard, PageHeader, StatCard, StatusPill, cardClass, thClass } from '../movements/_shared/StockOpsBits';
 import TakeForShopUseModal from './components/TakeForShopUseModal';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function ShopUsePage() {
   const { can } = useAccess();
@@ -92,11 +93,11 @@ export default function ShopUsePage() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="SU number, item, purpose, name…" className={`${inputClass} pl-8`} />
             </div>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
+            <SearchSelect value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass} aria-label="Status">
               <option value="">Active & voided</option>
               <option value="active">Active</option>
               <option value="voided">Voided</option>
-            </select>
+            </SearchSelect>
             <div className="col-span-2 md:col-span-1 flex items-center gap-1">
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={`${inputClass} px-2`} aria-label="From date" />
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={`${inputClass} px-2`} aria-label="To date" />

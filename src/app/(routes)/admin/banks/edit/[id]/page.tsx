@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Building2, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { bankService } from '../../service/bankService';
 import type { UpdateBankData, RawBank } from '../../types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function EditBankPage() {
   const router = useRouter();
@@ -213,7 +214,7 @@ export default function EditBankPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
-              <select
+              <SearchSelect
                 value={isActive ? 'active' : 'inactive'}
                 onChange={(e) => setIsActive(e.target.value === 'active')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
@@ -221,7 +222,7 @@ export default function EditBankPage() {
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
-              </select>
+              </SearchSelect>
             </div>
           </div>
         </div>

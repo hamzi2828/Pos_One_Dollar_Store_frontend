@@ -12,6 +12,7 @@ import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { VendorSearch } from '../../_shared/Pickers';
 import { Chips, Disclosure, NumberStepper, PhotoPicker, PhotoStrip, dateInput, todayInput } from '../../_shared/ui';
 import type { POBill, PurchaseOrder, VendorOption } from '../../_shared/types';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 /** Methods that are paid from one of our bank accounts. */
 export const needsBank = (m: string) => m === 'bank' || m === 'cheque';
@@ -175,14 +176,14 @@ export default function BillModal({
               </Field>
               {needsBank(method) && (
                 <Field label="From our bank account">
-                  <select value={bankId} onChange={(e) => setBankId(e.target.value)} className={inputClass}>
+                  <SearchSelect value={bankId} onChange={(e) => setBankId(e.target.value)} className={inputClass}>
                     <option value="">— Not set —</option>
                     {banks.map((b) => (
                       <option key={b._id} value={b._id}>
                         {b.name} · {b.accountTitle} ({String(b.accountNumber || '').slice(-4)})
                       </option>
                     ))}
-                  </select>
+                  </SearchSelect>
                 </Field>
               )}
             </>

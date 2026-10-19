@@ -13,6 +13,7 @@ import VendorPicker from '@/components/store/VendorPicker';
 import { Modal, Field, ErrorBox, HelpBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { vendorApi, RETURN_REASONS, type LookupProduct, type LookupUnit, type ReturnReason, type VendorReturn } from '../services/vendorApi';
 import ProductSearch from './ProductSearch';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface Line {
   key: string;
@@ -300,13 +301,13 @@ export default function ReturnFormModal({
                     </label>
                     <label className="text-[11px] text-gray-500">
                       Reason
-                      <select value={l.reason} onChange={(e) => update(l.key, { reason: e.target.value as ReturnReason })} className={inputClass}>
+                      <SearchSelect value={l.reason} onChange={(e) => update(l.key, { reason: e.target.value as ReturnReason })} className={inputClass}>
                         {RETURN_REASONS.map((r) => (
                           <option key={r.value} value={r.value}>
                             {r.label}
                           </option>
                         ))}
-                      </select>
+                      </SearchSelect>
                     </label>
                     <div className="text-[11px] text-gray-500">
                       Line total
@@ -316,14 +317,14 @@ export default function ReturnFormModal({
                   {l.shelves.length > 0 && (
                     <label className="mt-2 block text-[11px] text-gray-500">
                       Take from
-                      <select value={l.fromShelfId} onChange={(e) => update(l.key, { fromShelfId: e.target.value })} className={`${inputClass} sm:w-72`}>
+                      <SearchSelect value={l.fromShelfId} onChange={(e) => update(l.key, { fromShelfId: e.target.value })} className={`${inputClass} sm:w-72`}>
                         <option value="">Warehouse first (default)</option>
                         {l.shelves.map((s) => (
                           <option key={s.shelfId} value={s.shelfId}>
                             Shelf {s.code} ({s.qty} pcs)
                           </option>
                         ))}
-                      </select>
+                      </SearchSelect>
                     </label>
                   )}
                 </div>

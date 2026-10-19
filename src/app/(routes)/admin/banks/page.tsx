@@ -8,6 +8,7 @@ import { bankService } from './service/bankService';
 import type { Bank, RawBank } from './types';
 import { useDebounced } from '@/helper/useDebounced';
 import { EMPTY_PAGINATION, type Pagination } from '@/helper/pagination';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const banksPerPage = 10;
 
@@ -190,7 +191,7 @@ const BanksPage = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
           />
         </div>
-        <select
+        <SearchSelect
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
@@ -198,7 +199,7 @@ const BanksPage = () => {
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
-        </select>
+        </SearchSelect>
       </div>
 
       {/* Table */}

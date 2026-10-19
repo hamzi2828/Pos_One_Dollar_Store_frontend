@@ -13,6 +13,7 @@ import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { payrollApi, recentMonths, type PayrollRunSummary, type RunListMeta } from './_shared/payrollApi';
 import { ErrorCard, PageHeader, StatusChip, cardClass, tdClass, thClass } from './_shared/PayrollBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function PayrollMonthsPage() {
   const router = useRouter();
@@ -112,7 +113,7 @@ export default function PayrollMonthsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <select
+              <SearchSelect
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
                 className="text-sm border border-gray-300 rounded-lg px-2.5 py-2 bg-white"
@@ -124,7 +125,7 @@ export default function PayrollMonthsPage() {
                     {m.key === meta?.currentMonth ? ' (this month)' : ''}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
               <button type="button" onClick={run} disabled={running || !month} aria-busy={running} className={primaryBtn}>
                 {running ? <Loader2 className="h-4 w-4 animate-spin" /> : existing ? <ChevronRight className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 {existing ? 'Open' : 'Run payroll'}

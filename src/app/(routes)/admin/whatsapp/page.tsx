@@ -9,6 +9,7 @@ import { MessageCircle, Send, Loader2, RefreshCw, RotateCcw, Save, AlertCircle, 
 import { storeApi, apiErrorMessage, formatDate, type PageMeta } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Provider = 'ultramsg' | 'greenapi' | 'webhook';
 
@@ -195,13 +196,13 @@ function SettingsCard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         <Field label="Provider" hint={provider.help}>
-          <select value={form.provider} onChange={(e) => set('provider', e.target.value as Provider)} className={inputClass} disabled={disabled}>
+          <SearchSelect value={form.provider} onChange={(e) => set('provider', e.target.value as Provider)} className={inputClass} disabled={disabled}>
             {PROVIDERS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
               </option>
             ))}
-          </select>
+          </SearchSelect>
         </Field>
         <Field label={form.provider === 'webhook' ? 'Webhook URL' : 'API URL (optional)'} required={form.provider === 'webhook'}>
           <input
@@ -368,7 +369,7 @@ function OutboxCard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select
+          <SearchSelect
             value={status}
             onChange={(e) => {
               setPage(1);
@@ -381,7 +382,7 @@ function OutboxCard() {
             <option value="sent">Sent</option>
             <option value="failed">Failed</option>
             <option value="queued">Queued</option>
-          </select>
+          </SearchSelect>
           <input
             value={search}
             onChange={(e) => {

@@ -9,6 +9,7 @@ import CartItem from './CartItem';
 import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Percent, X, Loader2, Sparkles, Gift, AlertCircle, Lock } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 import type { QuoteError } from '../hooks/useCartQuote';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface CartPanelProps {
   cart: POSCart;
@@ -287,10 +288,10 @@ export default function CartPanel({
                 ) : (
                   <div className="space-y-2 bg-gray-50 p-2 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <select value={discountType} onChange={(e) => setDiscountType(e.target.value as 'fixed' | 'percentage')} className="text-sm border rounded px-2 py-1">
+                      <SearchSelect value={discountType} onChange={(e) => setDiscountType(e.target.value as 'fixed' | 'percentage')} className="text-sm border rounded px-2 py-1">
                         <option value="fixed">Fixed ({symbol})</option>
                         <option value="percentage">Percent (%)</option>
-                      </select>
+                      </SearchSelect>
                       <input
                         type="number"
                         min="0"

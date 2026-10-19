@@ -8,6 +8,7 @@ import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { STATUS_LABEL, STATUS_STYLE, assetApi, fileUrl, type Asset } from '../services/assetApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 type Panel = null | 'maintenance' | 'dispose';
 
@@ -260,11 +261,11 @@ export default function AssetDetailModal({
               </Field>
               <div className="col-span-2">
                 <Field label="Status after">
-                  <select value={m.status} onChange={(e) => setM({ ...m, status: e.target.value as typeof m.status })} className={inputClass}>
+                  <SearchSelect value={m.status} onChange={(e) => setM({ ...m, status: e.target.value as typeof m.status })} className={inputClass}>
                     <option value="">No change ({STATUS_LABEL[a.status]})</option>
                     <option value="active">In use</option>
                     <option value="maintenance">In maintenance</option>
-                  </select>
+                  </SearchSelect>
                 </Field>
               </div>
             </div>

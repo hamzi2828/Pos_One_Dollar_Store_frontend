@@ -8,6 +8,7 @@ import TablePagination from '@/components/admin/TablePagination';
 import { inputClass, primaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { racksApi, daysText, unitKey, type WarehouseItem, type WarehouseMeta } from '../../racks/services/racksApi';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const SORTS = [
   { key: 'oldest', label: 'Waiting longest' },
@@ -83,7 +84,7 @@ export default function WarehouseList({
             </button>
           )}
         </div>
-        <select
+        <SearchSelect
           value={sort}
           onChange={(e) => {
             setSort(e.target.value);
@@ -97,7 +98,7 @@ export default function WarehouseList({
               {s.label}
             </option>
           ))}
-        </select>
+        </SearchSelect>
       </div>
 
       {loading && !items.length ? (

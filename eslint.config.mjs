@@ -18,6 +18,11 @@ const eslintConfig = [
       "react-hooks/exhaustive-deps": "warn",
       "react/no-unescaped-entities": "warn",
       "prefer-const": "warn",
+      // Every dropdown is the searchable Select2-style one.
+      "react/forbid-elements": [
+        "error",
+        { forbid: [{ element: "select", message: "use <SearchSelect> from '@/components/ui/SearchSelect' (same props and <option> children)" }] },
+      ],
     },
   },
 ];

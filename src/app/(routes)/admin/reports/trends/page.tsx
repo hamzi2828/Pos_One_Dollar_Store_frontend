@@ -38,6 +38,7 @@ import {
   pktToday,
   selectClass,
 } from '../demand/_shared/reportKit';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface Money {
   qty: number;
@@ -209,24 +210,24 @@ export default function TrendsPage() {
       <ReportsNav />
 
       <FilterBar>
-        <select value={months} onChange={(e) => setMonths(e.target.value)} className={selectClass} aria-label="Months">
+        <SearchSelect value={months} onChange={(e) => setMonths(e.target.value)} className={selectClass} aria-label="Months">
           <option value="12">Last 12 months</option>
           <option value="24">Last 24 months</option>
           <option value="36">Last 36 months</option>
-        </select>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
+        </SearchSelect>
+        <SearchSelect value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
           <option value="">All categories</option>
           {opts.categories.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-        </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as Metric)} className={selectClass} aria-label="Measure">
+        </SearchSelect>
+        <SearchSelect value={sort} onChange={(e) => setSort(e.target.value as Metric)} className={selectClass} aria-label="Measure">
           <option value="revenue">By net sales</option>
           <option value="qty">By pieces</option>
           <option value="profit">By profit</option>
-        </select>
+        </SearchSelect>
         <SearchBox value={search} onChange={setSearch} placeholder="Find a product" />
         {r.loading && d && <Loader2 className="h-4 w-4 animate-spin text-gray-400" aria-label="Updating" />}
       </FilterBar>

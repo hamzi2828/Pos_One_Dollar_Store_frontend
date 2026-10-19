@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { Banknote, Loader2, Lock, LockOpen, RefreshCw, AlertTriangle, Coins } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, HelpBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export interface TillStatus {
   open: boolean;
@@ -261,7 +262,7 @@ export function OpenTillModal({
         {needsCounter && (
           <Field label="Counter" required>
             {choices.length ? (
-              <select value={counterId} onChange={(e) => setCounterId(e.target.value)} disabled={busy} className={inputClass}>
+              <SearchSelect value={counterId} onChange={(e) => setCounterId(e.target.value)} disabled={busy} className={inputClass}>
                 {choices.length > 1 && <option value="">Choose a counter…</option>}
                 {status.counters.map((c) => (
                   <option key={c._id} value={c._id} disabled={!c.allowed || c.busy}>
@@ -269,7 +270,7 @@ export function OpenTillModal({
                     {c.busy ? ` — open by ${c.busyBy}` : !c.allowed ? ' — not assigned to you' : ''}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             ) : (
               <ErrorBox message="Every counter is busy or not assigned to you. Ask the admin." />
             )}

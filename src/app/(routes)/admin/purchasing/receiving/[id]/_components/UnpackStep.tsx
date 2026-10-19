@@ -16,6 +16,7 @@ import EntriesList from './EntriesList';
 import QuickProductModal from './QuickProductModal';
 import { SameReceiverNote, marginPct, r2 } from './bits';
 import { STICKER_SIZES, printTags, saveTagSize, type StickerSize } from './tags';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 /** Per-bill progress: from the server, else worked out from boxes / entries. */
 export function billProgress(grn: GoodsReceipt): GRNBillProgress[] {
@@ -625,13 +626,13 @@ function SavedCard({
         {copies > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
             <Field label="Tag size">
-              <select value={tagSize} onChange={(ev) => onTagSize(ev.target.value as StickerSize)} className={inputClass}>
+              <SearchSelect value={tagSize} onChange={(ev) => onTagSize(ev.target.value as StickerSize)} className={inputClass}>
                 {STICKER_SIZES.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                   </option>
                 ))}
-              </select>
+              </SearchSelect>
             </Field>
             <button type="button" onClick={print} disabled={printing} aria-busy={printing} className={`${primaryBtn} !py-3 text-base`}>
               {printing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />} Print tags ({copies})

@@ -11,6 +11,7 @@ import {
   type ReceiveStockBody,
   type ReceiveStockResult,
 } from '../../services/labelService';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface ReceiveStockModalProps {
   productId: string;
@@ -250,7 +251,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
             {isVariant && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Which item?</label>
-                <select value={unitId} onChange={(e) => setUnitId(e.target.value)} className={inputCls}>
+                <SearchSelect value={unitId} onChange={(e) => setUnitId(e.target.value)} className={inputCls}>
                   <option value="">Choose a variant…</option>
                   {data.units.map((u) => (
                     <option key={unitKey(u)} value={unitKey(u)}>
@@ -258,7 +259,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                       {u.shortCode ? ` · code ${u.shortCode}` : ''} · {u.stock} in stock
                     </option>
                   ))}
-                </select>
+                </SearchSelect>
               </div>
             )}
 
