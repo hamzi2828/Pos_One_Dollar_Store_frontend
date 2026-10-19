@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { AlertCircle, CalendarClock, Check, Fingerprint, Loader2 } from 'lucide-react';
+import { AlertCircle, CalendarClock, Check, Fingerprint, Loader2, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs, storeApi } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -32,7 +32,7 @@ interface TimeSettings {
   hrPolicy: string | null;
   policy: PolicyOption;
   /** Enrolled on the Attendance desktop app. */
-  fingerprint: { enrolled: boolean; fingers: number; lastEnrolledAt: string | null };
+  fingerprint: { enrolled: boolean; fingers: number; lastEnrolledAt: string | null; list?: { finger: string; enrolledAt: string | null }[] };
   sensitiveHidden: boolean;
   options: { shifts: Shift[]; policies: PolicyOption[] };
 }
@@ -173,6 +173,13 @@ function SettingsModal({ data, onClose, onSaved }: { data: TimeSettings; onClose
 }
 
 /** '12 Oct' (this year) or '12 Oct 2025'. */
+/** "right_index" -> "Right index finger" */
+function fingerName(f: string): string {
+  const [side, name] = f.split('_');
+  if (!name) return f;
+  return `${side.charAt(0).toUpperCase()}${side.slice(1)} ${name}${name === 'thumb' ? '' : ' finger'}`;
+}
+
 function shortDate(v: string | null): string {
   if (!v) return '';
   const d = new Date(v);
@@ -184,6 +191,10 @@ function shortDate(v: string | null): string {
 export default function TimePayCard({ employeeId, onSaved }: { employeeId: string; onSaved?: () => void }) {
   const { can } = useAccess();
   const canEdit = can('employees', 'edit');
+  // Same rule as the backend: employees edit OR attendance edit may remove fingers.
+  const canRemoveFinger = can(['employees', 'attendance'], 'edit');
+  const [confirmFinger, setConfirmFinger] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
   const canPolicies = can('hr_policies', 'view');
   const canRoster = can('shifts', 'view');
   const [data, setData] = useState<TimeSettings | null>(null);
@@ -201,6 +212,22 @@ export default function TimePayCard({ employeeId, onSaved }: { employeeId: strin
   useEffect(() => {
     load();
   }, [load]);
+
+  // The counter PC drops a removed finger at its next sync (a few minutes).
+  const removeFinger = async (finger: string) => {
+    if (removing) return;
+    setRemoving(true);
+    try {
+      await storeApi.del(`/desktop/fingerprints/${employeeId}/${finger}`);
+      toast.success(`${fingerName(finger)} removed. Enroll again on the desktop app if needed.`);
+      setConfirmFinger(null);
+      await load();
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not remove the fingerprint.'));
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   const offDays = (data?.weeklyOff || []).map((d) => DAYS.find((x) => x.key === d)?.label || d);
   const s = data?.defaultShift;
@@ -285,13 +312,48 @@ export default function TimePayCard({ employeeId, onSaved }: { employeeId: strin
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wide text-gray-500">Fingerprint</p>
             {data.fingerprint.enrolled ? (
-              <p className="mt-0.5 text-sm text-gray-900 flex items-start gap-1.5">
-                <Fingerprint className="h-4 w-4 text-green-600 flex-shrink-0 mt-px" />
-                <span>
-                  Enrolled ({data.fingerprint.fingers} finger{data.fingerprint.fingers === 1 ? '' : 's'})
-                  {data.fingerprint.lastEnrolledAt ? ` on ${shortDate(data.fingerprint.lastEnrolledAt)}` : ''}
-                </span>
-              </p>
+              <>
+                <p className="mt-0.5 text-sm text-gray-900 flex items-start gap-1.5">
+                  <Fingerprint className="h-4 w-4 text-green-600 flex-shrink-0 mt-px" />
+                  <span>
+                    Enrolled ({data.fingerprint.fingers} finger{data.fingerprint.fingers === 1 ? '' : 's'})
+                    {data.fingerprint.lastEnrolledAt ? ` on ${shortDate(data.fingerprint.lastEnrolledAt)}` : ''}
+                  </span>
+                </p>
+                {canRemoveFinger && (data.fingerprint.list || []).length > 0 && (
+                  <ul className="mt-1 space-y-1">
+                    {(data.fingerprint.list || []).map((f) => (
+                      <li key={f.finger} className="flex items-center justify-between gap-2 text-xs text-gray-700">
+                        <span className="truncate">{fingerName(f.finger)}</span>
+                        {confirmFinger === f.finger ? (
+                          <span className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              disabled={removing}
+                              onClick={() => removeFinger(f.finger)}
+                              className="rounded bg-red-600 px-2 py-0.5 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                            >
+                              {removing ? 'Removing…' : 'Remove'}
+                            </button>
+                            <button type="button" disabled={removing} onClick={() => setConfirmFinger(null)} className="rounded px-1.5 py-0.5 text-gray-600 hover:bg-gray-100">
+                              Keep
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmFinger(f.finger)}
+                            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-gray-500 hover:bg-red-50 hover:text-red-700 flex-shrink-0"
+                            aria-label={`Remove ${fingerName(f.finger)}`}
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             ) : (
               <p className="mt-0.5 text-sm text-amber-700 flex items-start gap-1.5">
                 <Fingerprint className="h-4 w-4 flex-shrink-0 mt-px" />
