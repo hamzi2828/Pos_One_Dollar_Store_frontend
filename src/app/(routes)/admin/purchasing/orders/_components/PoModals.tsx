@@ -1,45 +1,51 @@
 'use client';
 
-// Purchase order modals: close & submit builty, edit details, new product from a line.
-import { useState } from 'react';
-import { AlertTriangle, ClipboardList, PackagePlus, Truck } from 'lucide-react';
+// Purchase trip modals: send to warehouse (boxes + optional transport details),
+// edit details, new product from a bill.
+import { useRef, useState } from 'react';
+import { AlertTriangle, ClipboardList, Loader2, PackagePlus, Truck } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, HelpBox, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
-import { PhotoPicker, PhotoStrip, dateInput, todayInput } from '../../_shared/ui';
-import type { Costing, POBill, PurchaseOrder } from '../../_shared/types';
+import { Disclosure, NumberStepper, PhotoPicker, PhotoStrip, billTotalOf, dateInput, paidOf, todayInput } from '../../_shared/ui';
+import type { POBill, PurchaseOrder } from '../../_shared/types';
 
-// ---------------------------------------------------------------- close + builty
+// ---------------------------------------------------------------- send to warehouse
 
 export function CloseModal({
   po,
-  costing,
   onClose,
   onClosed,
 }: {
   po: PurchaseOrder;
-  costing: Costing | null;
   onClose: () => void;
   onClosed: (po: PurchaseOrder, grn: { _id: string; grnNumber: string } | undefined, warnings: string[]) => void;
 }) {
   const b = po.builty || ({} as PurchaseOrder['builty']);
+  const billBoxes = po.bills.reduce((s, x) => s + (x.cartons || 0), 0);
   const [builtyNo, setBuiltyNo] = useState(b.builtyNo || '');
   const [transporter, setTransporter] = useState(b.transporter || '');
   const [date, setDate] = useState(dateInput(b.date) || todayInput());
-  const [cartons, setCartons] = useState(String(b.cartons || po.totals.cartons || ''));
+  const [cartons, setCartons] = useState(String(billBoxes || b.cartons || 0));
   const [freight, setFreight] = useState(b.freight ? String(b.freight) : '');
   const [photos, setPhotos] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lock = useRef(false);
 
-  const emptyBill = po.bills.find((x) => x.items.length === 0);
-  const warnings = costing?.totals.warnings || 0;
-  const cartonsMismatch = toNum(cartons) > 0 && po.totals.cartons > 0 && toNum(cartons) !== po.totals.cartons;
+  const noAmount = po.bills.filter((x) => !(billTotalOf(x) > 0));
+  const noBoxes = po.bills.filter((x) => !(x.cartons > 0));
+  const goods = po.bills.reduce((s, x) => s + billTotalOf(x), 0);
+  const paid = po.bills.reduce((s, x) => s + paidOf(x), 0);
+  const oldFreight = po.charges.find((c) => c.source === 'builty')?.amount || 0;
+  const charges = po.totals.charges + (toNum(freight) - oldFreight);
+  const blocked = !po.bills.length || noAmount.length > 0;
 
   const submit = async () => {
-    if (busy) return;
-    if (!builtyNo.trim() && !photos.length && !(b.photos || []).length) return setError('Enter the builty number or add a photo of the builty.');
-    if (!(toNum(cartons) >= 1) || !Number.isInteger(toNum(cartons))) return setError('Enter how many cartons the builty shows.');
+    if (lock.current || blocked) return;
+    if (!(toNum(cartons) >= 1) || !Number.isInteger(toNum(cartons))) return setError('Enter how many boxes are going to the warehouse (1 or more).');
+    if (toNum(freight) < 0) return setError('Freight cannot be negative.');
+    lock.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -50,69 +56,87 @@ export function CloseModal({
       );
       onClosed(res.data, res.grn, res.warnings || []);
     } catch (e) {
-      setError(apiErrorMessage(e, 'Could not close the purchase order.'));
+      setError(apiErrorMessage(e, 'Could not send the trip to the warehouse.'));
+      lock.current = false;
       setBusy(false);
     }
   };
 
   return (
     <Modal
-      title="Close & submit builty"
-      subtitle={`${po.poNumber} · ${po.bills.length} bills · ${po.totals.pieces} pcs`}
+      title="Send to warehouse"
+      subtitle={`${po.poNumber} · ${po.bills.length} vendor bill${po.bills.length === 1 ? '' : 's'}`}
       icon={<Truck className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
       footer={
         <>
-          <button className={secondaryBtn} onClick={onClose} disabled={busy}>Back</button>
-          <button className={primaryBtn} onClick={submit} disabled={busy || !!emptyBill || !po.bills.length}>{busy ? 'Closing…' : 'Close & send to receiving'}</button>
+          <button className={secondaryBtn} onClick={onClose} disabled={busy}>
+            Back
+          </button>
+          <button className={primaryBtn} onClick={submit} disabled={busy || blocked} aria-busy={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+            {busy ? 'Sending…' : 'Send to warehouse'}
+          </button>
         </>
       }
     >
-      <div className="space-y-4">
+      <fieldset disabled={busy} className="min-w-0 space-y-4">
         <HelpBox>
-          After closing, the PO is locked, each vendor bill is added to the vendor&apos;s account, and the goods go to <strong>Goods Receiving</strong> for checking.
+          The trip is locked, each vendor bill (and what you paid) goes into the vendor&apos;s account, and the boxes wait in <strong>Receive Goods</strong> to be checked.
         </HelpBox>
-        {emptyBill && <ErrorBox message={`The bill from ${emptyBill.vendorName} has no items. Add items or remove it first.`} />}
-        {warnings > 0 && (
+        {noAmount.length > 0 && (
+          <ErrorBox message={`Enter the bill amount for: ${noAmount.map((x) => x.vendorName).join(', ')}.`} />
+        )}
+        {noBoxes.length > 0 && noAmount.length === 0 && (
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span>{warnings} line(s) have a low margin or a loss in the landed cost preview.</span>
+            <span>No boxes entered for: {noBoxes.map((x) => x.vendorName).join(', ')}.</span>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Builty no." required>
-            <input value={builtyNo} onChange={(e) => setBuiltyNo(e.target.value)} className={inputClass} placeholder="e.g. 77881" autoFocus />
-          </Field>
-          <Field label="Date">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Transporter">
-            <input value={transporter} onChange={(e) => setTransporter(e.target.value)} className={inputClass} placeholder="e.g. Daewoo Cargo" />
-          </Field>
-          <Field label="Cartons on builty" required>
-            <input type="number" min={1} inputMode="numeric" value={cartons} onChange={(e) => setCartons(e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Freight paid (Rs)" hint="Added to the trip charges">
-            <input type="number" min={0} inputMode="decimal" value={freight} onChange={(e) => setFreight(e.target.value)} className={inputClass} placeholder="0" />
-          </Field>
-        </div>
-        {cartonsMismatch && (
-          <p className="text-xs text-amber-700">The bills add up to {po.totals.cartons} cartons, the builty says {toNum(cartons)}.</p>
-        )}
-        <Field label="Builty photo" hint="Required when there is no builty number.">
-          <div className="space-y-2">
-            <PhotoStrip photos={b.photos || []} />
-            <PhotoPicker files={photos} onChange={setPhotos} max={5} />
-          </div>
+
+        <Field label="Boxes going to the warehouse" required hint={`Bills add up to ${billBoxes} box${billBoxes === 1 ? '' : 'es'}.`}>
+          <NumberStepper value={cartons} onChange={setCartons} min={0} label="boxes" />
         </Field>
+        {toNum(cartons) > 0 && billBoxes > 0 && toNum(cartons) !== billBoxes && (
+          <p className="text-xs text-amber-700">
+            The bills say {billBoxes} boxes, you entered {toNum(cartons)}.
+          </p>
+        )}
+
         <div className="rounded-lg bg-gray-50 p-3 text-xs space-y-1">
-          <Row label="Goods (vendor bills)" value={formatRs(po.totals.goods)} />
-          <Row label="Charges" value={formatRs(po.totals.charges + (toNum(freight) - (po.charges.find((c) => c.source === 'builty')?.amount || 0)))} />
-          <Row label="Total cost" value={formatRs(po.totals.goods + po.totals.charges + (toNum(freight) - (po.charges.find((c) => c.source === 'builty')?.amount || 0)))} strong />
+          <Row label="Vendor bills" value={formatRs(goods)} />
+          <Row label="Paid now" value={formatRs(paid)} />
+          <Row label="Still owed to vendors" value={formatRs(Math.max(0, goods - paid))} strong />
+          <Row label="Trip costs" value={formatRs(charges)} />
         </div>
+
+        <Disclosure title="Transport details (optional)" defaultOpen={!!(b.builtyNo || b.transporter || b.freight)}>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Builty no.">
+                <input value={builtyNo} onChange={(e) => setBuiltyNo(e.target.value)} className={inputClass} placeholder="e.g. 77881" />
+              </Field>
+              <Field label="Date">
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Transporter">
+                <input value={transporter} onChange={(e) => setTransporter(e.target.value)} className={inputClass} placeholder="e.g. Daewoo Cargo" />
+              </Field>
+              <Field label="Freight paid (Rs)" hint="Added to trip costs">
+                <input type="number" min={0} inputMode="decimal" value={freight} onChange={(e) => setFreight(e.target.value)} className={inputClass} placeholder="0" />
+              </Field>
+            </div>
+            <Field label="Builty photo">
+              <div className="space-y-2">
+                <PhotoStrip photos={b.photos || []} />
+                <PhotoPicker files={photos} onChange={setPhotos} max={5} />
+              </div>
+            </Field>
+          </div>
+        </Disclosure>
         <ErrorBox message={error} />
-      </div>
+      </fieldset>
     </Modal>
   );
 }
@@ -126,7 +150,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   );
 }
 
-// ---------------------------------------------------------------- PO details
+// ---------------------------------------------------------------- trip details
 
 export function DetailsModal({ po, onClose, onSaved }: { po: PurchaseOrder; onClose: () => void; onSaved: (po: PurchaseOrder) => void }) {
   const [buyerName, setBuyerName] = useState(po.buyerName || '');
@@ -149,14 +173,14 @@ export function DetailsModal({ po, onClose, onSaved }: { po: PurchaseOrder; onCl
 
   return (
     <Modal
-      title="Purchase order details"
+      title="Trip details"
       icon={<ClipboardList className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button className={secondaryBtn} onClick={onClose} disabled={busy}>Cancel</button>
-          <button className={primaryBtn} onClick={submit} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+          <button className={primaryBtn} onClick={submit} disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{busy ? 'Saving…' : 'Save'}</button>
         </>
       }
     >
@@ -176,7 +200,7 @@ export function DetailsModal({ po, onClose, onSaved }: { po: PurchaseOrder; onCl
   );
 }
 
-// ---------------------------------------------------------------- new product from a PO line
+// ---------------------------------------------------------------- new product typed on a bill
 
 export function NewProductModal({
   po,
@@ -235,7 +259,7 @@ export function NewProductModal({
       footer={
         <>
           <button className={secondaryBtn} onClick={onClose} disabled={busy}>Cancel</button>
-          <button className={primaryBtn} onClick={submit} disabled={busy}>{busy ? 'Creating…' : 'Create & add'}</button>
+          <button className={primaryBtn} onClick={submit} disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{busy ? 'Creating…' : 'Create & add'}</button>
         </>
       }
     >

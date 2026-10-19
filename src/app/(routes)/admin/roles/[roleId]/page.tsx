@@ -25,6 +25,7 @@ import {
   Loader2,
   Truck,
   Warehouse,
+  Globe,
 } from 'lucide-react';
 import {
   type Role,
@@ -47,6 +48,7 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   system: <Settings className="h-4 w-4" />,
   purchasing: <Truck className="h-4 w-4" />,
   inventory: <Warehouse className="h-4 w-4" />,
+  website: <Globe className="h-4 w-4" />,
 };
 
 export default function RolePermissionsPage() {

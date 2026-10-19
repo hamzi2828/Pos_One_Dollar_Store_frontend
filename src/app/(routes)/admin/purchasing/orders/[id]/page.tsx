@@ -1,27 +1,38 @@
 'use client';
 
-// Purchase order workspace: vendor bills (items, cartons, photos), trip charges,
-// live landed-cost preview, "Close & submit builty". Read-only after close,
-// with a link to its goods receipt.
+// Purchase trip: Buy (vendor bills: amount, boxes, paid now; items optional)
+// -> Send to warehouse -> Check boxes -> Unpack & enter -> Done.
+// Locked after "Send to warehouse", with a link to Receive Goods.
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { AlertCircle, ArrowLeft, Ban, Edit2, History, PackageCheck, Plus, RotateCcw, Truck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Ban, Edit2, History, Loader2, PackageCheck, Plus, RotateCcw, Truck } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi } from '../../_shared/purchasingApi';
-import { Card, GRNStatusBadge, PhotoStrip, POStatusBadge, StatTile } from '../../_shared/ui';
+import { Card, Disclosure, PhotoStrip, POStatusBadge, StatTile, StepStrip, billTotalOf, paidOf } from '../../_shared/ui';
 import type { AllocationMethod, Costing, POBill, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
 import BillCard from '../_components/BillCard';
 import BillModal from '../_components/BillModal';
 import { ChargesCard, CostingCard, SuggestedItems } from '../_components/PoPanels';
 import { CloseModal, DetailsModal, NewProductModal } from '../_components/PoModals';
 
-export default function PurchaseOrderPage() {
+const STEPS = ['Buy', 'Send to warehouse', 'Check boxes', 'Unpack & enter', 'Done'];
+
+/** Which step a trip is at (index into STEPS; 5 = all done). */
+function tripStep(po: PurchaseOrder) {
+  if (po.status === 'received') return 5;
+  if (po.status === 'receiving' || po.grn?.status === 'in_progress') return 3;
+  if (po.status === 'closed') return 2;
+  const ready = po.bills.length > 0 && po.bills.every((b) => billTotalOf(b) > 0) && po.bills.some((b) => b.cartons > 0);
+  return ready ? 1 : 0;
+}
+
+export default function PurchaseTripPage() {
   return (
-    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-6"><LoadingCard text="Loading purchase order…" /></div>}>
+    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-6"><LoadingCard text="Loading purchase trip…" /></div>}>
       <Workspace />
     </Suspense>
   );
@@ -47,6 +58,7 @@ function Workspace() {
   const [showDetails, setShowDetails] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const costSeq = useRef(0);
+  const lock = useRef(false);
 
   const loadCosting = useCallback(async () => {
     const my = ++costSeq.current;
@@ -56,7 +68,7 @@ function Workspace() {
       const c = await purchasingApi.costing(id);
       if (my === costSeq.current) setCosting(c);
     } catch (e) {
-      if (my === costSeq.current) setCostError(apiErrorMessage(e, 'Could not calculate landed cost.'));
+      if (my === costSeq.current) setCostError(apiErrorMessage(e, 'Could not work out the cost per piece.'));
     } finally {
       if (my === costSeq.current) setCostLoading(false);
     }
@@ -71,7 +83,7 @@ function Workspace() {
       setMeta(m);
       loadCosting();
     } catch (e) {
-      setError(apiErrorMessage(e, 'Could not load the purchase order.'));
+      setError(apiErrorMessage(e, 'Could not load the purchase trip.'));
     } finally {
       setLoading(false);
     }
@@ -89,14 +101,11 @@ function Workspace() {
     purchasingApi.productsByIds(ids).then(setSuggested).catch(() => setSuggested([]));
   }, [productIds, canView]);
 
-  /** Every change returns the saved PO; refresh the cost preview after it. */
+  /** Every change returns the saved trip; refresh the cost preview after it. */
   const applyPO = useCallback(
     (next: PurchaseOrder) => {
-      // Write responses carry no GRN summary: keep the loaded one.
-      setPo((prev) => ({
-        ...next,
-        grn: next.grn ?? prev?.grn,
-      }));
+      // Write responses carry no receipt summary: keep the loaded one.
+      setPo((prev) => ({ ...next, grn: next.grn ?? prev?.grn }));
       loadCosting();
     },
     [loadCosting],
@@ -112,7 +121,7 @@ function Workspace() {
   if (loading && !po) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-        <LoadingCard text="Loading purchase order…" />
+        <LoadingCard text="Loading purchase trip…" />
       </div>
     );
   }
@@ -121,10 +130,14 @@ function Workspace() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="bg-white rounded-xl shadow-sm border border-red-200 text-center py-10 px-4">
           <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-          <p className="text-sm text-red-700 mb-4">{error || 'Purchase order not found.'}</p>
+          <p className="text-sm text-red-700 mb-4">{error || 'Purchase trip not found.'}</p>
           <div className="flex justify-center gap-2">
-            <Link href="/admin/purchasing/orders" className={secondaryBtn}>Back to list</Link>
-            <button onClick={load} className={primaryBtn}>Try again</button>
+            <Link href="/admin/purchasing/orders" className={secondaryBtn}>
+              Back to list
+            </Link>
+            <button onClick={load} className={primaryBtn}>
+              Try again
+            </button>
           </div>
         </div>
       </div>
@@ -137,46 +150,60 @@ function Workspace() {
   const canCancel = can('purchase_orders', 'delete') && (isOpen || (po.status === 'closed' && grnPending));
   const canReopen = can('purchase_orders', 'edit') && po.status === 'closed' && grnPending;
   const canCreateProduct = can('products', 'create');
+  const step = tripStep(po);
+  const goods = po.bills.reduce((s, b) => s + billTotalOf(b), 0);
+  const paid = po.bills.reduce((s, b) => s + paidOf(b), 0);
+  const boxes = po.bills.reduce((s, b) => s + (b.cartons || 0), 0);
+  const canReceive = !!po.goodsReceipt && can('goods_receiving', 'view');
 
-  const doCancel = async () => {
-    if (busy) return;
-    const reason = window.prompt(`Cancel ${po.poNumber}?${po.status === 'closed' ? '\nThe vendor bills will be voided in the vendor ledger.' : ''}\n\nReason (optional):`);
+  const act = async (key: 'cancel' | 'reopen', fn: (reason: string) => Promise<unknown>, question: string, done: string, fail: string) => {
+    if (lock.current) return;
+    const reason = window.prompt(question);
     if (reason === null) return;
-    setBusy('cancel');
+    lock.current = true;
+    setBusy(key);
     try {
-      await purchasingApi.cancel(po._id, reason);
-      toast.success('Purchase order cancelled');
+      await fn(reason);
+      toast.success(done);
       await load();
     } catch (e) {
-      toast.error(apiErrorMessage(e, 'Could not cancel.'));
+      toast.error(apiErrorMessage(e, fail));
     } finally {
+      lock.current = false;
       setBusy(null);
     }
   };
 
-  const doReopen = async () => {
-    if (busy) return;
-    const reason = window.prompt(`Reopen ${po.poNumber} to fix it?\nThe vendor bills are voided in the ledger and posted again when you close it.\n\nReason (optional):`);
-    if (reason === null) return;
-    setBusy('reopen');
-    try {
-      await purchasingApi.reopen(po._id, reason);
-      toast.success('Purchase order reopened');
-      await load();
-    } catch (e) {
-      toast.error(apiErrorMessage(e, 'Could not reopen.'));
-    } finally {
-      setBusy(null);
-    }
-  };
+  const doCancel = () =>
+    act(
+      'cancel',
+      (r) => purchasingApi.cancel(po._id, r),
+      `Cancel ${po.poNumber}?${po.status === 'closed' ? '\nThe vendor bills and payments made at the market will be voided in the vendor accounts.' : ''}\n\nReason (optional):`,
+      'Trip cancelled',
+      'Could not cancel.',
+    );
+  const doReopen = () =>
+    act(
+      'reopen',
+      (r) => purchasingApi.reopen(po._id, r),
+      `Reopen ${po.poNumber} to fix it?\nThe vendor bills and payments are taken out of the vendor accounts and added again when you send it.\n\nReason (optional):`,
+      'Trip reopened',
+      'Could not reopen.',
+    );
 
   const setMethod = async (m: AllocationMethod) => {
     try {
       applyPO(await purchasingApi.update(po._id, { allocationMethod: m }));
     } catch (e) {
-      toast.error(apiErrorMessage(e, 'Could not change the method.'));
+      toast.error(apiErrorMessage(e, 'Could not change it.'));
     }
   };
+
+  const sendBtn = editable && (
+    <button className={primaryBtn} onClick={() => setShowClose(true)} disabled={!po.bills.length}>
+      <Truck className="h-4 w-4" /> Send to warehouse
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -185,18 +212,18 @@ function Workspace() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
           <div className="min-w-0">
             <Link href="/admin/purchasing/orders" className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 mb-1">
-              <ArrowLeft className="h-3.5 w-3.5" /> Purchase orders
+              <ArrowLeft className="h-3.5 w-3.5" /> Purchase trips
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">{po.poNumber}</h1>
               <POStatusBadge status={po.status} />
             </div>
             <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
-              Buyer {po.buyerName || '—'} · opened {formatDate(po.createdAt)}
-              {po.expectedArrival && ` · expected ${formatDate(po.expectedArrival)}`}
+              Buyer {po.buyerName || '—'} · started {formatDate(po.createdAt)}
+              {po.expectedArrival && ` · arriving ${formatDate(po.expectedArrival)}`}
             </p>
             {po.notes && <p className="mt-1 text-xs text-gray-600">{po.notes}</p>}
-            {po.status === 'cancelled' && po.cancelReason && <p className="mt-1 text-xs text-red-600">Cancelled: {po.cancelReason}</p>}
+            {po.status === 'cancelled' && <p className="mt-1 text-xs text-red-600">Cancelled{po.cancelReason ? `: ${po.cancelReason}` : ''}</p>}
           </div>
           <div className="flex flex-wrap gap-2">
             {editable && (
@@ -206,63 +233,71 @@ function Workspace() {
             )}
             {canReopen && (
               <button className={secondaryBtn} onClick={doReopen} disabled={!!busy}>
-                <RotateCcw className="h-4 w-4" /> {busy === 'reopen' ? 'Reopening…' : 'Reopen'}
+                {busy === 'reopen' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} {busy === 'reopen' ? 'Reopening…' : 'Reopen'}
               </button>
             )}
             {canCancel && (
               <button className={`${secondaryBtn} !text-red-600`} onClick={doCancel} disabled={!!busy}>
-                <Ban className="h-4 w-4" /> {busy === 'cancel' ? 'Cancelling…' : 'Cancel PO'}
+                {busy === 'cancel' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />} {busy === 'cancel' ? 'Cancelling…' : 'Cancel trip'}
               </button>
             )}
-            {editable && (
-              <button className={primaryBtn} onClick={() => setShowClose(true)} disabled={!po.bills.length}>
-                <Truck className="h-4 w-4" /> Close &amp; submit builty
-              </button>
-            )}
+            {sendBtn}
           </div>
         </div>
 
+        {po.status !== 'cancelled' && <StepStrip steps={STEPS} current={step} />}
+
+        {/* What to do next */}
+        {po.status === 'open' && (
+          <p className="text-xs sm:text-sm text-gray-600">
+            {po.bills.length === 0
+              ? 'Add a bill for every vendor you buy from: bill amount, boxes and what you paid.'
+              : step === 1
+                ? 'All bills have an amount. When the goods leave the market, press “Send to warehouse”.'
+                : 'Every bill needs a bill amount and the number of boxes.'}
+          </p>
+        )}
+
         {/* Totals */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
-          <StatTile label="Vendor bills" value={po.totals.bills} />
-          <StatTile label="Cartons" value={po.totals.cartons} />
-          <StatTile label="Pieces" value={po.totals.pieces} />
-          <StatTile label="Goods" value={formatRs(po.totals.goods)} />
-          <StatTile label="Charges" value={formatRs(po.totals.charges)} />
-          <StatTile label="Total cost" value={formatRs(po.totals.grand)} tone="honey" />
+          <StatTile label="Vendor bills" value={po.bills.length} />
+          <StatTile label="Boxes" value={boxes} />
+          <StatTile label="Bills total" value={formatRs(goods)} />
+          <StatTile label="Paid now" value={formatRs(paid)} tone="green" />
+          <StatTile label="Still owed" value={formatRs(Math.max(0, goods - paid))} tone="amber" />
+          <StatTile label="Trip costs" value={formatRs(po.totals.charges)} sub={`All in ${formatRs(goods + po.totals.charges)}`} />
         </div>
 
-        {/* After close: builty + goods receipt */}
-        {!isOpen && po.builty?.submittedAt && (
+        {/* After sending: where the goods are */}
+        {!isOpen && po.status !== 'cancelled' && (
           <Card
             title={
               <span className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-honey-700" /> Builty {po.builty.builtyNo || '(photo)'}
+                <Truck className="h-4 w-4 text-honey-700" /> Sent to warehouse
               </span>
             }
             actions={
-              po.goodsReceipt && can('goods_receiving', 'view') ? (
+              canReceive ? (
                 <Link href={`/admin/purchasing/receiving/${po.goodsReceipt}`} className={primaryBtn}>
-                  <PackageCheck className="h-4 w-4" /> {po.grnNumber || 'Goods receipt'}
+                  <PackageCheck className="h-4 w-4" /> {po.status === 'received' ? 'View receiving' : 'Open in Receive Goods'}
                 </Link>
-              ) : po.grnNumber ? (
-                <span className="text-xs text-gray-600">{po.grnNumber}</span>
               ) : null
             }
           >
+            <p className="text-sm text-gray-700 mb-2">
+              {po.status === 'closed' && 'Waiting for the boxes to be checked at the warehouse.'}
+              {po.status === 'receiving' && 'Boxes are being unpacked and entered.'}
+              {po.status === 'received' && `All done${po.receivedAt ? ` on ${formatDate(po.receivedAt)}` : ''}. Goods are in the warehouse or on shelves.`}
+              {po.grn?.receiverName && ` Receiver: ${po.grn.receiverName}.`}
+            </p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600 mb-2">
-              <span>Transporter: {po.builty.transporter || '—'}</span>
-              <span>Date: {formatDate(po.builty.date)}</span>
-              <span>Cartons: {po.builty.cartons}</span>
-              <span>Freight: {formatRs(po.builty.freight)}</span>
-              <span>Closed: {formatDate(po.closedAt, true)}</span>
-              {po.grn && (
-                <span className="flex items-center gap-1">
-                  Receiving: <GRNStatusBadge status={po.grn.status} /> {po.grn.receiverName && `by ${po.grn.receiverName}`}
-                </span>
-              )}
+              <span>Boxes: {po.builty?.cartons || boxes}</span>
+              {po.builty?.builtyNo && <span>Builty: {po.builty.builtyNo}</span>}
+              {po.builty?.transporter && <span>Transporter: {po.builty.transporter}</span>}
+              {po.builty?.freight > 0 && <span>Freight: {formatRs(po.builty.freight)}</span>}
+              <span>Sent: {formatDate(po.closedAt, true)}</span>
             </div>
-            <PhotoStrip photos={po.builty.photos || []} />
+            <PhotoStrip photos={po.builty?.photos || []} />
           </Card>
         )}
 
@@ -272,7 +307,7 @@ function Workspace() {
           <div className="xl:col-span-2 space-y-4">
             {po.bills.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-300 text-center py-10 px-4">
-                <p className="text-sm text-gray-600 mb-3">No vendor bills yet. Add one bill per vendor you buy from on this trip.</p>
+                <p className="text-sm text-gray-600 mb-3">No vendor bills yet. Add one bill for each vendor you buy from on this trip.</p>
                 {editable && (
                   <button className={primaryBtn} onClick={() => setBillModal({ open: true, bill: null })}>
                     <Plus className="h-4 w-4" /> Add vendor bill
@@ -293,20 +328,30 @@ function Workspace() {
               ))
             )}
             {editable && po.bills.length > 0 && (
-              <button className={`${secondaryBtn} w-full border-dashed`} onClick={() => setBillModal({ open: true, bill: null })}>
+              <button className={`${secondaryBtn} w-full border-dashed !py-3`} onClick={() => setBillModal({ open: true, bill: null })}>
                 <Plus className="h-4 w-4" /> Add another vendor bill
               </button>
             )}
+            {editable && po.bills.length > 0 && <div className="sm:hidden [&>button]:w-full [&>button]:!py-3">{sendBtn}</div>}
             {editable && !canCreateProduct && (
               <p className="text-[11px] text-gray-500">
                 Product not in the list? Ask someone who can create products, or{' '}
-                <Link href="/admin/products/create" target="_blank" className="underline">open the product form</Link>.
+                <Link href="/admin/products/create" target="_blank" className="underline">
+                  open the product form
+                </Link>
+                .
               </p>
             )}
-            <CostingCard po={po} meta={meta} costing={costing} loading={costLoading} error={costError} editable={editable} onMethod={setMethod} />
           </div>
           <div className="space-y-4">
             <ChargesCard po={po} meta={meta} editable={editable} onChange={applyPO} />
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 px-4 py-1">
+              <Disclosure title="Advanced">
+                <div className="pb-3 -mx-4">
+                  <CostingCard po={po} meta={meta} costing={costing} loading={costLoading} error={costError} editable={editable} onMethod={setMethod} className="!border-0 !shadow-none" />
+                </div>
+              </Disclosure>
+            </div>
             <HistoryCard po={po} />
           </div>
         </div>
@@ -350,11 +395,10 @@ function Workspace() {
       {showClose && (
         <CloseModal
           po={po}
-          costing={costing}
           onClose={() => setShowClose(false)}
           onClosed={(_next, grn, warnings) => {
             setShowClose(false);
-            toast.success(grn ? `Closed. ${grn.grnNumber} is waiting for receiving.` : 'Purchase order closed');
+            toast.success(grn ? 'Sent to the warehouse. The boxes are waiting to be checked.' : 'Sent to the warehouse');
             warnings.forEach((w) => toast(w, { icon: '⚠️', duration: 6000 }));
             load();
           }}
@@ -367,6 +411,7 @@ function Workspace() {
 function HistoryCard({ po }: { po: PurchaseOrder }) {
   const [open, setOpen] = useState(false);
   const rows = [...(po.history || [])].reverse();
+  if (!rows.length) return null;
   return (
     <Card
       title={
@@ -376,7 +421,9 @@ function HistoryCard({ po }: { po: PurchaseOrder }) {
       }
       actions={
         rows.length > 4 ? (
-          <button type="button" className="text-xs text-gray-500 hover:text-gray-700" onClick={() => setOpen((v) => !v)}>{open ? 'Less' : 'All'}</button>
+          <button type="button" className="text-xs text-gray-500 hover:text-gray-700" onClick={() => setOpen((v) => !v)}>
+            {open ? 'Less' : 'All'}
+          </button>
         ) : null
       }
     >
@@ -385,7 +432,9 @@ function HistoryCard({ po }: { po: PurchaseOrder }) {
           <li key={i} className="text-xs">
             <span className="font-medium text-gray-800">{h.action.replace(/_/g, ' ')}</span>
             {h.note && <span className="text-gray-600"> — {h.note}</span>}
-            <p className="text-[11px] text-gray-400">{formatDate(h.at, true)} · {h.byName}</p>
+            <p className="text-[11px] text-gray-400">
+              {formatDate(h.at, true)} · {h.byName}
+            </p>
           </li>
         ))}
       </ul>

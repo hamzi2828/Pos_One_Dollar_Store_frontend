@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
+  Globe,
   Users,
   Package,
   Settings,
@@ -200,10 +201,10 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Price Tiers', path: '/admin/products/price-tiers', icon: <Tags className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'price_tiers' },
   ];
 
-  // Purchasing & Vendors — purchase orders (multi-vendor, builty, landed cost), receiving, vendor ledger.
+  // Purchasing & Vendors — purchase trips (buy from many vendors), receive goods (check boxes, unpack, tags), vendor ledger.
   const purchasingMenuItems: MenuItem[] = [
-    { name: 'Purchase Orders', path: '/admin/purchasing/orders', icon: <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'purchase_orders' },
-    { name: 'Goods Receiving', path: '/admin/purchasing/receiving', icon: <PackageCheck className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'goods_receiving' },
+    { name: 'Purchase Trips', path: '/admin/purchasing/orders', icon: <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'purchase_orders' },
+    { name: 'Receive Goods', path: '/admin/purchasing/receiving', icon: <PackageCheck className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'goods_receiving' },
     { name: 'Vendors & Ledger', path: '/admin/vendors', icon: <Truck className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendors' },
     { name: 'Vendor Payments', path: '/admin/vendors/payments', icon: <HandCoins className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendor_payments' },
     { name: 'Consignment', path: '/admin/vendors/consignment', icon: <Handshake className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'consignment' },
@@ -257,6 +258,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Settings', path: '/admin/settings', icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'settings' },
     { name: 'Notifications', path: '/admin/notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'notifications' },
     { name: 'WhatsApp', path: '/admin/whatsapp', icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'whatsapp' },
+    { name: 'Website', path: '/admin/website', icon: <Globe className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'website' },
   ];
 
   const renderMenuItem = (item: MenuItem) => {

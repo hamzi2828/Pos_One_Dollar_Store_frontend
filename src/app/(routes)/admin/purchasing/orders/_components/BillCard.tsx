@@ -1,17 +1,23 @@
 'use client';
 
-// One vendor bill of a purchase order: header, photos, items table, add-item row.
+// One vendor bill of a purchase trip: vendor, bill no, boxes, bill photo,
+// bill total / paid now / still owed. Typed items are optional and tucked
+// away ("you can enter them while unpacking").
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Edit2, Loader2, PackagePlus, Plus, Receipt, Trash2 } from 'lucide-react';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { PAYMENT_METHODS } from '@/app/(routes)/admin/vendors/services/vendorApi';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { ProductSearch } from '../../_shared/Pickers';
-import { PhotoStrip } from '../../_shared/ui';
+import { Disclosure, PhotoStrip, billTotalOf, owedOf, paidOf } from '../../_shared/ui';
 import type { POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
 
 const cellInput = `${inputClass} !px-2 !py-1 text-right`;
+
+export const methodLabel = (m?: string) =>
+  m === 'bank_transfer' ? 'Bank transfer' : PAYMENT_METHODS.find((x) => x.value === m)?.label || (m ? m.replace(/_/g, ' ') : 'Cash');
 
 export default function BillCard({
   poId,
@@ -44,10 +50,15 @@ export default function BillCard({
   };
 
   const pieces = bill.items.reduce((s, i) => s + i.qty, 0);
+  const total = billTotalOf(bill);
+  const paid = paidOf(bill);
+  const owed = owedOf(bill);
+  const missingAmount = !(total > 0);
+  const noBoxes = !(bill.cartons > 0);
 
   return (
     <section className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
-      <div className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 border-b border-gray-100">
+      <div className="flex items-start justify-between gap-2 px-4 py-3 border-b border-gray-100">
         <div className="flex items-start gap-3 min-w-0">
           <div className="h-9 w-9 rounded-lg bg-honey-50 text-honey-700 flex items-center justify-center flex-shrink-0">
             <Receipt className="h-5 w-5" />
@@ -55,66 +66,109 @@ export default function BillCard({
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900 truncate">{bill.vendorName}</h3>
             <p className="text-[11px] text-gray-500">
-              {bill.billNo ? `Bill ${bill.billNo}` : 'No bill no.'} · {formatDate(bill.billDate)} · {bill.cartons || 0} cartons · {pieces} pcs
+              {bill.billNo ? `Bill ${bill.billNo}` : 'No bill no.'} · {formatDate(bill.billDate)} ·{' '}
+              <span className={noBoxes ? 'text-red-600 font-semibold' : 'font-semibold text-gray-700'}>
+                {bill.cartons || 0} box{bill.cartons === 1 ? '' : 'es'}
+              </span>
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-[11px] text-gray-500">Bill total</p>
-            <p className="text-sm font-semibold text-gray-900">{formatRs(bill.billTotal)}</p>
-          </div>
-          {editable && (
-            <>
-              <button type="button" onClick={onEdit} className="p-1.5 rounded-md text-gray-400 hover:text-honey-700 hover:bg-honey-50" aria-label="Edit bill">
-                <Edit2 className="h-4 w-4" />
-              </button>
-              <button type="button" onClick={removeBill} disabled={removing} className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50" aria-label="Remove bill">
-                {removing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {bill.photos.length > 0 && (
-        <div className="px-4 pt-3">
-          <PhotoStrip photos={bill.photos} />
-        </div>
-      )}
-
-      <div className="p-4 space-y-3">
-        {bill.items.length === 0 ? (
-          <p className="text-xs text-gray-500">No items yet{editable ? ' — search or scan a product below.' : '.'}</p>
-        ) : (
-          <div className="overflow-x-auto -mx-4 px-4">
-            <table className="w-full text-sm min-w-[620px]">
-              <thead className="text-[11px] text-gray-500 uppercase tracking-wide">
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 pr-2">Product</th>
-                  <th className="text-right py-2 px-2 w-24">Qty (pcs)</th>
-                  <th className="text-right py-2 px-2 w-28">Price / pc</th>
-                  <th className="text-right py-2 px-2 w-24">Discount</th>
-                  <th className="text-right py-2 px-2 w-28">Total</th>
-                  {editable && <th className="w-8" />}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {bill.items.map((item) => (
-                  <ItemRow key={item._id} poId={poId} billId={bill._id} item={item} editable={editable} onChange={onChange} />
-                ))}
-              </tbody>
-            </table>
+        {editable && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button type="button" onClick={onEdit} className="p-2 rounded-md text-gray-500 hover:text-honey-700 hover:bg-honey-50" aria-label="Edit bill">
+              <Edit2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={removeBill}
+              disabled={removing}
+              className="p-2 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+              aria-label="Remove bill"
+            >
+              {removing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
           </div>
         )}
+      </div>
 
-        {editable && <AddItemRow poId={poId} billId={bill._id} onChange={onChange} onNewProduct={onNewProduct} />}
-
-        <div className="flex flex-col items-end gap-0.5 text-xs text-gray-600 pt-2 border-t border-gray-100">
-          <span>Subtotal {formatRs(bill.subtotal)}</span>
-          {bill.discount > 0 && <span>Bill discount − {formatRs(bill.discount)}</span>}
-          <span className="text-sm font-semibold text-gray-900">Total {formatRs(bill.billTotal)}</span>
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-gray-50 px-2 py-2">
+            <p className="text-[11px] text-gray-500">Bill total</p>
+            <p className={`text-sm font-semibold ${missingAmount ? 'text-red-600' : 'text-gray-900'}`}>{missingAmount ? 'Not set' : formatRs(total)}</p>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-2 py-2">
+            <p className="text-[11px] text-gray-500">Paid now</p>
+            <p className="text-sm font-semibold text-green-700">{formatRs(paid)}</p>
+            {paid > 0 && <p className="text-[10px] text-gray-500 truncate">{methodLabel(bill.paidMethod)}</p>}
+          </div>
+          <div className="rounded-lg bg-honey-50 px-2 py-2">
+            <p className="text-[11px] text-gray-600">Still owed</p>
+            <p className="text-sm font-semibold text-gray-900">{formatRs(owed)}</p>
+          </div>
         </div>
+
+        {(missingAmount || noBoxes) && editable && (
+          <p className="text-xs text-red-600">
+            {missingAmount && 'Enter the bill amount. '}
+            {noBoxes && 'Enter how many boxes came from this vendor.'}{' '}
+            <button type="button" onClick={onEdit} className="underline font-semibold">
+              Edit bill
+            </button>
+          </p>
+        )}
+
+        {bill.photos.length > 0 && <PhotoStrip photos={bill.photos} />}
+
+        {(editable || bill.items.length > 0) && (
+          <Disclosure
+            className="border-t border-gray-100 pt-1"
+            title={
+              <span>
+                Items <span className="font-normal text-gray-500">(optional — you can enter them while unpacking)</span>
+                {bill.items.length > 0 && (
+                  <span className="block text-[11px] font-normal text-gray-500">
+                    {bill.items.length} typed · {pieces} pcs · {formatRs(bill.subtotal)}
+                    {(bill.billAmount || 0) > 0 && ` of bill ${formatRs(bill.billAmount)}`}
+                  </span>
+                )}
+              </span>
+            }
+          >
+            <div className="space-y-3">
+              {bill.items.length === 0 ? (
+                <p className="text-xs text-gray-500">No items typed. Search or scan a product below if you want a checklist for unpacking.</p>
+              ) : (
+                <div className="overflow-x-auto -mx-4 px-4">
+                  <table className="w-full text-sm min-w-[620px]">
+                    <thead className="text-[11px] text-gray-500 uppercase tracking-wide">
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left py-2 pr-2">Product</th>
+                        <th className="text-right py-2 px-2 w-24">Pieces</th>
+                        <th className="text-right py-2 px-2 w-28">Price / pc</th>
+                        <th className="text-right py-2 px-2 w-24">Discount</th>
+                        <th className="text-right py-2 px-2 w-28">Total</th>
+                        {editable && <th className="w-8" />}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {bill.items.map((item) => (
+                        <ItemRow key={item._id} poId={poId} billId={bill._id} item={item} editable={editable} onChange={onChange} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {editable && <AddItemRow poId={poId} billId={bill._id} onChange={onChange} onNewProduct={onNewProduct} />}
+              {bill.items.length > 0 && (
+                <div className="flex flex-col items-end gap-0.5 text-xs text-gray-600 pt-2 border-t border-gray-100">
+                  <span>Items {formatRs(bill.subtotal)}</span>
+                  {bill.discount > 0 && <span>Discount − {formatRs(bill.discount)}</span>}
+                </div>
+              )}
+            </div>
+          </Disclosure>
+        )}
       </div>
     </section>
   );

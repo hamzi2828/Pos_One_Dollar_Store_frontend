@@ -1,13 +1,13 @@
 'use client';
 
-// Purchase orders list: status tabs, search, vendor / date filters, "New purchase order".
+// Purchase trips list: step tabs (Buying, On the way, Unpacking, Done), search, vendor / date filters, "New purchase trip".
 // Opened from the demand report as /admin/purchasing/orders?new=1&productIds=a,b
-// -> the new PO shows those products as suggested items.
+// -> the new trip shows those products as suggested items.
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { AlertCircle, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Plus, Search, X } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, ClipboardList, Lightbulb, Loader2, Plus, Search, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, HelpBox, LoadingCard, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -20,7 +20,7 @@ type Tab = 'active' | 'open' | 'closed' | 'receiving' | 'received' | 'cancelled'
 
 export default function PurchaseOrdersPage() {
   return (
-    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-6"><LoadingCard text="Loading purchase orders…" /></div>}>
+    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-6"><LoadingCard text="Loading purchase trips…" /></div>}>
       <OrdersList />
     </Suspense>
   );
@@ -65,7 +65,7 @@ function OrdersList() {
       setRows(res.data);
       setMeta(res.meta);
     } catch (e) {
-      if (my === seq.current) setError(apiErrorMessage(e, 'Could not load purchase orders.'));
+      if (my === seq.current) setError(apiErrorMessage(e, 'Could not load purchase trips.'));
     } finally {
       if (my === seq.current) setLoading(false);
     }
@@ -80,10 +80,10 @@ function OrdersList() {
     () =>
       [
         { value: 'active', label: 'Active', count: counts.active },
-        { value: 'open', label: 'Open', count: counts.open },
-        { value: 'closed', label: 'Awaiting receiving', count: counts.closed },
-        { value: 'receiving', label: 'Receiving', count: counts.receiving },
-        { value: 'received', label: 'Received', count: counts.received },
+        { value: 'open', label: 'Buying', count: counts.open },
+        { value: 'closed', label: 'On the way', count: counts.closed },
+        { value: 'receiving', label: 'Unpacking', count: counts.receiving },
+        { value: 'received', label: 'Done', count: counts.received },
         { value: 'cancelled', label: 'Cancelled', count: counts.cancelled },
         { value: 'all', label: 'All', count: counts.all },
       ] as { value: Tab; label: string; count?: number }[],
@@ -103,12 +103,12 @@ function OrdersList() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Purchase Orders</h1>
-            <p className="mt-0.5 text-xs sm:text-sm text-gray-500">One buying trip = one PO. Add each vendor&apos;s bill, the trip charges, then close it with the builty.</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Purchase Trips</h1>
+            <p className="mt-0.5 text-xs sm:text-sm text-gray-500">One trip to the market = one purchase trip. Add each vendor&apos;s bill (amount, boxes, paid now), then send it to the warehouse.</p>
           </div>
           {canCreate && (
             <button onClick={() => setShowNew(true)} className={primaryBtn}>
-              <Plus className="h-4 w-4" /> New purchase order
+              <Plus className="h-4 w-4" /> New purchase trip
             </button>
           )}
         </div>
@@ -117,16 +117,16 @@ function OrdersList() {
           <HelpBox>
             <strong>{suggestedIds.length} products from the demand report</strong> are waiting.{' '}
             <button type="button" className="underline font-semibold" onClick={() => setShowNew(true)}>
-              Start a purchase order
+              Start a purchase trip
             </button>{' '}
             and they will be shown as suggested items.
           </HelpBox>
         )}
 
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatTile label="Goods" value={formatRs(meta?.totals.goods)} sub={`${meta?.total ?? 0} orders`} />
-          <StatTile label="Charges" value={formatRs(meta?.totals.charges)} sub="car rent, builty, landing…" />
-          <StatTile label="Total cost" value={formatRs(meta?.totals.grand)} tone="honey" />
+          <StatTile label="Vendor bills" value={formatRs(meta?.totals.goods)} sub={`${meta?.total ?? 0} trips`} />
+          <StatTile label="Trip costs" value={formatRs(meta?.totals.charges)} sub="car rent, freight, labour…" />
+          <StatTile label="All in" value={formatRs(meta?.totals.grand)} tone="honey" />
         </div>
 
         <Tabs tabs={tabs} value={tab} onChange={setTab} />
@@ -138,7 +138,7 @@ function OrdersList() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search PO no, vendor, bill no, builty no…"
+                placeholder="Search trip no, vendor, bill no…"
                 className={`${inputClass} pl-9 pr-8`}
               />
               {search && (
@@ -167,7 +167,7 @@ function OrdersList() {
         </div>
 
         {loading && !rows.length ? (
-          <LoadingCard text="Loading purchase orders…" />
+          <LoadingCard text="Loading purchase trips…" />
         ) : error ? (
           <div className="bg-white rounded-xl shadow-sm border border-red-200 text-center py-10 px-4">
             <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
@@ -177,12 +177,12 @@ function OrdersList() {
         ) : rows.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="h-12 w-12" />}
-            title="No purchase orders"
+            title="No purchase trips"
             text={debounced || vendor || from || to ? 'Try a different search or filter.' : 'Start one when you go buying.'}
             action={
               canCreate ? (
                 <button onClick={() => setShowNew(true)} className={primaryBtn}>
-                  <Plus className="h-4 w-4" /> New purchase order
+                  <Plus className="h-4 w-4" /> New purchase trip
                 </button>
               ) : undefined
             }
@@ -193,14 +193,13 @@ function OrdersList() {
             <table className="hidden md:table w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <tr>
-                  <th className="text-left px-4 py-2.5">PO</th>
+                  <th className="text-left px-4 py-2.5">Trip</th>
                   <th className="text-left px-4 py-2.5">Vendors</th>
-                  <th className="text-right px-4 py-2.5">Cartons</th>
-                  <th className="text-right px-4 py-2.5">Pieces</th>
-                  <th className="text-right px-4 py-2.5">Goods</th>
-                  <th className="text-right px-4 py-2.5">Charges</th>
-                  <th className="text-right px-4 py-2.5">Total</th>
-                  <th className="text-left px-4 py-2.5">Status</th>
+                  <th className="text-right px-4 py-2.5">Boxes</th>
+                  <th className="text-right px-4 py-2.5">Bills</th>
+                  <th className="text-right px-4 py-2.5">Trip costs</th>
+                  <th className="text-right px-4 py-2.5">All in</th>
+                  <th className="text-left px-4 py-2.5">Step</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -214,10 +213,8 @@ function OrdersList() {
                     </td>
                     <td className="px-4 py-3 text-gray-700 max-w-xs">
                       <p className="truncate">{po.vendors?.length ? po.vendors.join(', ') : <span className="text-gray-400">No bills yet</span>}</p>
-                      {po.builty?.builtyNo && <p className="text-[11px] text-gray-500">Builty {po.builty.builtyNo}</p>}
                     </td>
                     <td className="px-4 py-3 text-right">{po.totals.cartons}</td>
-                    <td className="px-4 py-3 text-right">{po.totals.pieces}</td>
                     <td className="px-4 py-3 text-right">{formatRs(po.totals.goods)}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{formatRs(po.totals.charges)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatRs(po.totals.grand)}</td>
@@ -236,7 +233,7 @@ function OrdersList() {
                   </div>
                   <p className="text-xs text-gray-600 truncate">{po.vendors?.length ? po.vendors.join(', ') : 'No bills yet'}</p>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <span>{formatDate(po.createdAt)} · {po.totals.cartons} ctn · {po.totals.pieces} pcs</span>
+                    <span>{formatDate(po.createdAt)} · {po.totals.cartons} box{po.totals.cartons === 1 ? '' : 'es'}</span>
                     <span className="font-semibold text-gray-900">{formatRs(po.totals.grand)}</span>
                   </div>
                 </Link>
@@ -244,7 +241,7 @@ function OrdersList() {
             </div>
             {meta && meta.pages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-xs text-gray-600">
-                <span>Page {meta.page} of {meta.pages} · {meta.total} orders</span>
+                <span>Page {meta.page} of {meta.pages} · {meta.total} trips</span>
                 <div className="flex gap-2">
                   <button className={secondaryBtn} disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">
                     <ChevronLeft className="h-4 w-4" />
@@ -288,22 +285,22 @@ function NewPOModal({ suggestedCount, onClose, onCreated }: { suggestedCount: nu
     try {
       onCreated(await purchasingApi.create({ notes, expectedArrival: expected || undefined, buyerName: buyerName || undefined }));
     } catch (e) {
-      setError(apiErrorMessage(e, 'Could not create the purchase order.'));
+      setError(apiErrorMessage(e, 'Could not start the purchase trip.'));
       setBusy(false);
     }
   };
 
   return (
     <Modal
-      title="New purchase order"
-      subtitle="Open it before you go buying; add vendor bills as you buy."
+      title="New purchase trip"
+      subtitle="Start it when you go to the market; add each vendor’s bill as you buy."
       icon={<ClipboardList className="h-5 w-5" />}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button className={secondaryBtn} onClick={onClose} disabled={busy}>Cancel</button>
-          <button className={primaryBtn} onClick={submit} disabled={busy}>{busy ? 'Creating…' : 'Create'}</button>
+          <button className={primaryBtn} onClick={submit} disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{busy ? 'Starting…' : 'Start trip'}</button>
         </>
       }
     >
@@ -311,7 +308,7 @@ function NewPOModal({ suggestedCount, onClose, onCreated }: { suggestedCount: nu
         {suggestedCount > 0 && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
             <Lightbulb className="h-4 w-4 flex-shrink-0" />
-            <span>{suggestedCount} products from the demand report will be listed as suggested items in this purchase order.</span>
+            <span>{suggestedCount} products from the demand report will be listed as suggested items in this trip.</span>
           </div>
         )}
         <Field label="Buyer" hint="Who is going to buy. Leave empty to use your name.">

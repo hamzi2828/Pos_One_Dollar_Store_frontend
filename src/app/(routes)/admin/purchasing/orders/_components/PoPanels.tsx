@@ -1,16 +1,16 @@
 'use client';
 
-// Purchase order workspace panels: trip charges, landed-cost preview, suggested items.
-import { useState } from 'react';
+// Purchase trip panels: trip costs, cost-per-piece preview (advanced), suggested items.
+import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { AlertTriangle, Calculator, Lightbulb, Loader2, Plus, Trash2, Truck } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
-import { Card } from '../../_shared/ui';
+import { Card, Disclosure } from '../../_shared/ui';
 import type { AllocationMethod, ChargeType, Costing, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
 
-// ---------------------------------------------------------------- charges
+// ---------------------------------------------------------------- trip costs
 
 export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrder; meta: POMeta | null; editable: boolean; onChange: (po: PurchaseOrder) => void }) {
   const [type, setType] = useState<ChargeType>('car_rent');
@@ -18,33 +18,32 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
   const [paidTo, setPaidTo] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  const label = (t: string) => meta?.chargeTypes.find((c) => c.value === t)?.label || t;
+  const lock = useRef(false);
+  const label = (t: string) => meta?.chargeTypes.find((c) => c.value === t)?.label || t.replace(/_/g, ' ');
 
-  const add = async () => {
-    if (busy) return;
-    if (!(toNum(amount) > 0)) return toast.error('Enter the amount');
-    setBusy('add');
+  const run = async (key: string, fn: () => Promise<PurchaseOrder>, fail: string) => {
+    if (lock.current) return false;
+    lock.current = true;
+    setBusy(key);
     try {
-      onChange(await purchasingApi.addCharge(po._id, { type, amount: toNum(amount), paidTo: paidTo.trim(), note: note.trim() }));
-      setAmount('');
-      setPaidTo('');
-      setNote('');
+      onChange(await fn());
+      return true;
     } catch (e) {
-      toast.error(apiErrorMessage(e, 'Could not add the charge.'));
+      toast.error(apiErrorMessage(e, fail));
+      return false;
     } finally {
+      lock.current = false;
       setBusy(null);
     }
   };
 
-  const remove = async (id: string) => {
-    if (busy) return;
-    setBusy(id);
-    try {
-      onChange(await purchasingApi.removeCharge(po._id, id));
-    } catch (e) {
-      toast.error(apiErrorMessage(e, 'Could not remove the charge.'));
-    } finally {
-      setBusy(null);
+  const add = async () => {
+    if (!(toNum(amount) > 0)) return toast.error('Enter the amount');
+    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), paidTo: paidTo.trim(), note: note.trim() }), 'Could not add the cost.');
+    if (ok) {
+      setAmount('');
+      setPaidTo('');
+      setNote('');
     }
   };
 
@@ -52,14 +51,14 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
     <Card
       title={
         <span className="flex items-center gap-2">
-          <Truck className="h-4 w-4 text-honey-700" /> Trip charges
+          <Truck className="h-4 w-4 text-honey-700" /> Trip costs
         </span>
       }
       actions={<span className="text-sm font-semibold text-gray-900">{formatRs(po.totals.charges)}</span>}
     >
-      <p className="text-[11px] text-gray-500 mb-3">Car rent, transport, builty freight, loading / unloading, landing, labour, misc — spread over the goods as landed cost.</p>
+      <p className="text-[11px] text-gray-500 mb-3">Car rent, transport, loading, labour… These are added to the cost of the goods.</p>
       {po.charges.length === 0 ? (
-        <p className="text-xs text-gray-500 mb-3">No charges yet.</p>
+        <p className="text-xs text-gray-500 mb-3">No trip costs yet.</p>
       ) : (
         <ul className="divide-y divide-gray-100 mb-3">
           {po.charges.map((c) => (
@@ -67,14 +66,20 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
               <div className="min-w-0">
                 <p className="text-sm text-gray-900">
                   {label(c.type)}
-                  {c.source === 'builty' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">from builty</span>}
+                  {c.source === 'builty' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">freight</span>}
                 </p>
                 {(c.paidTo || c.note) && <p className="text-[11px] text-gray-500 truncate">{[c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ')}</p>}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <span className="text-sm font-medium">{formatRs(c.amount)}</span>
                 {editable && (
-                  <button type="button" onClick={() => remove(c._id)} disabled={!!busy} className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-50" aria-label="Remove charge">
+                  <button
+                    type="button"
+                    onClick={() => run(c._id, () => purchasingApi.removeCharge(po._id, c._id), 'Could not remove the cost.')}
+                    disabled={!!busy}
+                    className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                    aria-label="Remove cost"
+                  >
                     {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   </button>
                 )}
@@ -84,17 +89,34 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
         </ul>
       )}
       {editable && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
-          <select value={type} onChange={(e) => setType(e.target.value as ChargeType)} className={inputClass} aria-label="Charge type">
-            {(meta?.chargeTypes || []).map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-          <input type="number" min={0} inputMode="decimal" placeholder="Amount (Rs)" value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} className={inputClass} />
-          <input placeholder="Paid to" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} className={inputClass} />
-          <input placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
-          <button type="button" onClick={add} disabled={!!busy} className={primaryBtn}>
-            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <select value={type} onChange={(e) => setType(e.target.value as ChargeType)} className={inputClass} aria-label="What for">
+              {(meta?.chargeTypes || []).map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={0}
+              inputMode="decimal"
+              placeholder="Amount (Rs)"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
+              className={inputClass}
+            />
+          </div>
+          <Disclosure title={<span className="text-xs">Paid to / note (optional)</span>}>
+            <div className="grid grid-cols-2 gap-2">
+              <input placeholder="Paid to" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} className={inputClass} />
+              <input placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
+            </div>
+          </Disclosure>
+          <button type="button" onClick={add} disabled={!!busy} className={`${primaryBtn} w-full`}>
+            {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add cost
           </button>
         </div>
       )}
@@ -102,11 +124,11 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
   );
 }
 
-// ---------------------------------------------------------------- landed cost preview
+// ---------------------------------------------------------------- cost per piece (advanced)
 
 const WARN: Record<string, { row: string; text: string }> = {
-  loss: { row: 'bg-red-50', text: 'Loss: landed cost ≥ sale price' },
-  low_margin: { row: 'bg-amber-50', text: 'Low margin' },
+  loss: { row: 'bg-red-50', text: 'Loss: cost is more than the sale price' },
+  low_margin: { row: 'bg-amber-50', text: 'Low profit' },
   no_price: { row: 'bg-gray-50', text: 'No sale price' },
 };
 
@@ -118,6 +140,7 @@ export function CostingCard({
   error,
   editable,
   onMethod,
+  className,
 }: {
   po: PurchaseOrder;
   meta: POMeta | null;
@@ -126,32 +149,36 @@ export function CostingCard({
   error: string | null;
   editable: boolean;
   onMethod: (m: AllocationMethod) => void;
+  className?: string;
 }) {
   const t = costing?.totals;
   return (
     <Card
+      className={className}
       title={
         <span className="flex items-center gap-2">
-          <Calculator className="h-4 w-4 text-honey-700" /> Landed cost preview
+          <Calculator className="h-4 w-4 text-honey-700" /> Cost per piece (typed items)
           {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
         </span>
       }
       actions={
         editable ? (
-          <select value={po.allocationMethod} onChange={(e) => onMethod(e.target.value as AllocationMethod)} className={`${inputClass} !py-1 !w-auto`} aria-label="Spread charges">
+          <select value={po.allocationMethod} onChange={(e) => onMethod(e.target.value as AllocationMethod)} className={`${inputClass} !py-1 !w-auto`} aria-label="Share trip costs">
             {(meta?.allocationMethods || []).map((m) => (
-              <option key={m.value} value={m.value}>Spread {m.label.toLowerCase()}</option>
+              <option key={m.value} value={m.value}>
+                Share costs {m.label.toLowerCase()}
+              </option>
             ))}
           </select>
         ) : (
-          <span className="text-xs text-gray-500">Charges spread by {po.allocationMethod}</span>
+          <span className="text-xs text-gray-500">Costs shared by {po.allocationMethod}</span>
         )
       }
     >
       {error ? (
         <p className="text-xs text-red-600">{error}</p>
       ) : !costing || costing.lines.length === 0 ? (
-        <p className="text-xs text-gray-500">Add items to see the cost of every piece all the way to the shelf.</p>
+        <p className="text-xs text-gray-500">Type items on a bill to see what each piece costs with the trip costs added.</p>
       ) : (
         <>
           {t && t.warnings > 0 && (
@@ -169,10 +196,10 @@ export function CostingCard({
                   <th className="text-left py-2 pr-2">Product</th>
                   <th className="text-right py-2 px-2">Qty</th>
                   <th className="text-right py-2 px-2">Vendor price</th>
-                  <th className="text-right py-2 px-2">+ Charges</th>
-                  <th className="text-right py-2 px-2">Landed cost</th>
+                  <th className="text-right py-2 px-2">+ Trip costs</th>
+                  <th className="text-right py-2 px-2">Full cost</th>
                   <th className="text-right py-2 px-2">Sale price</th>
-                  <th className="text-right py-2 px-2">Margin</th>
+                  <th className="text-right py-2 px-2">Profit</th>
                   <th className="text-right py-2 pl-2">New avg cost</th>
                 </tr>
               </thead>
@@ -206,8 +233,8 @@ export function CostingCard({
           {t && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <Sum label="Goods" value={formatRs(t.goods)} />
-              <Sum label={`Charges (${t.chargesPct}% of goods)`} value={formatRs(t.charges)} />
-              <Sum label="Landed total" value={formatRs(t.landed)} strong />
+              <Sum label={`Trip costs (${t.chargesPct}% of goods)`} value={formatRs(t.charges)} />
+              <Sum label="Full cost" value={formatRs(t.landed)} strong />
               <Sum label={`Expected profit (${t.marginPct}%)`} value={formatRs(t.expectedProfit)} tone={t.expectedProfit < 0 ? 'text-red-600' : 'text-green-700'} />
             </div>
           )}

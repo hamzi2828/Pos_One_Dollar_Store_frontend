@@ -149,6 +149,14 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'whatsapp', label: 'WhatsApp', actions: ['view', 'edit'] },
     ],
   },
+  {
+    key: 'website',
+    label: 'Website',
+    iconKey: 'website',
+    groups: [
+      { key: 'website', label: 'Website', actions: ['view', 'edit'] },
+    ],
+  },
 ];
 
 export const PERMISSION_GROUPS: PermissionGroup[] = PERMISSION_SECTIONS.flatMap((s) => s.groups);
