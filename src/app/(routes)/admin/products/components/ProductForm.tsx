@@ -1252,6 +1252,26 @@ export default function ProductForm({
                   </SearchSelect>
                 </div>
 
+                {/* Pieces per sale: here for loose items; box/pack items have it in the Box/pack section */}
+                {!isVariant && packaging.soldAs === "loose" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pieces per sale</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${errors.piecesPerSale ? 'border-red-300' : 'border-gray-300'}`}
+                      value={packaging.piecesPerSale}
+                      onChange={(e) => updatePackaging({ ...packaging, piecesPerSale: e.target.value })}
+                    />
+                    {errors.piecesPerSale ? (
+                      <p className="mt-1 text-sm text-red-600">{errors.piecesPerSale}</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500">{pps > 1 ? `Sold ${pps} together: one scan sells ${pps} pieces` : "1 = one by one. 2 = two sold together"}</p>
+                    )}
+                  </div>
+                )}
+
               </div>
 
               {/* SKU / Short code (made automatically) */}

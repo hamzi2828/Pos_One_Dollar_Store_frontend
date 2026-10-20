@@ -92,7 +92,7 @@ export function initPackaging(product?: ProductCodeFields | null): PackagingStat
   return {
     soldAs: ppb > 1 ? "box" : "loose",
     piecesPerBox: ppb > 1 ? String(ppb * pps) : "",
-    piecesPerSale: pps > 1 ? String(pps) : "",
+    piecesPerSale: String(pps),
     boxes: ppb > 1 ? String(Math.floor(stock / ppb)) : "",
     loosePieces: ppb > 1 ? String(stock % ppb) : "",
     addFullBoxBarcode: savedFullBox.length > 0,

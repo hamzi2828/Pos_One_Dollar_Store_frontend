@@ -153,31 +153,10 @@ export default function PackagingStockCard({
         })}
       </div>
 
-      {/* Pieces per sale */}
-      <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[12rem_1fr] sm:items-center">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Pieces per sale</label>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            placeholder="1"
-            className={inputClass(!!errors.piecesPerSale)}
-            value={value.piecesPerSale}
-            onChange={(e) => set({ piecesPerSale: e.target.value })}
-          />
-        </div>
-        <p className="text-xs text-gray-500">
-          {pps > 1
-            ? `Sold ${pps} together: one scan sells ${pps} pieces for one sale price.`
-            : "1 = sold one by one. 2 = two sold together (e.g. 2 plates for Rs 300)."}
-        </p>
-      </div>
-
       {/* Box/pack fields */}
       {isBox && (
         <div className="mt-3 sm:mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-3 sm:p-4">
-          <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${value.trackBatches || hideStock ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
+          <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${value.trackBatches || hideStock ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-5"}`}>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Pieces in one box/pack <span className="text-red-500">*</span>
@@ -195,6 +174,22 @@ export default function PackagingStockCard({
                 <p className="mt-1 text-xs text-red-600">{errors.piecesPerBox}</p>
               ) : (
                 pps > 1 && physical > 1 && <p className="mt-1 text-xs text-gray-500">= {units(ppb)}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pieces per sale</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                className={inputClass(!!errors.piecesPerSale)}
+                value={value.piecesPerSale}
+                onChange={(e) => set({ piecesPerSale: e.target.value })}
+              />
+              {errors.piecesPerSale ? (
+                <p className="mt-1 text-xs text-red-600">{errors.piecesPerSale}</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">{pps > 1 ? `Sold ${pps} together: one scan sells ${pps} pieces` : "1 = one by one. 2 = two sold together"}</p>
               )}
             </div>
             {!value.trackBatches && !hideStock && (
