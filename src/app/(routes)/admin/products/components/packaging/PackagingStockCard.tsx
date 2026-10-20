@@ -57,6 +57,8 @@ export default function PackagingStockCard({
 }: PackagingStockCardProps) {
   const toNum = (v: string) => (v === "" ? undefined : Number(v));
   const round2 = (n: number) => Math.round(n * 100) / 100;
+  // Cost keeps 4 decimals (1600 / 6 = 266.6667) so the box/pack adds back up exactly.
+  const round4 = (n: number) => Math.round(n * 10000) / 10000;
   // Full box/pack price being typed (kept as typed; the price per sale follows it).
   const [boxSaleText, setBoxSaleText] = useState<string | null>(null);
   const [boxCostText, setBoxCostText] = useState<string | null>(null);
@@ -75,7 +77,7 @@ export default function PackagingStockCard({
   useEffect(() => {
     if (!onPricesChange || ppb < 2 || (boxCost === null && boxSale === null)) return;
     onPricesChange({
-      costPrice: boxCost !== null ? round2(boxCost / ppb) : costPrice,
+      costPrice: boxCost !== null ? round4(boxCost / ppb) : costPrice,
       salePrice: boxSale !== null ? round2(boxSale / ppb) : salePrice,
     });
     // Only when the number of sales in one box/pack changes.
@@ -245,7 +247,7 @@ export default function PackagingStockCard({
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   className={inputClass(!!priceErrors.costPrice)}
                   value={costPrice ?? ""}
@@ -272,7 +274,7 @@ export default function PackagingStockCard({
                     setBoxCostText(e.target.value);
                     const box = toNum(e.target.value);
                     setBoxCost(box === undefined ? null : box);
-                    if (ppb > 1) onPricesChange({ salePrice, costPrice: box === undefined ? undefined : round2(box / ppb) });
+                    if (ppb > 1) onPricesChange({ salePrice, costPrice: box === undefined ? undefined : round4(box / ppb) });
                   }}
                 />
                 <p className="mt-1 text-xs text-gray-500">

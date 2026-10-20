@@ -24,7 +24,7 @@ export default function FullProductModal({
   /** what was typed in the search box (a barcode is not used as the name) */
   initialName?: string;
   onClose: () => void;
-  onCreated: (product: ProductUI) => void;
+  onCreated: (product: ProductUI, receivedPieces: number) => void;
 }) {
   const [data, setData] = useState<{ categories: Category[]; colorOptions: string[]; sizeOptions: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export default function FullProductModal({
           colorOptions={data.colorOptions}
           sizeOptions={data.sizeOptions}
           onCancel={onClose}
-          onSuccess={(p) => p && onCreated(p)}
+          onSuccess={(p, extra) => p && onCreated(p, extra?.receivedPieces || 0)}
         />
       )}
     </Modal>

@@ -78,6 +78,8 @@ export default function UnpackStep({
   const bill = progress.find((p) => p.bill === billId) || progress[0];
   const [unit, setUnit] = useState<ReceivingUnit | null>(null);
   const [presetCost, setPresetCost] = useState<number | null>(null);
+  // Pieces typed in the New product form: the entry is saved straight away.
+  const [presetPieces, setPresetPieces] = useState<number | null>(null);
   const [saved, setSaved] = useState<EntryResult | null>(null);
   const [newProduct, setNewProduct] = useState<string | null>(null);
   const [nextCode, setNextCode] = useState('');
@@ -93,9 +95,10 @@ export default function UnpackStep({
   const canCreateProducts = useAccess().can('products', 'create');
 
   const focusScan = () => setTimeout(() => scanRef.current?.focus(), 50);
-  const pick = (u: ReceivingUnit, cost: number | null = null) => {
+  const pick = (u: ReceivingUnit, cost: number | null = null, pieces: number | null = null) => {
     setUnit(u);
     setPresetCost(cost);
+    setPresetPieces(pieces && pieces > 0 ? pieces : null);
     setSaved(null);
   };
 
@@ -141,13 +144,13 @@ export default function UnpackStep({
   };
 
   /** A product made with the full form: find its unit(s) on this receipt and pick it. */
-  const afterCreate = async (p: ProductUI) => {
+  const afterCreate = async (p: ProductUI, receivedPieces = 0) => {
     setNewProduct(null);
     const cost = p.costPrice && p.costPrice > 0 ? p.costPrice : null;
     try {
       const rows = await purchasingApi.grnLookup(grn._id, p.shortCode || p.sku || p.name, bill.bill);
       const mine = rows.filter((r) => r.productId === p.id);
-      if (mine.length === 1) return pick(mine[0], cost);
+      if (mine.length === 1) return pick(mine[0], cost, receivedPieces);
       if (mine.length > 1) return setChoices({ units: mine, cost });
     } catch {
       /* fall through */
@@ -276,6 +279,7 @@ export default function UnpackStep({
                   boxLabel={boxLabel}
                   unit={unit}
                   presetCost={presetCost}
+                  presetPieces={presetPieces}
                   shelfNow={shelfNow}
                   onShelfNow={setShelfNow}
                   onCancel={() => {
@@ -553,6 +557,7 @@ function EntryForm({
   boxLabel,
   unit,
   presetCost,
+  presetPieces = null,
   shelfNow,
   onShelfNow,
   onCancel,
@@ -567,6 +572,8 @@ function EntryForm({
   boxLabel?: string;
   unit: ReceivingUnit;
   presetCost: number | null;
+  /** pieces typed in the New product form: start with them and save straight away */
+  presetPieces?: number | null;
   shelfNow: boolean;
   onShelfNow: (v: boolean) => void;
   onCancel: () => void;
@@ -579,7 +586,7 @@ function EntryForm({
   const pps = Math.max(1, unit.piecesPerSale || 1); // pieces in one sale (e.g. 2 plates)
   const left = unit.expected?.qtyLeft || 0;
   // Typed in PIECES counted; saved as sales (pieces / pieces per sale).
-  const [qty, setQty] = useState(String((left > 0 ? left : ppb > 1 ? ppb : 1) * pps));
+  const [qty, setQty] = useState(String(presetPieces && presetPieces > 0 ? presetPieces : (left > 0 ? left : ppb > 1 ? ppb : 1) * pps));
   const startCost = presetCost ?? unit.expected?.unitPrice ?? unit.lastCost ?? null;
   const [cost, setCost] = useState(startCost !== null && startCost > 0 ? String(startCost) : '');
   const [damaged, setDamaged] = useState('0');
@@ -644,6 +651,15 @@ function EntryForm({
     }
   };
 
+  // Pieces were typed with the new product: save at once (a problem shows here to fix).
+  const autoSaved = useRef(false);
+  useEffect(() => {
+    if (autoSaved.current || !presetPieces) return;
+    autoSaved.current = true;
+    save();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Card
       className="border-honey-300"
@@ -694,7 +710,7 @@ function EntryForm({
             ref={costRef}
             type="number"
             min={0}
-            step="0.01"
+            step="any"
             inputMode="decimal"
             value={cost}
             onChange={(e) => setCost(e.target.value)}
@@ -804,7 +820,7 @@ function SavedCard({
             <p className="text-base font-semibold text-gray-900">Saved</p>
             {e && (
               <p className="text-sm text-gray-700">
-                {e.qty} pcs of <strong>{e.productName}</strong> — {formatRs(e.value)}
+                {pps > 1 ? `${e.qty} sales (${e.qty * pps} pcs)` : `${e.qty} pcs`} of <strong>{e.productName}</strong> — {formatRs(e.value)}
                 {e.damagedQty > 0 && <span className="text-red-600"> ({e.damagedQty} damaged)</span>}
               </p>
             )}

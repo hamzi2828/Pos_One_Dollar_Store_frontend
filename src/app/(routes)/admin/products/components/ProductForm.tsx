@@ -62,7 +62,8 @@ interface ProductFormProps {
   onSubmit?: (data: ProductFormData) => void;
   onCancel?: () => void;
   // Gets the saved product (create: use its id to open the stickers page)
-  onSuccess?: (product?: ProductUI) => void;
+  // receivedPieces: receiving popup only (pieces typed in "Stock Quantity", entered with the delivery)
+  onSuccess?: (product?: ProductUI, extra?: { receivedPieces?: number }) => void;
   onManageAttributes?: () => void;
   /** Receiving goods: stock comes from the delivery entry, so no stock is typed here (saved as 0). */
   noStock?: boolean;
@@ -189,6 +190,8 @@ export default function ProductForm({
   const submittingRef = useRef(false);
   // Price tier (dollar-store price point): locks the sale price; saved after the product.
   const [priceTier, setPriceTier] = useState<TierChoice>(null);
+  // Receiving popup: pieces received now (go in with the delivery entry, not as opening stock)
+  const [receivedPieces, setReceivedPieces] = useState("");
   const savedTierId = useRef<string | null>(null);
 
   // Packaging / barcodes / batches (single products). Edit: loaded from the product.
@@ -776,7 +779,9 @@ export default function ProductForm({
       }
       setCodeErrors({});
       
-      if (onSuccess) onSuccess(saved);
+      const received = noStock ? Math.max(0, Math.floor(Number(receivedPieces) || 0)) : 0;
+      if (noStock) setReceivedPieces("");
+      if (onSuccess) onSuccess(saved, noStock ? { receivedPieces: received } : undefined);
       
     } catch (error) {
       console.error(`Error ${mode === "create" ? "creating" : "updating"} product:`, error);
@@ -1132,7 +1137,7 @@ export default function ProductForm({
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
                       <input
                         type="number"
-                        step="0.01"
+                        step="any"
                         min="0"
                         placeholder="0.00"
                         disabled={packaging.soldAs === "box"}
@@ -1195,11 +1200,19 @@ export default function ProductForm({
                 {noStock ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Stock Quantity
+                    Stock Quantity <span className="font-normal text-gray-500">(pieces received now)</span>
                   </label>
-                  <p className="flex h-[38px] items-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-xs text-gray-500">
-                    Pieces are entered after saving
-                  </p>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="e.g. 12"
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                    value={receivedPieces}
+                    onChange={(e) => setReceivedPieces(e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Goes into the warehouse with this delivery when you save. Empty = enter after saving.</p>
                 </div>
                 ) : (
                 <div>

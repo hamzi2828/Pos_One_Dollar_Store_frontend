@@ -82,7 +82,7 @@ export default function EntriesList({
                     {(e.boxNo || 0) > 0 && <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700">Box/pack {e.boxNo}</span>}
                   </p>
                   <p className="text-xs text-gray-700 mt-0.5">
-                    <strong>{e.qty} pcs</strong> × {formatRs(e.costPrice, { decimals: 2 })} = {formatRs(e.value)}
+                    <strong>{(e.piecesPerSale || 1) > 1 ? `${e.qty} sales of ${e.piecesPerSale}` : `${e.qty} pcs`}</strong> × {formatRs(e.costPrice, { decimals: 2 })} = {formatRs(e.value)}
                     {e.damagedQty > 0 && <span className="text-red-600"> · {e.damagedQty} damaged</span>}
                   </p>
                   <p className="text-[11px] text-gray-500">
