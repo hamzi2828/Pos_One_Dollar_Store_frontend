@@ -439,7 +439,7 @@ const StockPage = () => {
                       {(row.piecesPerBox > 1 || row.hasBatches) && (
                         <div className="mt-0.5 flex gap-1">
                           {row.piecesPerBox > 1 && (
-                            <span className="px-1.5 py-px rounded bg-amber-50 text-amber-700 text-[10px] font-medium">Box of {row.piecesPerBox}</span>
+                            <span className="px-1.5 py-px rounded bg-amber-50 text-amber-700 text-[10px] font-medium">Box/pack of {row.piecesPerBox}</span>
                           )}
                           {row.hasBatches && (
                             <span className="px-1.5 py-px rounded bg-blue-50 text-blue-700 text-[10px] font-medium">Batches</span>

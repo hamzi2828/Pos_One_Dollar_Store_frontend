@@ -59,7 +59,7 @@ export default function ReceivingQueuePage() {
     () =>
       [
         { value: 'open', label: 'To do', count: c.open },
-        { value: 'pending', label: 'Check boxes', count: c.pending },
+        { value: 'pending', label: 'Check boxes/packs', count: c.pending },
         { value: 'in_progress', label: 'Unpacking', count: c.in_progress },
         { value: 'completed', label: 'Done', count: c.completed },
         { value: 'cancelled', label: 'Cancelled', count: c.cancelled },
@@ -81,7 +81,7 @@ export default function ReceivingQueuePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Receive Goods</h1>
-          <p className="mt-0.5 text-xs sm:text-sm text-gray-500">1. Check all boxes came · 2. Unpack and enter the goods (tags print as you go) · 3. Finish.</p>
+          <p className="mt-0.5 text-xs sm:text-sm text-gray-500">1. Check all boxes/packs came · 2. Unpack and enter the goods (tags print as you go) · 3. Finish.</p>
         </div>
         <HelpBox>
           A trip shows up here when the buyer presses <strong>Send to warehouse</strong>. Goods go into the <strong>warehouse</strong> as soon as you enter them — put them on a shelf now or later from <Link href="/admin/inventory/putaway" className="underline">Warehouse → Shop</Link>.
@@ -138,8 +138,8 @@ export default function ReceivingQueuePage() {
                   <div className="mt-2 flex flex-wrap justify-between gap-x-3 text-[11px] text-gray-500">
                     <span>
                       {g.status === 'pending'
-                        ? `${g.expectedCartons} box${g.expectedCartons === 1 ? '' : 'es'} to check`
-                        : `${g.cartonsReceived || 0} of ${g.expectedCartons} boxes came`}
+                        ? `${g.expectedCartons} box${g.expectedCartons === 1 ? '' : 'es'}/pack${g.expectedCartons === 1 ? '' : 's'} to check`
+                        : `${g.cartonsReceived || 0} of ${g.expectedCartons} boxes/packs came`}
                     </span>
                     {g.builty?.builtyNo && <span>Builty {g.builty.builtyNo}</span>}
                   </div>

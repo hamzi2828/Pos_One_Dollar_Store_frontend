@@ -143,7 +143,7 @@ export default function OldCounting({ grn, setGrn }: { grn: GoodsReceipt; setGrn
         </div>
 
         {grn.status === 'pending' && mayEdit && (
-          <HelpBox>This receipt uses the old way of counting. Press <strong>Start counting</strong>, then scan each piece (or a box barcode) or type the counts. Damaged pieces are not put into stock.</HelpBox>
+          <HelpBox>This receipt uses the old way of counting. Press <strong>Start counting</strong>, then scan each piece (or a box/pack barcode) or type the counts. Damaged pieces are not put into stock.</HelpBox>
         )}
 
         {counting && !posting && <ScanBar grnId={grn._id} onScanned={setGrn} />}
@@ -312,7 +312,7 @@ function LineRow({ line, editable, completed, onSave }: { line: GRNLine; editabl
         </p>
         <p className="text-[11px] text-gray-500">
           {line.code && `#${line.code}`}
-          {line.piecesPerBox > 1 && ` · ${line.piecesPerBox}/box`}
+          {line.piecesPerBox > 1 && ` · ${line.piecesPerBox} per box/pack`}
           {line.productDeleted && <span className="text-red-600"> · product deleted</span>}
         </p>
       </td>

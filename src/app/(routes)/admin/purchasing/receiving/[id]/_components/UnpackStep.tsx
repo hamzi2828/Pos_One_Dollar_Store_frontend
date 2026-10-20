@@ -106,7 +106,7 @@ export default function UnpackStep({
   const boxCount = boxCountOf(grn, bill.bill);
   const doneBoxes = doneBoxesOf(grn, bill.bill);
   const box = boxCount ? Math.min(Math.max(boxNo, 1), boxCount) : 0;
-  const boxLabel = box ? `Box ${box} of ${boxCount}` : undefined;
+  const boxLabel = box ? `Box/pack ${box} of ${boxCount}` : undefined;
   const liveEntries = (grn.entries || []).filter((e) => !e.undone && e.bill === bill.bill);
   const itemsIn = (n: number) => liveEntries.filter((e) => (e.boxNo || 0) === n).length;
 
@@ -125,16 +125,16 @@ export default function UnpackStep({
         })();
         if (next) {
           setBoxNo(next);
-          toast.success(`Box ${n} done. Now open Box ${next}.`);
+          toast.success(`Box/pack ${n} done. Now open Box/pack ${next}.`);
         } else {
-          toast.success(`All ${boxCount} boxes from ${bill.vendorName} are done.`);
+          toast.success(`All ${boxCount} boxes/packs from ${bill.vendorName} are done.`);
         }
         setUnit(null);
         setSaved(null);
         focusScan();
       }
     } catch (e) {
-      toast.error(apiErrorMessage(e, 'Could not save the box.'));
+      toast.error(apiErrorMessage(e, 'Could not save the box/pack.'));
     } finally {
       setBoxBusy(false);
     }
@@ -162,7 +162,7 @@ export default function UnpackStep({
 
       {/* Which vendor's boxes */}
       <div>
-        <p className="text-xs font-medium text-gray-600 mb-1.5">Whose boxes are you opening?</p>
+        <p className="text-xs font-medium text-gray-600 mb-1.5">Whose boxes/packs are you opening?</p>
         <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
           {progress.map((p) => {
             const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
@@ -197,7 +197,7 @@ export default function UnpackStep({
         <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-medium text-gray-600">
-              Which box of {bill.vendorName}? <span className="text-gray-400">({doneBoxes.size} of {boxCount} done)</span>
+              Which box/pack of {bill.vendorName}? <span className="text-gray-400">({doneBoxes.size} of {boxCount} done)</span>
             </p>
           </div>
           <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
@@ -237,12 +237,12 @@ export default function UnpackStep({
               </p>
               {doneBoxes.has(box) ? (
                 <button type="button" onClick={() => markBox(box, false)} disabled={boxBusy} className={`${secondaryBtn} !py-2 text-xs`}>
-                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Box {box} is done · open again
+                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Box/pack {box} is done · open again
                 </button>
               ) : (
                 <button type="button" onClick={() => markBox(box, true)} disabled={boxBusy || !!unit} className={`${primaryBtn} !py-2`}>
-                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Box {box} done
-                  {doneBoxes.size + 1 < boxCount ? ' — next box' : ''}
+                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Box/pack {box} done
+                  {doneBoxes.size + 1 < boxCount ? ' — next box/pack' : ''}
                 </button>
               )}
             </div>
@@ -296,7 +296,7 @@ export default function UnpackStep({
               ) : choices ? (
                 <Card
                   className="border-honey-300"
-                  title="Which one is in the box?"
+                  title="Which one is in the box/pack?"
                   actions={
                     <button type="button" onClick={() => setChoices(null)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">
                       Cancel
@@ -522,7 +522,7 @@ function LookupBox({
                 </div>
                 <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-3">
                   {r.code && <span className="font-mono">#{r.code}</span>}
-                  {r.piecesPerBox > 1 && <span>{r.piecesPerBox}/box</span>}
+                  {r.piecesPerBox > 1 && <span>{r.piecesPerBox} per box/pack</span>}
                   {r.lastCost !== null && r.lastCost !== undefined && <span>Last cost {formatRs(r.lastCost, { decimals: 2 })}</span>}
                   {r.expected && <span className="text-honey-800 font-semibold">On this bill: {r.expected.qtyLeft} pcs left</span>}
                 </div>
@@ -651,7 +651,7 @@ function EntryForm({
         <p className="text-[11px] text-gray-500 -mt-1">
           {unit.code && <span className="font-mono">#{unit.code} · </span>}
           Sale price <strong className="text-gray-800">{formatRs(unit.salePrice)}</strong>
-          {ppb > 1 && ` · ${ppb} pcs per box`} · from {bill.vendorName}
+          {ppb > 1 && ` · ${ppb} pcs per box/pack`} · from {bill.vendorName}
           {boxLabel && <strong className="text-gray-800"> · {boxLabel}</strong>}
           {unit.expected && <span className="text-honey-800 font-semibold"> · on the bill: {unit.expected.qtyLeft} pcs left</span>}
         </p>
@@ -661,15 +661,15 @@ function EntryForm({
           {ppb > 1 && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => setQty(String(n + ppb))} className={`${secondaryBtn} !px-3 !py-2 text-xs`}>
-                + 1 box ({ppb})
+                + 1 box/pack ({ppb})
               </button>
               {[2, 5, 10].map((k) => (
                 <button key={k} type="button" onClick={() => setQty(String(k * ppb))} className={`${secondaryBtn} !px-3 !py-2 text-xs`}>
-                  {k} boxes
+                  {k} boxes/packs
                 </button>
               ))}
               <span className="text-[11px] text-gray-500">
-                = {boxes} box{boxes === 1 ? '' : 'es'}
+                = {boxes} box{boxes === 1 ? '' : 'es'}/pack{boxes === 1 ? '' : 's'}
                 {loose ? ` + ${loose} pcs` : ''}
               </span>
             </div>

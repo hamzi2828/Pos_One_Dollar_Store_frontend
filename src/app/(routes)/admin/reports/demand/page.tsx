@@ -423,7 +423,7 @@ export default function DemandPage() {
                           </td>
                           <td className="px-3 py-2.5 text-right whitespace-nowrap">
                             <p className="font-semibold text-gray-900">{fmtNum(x.suggestedQty)} pcs</p>
-                            {x.suggestedBoxes ? <p className="text-[11px] text-gray-500">{x.suggestedBoxes} box × {x.piecesPerBox}</p> : null}
+                            {x.suggestedBoxes ? <p className="text-[11px] text-gray-500">{x.suggestedBoxes} box/pack × {x.piecesPerBox}</p> : null}
                             <p className="text-[11px] text-gray-500">{formatRs(x.reorderCost)}</p>
                           </td>
                           <td className="px-3 py-2.5 text-xs min-w-[140px]">

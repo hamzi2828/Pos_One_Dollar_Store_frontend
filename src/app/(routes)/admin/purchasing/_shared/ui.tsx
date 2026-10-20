@@ -16,7 +16,7 @@ const PO_BADGE: Record<POStatus, { label: string; cls: string }> = {
 };
 
 const GRN_BADGE: Record<GRNStatus, { label: string; cls: string }> = {
-  pending: { label: 'Check boxes', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  pending: { label: 'Check boxes/packs', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   in_progress: { label: 'Unpacking', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   completed: { label: 'Done', cls: 'bg-green-50 text-green-700 border-green-200' },
   cancelled: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-500 border-gray-200' },

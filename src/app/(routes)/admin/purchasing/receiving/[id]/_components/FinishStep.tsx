@@ -118,7 +118,7 @@ export default function FinishStep({
     <div className="space-y-4 max-w-3xl">
       {(sameReceiver || !grn.canVerify) && <SameReceiverNote />}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <StatTile label="Boxes" value={`${boxesReceived} of ${boxesExpected}`} tone={boxesReceived === boxesExpected ? 'green' : 'amber'} />
+        <StatTile label="Boxes/packs" value={`${boxesReceived} of ${boxesExpected}`} tone={boxesReceived === boxesExpected ? 'green' : 'amber'} />
         <StatTile label="Pieces entered" value={pieces} sub={`${entries} entries`} />
         <StatTile label="Damaged" value={damaged} tone={damaged ? 'red' : 'gray'} />
         <StatTile label="Claim back" value={formatRs(claimTotal)} tone={claimTotal ? 'amber' : 'gray'} />
@@ -191,7 +191,7 @@ export default function FinishStep({
               {r.diff < 0 && <p className="mt-2 text-xs text-blue-700">{formatRs(-r.diff)} more was entered than the bill. Check the cost prices — nothing is added to the vendor account.</p>}
               {r.boxesExpected !== r.boxesReceived && (
                 <p className="mt-2 text-[11px] text-amber-700">
-                  Boxes: {r.boxesReceived} of {r.boxesExpected} came.
+                  Boxes/packs: {r.boxesReceived} of {r.boxesExpected} came.
                 </p>
               )}
             </li>

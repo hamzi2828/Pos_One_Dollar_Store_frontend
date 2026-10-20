@@ -169,7 +169,7 @@ export default function ReportDamageModal({
             </div>
 
             <Field label="What happened">
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} placeholder="e.g. Box got wet under the AC" className={inputClass} />
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={1000} placeholder="e.g. Box/pack got wet under the AC" className={inputClass} />
             </Field>
 
             <Field label={`Photos (up to ${MAX_PHOTOS})`}>

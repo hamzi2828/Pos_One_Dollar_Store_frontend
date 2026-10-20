@@ -23,7 +23,7 @@ import UnpackStep from './_components/UnpackStep';
 import FinishStep, { DoneView } from './_components/FinishStep';
 import { loadTagSize, type StickerSize } from './_components/tags';
 
-const STEPS = ['Check boxes', 'Unpack & enter', 'Finish'];
+const STEPS = ['Check boxes/packs', 'Unpack & enter', 'Finish'];
 type View = 0 | 1 | 2;
 
 /** Old receipt: the server says it was counted line by line (`mode: 'lines'`), or (older servers) no boxes / counted lines. */
@@ -167,7 +167,7 @@ export default function ReceiveGoodsPage() {
             onSaved={(g) => {
               setGrn(g);
               setView(1);
-              toast.success('Boxes checked. Now unpack and enter the goods.');
+              toast.success('Boxes/packs checked. Now unpack and enter the goods.');
             }}
           />
         ) : current === 1 ? (

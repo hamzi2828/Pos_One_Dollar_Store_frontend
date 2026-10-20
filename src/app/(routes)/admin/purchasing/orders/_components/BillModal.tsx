@@ -70,7 +70,7 @@ export default function BillModal({
     if (lock.current) return;
     if (!vendor) return setError('Choose the vendor of this bill.');
     if (billAmount !== '' && toNum(billAmount) < 0) return setError('Bill amount cannot be negative.');
-    if (!Number.isInteger(toNum(cartons)) || toNum(cartons) < 0) return setError('Boxes must be a whole number.');
+    if (!Number.isInteger(toNum(cartons)) || toNum(cartons) < 0) return setError('Boxes/packs must be a whole number.');
     if (toNum(paidNow) < 0) return setError('Paid now cannot be negative.');
     if (toNum(paidNow) > 0 && total > 0 && toNum(paidNow) > total) return setError(`Paid now (${formatRs(toNum(paidNow))}) is more than the bill (${formatRs(total)}).`);
     if (toNum(paidNow) > 0 && !hasItems && !(toNum(billAmount) > 0)) return setError('Enter the bill amount first, then what you paid.');
@@ -168,8 +168,8 @@ export default function BillModal({
             placeholder="0"
           />
         </Field>
-        <Field label="Boxes" hint="How many boxes / cartons / bags you got from this vendor.">
-          <NumberStepper value={cartons} onChange={setCartons} min={0} label="boxes" />
+        <Field label="Boxes/packs" hint="How many boxes/packs (cartons, bags) you got from this vendor.">
+          <NumberStepper value={cartons} onChange={setCartons} min={0} label="boxes/packs" />
         </Field>
 
         <div className="rounded-lg border border-gray-200 p-3 space-y-3">

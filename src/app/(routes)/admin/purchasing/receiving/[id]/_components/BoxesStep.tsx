@@ -44,7 +44,7 @@ export default function BoxesStep({
     if (lock.current || !editable) return;
     for (const b of boxes) {
       const n = toNum(counts[b.bill]);
-      if (!Number.isInteger(n) || n < 0) return setError(`Boxes from ${b.vendorName} must be a whole number.`);
+      if (!Number.isInteger(n) || n < 0) return setError(`Boxes/packs from ${b.vendorName} must be a whole number.`);
     }
     lock.current = true;
     setBusy(true);
@@ -58,7 +58,7 @@ export default function BoxesStep({
       onSaved(res.grn);
     } catch (e) {
       if (apiErrorCode(e) === 'SAME_RECEIVER') setSameReceiver(true);
-      else setError(apiErrorMessage(e, 'Could not save the box count.'));
+      else setError(apiErrorMessage(e, 'Could not save the box/pack count.'));
     } finally {
       lock.current = false;
       setBusy(false);
@@ -71,12 +71,12 @@ export default function BoxesStep({
       <Card
         title={
           <span className="flex items-center gap-2">
-            <PackageCheck className="h-4 w-4 text-honey-700" /> Did all boxes come?
+            <PackageCheck className="h-4 w-4 text-honey-700" /> Did all boxes/packs come?
           </span>
         }
         actions={<span className="text-xs text-gray-500">{expected} expected</span>}
       >
-        <p className="text-xs text-gray-500 mb-3">Count the boxes from each vendor. Change the number if some are missing.</p>
+        <p className="text-xs text-gray-500 mb-3">Count the boxes/packs from each vendor. Change the number if some are missing.</p>
         <ul className="space-y-3">
           {boxes.map((b) => {
             const n = toNum(counts[b.bill]);
@@ -86,7 +86,7 @@ export default function BoxesStep({
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{b.vendorName}</p>
-                    <p className="text-[11px] text-gray-500">{b.billNo ? `Bill ${b.billNo} · ` : ''}Expected {b.expected} box{b.expected === 1 ? '' : 'es'}</p>
+                    <p className="text-[11px] text-gray-500">{b.billNo ? `Bill ${b.billNo} · ` : ''}Expected {b.expected} box{b.expected === 1 ? '' : 'es'}/pack{b.expected === 1 ? '' : 's'}</p>
                   </div>
                   {!off ? (
                     <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
@@ -95,7 +95,7 @@ export default function BoxesStep({
                   )}
                 </div>
                 {editable ? (
-                  <NumberStepper value={counts[b.bill] ?? ''} onChange={(v) => setCounts((c) => ({ ...c, [b.bill]: v }))} min={0} label={`boxes from ${b.vendorName}`} disabled={busy} />
+                  <NumberStepper value={counts[b.bill] ?? ''} onChange={(v) => setCounts((c) => ({ ...c, [b.bill]: v }))} min={0} label={`boxes/packs from ${b.vendorName}`} disabled={busy} />
                 ) : (
                   <p className="text-lg font-semibold text-gray-900">{checked ? b.received : '—'} came</p>
                 )}
@@ -107,14 +107,14 @@ export default function BoxesStep({
         <div className={`mt-4 flex items-center justify-between rounded-lg px-3 py-2.5 ${diff === 0 ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>
           <span className="text-sm font-medium">Total</span>
           <span className="text-base font-semibold tabular-nums">
-            {received} of {expected} boxes
+            {received} of {expected} boxes/packs
           </span>
         </div>
         {diff !== 0 && (
           <div className="mt-2 flex items-start gap-2 text-xs text-amber-800">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
             <span>
-              {diff < 0 ? `${-diff} box${diff === -1 ? ' is' : 'es are'} missing.` : `${diff} more box${diff === 1 ? '' : 'es'} than expected.`} Tell the buyer, and write it in the note.
+              {diff < 0 ? `${-diff} box${diff === -1 ? '/pack is' : 'es/packs are'} missing.` : `${diff} more box${diff === 1 ? '/pack' : 'es/packs'} than expected.`} Tell the buyer, and write it in the note.
             </span>
           </div>
         )}
@@ -122,7 +122,7 @@ export default function BoxesStep({
         <div className="mt-4">
           <Field label="Note (optional)">
             {editable ? (
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} placeholder="e.g. 1 box wet, 1 box torn" disabled={busy} />
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputClass} placeholder="e.g. 1 box/pack wet, 1 box/pack torn" disabled={busy} />
             ) : (
               <p className="text-sm text-gray-800">{grn.boxesNote || '—'}</p>
             )}
@@ -134,11 +134,11 @@ export default function BoxesStep({
             <ErrorBox message={error} />
             <button type="button" onClick={submit} disabled={busy} aria-busy={busy} className={`${primaryBtn} w-full !py-3 text-base`}>
               {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-              {busy ? 'Saving…' : checked ? 'Save box count' : 'Boxes are checked'}
+              {busy ? 'Saving…' : checked ? 'Save box/pack count' : 'Boxes/packs are checked'}
             </button>
           </div>
         )}
-        {mayEdit && hasEntries && <p className="mt-3 text-[11px] text-gray-500">Goods are already being entered, so the box count can no longer be changed.</p>}
+        {mayEdit && hasEntries && <p className="mt-3 text-[11px] text-gray-500">Goods are already being entered, so the box/pack count can no longer be changed.</p>}
       </Card>
 
       {(grn.builty?.builtyNo || grn.builty?.transporter || (grn.builty?.photos || []).length > 0 || billPhotos.length > 0) && (

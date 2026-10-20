@@ -19,7 +19,7 @@ import BillModal from '../_components/BillModal';
 import { ChargesCard, CostingCard, SuggestedItems } from '../_components/PoPanels';
 import { CloseModal, DetailsModal, NewProductModal } from '../_components/PoModals';
 
-const STEPS = ['Buy', 'Send to warehouse', 'Check boxes', 'Unpack & enter', 'Done'];
+const STEPS = ['Buy', 'Send to warehouse', 'Check boxes/packs', 'Unpack & enter', 'Done'];
 
 /** Which step a trip is at (index into STEPS; 5 = all done). */
 function tripStep(po: PurchaseOrder) {
@@ -251,17 +251,17 @@ function Workspace() {
         {po.status === 'open' && (
           <p className="text-xs sm:text-sm text-gray-600">
             {po.bills.length === 0
-              ? 'Add a bill for every vendor you buy from: bill amount, boxes and what you paid.'
+              ? 'Add a bill for every vendor you buy from: bill amount, boxes/packs and what you paid.'
               : step === 1
                 ? 'All bills have an amount. When the goods leave the market, press “Send to warehouse”.'
-                : 'Every bill needs a bill amount and the number of boxes.'}
+                : 'Every bill needs a bill amount and the number of boxes/packs.'}
           </p>
         )}
 
         {/* Totals */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
           <StatTile label="Vendor bills" value={po.bills.length} />
-          <StatTile label="Boxes" value={boxes} />
+          <StatTile label="Boxes/packs" value={boxes} />
           <StatTile label="Bills total" value={formatRs(goods)} />
           <StatTile label="Paid now" value={formatRs(paid)} tone="green" />
           <StatTile label="Still owed" value={formatRs(Math.max(0, goods - paid))} tone="amber" />
@@ -285,13 +285,13 @@ function Workspace() {
             }
           >
             <p className="text-sm text-gray-700 mb-2">
-              {po.status === 'closed' && 'Waiting for the boxes to be checked at the warehouse.'}
-              {po.status === 'receiving' && 'Boxes are being unpacked and entered.'}
+              {po.status === 'closed' && 'Waiting for the boxes/packs to be checked at the warehouse.'}
+              {po.status === 'receiving' && 'Boxes/packs are being unpacked and entered.'}
               {po.status === 'received' && `All done${po.receivedAt ? ` on ${formatDate(po.receivedAt)}` : ''}. Goods are in the warehouse or on shelves.`}
               {po.grn?.receiverName && ` Receiver: ${po.grn.receiverName}.`}
             </p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600 mb-2">
-              <span>Boxes: {po.builty?.cartons || boxes}</span>
+              <span>Boxes/packs: {po.builty?.cartons || boxes}</span>
               {po.builty?.builtyNo && <span>Builty: {po.builty.builtyNo}</span>}
               {po.builty?.transporter && <span>Transporter: {po.builty.transporter}</span>}
               {po.builty?.freight > 0 && <span>Freight: {formatRs(po.builty.freight)}</span>}
@@ -398,7 +398,7 @@ function Workspace() {
           onClose={() => setShowClose(false)}
           onClosed={(_next, grn, warnings) => {
             setShowClose(false);
-            toast.success(grn ? 'Sent to the warehouse. The boxes are waiting to be checked.' : 'Sent to the warehouse');
+            toast.success(grn ? 'Sent to the warehouse. The boxes/packs are waiting to be checked.' : 'Sent to the warehouse');
             warnings.forEach((w) => toast(w, { icon: '⚠️', duration: 6000 }));
             load();
           }}

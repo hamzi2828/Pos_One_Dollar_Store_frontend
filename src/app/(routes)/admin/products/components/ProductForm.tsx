@@ -1223,7 +1223,7 @@ export default function ProductForm({
                         {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
                         {!isVariant && stockLocked && (
                           <p className="mt-1 text-xs text-gray-500">
-                            {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes below"}
+                            {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes/packs below"}
                           </p>
                         )}
                       </>

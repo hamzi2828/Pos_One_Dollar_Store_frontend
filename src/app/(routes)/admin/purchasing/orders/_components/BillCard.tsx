@@ -68,7 +68,7 @@ export default function BillCard({
             <p className="text-[11px] text-gray-500">
               {bill.billNo ? `Bill ${bill.billNo}` : 'No bill no.'} · {formatDate(bill.billDate)} ·{' '}
               <span className={noBoxes ? 'text-red-600 font-semibold' : 'font-semibold text-gray-700'}>
-                {bill.cartons || 0} box{bill.cartons === 1 ? '' : 'es'}
+                {bill.cartons || 0} box{bill.cartons === 1 ? '' : 'es'}/pack{bill.cartons === 1 ? '' : 's'}
               </span>
             </p>
           </div>
@@ -111,7 +111,7 @@ export default function BillCard({
         {(missingAmount || noBoxes) && editable && (
           <p className="text-xs text-red-600">
             {missingAmount && 'Enter the bill amount. '}
-            {noBoxes && 'Enter how many boxes came from this vendor.'}{' '}
+            {noBoxes && 'Enter how many boxes/packs came from this vendor.'}{' '}
             <button type="button" onClick={onEdit} className="underline font-semibold">
               Edit bill
             </button>
@@ -235,7 +235,7 @@ function ItemRow({ poId, billId, item, editable, onChange }: { poId: string; bil
         <p className="font-medium text-gray-900 leading-tight">{item.productName}</p>
         <p className="text-[11px] text-gray-500">
           {item.code && `#${item.code} · `}Sale {formatRs(item.salePrice)}
-          {item.piecesPerBox > 1 && ` · ${boxes} box${loose ? ` + ${loose}` : ''} (${item.piecesPerBox}/box)`}
+          {item.piecesPerBox > 1 && ` · ${boxes} box/pack${loose ? ` + ${loose}` : ''} (${item.piecesPerBox} per box/pack)`}
         </p>
       </td>
       <td className="py-2 px-2 text-right">
@@ -366,7 +366,7 @@ function AddItemRow({ poId, billId, onChange, onNewProduct }: { poId: string; bi
           </div>
         )}
         <label className="text-[11px] text-gray-600">
-          {byBox ? 'Boxes' : 'Pieces'}
+          {byBox ? 'Boxes/packs' : 'Pieces'}
           <input ref={qtyRef} type="number" min={0} inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} onKeyDown={onKey} className={inputClass} />
         </label>
         {byBox && (
@@ -377,7 +377,7 @@ function AddItemRow({ poId, billId, onChange, onNewProduct }: { poId: string; bi
         )}
         <label className="text-[11px] text-gray-600">
           <span className="flex items-center justify-between">
-            Price / {pricePerBox ? 'box' : 'pc'}
+            Price / {pricePerBox ? 'box/pack' : 'pc'}
             {perBox > 1 && (
               <button type="button" className="text-honey-700 underline" onClick={() => setPricePerBox((v) => !v)}>
                 per {pricePerBox ? 'pc' : 'box'}

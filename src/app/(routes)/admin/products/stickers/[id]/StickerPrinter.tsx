@@ -70,7 +70,7 @@ function buildRows(data: LabelData, type: StickerType): Row[] {
         unit: u,
         code: u.fullBoxCode,
         suggested: u.suggested.fullBox || 1,
-        problem: u.fullBoxCode ? undefined : 'No full-box code. Turn it on in "Edit product".',
+        problem: u.fullBoxCode ? undefined : 'No whole box/pack tag yet. Turn on "One tag for the whole box/pack" in Edit product.',
       });
     } else {
       for (const b of u.batches) {
@@ -99,22 +99,22 @@ function typeInfos(data: LabelData): TypeInfo[] {
     { type: 'unit', title: 'Piece sticker', help: 'One scan sells 1 piece.', icon: Tag, disabledReason: null },
     {
       type: 'box',
-      title: 'Box sticker',
-      help: 'Stick it on the box. One scan sells 1 piece.',
+      title: 'Box/pack sticker',
+      help: 'Stick it on the box/pack. One scan sells 1 piece.',
       icon: Package,
-      disabledReason: ppb > 1 ? null : 'Only for items that come in boxes (box size more than 1).',
+      disabledReason: ppb > 1 ? null : 'Only for items that come in boxes/packs (more than 1 piece in a box/pack).',
     },
     {
       type: 'full-box',
-      title: 'Full-box sticker',
-      help: ppb > 1 ? `One scan sells the whole box (${ppb} pieces).` : 'One scan sells the whole box.',
+      title: 'Whole box/pack tag',
+      help: ppb > 1 ? `One scan sells the whole box/pack (${ppb} pieces).` : 'One scan sells the whole box/pack.',
       icon: Boxes,
       disabledReason:
         ppb <= 1
-          ? 'Only for items that come in boxes (box size more than 1).'
+          ? 'Only for items that come in boxes/packs (more than 1 piece in a box/pack).'
           : hasFullBox
             ? null
-            : 'Turn on "full-box code" in Edit product first.',
+            : 'Turn on "One tag for the whole box/pack" in Edit product first.',
     },
     ...(hasBatches
       ? [{
@@ -404,7 +404,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
           </h1>
           <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500 truncate">
             {data.product.name}
-            {ppb > 1 && <span className="ml-2 text-amber-700">· Box of {ppb}</span>}
+            {ppb > 1 && <span className="ml-2 text-amber-700">· Box/pack of {ppb}</span>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -573,10 +573,10 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
             <h2 className="text-sm font-semibold text-gray-900">2. How many?</h2>
             <p className="text-xs text-gray-500 mb-2">
               {type === 'batch'
-                ? 'Tick the batches you want. Copies start at the batch size' + (ppb > 1 ? ' (in boxes).' : '.')
+                ? 'Tick the batches you want. Copies start at the batch size' + (ppb > 1 ? ' (in boxes/packs).' : '.')
                 : type === 'unit'
                   ? 'Copies start at the stock you have (one per piece).'
-                  : 'Copies start at the number of boxes you have.'}
+                  : 'Copies start at the number of boxes/packs you have.'}
             </p>
             {visibleRows.length === 0 ? (
               <p className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">

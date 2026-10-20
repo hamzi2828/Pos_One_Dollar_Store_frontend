@@ -104,7 +104,7 @@ function OrdersList() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Purchase Trips</h1>
-            <p className="mt-0.5 text-xs sm:text-sm text-gray-500">One trip to the market = one purchase trip. Add each vendor&apos;s bill (amount, boxes, paid now), then send it to the warehouse.</p>
+            <p className="mt-0.5 text-xs sm:text-sm text-gray-500">One trip to the market = one purchase trip. Add each vendor&apos;s bill (amount, boxes/packs, paid now), then send it to the warehouse.</p>
           </div>
           {canCreate && (
             <button onClick={() => setShowNew(true)} className={primaryBtn}>
@@ -195,7 +195,7 @@ function OrdersList() {
                 <tr>
                   <th className="text-left px-4 py-2.5">Trip</th>
                   <th className="text-left px-4 py-2.5">Vendors</th>
-                  <th className="text-right px-4 py-2.5">Boxes</th>
+                  <th className="text-right px-4 py-2.5">Boxes/packs</th>
                   <th className="text-right px-4 py-2.5">Bills</th>
                   <th className="text-right px-4 py-2.5">Trip costs</th>
                   <th className="text-right px-4 py-2.5">All in</th>
@@ -233,7 +233,7 @@ function OrdersList() {
                   </div>
                   <p className="text-xs text-gray-600 truncate">{po.vendors?.length ? po.vendors.join(', ') : 'No bills yet'}</p>
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <span>{formatDate(po.createdAt)} · {po.totals.cartons} box{po.totals.cartons === 1 ? '' : 'es'}</span>
+                    <span>{formatDate(po.createdAt)} · {po.totals.cartons} box{po.totals.cartons === 1 ? '' : 'es'}/pack{po.totals.cartons === 1 ? '' : 's'}</span>
                     <span className="font-semibold text-gray-900">{formatRs(po.totals.grand)}</span>
                   </div>
                 </Link>

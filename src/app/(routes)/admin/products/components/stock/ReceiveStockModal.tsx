@@ -109,7 +109,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
       return;
     }
     if (totalPieces <= 0) {
-      setError(boxMode ? 'Enter how many boxes (or loose pieces) you received.' : 'Enter how many pieces you received.');
+      setError(boxMode ? 'Enter how many boxes/packs (or loose pieces) you received.' : 'Enter how many pieces you received.');
       return;
     }
     const body: ReceiveStockBody = {};
@@ -266,7 +266,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
             {unit && (
               <p className="text-xs text-gray-500">
                 Now in stock: <strong className="text-gray-800">{unit.stock} pieces</strong>
-                {ppb > 1 && ` (box of ${ppb})`}
+                {ppb > 1 && ` (box/pack of ${ppb})`}
               </p>
             )}
 
@@ -282,7 +282,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                       mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {m === 'boxes' ? 'Boxes' : 'Pieces'}
+                    {m === 'boxes' ? 'Boxes/packs' : 'Pieces'}
                   </button>
                 ))}
               </div>
@@ -292,7 +292,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Boxes</label>
+                    <label className="block text-sm font-medium text-gray-700">Boxes/packs</label>
                     <input
                       type="number"
                       min={0}
@@ -318,7 +318,7 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  1 box = {ppb} pieces. Total: <strong className="text-gray-800">{totalPieces} pieces</strong>
+                  1 box/pack = {ppb} pieces. Total: <strong className="text-gray-800">{totalPieces} pieces</strong>
                 </p>
               </div>
             ) : (

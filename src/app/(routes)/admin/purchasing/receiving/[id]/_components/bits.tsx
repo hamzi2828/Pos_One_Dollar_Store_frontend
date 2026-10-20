@@ -8,7 +8,7 @@ export function SameReceiverNote() {
     <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
       <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
       <span>
-        <strong>Someone else must receive these goods.</strong> You bought them, so another staff member has to check the boxes and enter the goods.
+        <strong>Someone else must receive these goods.</strong> You bought them, so another staff member has to check the boxes/packs and enter the goods.
       </span>
     </div>
   );

@@ -139,7 +139,7 @@ export function ProductSearch({
                 <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-3">
                   {r.code && <span>#{r.code}</span>}
                   <span>Stock {r.branchStock}</span>
-                  {r.piecesPerBox > 1 && <span>{r.piecesPerBox}/box</span>}
+                  {r.piecesPerBox > 1 && <span>{r.piecesPerBox} per box/pack</span>}
                   {r.lastPurchasePrice !== null && <span>Last bought {formatRs(r.lastPurchasePrice, { decimals: 2 })}</span>}
                   {r.costPrice !== null && <span>Cost {formatRs(r.costPrice, { decimals: 2 })}</span>}
                 </div>

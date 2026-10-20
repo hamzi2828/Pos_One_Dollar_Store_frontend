@@ -47,7 +47,7 @@ export default function QuickProductModal({
     if (!(toNum(salePrice) > 0)) return setError('Enter the sale price (e.g. 150, 280, 499).');
     if (costPrice !== '' && !(toNum(costPrice) > 0)) return setError('Cost price must be more than 0.');
     const ppb = Math.floor(toNum(perBox)) || 1;
-    if (ppb < 1) return setError('Pieces per box must be 1 or more.');
+    if (ppb < 1) return setError('Pieces per box/pack must be 1 or more.');
     lock.current = true;
     setBusy(true);
     setError(null);
@@ -98,7 +98,7 @@ export default function QuickProductModal({
           <Field label="Cost / piece (Rs)" hint="Vendor price">
             <input type="number" min={0} step="0.01" inputMode="decimal" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className={inputClass} />
           </Field>
-          <Field label="Pieces per box">
+          <Field label="Pieces per box/pack">
             <input type="number" min={1} inputMode="numeric" value={perBox} onChange={(e) => setPerBox(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Category">

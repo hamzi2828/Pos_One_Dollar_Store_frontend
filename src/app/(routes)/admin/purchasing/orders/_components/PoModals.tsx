@@ -43,7 +43,7 @@ export function CloseModal({
 
   const submit = async () => {
     if (lock.current || blocked) return;
-    if (!(toNum(cartons) >= 1) || !Number.isInteger(toNum(cartons))) return setError('Enter how many boxes are going to the warehouse (1 or more).');
+    if (!(toNum(cartons) >= 1) || !Number.isInteger(toNum(cartons))) return setError('Enter how many boxes/packs are going to the warehouse (1 or more).');
     if (toNum(freight) < 0) return setError('Freight cannot be negative.');
     lock.current = true;
     setBusy(true);
@@ -83,7 +83,7 @@ export function CloseModal({
     >
       <fieldset disabled={busy} className="min-w-0 space-y-4">
         <HelpBox>
-          The trip is locked, each vendor bill (and what you paid) goes into the vendor&apos;s account, and the boxes wait in <strong>Receive Goods</strong> to be checked.
+          The trip is locked, each vendor bill (and what you paid) goes into the vendor&apos;s account, and the boxes/packs wait in <strong>Receive Goods</strong> to be checked.
         </HelpBox>
         {noAmount.length > 0 && (
           <ErrorBox message={`Enter the bill amount for: ${noAmount.map((x) => x.vendorName).join(', ')}.`} />
@@ -91,16 +91,16 @@ export function CloseModal({
         {noBoxes.length > 0 && noAmount.length === 0 && (
           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span>No boxes entered for: {noBoxes.map((x) => x.vendorName).join(', ')}.</span>
+            <span>No boxes/packs entered for: {noBoxes.map((x) => x.vendorName).join(', ')}.</span>
           </div>
         )}
 
-        <Field label="Boxes going to the warehouse" required hint={`Bills add up to ${billBoxes} box${billBoxes === 1 ? '' : 'es'}.`}>
-          <NumberStepper value={cartons} onChange={setCartons} min={0} label="boxes" />
+        <Field label="Boxes/packs going to the warehouse" required hint={`Bills add up to ${billBoxes} box${billBoxes === 1 ? '' : 'es'}/pack${billBoxes === 1 ? '' : 's'}.`}>
+          <NumberStepper value={cartons} onChange={setCartons} min={0} label="boxes/packs" />
         </Field>
         {toNum(cartons) > 0 && billBoxes > 0 && toNum(cartons) !== billBoxes && (
           <p className="text-xs text-amber-700">
-            The bills say {billBoxes} boxes, you entered {toNum(cartons)}.
+            The bills say {billBoxes} boxes/packs, you entered {toNum(cartons)}.
           </p>
         )}
 
@@ -279,7 +279,7 @@ export function NewProductModal({
           <Field label="Sale price (Rs)" required>
             <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
           </Field>
-          <Field label="Pieces per box">
+          <Field label="Pieces per box/pack">
             <input type="number" min={1} inputMode="numeric" value={perBox} onChange={(e) => setPerBox(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Pieces bought" required>

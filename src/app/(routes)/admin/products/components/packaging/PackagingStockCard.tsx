@@ -109,7 +109,7 @@ export default function PackagingStockCard({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {([
           { key: "loose", title: "Loose pieces", desc: "Sold one by one (pens, cables, covers)", icon: LayoutGrid },
-          { key: "box", title: "Box", desc: "Comes in boxes, sold by piece or full box", icon: Package },
+          { key: "box", title: "Box/pack", desc: "Comes in boxes/packs, sold by piece or full box/pack", icon: Package },
         ] as const).map((opt) => {
           const active = value.soldAs === opt.key;
           const Icon = opt.icon;
@@ -140,7 +140,7 @@ export default function PackagingStockCard({
           <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${value.trackBatches || hideStock ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Pieces in one box <span className="text-red-500">*</span>
+                Pieces in one box/pack <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -156,7 +156,7 @@ export default function PackagingStockCard({
             {!value.trackBatches && !hideStock && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Boxes in stock</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Boxes/packs in stock</label>
                   <input
                     type="number"
                     min="0"
@@ -178,7 +178,7 @@ export default function PackagingStockCard({
                     value={value.loosePieces}
                     onChange={(e) => set({ loosePieces: e.target.value })}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Pieces from an open box</p>
+                  <p className="mt-1 text-xs text-gray-500">Pieces from an open box/pack</p>
                 </div>
               </>
             )}
@@ -215,12 +215,12 @@ export default function PackagingStockCard({
                 {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">One full box: sale price ({currencySymbol})</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">One full box/pack: sale price ({currencySymbol})</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder={ppb > 1 ? "Price of the whole box" : "Enter pieces in one box first"}
+                  placeholder={ppb > 1 ? "Price of the whole box/pack" : "Enter pieces in one box/pack first"}
                   disabled={ppb < 2}
                   className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
                   value={boxSaleText ?? (ppb > 1 && salePrice ? String(round2(salePrice * ppb)) : "")}
@@ -252,12 +252,12 @@ export default function PackagingStockCard({
                 {priceErrors.costPrice && <p className="mt-1 text-xs text-red-600">{priceErrors.costPrice}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">One full box: cost price ({currencySymbol})</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">One full box/pack: cost price ({currencySymbol})</label>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder={ppb > 1 ? "What the whole box cost" : "Enter pieces in one box first"}
+                  placeholder={ppb > 1 ? "What the whole box/pack cost" : "Enter pieces in one box/pack first"}
                   disabled={ppb < 2}
                   className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
                   value={boxCostText ?? (ppb > 1 && costPrice ? String(round2(costPrice * ppb)) : "")}
@@ -284,9 +284,10 @@ export default function PackagingStockCard({
               onChange={(e) => set({ addFullBoxBarcode: e.target.checked })}
             />
             <span>
-              <span className="block text-sm text-gray-800">Also create a full-box barcode (one scan sells the whole box)</span>
+              <span className="block text-sm font-medium text-gray-800">One tag for the whole box/pack</span>
               <span className="block text-xs text-gray-500">
-                {value.shortCode ? `Code ${value.shortCode}-BOX` : "Code will be <short code>-BOX"} sells {ppb > 1 ? ppb : "all"} pieces in one scan.
+                Stick it on the box/pack: one scan sells all {ppb > 1 ? `${ppb} pieces` : "the pieces"} at once
+                {value.shortCode ? ` (code ${value.shortCode}-BOX)` : ""}. Print it from Stickers after saving.
               </span>
             </span>
           </label>

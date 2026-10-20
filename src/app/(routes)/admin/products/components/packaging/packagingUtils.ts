@@ -122,12 +122,12 @@ export function validatePackaging(p: PackagingState, mode: "create" | "edit"): R
   const e: Record<string, string> = {};
   if (p.soldAs === "box") {
     const n = Number(p.piecesPerBox);
-    if (!p.piecesPerBox || !Number.isInteger(n) || n < 2) e.piecesPerBox = "Enter how many pieces are in one box (2 or more)";
+    if (!p.piecesPerBox || !Number.isInteger(n) || n < 2) e.piecesPerBox = "Enter how many pieces are in one box/pack (2 or more)";
     if (!p.trackBatches) {
       const boxes = p.boxes === "" ? 0 : Number(p.boxes);
       const loose = p.loosePieces === "" ? 0 : Number(p.loosePieces);
       if (!Number.isInteger(boxes) || boxes < 0 || !Number.isInteger(loose) || loose < 0) {
-        e.boxes = "Boxes and loose pieces must be whole numbers (0 or more)";
+        e.boxes = "Boxes/packs and loose pieces must be whole numbers (0 or more)";
       }
     }
   }

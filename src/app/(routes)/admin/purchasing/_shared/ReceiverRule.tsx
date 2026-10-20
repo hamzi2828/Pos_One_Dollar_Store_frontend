@@ -48,7 +48,7 @@ export function ReceiverRule() {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-gray-900">Someone other than the buyer must check and receive the goods</p>
         <p className="mt-0.5 text-xs text-gray-500">
-          {on ? 'On: the person who bought can not check the boxes or enter the goods of their own trip.' : 'Off: the buyer may also receive their own trip.'} Only the owner can change this.
+          {on ? 'On: the person who bought can not check the boxes/packs or enter the goods of their own trip.' : 'Off: the buyer may also receive their own trip.'} Only the owner can change this.
         </p>
       </div>
       <button
