@@ -42,6 +42,9 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 type StatusFilter = 'all' | 'completed' | 'pending' | 'refunded' | 'cancelled';
 type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer';
 
+/** Today in shop time (Pakistan), YYYY-MM-DD. */
+const pkToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
+
 export default function POSOrdersPage() {
   const currency = 'PKR';
   const symbol = getCurrencySymbol(currency);
@@ -59,8 +62,20 @@ export default function POSOrdersPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [payment, setPayment] = useState<PaymentFilter>('all');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  // Date: Today (default) / Custom (from - to) / All dates
+  const [range, setRange] = useState<'today' | 'custom' | 'all'>('today');
+  const [startDate, setStartDate] = useState<string>(() => pkToday());
+  const [endDate, setEndDate] = useState<string>(() => pkToday());
+  const pickRange = (r: 'today' | 'custom' | 'all') => {
+    setRange(r);
+    if (r === 'today') {
+      setStartDate(pkToday());
+      setEndDate(pkToday());
+    } else if (r === 'all') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
   const [viewing, setViewing] = useState<POSOrder | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteLock = useRef(false);
@@ -132,8 +147,9 @@ export default function POSOrdersPage() {
     setSearch('');
     setStatus('all');
     setPayment('all');
-    setStartDate('');
-    setEndDate('');
+    setRange('today');
+    setStartDate(pkToday());
+    setEndDate(pkToday());
   };
 
   const handleDelete = async (id: string) => {
@@ -246,6 +262,19 @@ export default function POSOrdersPage() {
             />
           </div>
 
+          <SearchSelect
+            value={range}
+            onChange={(e) => pickRange(e.target.value as 'today' | 'custom' | 'all')}
+            aria-label="Date"
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
+          >
+            <option value="today">Today</option>
+            <option value="custom">Custom dates</option>
+            <option value="all">All dates</option>
+          </SearchSelect>
+
+          {range === 'custom' && (
+            <>
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
             <input
@@ -264,6 +293,9 @@ export default function POSOrdersPage() {
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
             />
           </div>
+
+            </>
+          )}
 
           <SearchSelect
             value={status}
@@ -288,7 +320,7 @@ export default function POSOrdersPage() {
             <option value="bank_transfer">Bank Transfer</option>
           </SearchSelect>
 
-          {(search || status !== 'all' || payment !== 'all' || startDate || endDate) && (
+          {(search || status !== 'all' || payment !== 'all' || range !== 'today') && (
             <button
               onClick={resetFilters}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100"

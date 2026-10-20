@@ -16,18 +16,17 @@ import CustomerSelector from './components/CustomerSelector';
 import VariantSelector from './components/VariantSelector';
 import PaymentModal from './components/PaymentModal';
 import HeldOrders from './components/HeldOrders';
-import SalesHistory from './components/SalesHistory';
 import PendingPaymentsTab from './components/PendingPaymentsTab';
 import LastSaleBar from './components/LastSaleBar';
 import { getPOSProducts, getProductByBarcode } from './services/posProductService';
-import { createPOSOrder, getPOSOrders, POSApiError } from './services/posOrderService';
+import { createPOSOrder, POSApiError } from './services/posOrderService';
 import { createOrFindCustomer } from './services/posCustomerService';
 import { holdCart, getHeldCarts, retrieveHeldCart, clearHeldCart } from './services/posCartService';
 import { useCartQuote } from './hooks/useCartQuote';
 import { cartToOrderItems, giftLineId, paidLineId } from './utils/cartPayload';
 import { getCurrencySymbol } from './utils/currency';
 import { HeldCart } from './types';
-import { Archive, Receipt, Filter, AlertCircle, ShoppingCart, LayoutGrid } from 'lucide-react';
+import { Archive, Filter, AlertCircle, ShoppingCart, LayoutGrid } from 'lucide-react';
 import { getAuthHeader } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
@@ -58,8 +57,6 @@ export default function POSPage() {
   const { can } = useAccess();
   const symbol = getCurrencySymbol('PKR');
 
-  // Sales figures are hidden from the plain cashier (cash closing is blind).
-  const canSeeSales = can(['dashboard', 'pos_orders', 'till_verify'], 'view');
   const canEditPrice = can('pos', 'edit');
   const canGoBelowList = can('discounts', 'edit');
   const canGift = can('pos_gifts', 'create');
@@ -81,9 +78,9 @@ export default function POSPage() {
   // Search text whose results are on screen (null = nothing loaded yet).
   const [loadedQuery, setLoadedQuery] = useState<string | null>(null);
   const [heldCarts, setHeldCarts] = useState<HeldCart[]>([]);
-  const [recentOrders, setRecentOrders] = useState<POSOrder[]>([]);
   const [activeTab, setActiveTab] = useState<POSTab>(initialTab);
-  const tab: POSTab = activeTab === 'history' && !canSeeSales ? 'products' : activeTab;
+  // "Today's Sales" moved to POS Orders (Date: Today): an old link to it opens Products.
+  const tab: POSTab = activeTab === 'history' ? 'products' : activeTab;
   const [storeName, setStoreName] = useState<string>('DOLLAR & Co');
   // Button busy states: show a spinner and block a second click while saving.
   const [holding, setHolding] = useState(false);
@@ -219,17 +216,6 @@ export default function POSPage() {
     }
   }, []);
 
-  // Today's sales: only for users who may see sales figures.
-  const loadRecentOrders = useCallback(async () => {
-    if (!canSeeSales) return;
-    try {
-      const { orders } = await getPOSOrders(new Date().toISOString().split('T')[0], 20);
-      setRecentOrders(orders);
-    } catch (error) {
-      console.error('Failed to load recent orders:', error);
-    }
-  }, [canSeeSales]);
-
   const loadHeldCarts = useCallback(async () => {
     try {
       setHeldCarts(await getHeldCarts());
@@ -239,10 +225,9 @@ export default function POSPage() {
   }, []);
 
   useEffect(() => {
-    loadRecentOrders();
     loadSettings();
     loadHeldCarts();
-  }, [loadRecentOrders, loadSettings, loadHeldCarts]);
+  }, [loadSettings, loadHeldCarts]);
 
   // Search products (debounced; first load runs straight away; same text = no reload)
   const trimmedQuery = searchQuery.trim();
@@ -310,7 +295,6 @@ export default function POSPage() {
         if (addToCart(product)) noteSet(product);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [addToCart]
   );
 
@@ -595,7 +579,6 @@ export default function POSPage() {
       resetSale();
       setShowPaymentModal(false);
       setMobileView('products');
-      loadRecentOrders();
       setTimeout(() => searchRef.current?.focus(), 50);
     } catch (error) {
       console.error('Order creation failed:', error);
@@ -666,7 +649,6 @@ export default function POSPage() {
               </>,
               'bg-honey-500'
             )}
-            {canSeeSales && tabButton('history', <><Receipt className="h-4 w-4 inline mr-1.5" />Today&apos;s Sales</>, 'bg-honey-500')}
             {tabButton('pending', <><AlertCircle className="h-4 w-4 inline mr-1.5" />Pending Payments</>, 'bg-orange-600')}
           </div>
 
@@ -708,8 +690,7 @@ export default function POSPage() {
           {tab === 'held' && (
             <HeldOrders heldCarts={heldCarts} onRetrieve={handleRetrieveCart} onDelete={handleDeleteHeldCart} busy={heldBusy} currency={'PKR'} />
           )}
-          {tab === 'history' && canSeeSales && <SalesHistory orders={recentOrders} storeName={storeName} currency={'PKR'} />}
-          {tab === 'pending' && <PendingPaymentsTab currency={'PKR'} onPaymentComplete={() => loadRecentOrders()} />}
+          {tab === 'pending' && <PendingPaymentsTab currency={'PKR'} onPaymentComplete={() => {}} />}
         </div>
       </div>
 
