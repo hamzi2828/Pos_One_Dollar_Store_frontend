@@ -423,7 +423,10 @@ export interface ReceivingUnit {
   code: string;
   salePrice: number;
   lastCost: number | null;
+  /** Sales in one box/pack (stock counts sales). */
   piecesPerBox: number;
+  /** Pieces handed over in one sale (2 = sold in twos). Missing = 1. */
+  piecesPerSale?: number;
   expected: { lineId: string; qtyLeft: number; unitPrice: number; bill?: string; vendorName?: string; billNo?: string; expectedQty?: number } | null;
   // extras the lookup may also send (same as purchasing product search)
   productName?: string;

@@ -217,7 +217,7 @@ export function NewProductModal({
 }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [salePrice, setSalePrice] = useState('');
+  const [salePrice, setSalePrice] = useState('300');
   const [perBox, setPerBox] = useState('1');
   const [qty, setQty] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
@@ -276,9 +276,6 @@ export function NewProductModal({
               ))}
             </datalist>
           </Field>
-          <Field label="Sale price (Rs)" required>
-            <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
-          </Field>
           <Field label="Pieces per box/pack">
             <input type="number" min={1} inputMode="numeric" value={perBox} onChange={(e) => setPerBox(e.target.value)} className={inputClass} />
           </Field>
@@ -287,6 +284,9 @@ export function NewProductModal({
           </Field>
           <Field label="Vendor price / piece" required>
             <input type="number" min={0} step="0.01" inputMode="decimal" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Sale price (Rs)" required>
+            <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
           </Field>
         </div>
         <p className="text-[11px] text-gray-500">Short code, SKU and barcode are made automatically. Add photos and details later on the product page.</p>

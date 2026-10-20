@@ -26,7 +26,7 @@ export default function QuickProductModal({
   const [name, setName] = useState(looksLikeCode ? '' : initialName.trim());
   const [barcode, setBarcode] = useState(looksLikeCode ? initialName.trim() : '');
   const [category, setCategory] = useState('');
-  const [salePrice, setSalePrice] = useState('');
+  const [salePrice, setSalePrice] = useState('300');
   const [costPrice, setCostPrice] = useState('');
   const [perBox, setPerBox] = useState('1');
   const [categories, setCategories] = useState<string[]>([]);
@@ -92,11 +92,11 @@ export default function QuickProductModal({
           <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} autoFocus placeholder="e.g. Steel water bottle 750ml" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Sale price (Rs)" required>
-            <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
-          </Field>
           <Field label="Cost / piece (Rs)" hint="Vendor price">
             <input type="number" min={0} step="0.01" inputMode="decimal" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Sale price (Rs)" required>
+            <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Pieces per box/pack">
             <input type="number" min={1} inputMode="numeric" value={perBox} onChange={(e) => setPerBox(e.target.value)} className={inputClass} />

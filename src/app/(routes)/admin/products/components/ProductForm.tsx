@@ -19,6 +19,7 @@ import {
   computedStock,
   initPackaging,
   normalizeCode,
+  piecesPerSaleOf,
   readBackendError,
   validatePackaging,
   variantPayload,
@@ -199,6 +200,8 @@ export default function ProductForm({
   // Variant rows with the "options & barcodes" row open (key = color|size)
   const [openVariantRows, setOpenVariantRows] = useState<Record<string, boolean>>({});
   const productId = mode === "edit" ? (initialData as Product | undefined)?.id : undefined;
+  // Pieces handed over in one sale (single products): prices and stock are per sale.
+  const pps = form.productType === "variant" ? 1 : piecesPerSaleOf(packaging);
   const savedStock = Number((initialData as Product | undefined)?.stock) || 0;
 
   // Update URL when tab changes
@@ -602,7 +605,7 @@ export default function ProductForm({
       if (errs.colors || errs.sizes) {
         handleTabChange("variant");
         toast.error(errs.colors || errs.sizes);
-      } else if (errs.name || errs.category || errs.price || errs.stock || errs.costPrice || errs.discountedPrice || errs.piecesPerBox || errs.boxes || errs.batches || errs.shortCode) {
+      } else if (errs.name || errs.category || errs.price || errs.stock || errs.costPrice || errs.discountedPrice || errs.piecesPerBox || errs.piecesPerSale || errs.boxes || errs.batches || errs.shortCode) {
         handleTabChange("content");
         toast.error("Please fix the errors in Product Details tab");
       } else if (errs.thumbnail) {
@@ -1120,9 +1123,35 @@ export default function ProductForm({
             <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
               <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2 sm:mb-3 md:mb-4">Pricing & Stock</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                {!isVariant && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {pps > 1 ? `Cost price (one sale = ${pps} pieces)` : "Cost Price"} ({currency.symbol}) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        disabled={packaging.soldAs === "box"}
+                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-900'}`}
+                        value={form.costPrice ?? ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setField("costPrice", val === "" ? undefined : Number(val));
+                        }}
+                      />
+                    </div>
+                    {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                    {packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set in the Box/pack section below</p>}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sale Price ({currency.symbol}) {!isVariant && <span className="text-red-500">*</span>}
+                    {pps > 1 ? `One sale price (${pps} pieces)` : "Sale Price"} ({currency.symbol}) {!isVariant && <span className="text-red-500">*</span>}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
@@ -1147,7 +1176,7 @@ export default function ProductForm({
                   </div>
                   {errors.discountedPrice && <p className="mt-1 text-sm text-red-600">{errors.discountedPrice}</p>}
                   {isVariant && <p className="mt-1 text-xs text-gray-500">Set prices per variant</p>}
-                  {!isVariant && packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set per piece in the Box section below</p>}
+                  {!isVariant && packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set in the Box/pack section below</p>}
                 </div>
 
                 <PriceTierSelect
@@ -1160,32 +1189,6 @@ export default function ProductForm({
                     if (tier && !isVariant) setForm((prev) => ({ ...prev, discountedPrice: tier.price, price: tier.price }));
                   }}
                 />
-
-                {!isVariant && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Cost Price ({currency.symbol}) <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        disabled={packaging.soldAs === "box"}
-                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-900'}`}
-                        value={form.costPrice ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setField("costPrice", val === "" ? undefined : Number(val));
-                        }}
-                      />
-                    </div>
-                    {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
-                    {packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set per piece in the Box section below</p>}
-                  </div>
-                )}
 
                 {noStock ? (
                 <div>
@@ -1293,6 +1296,7 @@ export default function ProductForm({
                     hideStock={noStock}
                     errors={{
                       piecesPerBox: errors.piecesPerBox || "",
+                      piecesPerSale: errors.piecesPerSale || "",
                       boxes: errors.boxes || "",
                       batches: errors.batches || codeErrors.batches || "",
                       shortCode: errors.shortCode || codeErrors.shortCode || "",

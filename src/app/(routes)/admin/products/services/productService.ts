@@ -83,6 +83,7 @@ export interface ProductDTO {
   barcodes?: ProductBarcodeDTO[];
   batches?: ProductBatchDTO[];
   piecesPerBox?: number;
+  piecesPerSale?: number;
   totalStock?: number;
 }
 
@@ -116,6 +117,7 @@ export interface ProductUI {
   barcodes?: ProductBarcodeDTO[];
   batches?: ProductBatchDTO[];
   piecesPerBox?: number;
+  piecesPerSale?: number;
   totalStock?: number;
 }
 
@@ -173,6 +175,7 @@ function mapToUI(dto: ProductDTO): ProductUI {
     barcodes: dto.barcodes ?? [],
     batches: dto.batches ?? [],
     piecesPerBox: dto.piecesPerBox,
+    piecesPerSale: dto.piecesPerSale,
     totalStock: dto.totalStock,
   };
 }

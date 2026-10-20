@@ -1,7 +1,8 @@
 // Packaging / barcode helpers for the product form.
 // Backend rules: pos_backend/docs/BARCODES_BOXES_BATCHES.md
-//   - stock is always in pieces
-//   - box:     stock = boxes * piecesPerBox + loosePieces
+//   - stock is counted in SALES (one sale = piecesPerSale pieces; usually 1)
+//   - box:     stock = boxes * piecesPerBox + loosePieces (piecesPerBox saved = sales in one box/pack)
+//   - the form types "pieces in one box/pack" (physical) and divides by piecesPerSale
 //   - batches: stock = sum of batch quantities (oldest / expiring sells first)
 //   - full-box code "<shortCode>-BOX" lives in `barcodes` with label "full-box"
 
@@ -22,7 +23,10 @@ export interface BatchRow {
 
 export interface PackagingState {
   soldAs: SoldAs;
+  /** Physical pieces in one box/pack (as typed). */
   piecesPerBox: string;
+  /** Pieces handed over in one sale (e.g. 2 plates for Rs 300). "" / 1 = one by one. */
+  piecesPerSale: string;
   boxes: string;
   loosePieces: string;
   addFullBoxBarcode: boolean;
@@ -41,6 +45,7 @@ export interface ProductCodeFields {
   barcodes?: ProductBarcodeDTO[];
   batches?: ProductBatchDTO[];
   piecesPerBox?: number;
+  piecesPerSale?: number;
   stock?: number;
   productType?: "single" | "variant";
 }
@@ -77,7 +82,8 @@ export const emptyBatchRow = (costPrice?: number): BatchRow => ({
 });
 
 export function initPackaging(product?: ProductCodeFields | null): PackagingState {
-  const ppb = Math.max(1, Math.floor(Number(product?.piecesPerBox) || 1));
+  const ppb = Math.max(1, Math.floor(Number(product?.piecesPerBox) || 1)); // sales in one box/pack
+  const pps = Math.max(1, Math.floor(Number(product?.piecesPerSale) || 1));
   const stock = Math.max(0, Math.floor(Number(product?.stock) || 0));
   const shortCode = product?.shortCode || "";
   const allBarcodes = Array.isArray(product?.barcodes) ? product!.barcodes! : [];
@@ -85,7 +91,8 @@ export function initPackaging(product?: ProductCodeFields | null): PackagingStat
   const savedFullBox = allBarcodes.filter((b) => isFullBoxBarcode(b, shortCode));
   return {
     soldAs: ppb > 1 ? "box" : "loose",
-    piecesPerBox: ppb > 1 ? String(ppb) : "",
+    piecesPerBox: ppb > 1 ? String(ppb * pps) : "",
+    piecesPerSale: pps > 1 ? String(pps) : "",
     boxes: ppb > 1 ? String(Math.floor(stock / ppb)) : "",
     loosePieces: ppb > 1 ? String(stock % ppb) : "",
     addFullBoxBarcode: savedFullBox.length > 0,
@@ -104,7 +111,13 @@ export function initPackaging(product?: ProductCodeFields | null): PackagingStat
   };
 }
 
-export const piecesPerBoxOf = (p: PackagingState) => (p.soldAs === "box" ? Math.max(1, toInt(p.piecesPerBox)) : 1);
+/** Pieces handed over in one sale (1 = one by one). */
+export const piecesPerSaleOf = (p: PackagingState) => Math.max(1, toInt(p.piecesPerSale));
+/** Physical pieces in one box/pack, as typed. */
+export const physicalPerBoxOf = (p: PackagingState) => (p.soldAs === "box" ? Math.max(1, toInt(p.piecesPerBox)) : 1);
+/** Sales in one box/pack (what is saved as piecesPerBox; stock counts sales). */
+export const piecesPerBoxOf = (p: PackagingState) =>
+  p.soldAs === "box" ? Math.max(1, Math.floor(physicalPerBoxOf(p) / piecesPerSaleOf(p))) : 1;
 
 export const boxStockOf = (p: PackagingState) => toInt(p.boxes) * piecesPerBoxOf(p) + toInt(p.loosePieces);
 
@@ -120,9 +133,16 @@ export function computedStock(p: PackagingState): number | null {
 // Client-side checks. Keys: piecesPerBox, boxes, batches, shortCode.
 export function validatePackaging(p: PackagingState, mode: "create" | "edit"): Record<string, string> {
   const e: Record<string, string> = {};
+  if (p.piecesPerSale.trim() !== "") {
+    const s = Number(p.piecesPerSale);
+    if (!Number.isInteger(s) || s < 1 || s > 1000) e.piecesPerSale = "Pieces per sale must be a whole number (1 or more)";
+  }
   if (p.soldAs === "box") {
     const n = Number(p.piecesPerBox);
+    const pps = piecesPerSaleOf(p);
     if (!p.piecesPerBox || !Number.isInteger(n) || n < 2) e.piecesPerBox = "Enter how many pieces are in one box/pack (2 or more)";
+    else if (n % pps !== 0) e.piecesPerBox = `${n} pieces cannot be split into sales of ${pps}. Check the pieces in one box/pack.`;
+    else if (n / pps < 2) e.piecesPerBox = `A box/pack of ${n} is only 1 sale of ${pps}: choose "Loose pieces" instead.`;
     if (!p.trackBatches) {
       const boxes = p.boxes === "" ? 0 : Number(p.boxes);
       const loose = p.loosePieces === "" ? 0 : Number(p.loosePieces);
@@ -180,6 +200,7 @@ export function batchesPayload(p: PackagingState) {
 export function appendPackagingFields(fd: FormData, p: PackagingState, mode: "create" | "edit") {
   const ppb = piecesPerBoxOf(p);
   fd.set("piecesPerBox", String(ppb));
+  fd.set("piecesPerSale", String(piecesPerSaleOf(p)));
   fd.set("addFullBoxBarcode", String(p.soldAs === "box" && p.addFullBoxBarcode));
 
   if (p.trackBatches) {

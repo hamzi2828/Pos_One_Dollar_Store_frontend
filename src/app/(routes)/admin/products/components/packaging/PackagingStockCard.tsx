@@ -7,7 +7,9 @@ import {
   batchStockOf,
   boxStockOf,
   emptyBatchRow,
+  physicalPerBoxOf,
   piecesPerBoxOf,
+  piecesPerSaleOf,
 } from "./packagingUtils";
 
 interface PackagingStockCardProps {
@@ -55,14 +57,18 @@ export default function PackagingStockCard({
 }: PackagingStockCardProps) {
   const toNum = (v: string) => (v === "" ? undefined : Number(v));
   const round2 = (n: number) => Math.round(n * 100) / 100;
-  // Full-box price being typed (kept as typed; the per-piece price follows it).
+  // Full box/pack price being typed (kept as typed; the price per sale follows it).
   const [boxSaleText, setBoxSaleText] = useState<string | null>(null);
   const [boxCostText, setBoxCostText] = useState<string | null>(null);
 
   const set = (patch: Partial<PackagingState>) => onChange({ ...value, ...patch });
   const isBox = value.soldAs === "box";
   const hasSavedBatches = value.batches.some((b) => !!b.saved);
-  const ppb = piecesPerBoxOf(value);
+  const pps = piecesPerSaleOf(value); // pieces in one sale
+  const ppb = piecesPerBoxOf(value); // sales in one box/pack
+  const physical = physicalPerBoxOf(value); // pieces in one box/pack
+  const unit = pps > 1 ? "sale" : "piece";
+  const units = (n: number) => (pps > 1 ? `${n} sale${n === 1 ? "" : "s"} of ${pps}` : `${n} piece${n === 1 ? "" : "s"}`);
 
   const setSoldAs = (soldAs: SoldAs) => {
     if (soldAs === value.soldAs) return;
@@ -102,7 +108,7 @@ export default function PackagingStockCard({
       }}
     >
       <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-1">Packaging &amp; Stock</h4>
-      <p className="text-xs text-gray-500 mb-3 sm:mb-4">Stock is always counted in pieces.</p>
+      <p className="text-xs text-gray-500 mb-3 sm:mb-4">Stock is counted in sales: one scan at the counter sells one.</p>
 
       {/* How is it sold? */}
       <label className="block text-sm font-medium text-gray-700 mb-2">How is it sold?</label>
@@ -134,7 +140,28 @@ export default function PackagingStockCard({
         })}
       </div>
 
-      {/* Box fields */}
+      {/* Pieces per sale */}
+      <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[12rem_1fr] sm:items-center">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Pieces per sale</label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            placeholder="1"
+            className={inputClass(!!errors.piecesPerSale)}
+            value={value.piecesPerSale}
+            onChange={(e) => set({ piecesPerSale: e.target.value })}
+          />
+        </div>
+        <p className="text-xs text-gray-500">
+          {pps > 1
+            ? `Sold ${pps} together: one scan sells ${pps} pieces for one sale price.`
+            : "1 = sold one by one. 2 = two sold together (e.g. 2 plates for Rs 300)."}
+        </p>
+      </div>
+
+      {/* Box/pack fields */}
       {isBox && (
         <div className="mt-3 sm:mt-4 rounded-lg border border-gray-200 bg-gray-50/60 p-3 sm:p-4">
           <div className={`grid grid-cols-1 gap-3 sm:gap-4 ${value.trackBatches || hideStock ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
@@ -151,7 +178,11 @@ export default function PackagingStockCard({
                 value={value.piecesPerBox}
                 onChange={(e) => set({ piecesPerBox: e.target.value })}
               />
-              {errors.piecesPerBox && <p className="mt-1 text-xs text-red-600">{errors.piecesPerBox}</p>}
+              {errors.piecesPerBox ? (
+                <p className="mt-1 text-xs text-red-600">{errors.piecesPerBox}</p>
+              ) : (
+                pps > 1 && physical > 1 && <p className="mt-1 text-xs text-gray-500">= {units(ppb)}</p>
+              )}
             </div>
             {!value.trackBatches && !hideStock && (
               <>
@@ -168,7 +199,7 @@ export default function PackagingStockCard({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Loose pieces</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{pps > 1 ? `Loose sales (${pps} pieces each)` : "Loose pieces"}</label>
                   <input
                     type="number"
                     min="0"
@@ -178,7 +209,7 @@ export default function PackagingStockCard({
                     value={value.loosePieces}
                     onChange={(e) => set({ loosePieces: e.target.value })}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Pieces from an open box/pack</p>
+                  <p className="mt-1 text-xs text-gray-500">From an open box/pack</p>
                 </div>
               </>
             )}
@@ -186,7 +217,7 @@ export default function PackagingStockCard({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Total stock</label>
               <div className="flex h-[38px] items-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-900">
-                {value.trackBatches ? batchTotal : boxTotal} pieces
+                {units(value.trackBatches ? batchTotal : boxTotal)}
               </div>
               <p className="mt-1 text-xs text-gray-500">
                 {value.trackBatches ? "From the batches below" : `${Number(value.boxes) || 0} × ${ppb} + ${Number(value.loosePieces) || 0}`}
@@ -196,49 +227,12 @@ export default function PackagingStockCard({
           </div>
           {errors.boxes && <p className="mt-2 text-xs text-red-600">{errors.boxes}</p>}
 
-          {/* Prices: per piece, or for one full box (split over the pieces) */}
+          {/* Prices: cost first, then sale; per sale or for one full box/pack (split over its sales) */}
           {onPricesChange && (
             <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sale price per piece ({currencySymbol}) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  className={inputClass(!!priceErrors.salePrice)}
-                  value={salePrice ?? ""}
-                  onChange={(e) => onPricesChange({ salePrice: toNum(e.target.value), costPrice })}
-                />
-                {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">One full box/pack: sale price ({currencySymbol})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder={ppb > 1 ? "Price of the whole box/pack" : "Enter pieces in one box/pack first"}
-                  disabled={ppb < 2}
-                  className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
-                  value={boxSaleText ?? (ppb > 1 && salePrice ? String(round2(salePrice * ppb)) : "")}
-                  onFocus={(e) => setBoxSaleText(e.target.value)}
-                  onBlur={() => setBoxSaleText(null)}
-                  onChange={(e) => {
-                    setBoxSaleText(e.target.value);
-                    const box = toNum(e.target.value);
-                    if (ppb > 1) onPricesChange({ salePrice: box === undefined ? undefined : round2(box / ppb), costPrice });
-                  }}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  {ppb > 1 ? `Split over ${ppb} pieces${salePrice ? ` = ${currencySymbol}${salePrice.toLocaleString()} per piece` : ""}` : "Type it here or the price per piece"}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cost price per piece ({currencySymbol}) <span className="text-red-500">*</span>
+                  {pps > 1 ? `Cost price per sale (${pps} pieces)` : "Cost price per piece"} ({currencySymbol}) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -270,7 +264,44 @@ export default function PackagingStockCard({
                   }}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  {ppb > 1 ? `Split over ${ppb} pieces${costPrice ? ` = ${currencySymbol}${costPrice.toLocaleString()} per piece` : ""}` : "Type it here or the cost per piece"}
+                  {ppb > 1 ? `Split over ${units(ppb)}${costPrice ? ` = ${currencySymbol}${costPrice.toLocaleString()} per ${unit}` : ""}` : "Type it here or the cost per piece"}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {pps > 1 ? `One sale price (${pps} pieces)` : "Sale price per piece"} ({currencySymbol}) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className={inputClass(!!priceErrors.salePrice)}
+                  value={salePrice ?? ""}
+                  onChange={(e) => onPricesChange({ salePrice: toNum(e.target.value), costPrice })}
+                />
+                {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">One full box/pack: sale price ({currencySymbol})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={ppb > 1 ? "Price of the whole box/pack" : "Enter pieces in one box/pack first"}
+                  disabled={ppb < 2}
+                  className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
+                  value={boxSaleText ?? (ppb > 1 && salePrice ? String(round2(salePrice * ppb)) : "")}
+                  onFocus={(e) => setBoxSaleText(e.target.value)}
+                  onBlur={() => setBoxSaleText(null)}
+                  onChange={(e) => {
+                    setBoxSaleText(e.target.value);
+                    const box = toNum(e.target.value);
+                    if (ppb > 1) onPricesChange({ salePrice: box === undefined ? undefined : round2(box / ppb), costPrice });
+                  }}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {ppb > 1 ? `Split over ${units(ppb)}${salePrice ? ` = ${currencySymbol}${salePrice.toLocaleString()} per ${unit}` : ""}` : "Type it here or the price per piece"}
                 </p>
               </div>
             </div>
@@ -286,7 +317,7 @@ export default function PackagingStockCard({
             <span>
               <span className="block text-sm font-medium text-gray-800">One tag for the whole box/pack</span>
               <span className="block text-xs text-gray-500">
-                Stick it on the box/pack: one scan sells all {ppb > 1 ? `${ppb} pieces` : "the pieces"} at once
+                Stick it on the box/pack: one scan sells all {physical > 1 ? `${physical} pieces` : "the pieces"} at once
                 {value.shortCode ? ` (code ${value.shortCode}-BOX)` : ""}. Print it from Stickers after saving.
               </span>
             </span>

@@ -215,12 +215,12 @@ export default function UnpackStep({
                     setSaved(null);
                     setChoices(null);
                   }}
-                  className={`min-w-[5.5rem] flex-shrink-0 rounded-lg border px-3 py-2 text-left ${
+                  className={`min-w-[7rem] flex-shrink-0 rounded-lg border px-3 py-2 text-left ${
                     on ? 'border-honey-500 bg-honey-50 ring-2 ring-honey-500/30' : isDone ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                   }`}
                 >
                   <p className="flex items-center gap-1 text-sm font-semibold text-gray-900">
-                    {isDone ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Box className="h-4 w-4 text-gray-400" />} Box {n}
+                    {isDone ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Box className="h-4 w-4 text-gray-400" />} Box/pack {n}
                   </p>
                   <p className="text-[11px] text-gray-500">{isDone ? 'Done' : items ? `${items} item${items === 1 ? '' : 's'}` : 'Not opened'}</p>
                 </button>
@@ -522,7 +522,8 @@ function LookupBox({
                 </div>
                 <div className="text-[11px] text-gray-500 flex flex-wrap gap-x-3">
                   {r.code && <span className="font-mono">#{r.code}</span>}
-                  {r.piecesPerBox > 1 && <span>{r.piecesPerBox} per box/pack</span>}
+                  {r.piecesPerBox > 1 && <span>{r.piecesPerBox * (r.piecesPerSale || 1)} per box/pack</span>}
+                  {(r.piecesPerSale || 1) > 1 && <span className="font-semibold text-gray-700">sold {r.piecesPerSale} together</span>}
                   {r.lastCost !== null && r.lastCost !== undefined && <span>Last cost {formatRs(r.lastCost, { decimals: 2 })}</span>}
                   {r.expected && <span className="text-honey-800 font-semibold">On this bill: {r.expected.qtyLeft} pcs left</span>}
                 </div>
@@ -574,9 +575,11 @@ function EntryForm({
   /** the receipt changed state on the server (not started / counted the old way): reload it */
   onStale: () => void;
 }) {
-  const ppb = Math.max(1, unit.piecesPerBox || 1);
+  const ppb = Math.max(1, unit.piecesPerBox || 1); // sales in one box/pack
+  const pps = Math.max(1, unit.piecesPerSale || 1); // pieces in one sale (e.g. 2 plates)
   const left = unit.expected?.qtyLeft || 0;
-  const [qty, setQty] = useState(String(left > 0 ? left : ppb > 1 ? ppb : 1));
+  // Typed in PIECES counted; saved as sales (pieces / pieces per sale).
+  const [qty, setQty] = useState(String((left > 0 ? left : ppb > 1 ? ppb : 1) * pps));
   const startCost = presetCost ?? unit.expected?.unitPrice ?? unit.lastCost ?? null;
   const [cost, setCost] = useState(startCost !== null && startCost > 0 ? String(startCost) : '');
   const [damaged, setDamaged] = useState('0');
@@ -589,7 +592,8 @@ function EntryForm({
   // One id per item being entered: pressing Save again after a lost answer never enters it twice.
   const requestId = useRef(newRequestId());
 
-  const n = toNum(qty);
+  const pieces = toNum(qty);
+  const n = pps > 1 ? pieces / pps : pieces; // sales
   const d = toNum(damaged);
   const good = Math.max(0, n - d);
   const c = toNum(cost);
@@ -603,7 +607,10 @@ function EntryForm({
 
   const save = async () => {
     if (lock.current) return;
-    if (!Number.isInteger(n) || n < 1) return setError('Enter how many pieces (1 or more).');
+    if (pps > 1 && Number.isInteger(pieces) && pieces % pps !== 0) {
+      return setError(`${pieces} pieces do not make whole sales of ${pps}. Count again (e.g. ${Math.floor(pieces / pps) * pps} = ${Math.floor(pieces / pps)} sales).`);
+    }
+    if (!Number.isInteger(n) || n < 1) return setError(pps > 1 ? `Enter the pieces you counted (${pps} or more).` : 'Enter how many pieces (1 or more).');
     if (!(c > 0)) return setError('Enter the cost price per piece.');
     if (!Number.isInteger(d) || d < 0 || d > n) return setError('Damaged pieces must be between 0 and the pieces entered.');
     if (shelfNow) {
@@ -651,20 +658,26 @@ function EntryForm({
         <p className="text-[11px] text-gray-500 -mt-1">
           {unit.code && <span className="font-mono">#{unit.code} · </span>}
           Sale price <strong className="text-gray-800">{formatRs(unit.salePrice)}</strong>
-          {ppb > 1 && ` · ${ppb} pcs per box/pack`} · from {bill.vendorName}
+          {ppb > 1 && ` · ${ppb * pps} pcs per box/pack`}
+          {pps > 1 && <strong className="text-gray-800"> · sold {pps} together</strong>} · from {bill.vendorName}
           {boxLabel && <strong className="text-gray-800"> · {boxLabel}</strong>}
           {unit.expected && <span className="text-honey-800 font-semibold"> · on the bill: {unit.expected.qtyLeft} pcs left</span>}
         </p>
 
-        <Field label="Pieces">
+        <Field label={pps > 1 ? `Pieces counted (sold ${pps} together)` : 'Pieces'}>
           <NumberStepper value={qty} onChange={setQty} min={0} label="pieces" />
+          {pps > 1 && pieces > 0 && (
+            <p className={`mt-1 text-xs font-semibold ${pieces % pps ? 'text-red-600' : 'text-gray-700'}`}>
+              {pieces % pps ? `${pieces} pieces do not split into sales of ${pps}` : `= ${n} sale${n === 1 ? '' : 's'} of ${pps} (${n} tag${n === 1 ? '' : 's'})`}
+            </p>
+          )}
           {ppb > 1 && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={() => setQty(String(n + ppb))} className={`${secondaryBtn} !px-3 !py-2 text-xs`}>
-                + 1 box/pack ({ppb})
+              <button type="button" onClick={() => setQty(String(pieces + ppb * pps))} className={`${secondaryBtn} !px-3 !py-2 text-xs`}>
+                + 1 box/pack ({ppb * pps})
               </button>
               {[2, 5, 10].map((k) => (
-                <button key={k} type="button" onClick={() => setQty(String(k * ppb))} className={`${secondaryBtn} !px-3 !py-2 text-xs`}>
+                <button key={k} type="button" onClick={() => setQty(String(k * ppb * pps))} className={`${secondaryBtn} !px-3 !py-2 text-xs`}>
                   {k} boxes/packs
                 </button>
               ))}
@@ -676,7 +689,7 @@ function EntryForm({
           )}
         </Field>
 
-        <Field label="Cost price per piece (Rs)" hint={unit.lastCost ? `Last cost ${formatRs(unit.lastCost, { decimals: 2 })}` : undefined}>
+        <Field label={pps > 1 ? `Cost price per sale (${pps} pieces) (Rs)` : 'Cost price per piece (Rs)'} hint={unit.lastCost ? `Last cost ${formatRs(unit.lastCost, { decimals: 2 })}` : undefined}>
           <input
             ref={costRef}
             type="number"
@@ -706,8 +719,8 @@ function EntryForm({
           </div>
         )}
 
-        <Disclosure title={<span className="text-sm">Some pieces damaged?{d > 0 && <span className="ml-1 text-red-600">({d})</span>}</span>} defaultOpen={d > 0}>
-          <NumberStepper value={damaged} onChange={setDamaged} min={0} max={n} label="damaged pieces" size="md" />
+        <Disclosure title={<span className="text-sm">{pps > 1 ? `Some sales of ${pps} damaged?` : 'Some pieces damaged?'}{d > 0 && <span className="ml-1 text-red-600">({d})</span>}</span>} defaultOpen={d > 0}>
+          <NumberStepper value={damaged} onChange={setDamaged} min={0} max={n} label={pps > 1 ? 'damaged sales' : 'damaged pieces'} size="md" />
           <p className="mt-1 text-[11px] text-gray-500">Damaged pieces are not put into stock; their money can be claimed back from the vendor at the end.</p>
         </Disclosure>
 
@@ -745,7 +758,7 @@ function EntryForm({
           </button>
           <button type="button" onClick={save} disabled={busy} aria-busy={busy} className={`${primaryBtn} flex-1 !py-3 text-base`}>
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-            {busy ? 'Saving…' : `Save ${good || ''} pcs`}
+            {busy ? 'Saving…' : pps > 1 ? `Save ${Number.isInteger(good) ? good : 0} sales (${(Number.isInteger(good) ? good : 0) * pps} pcs)` : `Save ${good || ''} pcs`}
           </button>
         </div>
       </fieldset>
