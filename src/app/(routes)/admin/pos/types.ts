@@ -10,6 +10,8 @@ export interface POSProduct {
   costPrice?: number; // Cost price for profit calculation
   discountedPrice?: number;
   stock: number;
+  /** Pieces handed over in one sale (2 = sold 2 together). Missing = 1. */
+  piecesPerSale?: number;
   category: string;
   thumbnailUrl?: string;
   bannerUrls?: string[];

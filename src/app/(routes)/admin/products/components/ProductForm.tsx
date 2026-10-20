@@ -1179,16 +1179,18 @@ export default function ProductForm({
                   {!isVariant && packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set in the Box/pack section below</p>}
                 </div>
 
-                <PriceTierSelect
-                  productId={productId}
-                  value={priceTier}
-                  isVariant={isVariant}
-                  onChange={(tier, initial) => {
-                    setPriceTier(tier);
-                    if (initial) savedTierId.current = tier?._id ?? null;
-                    if (tier && !isVariant) setForm((prev) => ({ ...prev, discountedPrice: tier.price, price: tier.price }));
-                  }}
-                />
+                {/* Price tiers are not used: the field is hidden. It only loads the tier a
+                    product may still be on, so saving unlinks it and the typed price wins. */}
+                <div className="hidden" aria-hidden>
+                  <PriceTierSelect
+                    productId={productId}
+                    value={null}
+                    isVariant={isVariant}
+                    onChange={(tier, initial) => {
+                      if (initial) savedTierId.current = tier?._id ?? null;
+                    }}
+                  />
+                </div>
 
                 {noStock ? (
                 <div>

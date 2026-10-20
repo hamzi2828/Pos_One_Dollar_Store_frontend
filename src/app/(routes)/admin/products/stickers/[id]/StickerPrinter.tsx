@@ -163,7 +163,8 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
   const [checkedBatches, setCheckedBatches] = useState<Record<string, boolean>>({});
   const [copies, setCopies] = useState<Record<string, number>>({});
   const [size, setSize] = useState<StickerSize>('38x25');
-  const [showPrice, setShowPrice] = useState(true);
+  // Prices are never printed on stickers (shop rule).
+  const showPrice = false;
 
   const [preview, setPreview] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -235,7 +236,6 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
     const qSize = (searchParams.get('size') || '').toLowerCase();
     if (STICKER_SIZES.some((s) => s.key === qSize)) setSize(qSize as StickerSize);
     else if (STICKER_SIZES.some((s) => s.key === data.defaultSize)) setSize(data.defaultSize as StickerSize);
-    if (searchParams.get('showPrice') === '0') setShowPrice(false);
   }, [data, searchParams]);
 
   const infos = useMemo(() => (data ? typeInfos(data) : []), [data]);
@@ -643,7 +643,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
             )}
           </div>
 
-          {/* Size + price */}
+          {/* Size */}
           <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 space-y-3">
             <h2 className="text-sm font-semibold text-gray-900">3. Sticker size</h2>
             <SearchSelect
@@ -658,27 +658,6 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
               ))}
             </SearchSelect>
             <p className="text-xs text-gray-500">Pick the size of the sticker roll in your printer.</p>
-            <label className="flex items-center justify-between gap-3 cursor-pointer">
-              <span>
-                <span className="block text-sm font-medium text-gray-900">Show price</span>
-                <span className="block text-xs text-gray-500">Print the selling price on the sticker.</span>
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showPrice}
-                onClick={() => setShowPrice((v) => !v)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                  showPrice ? 'bg-honey-500' : 'bg-gray-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                    showPrice ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </label>
           </div>
         </div>
 

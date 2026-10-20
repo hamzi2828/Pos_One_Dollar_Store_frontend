@@ -53,7 +53,7 @@ export default function EntriesList({
     if (lock.current) return;
     lock.current = true;
     setBusy(`tags-${e._id}`);
-    await printTags({ productId: e.product, variantId: e.variantId, copies: e.stockQty }, tagSize);
+    await printTags({ productId: e.product, variantId: e.variantId, copies: e.stockQty * Math.max(1, e.piecesPerSale || 1) }, tagSize);
     lock.current = false;
     setBusy(null);
   };

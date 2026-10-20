@@ -281,7 +281,7 @@ export default function PackagingStockCard({
                   }}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  {ppb > 1 ? `Split over ${units(ppb)}${costPrice ? ` = ${currencySymbol}${costPrice.toLocaleString()} per ${unit}${pps > 1 ? ` (${currencySymbol}${round2(costPrice / pps).toLocaleString()} per piece)` : ""}` : ""}` : "Type it here or the cost per piece"}
+                  {ppb > 1 ? `Split over ${units(ppb)}${costPrice ? ` = ${currencySymbol}${costPrice.toLocaleString()} per ${unit}${pps > 1 ? ` (${currencySymbol}${round2(boxCost !== null && physical > 0 ? boxCost / physical : costPrice / pps).toLocaleString()} per piece)` : ""}` : ""}` : "Type it here or the cost per piece"}
                 </p>
               </div>
               <div>
@@ -322,7 +322,7 @@ export default function PackagingStockCard({
                   }}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  {ppb > 1 ? `Split over ${units(ppb)}${salePrice ? ` = ${currencySymbol}${salePrice.toLocaleString()} per ${unit}${pps > 1 ? ` (${currencySymbol}${round2(salePrice / pps).toLocaleString()} per piece)` : ""}` : ""}` : "Type it here or the price per piece"}
+                  {ppb > 1 ? `Split over ${units(ppb)}${salePrice ? ` = ${currencySymbol}${salePrice.toLocaleString()} per ${unit}${pps > 1 ? ` (${currencySymbol}${round2(boxSale !== null && physical > 0 ? boxSale / physical : salePrice / pps).toLocaleString()} per piece)` : ""}` : ""}` : "Type it here or the price per piece"}
                 </p>
               </div>
             </div>

@@ -93,6 +93,26 @@ export default function POSPage() {
   const actionLock = useRef(false);
   const [scanning, setScanning] = useState(false);
   const scanLock = useRef(false);
+  // Items sold in sets (e.g. 2 plates for one price): the last one added, to catch a 2nd scan of the same set.
+  const lastSet = useRef<{ id: string; at: number } | null>(null);
+  /** Tell the cashier how a set item is sold; warn when it is scanned again right away. Returns true when it showed a message. */
+  const noteSet = (product: POSProduct): boolean => {
+    const pps = Math.max(1, Math.floor(Number(product.piecesPerSale) || 1));
+    if (pps < 2) return false;
+    const now = Date.now();
+    const again = !!lastSet.current && lastSet.current.id === product._id && now - lastSet.current.at < 20000;
+    lastSet.current = { id: product._id, at: now };
+    if (again) {
+      toast(`${product.name} scanned again = ANOTHER set of ${pps}. If it was a piece of the same set, press − on the line.`, {
+        icon: '⚠️',
+        duration: 7000,
+        id: 'pos-scan',
+      });
+    } else {
+      toast.success(`${product.name}: sold ${pps} together. Give the customer ${pps} pieces.`, { duration: 4000, id: 'pos-scan' });
+    }
+    return true;
+  };
   const searchRef = useRef<HTMLInputElement>(null);
   const [till, setTill] = useState<TillStatus | null>(null);
   const [tillMessage, setTillMessage] = useState<string | null>(null);
@@ -287,9 +307,10 @@ export default function POSPage() {
         setSelectedProduct(product);
         setShowVariantSelector(true);
       } else {
-        addToCart(product);
+        if (addToCart(product)) noteSet(product);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [addToCart]
   );
 
@@ -313,6 +334,7 @@ export default function POSPage() {
         }
         const variant = match.variantId ? product.variants?.find((v) => v.variantId === match.variantId) : undefined;
         const added = addToCart(product, variant, { qty: match.qty || 1, scannedCode: match.code, batchNo: match.batchNo || undefined });
+        if (added && !variant && match.qty <= 1 && noteSet(product)) return true;
         if (added) {
           const shelf = match.shelfCodes?.[0] ? ` · ${match.shelfCodes[0]}` : '';
           toast.success(`${product.name}${match.qty > 1 ? ` × ${match.qty}` : ''}${shelf}`, { duration: 1200, id: 'pos-scan' });

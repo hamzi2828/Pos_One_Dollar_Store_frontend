@@ -70,7 +70,7 @@ export interface QuickProductInput {
 export interface EntryResult {
   entry: GRNEntry;
   grn: GoodsReceipt;
-  tags: { productId: string; variantId: string | null; copies: number; productName?: string; code?: string; salePrice?: number };
+  tags: { productId: string; variantId: string | null; copies: number; piecesPerSale?: number; productName?: string; code?: string; salePrice?: number };
   warnings: string[];
   /** the same requestId was sent before: this is the first entry */
   repeated?: boolean;

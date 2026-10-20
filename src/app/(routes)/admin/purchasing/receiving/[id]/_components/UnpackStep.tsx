@@ -783,7 +783,8 @@ function SavedCard({
   const [code, setCode] = useState('');
   const lock = useRef(false);
   const e = result.entry;
-  const copies = result.tags?.copies ?? e?.stockQty ?? 0;
+  const pps = Math.max(1, result.tags?.piecesPerSale || e?.piecesPerSale || 1);
+  const copies = result.tags?.copies ?? (e?.stockQty ?? 0) * pps;
 
   const print = async () => {
     if (lock.current || !copies) return;
@@ -808,6 +809,11 @@ function SavedCard({
               </p>
             )}
             {e && <p className="text-xs text-gray-500">{e.shelved > 0 ? `${e.shelved} pcs put on the shelf.` : 'In the warehouse.'}</p>}
+            {pps > 1 && copies > 0 && (
+              <p className="mt-1 text-xs font-semibold text-gray-800">
+                Sold {pps} together: stick one tag on every piece ({copies} tags). At the counter, scan any one piece of a set.
+              </p>
+            )}
           </div>
         </div>
         {copies > 0 && (

@@ -370,6 +370,8 @@ export interface GRNEntry {
   qty: number;
   /** Box of this bill it came out of (1..n); 0 / missing = not said. */
   boxNo?: number;
+  /** Pieces in one sale (qty / stockQty are in sales). One tag goes on every piece. */
+  piecesPerSale?: number;
   damagedQty: number;
   costPrice: number;
   landedUnitCost: number;
