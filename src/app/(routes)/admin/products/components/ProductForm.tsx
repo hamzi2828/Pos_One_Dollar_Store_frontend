@@ -1274,7 +1274,7 @@ export default function ProductForm({
 
               </div>
 
-              {/* SKU / Short code (made automatically) */}
+              {/* SKU (made automatically; the short code behind it is printed on the sticker) */}
               {!isVariant && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
                   <div>
@@ -1287,23 +1287,6 @@ export default function ProductForm({
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Short code</label>
-                    <div className="flex h-[38px] items-center gap-2">
-                      {packaging.shortCode ? (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-honey-200 bg-honey-50 px-2.5 py-1 text-sm font-mono font-semibold text-honey-700">
-                          <Hash className="h-3.5 w-3.5" />
-                          {packaging.shortCode}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2.5 py-1 text-sm text-gray-500">
-                          {pickingCode && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                          {pickingCode ? "Creating…" : "Created when saved"}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">Printed under the barcode on the sticker</p>
-                  </div>
               </div>
               )}
 
