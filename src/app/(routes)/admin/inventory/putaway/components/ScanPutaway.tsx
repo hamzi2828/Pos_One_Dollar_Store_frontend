@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Loader2, MapPin, Package, RotateCcw, ScanLine, Star } from 'lucide-react';
-import { ErrorBox, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import ShelfPicker, { invalidateShelfOptions, loadShelfOptions } from '@/components/store/ShelfPicker';
 import ShelfCascade from '@/components/store/ShelfCascade';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
@@ -25,7 +25,6 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
   const [choices, setChoices] = useState<UnitLocation[]>([]);
   const [shelfId, setShelfId] = useState<string | null>(null);
   const [shelf, setShelf] = useState<ShelfOption | null>(null);
-  const [keepShelf, setKeepShelf] = useState(true);
   const [qty, setQty] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,13 +52,14 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
       .catch(() => {});
   }, [initialShelfCode, chooseShelf]);
 
-  const reset = (all = false) => {
+  const reset = () => {
     setUnit(null);
     setChoices([]);
     setQty('');
     setCode('');
     setError(null);
-    if (all || !keepShelf) chooseShelf(null);
+    // The shelf is picked again for every item (zone and rack stay chosen).
+    chooseShelf(null);
     focus(codeRef);
   };
 
@@ -74,7 +74,6 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
       return;
     }
     setError(null);
-    if (shelfId && keepShelf) return focus(qtyRef);
     // Suggest the home shelf: Enter accepts it.
     const home = u.shelves.find((s) => s.isHome);
     if (home) {
@@ -165,7 +164,7 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
   };
 
   const onKeyDownCard = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape' && !saving) reset(true);
+    if (e.key === 'Escape' && !saving) reset();
   };
 
   const step = !unit ? 1 : !shelfId ? 2 : 3;
@@ -180,7 +179,7 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
         <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
           <ScanLine className="h-5 w-5 text-honey-700" /> Scan &amp; send to shop
         </h2>
-        <button type="button" onClick={() => reset(true)} disabled={saving} className="text-xs text-gray-500 hover:text-gray-700 inline-flex items-center gap-1">
+        <button type="button" onClick={() => reset()} disabled={saving} className="text-xs text-gray-500 hover:text-gray-700 inline-flex items-center gap-1">
           <RotateCcw className="h-3.5 w-3.5" /> Start over (Esc)
         </button>
       </div>
@@ -267,8 +266,7 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
             <ShelfCascade value={shelfId} onChange={chooseShelf} disabled={saving} onPicked={() => focus(qtyRef)} />
             <p className="mt-2 mb-1 text-[11px] text-gray-500">or scan / type the shelf label</p>
             <ShelfPicker value={shelfId} onChange={chooseShelf} inputRef={shelfRef} disabled={saving} onPicked={() => focus(qtyRef)} placeholder="Scan or type e.g. A1-S2" />
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Toggle checked={keepShelf} onChange={setKeepShelf} label="Keep this shelf for the next item" />
+            <div className="mt-2 flex items-center justify-end gap-2">
               {unit && shelf && unit.shelves.some((s) => s.isHome && s.shelfId === shelf._id) && (
                 <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 flex-shrink-0">
                   <Star className="h-3 w-3 fill-amber-400" /> home shelf
