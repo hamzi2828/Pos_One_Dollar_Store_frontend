@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { Check, Loader2, MapPin, Package, RotateCcw, ScanLine, Star } from 'lucide-react';
 import { ErrorBox, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import ShelfPicker, { invalidateShelfOptions, loadShelfOptions } from '@/components/store/ShelfPicker';
+import ShelfCascade from '@/components/store/ShelfCascade';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { racksApi, unitKey, unitName, type ShelfOption, type UnitLocation } from '../../racks/services/racksApi';
 
@@ -262,8 +263,10 @@ export default function ScanPutaway({ initialShelfCode, onDone }: { initialShelf
         <div className="flex gap-3">
           <span className={stepClass(2)}>{step > 2 ? <Check className="h-3.5 w-3.5" /> : 2}</span>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-700 mb-1.5">Scan the shelf label</p>
-            <ShelfPicker value={shelfId} onChange={chooseShelf} inputRef={shelfRef} disabled={saving} onPicked={() => focus(qtyRef)} />
+            <p className="text-xs font-medium text-gray-700 mb-1.5">Choose the zone, rack and shelf</p>
+            <ShelfCascade value={shelfId} onChange={chooseShelf} disabled={saving} onPicked={() => focus(qtyRef)} />
+            <p className="mt-2 mb-1 text-[11px] text-gray-500">or scan / type the shelf label</p>
+            <ShelfPicker value={shelfId} onChange={chooseShelf} inputRef={shelfRef} disabled={saving} onPicked={() => focus(qtyRef)} placeholder="Scan or type e.g. A1-S2" />
             <div className="mt-2 flex items-center justify-between gap-2">
               <Toggle checked={keepShelf} onChange={setKeepShelf} label="Keep this shelf for the next item" />
               {unit && shelf && unit.shelves.some((s) => s.isHome && s.shelfId === shelf._id) && (

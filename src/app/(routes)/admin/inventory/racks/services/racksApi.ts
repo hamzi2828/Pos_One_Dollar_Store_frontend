@@ -69,6 +69,8 @@ export interface ShelfOption {
   level: number;
   name: string;
   rackName: string;
+  /** Zone of the rack (A, B, C...). */
+  zone?: string;
   capacity: number | null;
   isActive: boolean;
   pieces: number;

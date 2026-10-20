@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Check, Loader2, PackagePlus } from 'lucide-react';
 import { Modal, Field, Toggle, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import ShelfPicker, { invalidateShelfOptions } from '@/components/store/ShelfPicker';
+import ShelfCascade from '@/components/store/ShelfCascade';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { racksApi, unitName, type UnitLocation, type UnitShelf } from '../../racks/services/racksApi';
 
@@ -84,14 +85,23 @@ export default function PutawayModal({ item, onClose, onDone }: { item: PutawayT
       <form onSubmit={submit}>
         <fieldset disabled={saving} className="space-y-4 min-w-0">
           <ErrorBox message={error} />
-          <Field label="Display on (rack / shelf)" required hint={home ? `Home shelf: ${home.code}` : undefined}>
+          <Field label="Display on: zone, rack and shelf" required hint={home ? `Home shelf: ${home.code}` : undefined}>
+            <ShelfCascade
+              value={shelfId}
+              onChange={(s) => {
+                setShelfId(s?._id ?? null);
+                setShelfCode(s?.code ?? '');
+              }}
+              onPicked={() => qtyRef.current?.focus()}
+            />
+            <p className="mt-2 mb-1 text-[11px] text-gray-500">or scan / type the shelf label</p>
             <ShelfPicker
               value={shelfId}
               onChange={(s) => {
                 setShelfId(s?._id ?? null);
                 setShelfCode(s?.code ?? '');
               }}
-              autoFocus
+              placeholder="Scan or type e.g. A1-S2"
               onPicked={() => qtyRef.current?.focus()}
             />
           </Field>
