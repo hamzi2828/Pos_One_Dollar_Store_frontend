@@ -32,12 +32,13 @@ export function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   busy?: boolean;
-  wide?: boolean;
+  /** true = max-w-3xl; 'xl' = extra wide for long two-column forms. */
+  wide?: boolean | 'xl';
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm p-3 sm:p-4">
       <div
-        className={`bg-white rounded-xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[92vh] flex flex-col overflow-hidden`}
+        className={`bg-white rounded-xl shadow-2xl w-full ${wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[92vh] flex flex-col overflow-hidden`}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3 min-w-0">

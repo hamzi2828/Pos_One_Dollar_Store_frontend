@@ -101,7 +101,7 @@ export default function VendorFormModal({
 
   return (
     <Modal
-      wide
+      wide="xl"
       title={editing ? 'Edit Vendor' : 'Add Vendor'}
       subtitle={editing ? vendor!.name : 'Supplier details and opening balance'}
       icon={<Truck className="h-5 w-5" />}
@@ -122,6 +122,9 @@ export default function VendorFormModal({
       <form onSubmit={submit}>
         <fieldset disabled={saving} className="min-w-0 space-y-4">
           <ErrorBox message={error} />
+          {/* Wide screens: details on the left, money on the right (no scrolling). */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
+          <div className="min-w-0 space-y-4 lg:col-span-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
               <Field label="Vendor / company name" required>
@@ -174,7 +177,12 @@ export default function VendorFormModal({
               <input value={f.paymentTermsDays} onChange={(e) => set('paymentTermsDays', e.target.value.replace(/[^0-9]/g, ''))} className={inputClass} inputMode="numeric" />
             </Field>
           </div>
+          <Field label="Notes">
+            <textarea value={f.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className={`${inputClass} resize-none`} />
+          </Field>
+          </div>
 
+          <div className="min-w-0 space-y-4 lg:col-span-2">
           <div className="rounded-lg border border-gray-200 p-3 space-y-3">
             <p className="text-xs font-semibold text-gray-700">Vendor bank account (for transfers)</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -196,7 +204,7 @@ export default function VendorFormModal({
           {!editing && (
             <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
               <p className="text-xs font-semibold text-gray-700">Opening balance (from before this system)</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-2 gap-3">
                 <Field label="Amount (Rs)">
                   <input value={f.openingAmount} onChange={(e) => set('openingAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" placeholder="0" />
                 </Field>
@@ -213,12 +221,11 @@ export default function VendorFormModal({
             </div>
           )}
 
-          <Field label="Notes">
-            <textarea value={f.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className={`${inputClass} resize-none`} />
-          </Field>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
             <Toggle checked={f.isConsignment} onChange={(v) => set('isConsignment', v)} label="Consignment vendor" hint="Places stock on sale-or-return; paid only for what sells." />
             <Toggle checked={f.isActive} onChange={(v) => set('isActive', v)} label="Active" hint="Inactive vendors are hidden from pickers." />
+          </div>
+          </div>
           </div>
           <button type="submit" className="hidden" />
         </fieldset>
