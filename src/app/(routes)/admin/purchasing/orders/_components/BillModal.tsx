@@ -4,7 +4,8 @@
 // amount, boxes, bill photo and what was paid at the market. Items are optional
 // (typed on the bill card, or entered while unpacking).
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Receipt } from 'lucide-react';
+import { Loader2, Plus, Receipt } from 'lucide-react';
+import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { PAYMENT_METHODS, vendorApi, type BankOption, type PaymentMethod } from '@/app/(routes)/admin/vendors/services/vendorApi';
@@ -13,6 +14,7 @@ import { VendorSearch } from '../../_shared/Pickers';
 import { Chips, Disclosure, NumberStepper, PhotoPicker, PhotoStrip, dateInput, todayInput } from '../../_shared/ui';
 import type { POBill, PurchaseOrder, VendorOption } from '../../_shared/types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import VendorFormModal from '@/app/(routes)/admin/vendors/components/VendorFormModal';
 
 /** Methods that are paid from one of our bank accounts. */
 export const needsBank = (m: string) => m === 'bank' || m === 'cheque';
@@ -29,6 +31,9 @@ export default function BillModal({
   onSaved: (po: PurchaseOrder, billId?: string) => void;
 }) {
   const [vendor, setVendor] = useState<VendorOption | null>(bill ? { _id: bill.vendor, name: bill.vendorName } : null);
+  // "+ New vendor": add a vendor without leaving the bill; it is picked when saved.
+  const canAddVendor = useAccess().can('vendors', 'create');
+  const [addingVendor, setAddingVendor] = useState(false);
   const [billNo, setBillNo] = useState(bill?.billNo || '');
   const [billDate, setBillDate] = useState(bill ? dateInput(bill.billDate) : todayInput());
   const [billAmount, setBillAmount] = useState(bill?.billAmount ? String(bill.billAmount) : '');
@@ -101,6 +106,7 @@ export default function BillModal({
   };
 
   return (
+    <>
     <Modal
       title={bill ? 'Edit vendor bill' : 'Add vendor bill'}
       subtitle="One bill per vendor. Items are optional — you can enter them while unpacking."
@@ -120,9 +126,25 @@ export default function BillModal({
       }
     >
       <fieldset disabled={busy} className="min-w-0 space-y-4">
-        <Field label="Vendor" required>
+        <div>
+          <div className="mb-1.5 flex items-center gap-2">
+            <label className="block text-xs font-medium text-gray-700">
+              Vendor <span className="text-red-500">*</span>
+            </label>
+            {canAddVendor && (
+              <button
+                type="button"
+                onClick={() => setAddingVendor(true)}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-honey-500 text-gray-900 hover:bg-honey-600"
+                title="Add a new vendor"
+                aria-label="Add a new vendor"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
+          </div>
           <VendorSearch value={vendor} onChange={setVendor} disabled={busy} />
-        </Field>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Bill no.">
             <input value={billNo} onChange={(e) => setBillNo(e.target.value)} className={inputClass} placeholder="e.g. 4512" />
@@ -220,6 +242,17 @@ export default function BillModal({
         <ErrorBox message={error} />
       </fieldset>
     </Modal>
+    {addingVendor && (
+      <VendorFormModal
+        vendor={null}
+        onClose={() => setAddingVendor(false)}
+        onSaved={(v) => {
+          setVendor({ _id: v._id, name: v.name, phone: v.phone, city: v.city });
+          setAddingVendor(false);
+        }}
+      />
+    )}
+    </>
   );
 }
 
