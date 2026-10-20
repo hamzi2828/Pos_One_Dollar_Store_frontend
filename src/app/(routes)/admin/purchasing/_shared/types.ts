@@ -310,6 +310,8 @@ export interface GoodsReceipt {
   boxes?: GRNBox[];
   boxesCheckedAt?: string | null;
   boxesNote?: string;
+  /** Boxes fully unpacked ("Box 3 done"), per bill. */
+  boxesDone?: { bill: string; boxNo: number; at?: string; byName?: string }[];
   chargeRate?: number;
   entries?: GRNEntry[];
   progress?: GRNProgress;
@@ -366,6 +368,8 @@ export interface GRNEntry {
   code: string;
   salePrice: number;
   qty: number;
+  /** Box of this bill it came out of (1..n); 0 / missing = not said. */
+  boxNo?: number;
   damagedQty: number;
   costPrice: number;
   landedUnitCost: number;

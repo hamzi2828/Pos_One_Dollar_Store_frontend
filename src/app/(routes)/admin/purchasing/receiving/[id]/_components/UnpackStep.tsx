@@ -1,11 +1,13 @@
 'use client';
 
-// Step 2 — Unpack & enter: pick the vendor whose boxes you are opening, scan or
-// search a product, enter pieces + cost per piece (+ damaged, + shelf now),
-// save -> stock is in the warehouse at once -> print tags.
+// Step 2 — Unpack & enter, box by box: pick the vendor, open Box 1, scan or
+// search each product (or make a new one), enter pieces + cost per piece
+// (+ damaged, + shelf now), save -> stock is in the warehouse at once -> print
+// tags and stick them on. "Box done" moves on to the next box.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ArrowRight, CheckCircle2, ListChecks, Loader2, PackagePlus, Printer, ScanLine, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Box, CheckCircle2, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
+import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import ShelfPicker, { invalidateShelfOptions } from '@/components/store/ShelfPicker';
@@ -14,9 +16,25 @@ import { Card, Disclosure, NumberStepper } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNBillProgress, GRNLine, ReceivingUnit } from '../../../_shared/types';
 import EntriesList from './EntriesList';
 import QuickProductModal from './QuickProductModal';
+import FullProductModal from './FullProductModal';
+import type { ProductUI } from '@/app/(routes)/admin/products/services/productService';
 import { SameReceiverNote, marginPct, r2 } from './bits';
 import { STICKER_SIZES, printTags, saveTagSize, type StickerSize } from './tags';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+
+/** Boxes of a bill that arrived (or were expected when not counted). */
+const boxCountOf = (grn: GoodsReceipt, billId: string) => {
+  const b = (grn.boxes || []).find((x) => x.bill === billId);
+  return b ? b.received || b.expected || 0 : 0;
+};
+const doneBoxesOf = (grn: GoodsReceipt, billId: string) => new Set((grn.boxesDone || []).filter((d) => d.bill === billId).map((d) => d.boxNo));
+/** First box of the bill not done yet (1 when all are done / no boxes). */
+const firstOpenBox = (grn: GoodsReceipt, billId: string) => {
+  const n = boxCountOf(grn, billId);
+  const done = doneBoxesOf(grn, billId);
+  for (let i = 1; i <= n; i++) if (!done.has(i)) return i;
+  return n ? 1 : 0;
+};
 
 /** Per-bill progress: from the server, else worked out from boxes / entries. */
 export function billProgress(grn: GoodsReceipt): GRNBillProgress[] {
@@ -65,8 +83,14 @@ export default function UnpackStep({
   const [nextCode, setNextCode] = useState('');
   const [shelfNow, setShelfNow] = useState(false);
   const [sameReceiver, setSameReceiver] = useState(false);
+  // Box being unpacked (0 = the bill has no box count).
+  const [boxNo, setBoxNo] = useState<number>(() => (billId ? firstOpenBox(grn, billId) : 0));
+  const [boxBusy, setBoxBusy] = useState(false);
+  // A new product with variants: which one is in the box?
+  const [choices, setChoices] = useState<{ units: ReceivingUnit[]; cost: number | null } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
   const canEnter = mayEdit && grn.status === 'in_progress';
+  const canCreateProducts = useAccess().can('products', 'create');
 
   const focusScan = () => setTimeout(() => scanRef.current?.focus(), 50);
   const pick = (u: ReceivingUnit, cost: number | null = null) => {
@@ -78,6 +102,59 @@ export default function UnpackStep({
   const lines = useMemo(() => (grn.lines || []).filter((l) => l.bill === bill?.bill), [grn.lines, bill?.bill]);
 
   if (!bill) return <p className="text-sm text-gray-500">This receipt has no vendor bills.</p>;
+
+  const boxCount = boxCountOf(grn, bill.bill);
+  const doneBoxes = doneBoxesOf(grn, bill.bill);
+  const box = boxCount ? Math.min(Math.max(boxNo, 1), boxCount) : 0;
+  const boxLabel = box ? `Box ${box} of ${boxCount}` : undefined;
+  const liveEntries = (grn.entries || []).filter((e) => !e.undone && e.bill === bill.bill);
+  const itemsIn = (n: number) => liveEntries.filter((e) => (e.boxNo || 0) === n).length;
+
+  const markBox = async (n: number, done: boolean) => {
+    if (boxBusy) return;
+    setBoxBusy(true);
+    try {
+      const g = await purchasingApi.grnBoxDone(grn._id, { bill: bill.bill, boxNo: n, done });
+      onChanged(g);
+      if (done) {
+        const next = (() => {
+          const all = new Set([...doneBoxes, n]);
+          for (let i = n + 1; i <= boxCount; i++) if (!all.has(i)) return i;
+          for (let i = 1; i < n; i++) if (!all.has(i)) return i;
+          return 0;
+        })();
+        if (next) {
+          setBoxNo(next);
+          toast.success(`Box ${n} done. Now open Box ${next}.`);
+        } else {
+          toast.success(`All ${boxCount} boxes from ${bill.vendorName} are done.`);
+        }
+        setUnit(null);
+        setSaved(null);
+        focusScan();
+      }
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not save the box.'));
+    } finally {
+      setBoxBusy(false);
+    }
+  };
+
+  /** A product made with the full form: find its unit(s) on this receipt and pick it. */
+  const afterCreate = async (p: ProductUI) => {
+    setNewProduct(null);
+    const cost = p.costPrice && p.costPrice > 0 ? p.costPrice : null;
+    try {
+      const rows = await purchasingApi.grnLookup(grn._id, p.shortCode || p.sku || p.name, bill.bill);
+      const mine = rows.filter((r) => r.productId === p.id);
+      if (mine.length === 1) return pick(mine[0], cost);
+      if (mine.length > 1) return setChoices({ units: mine, cost });
+    } catch {
+      /* fall through */
+    }
+    toast(`${p.name} was created. Search it to enter the pieces.`, { icon: 'ℹ️' });
+    setNextCode(p.shortCode || p.name);
+  };
 
   return (
     <div className="space-y-4">
@@ -96,8 +173,10 @@ export default function UnpackStep({
                 type="button"
                 onClick={() => {
                   setBillId(p.bill);
+                  setBoxNo(firstOpenBox(grn, p.bill));
                   setUnit(null);
                   setSaved(null);
+                  setChoices(null);
                 }}
                 className={`min-w-[10rem] max-w-[14rem] flex-shrink-0 text-left rounded-lg border px-3 py-2 ${on ? 'border-honey-500 bg-honey-50 ring-2 ring-honey-500/30' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
               >
@@ -113,6 +192,63 @@ export default function UnpackStep({
           })}
         </div>
       </div>
+
+      {boxCount > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium text-gray-600">
+              Which box of {bill.vendorName}? <span className="text-gray-400">({doneBoxes.size} of {boxCount} done)</span>
+            </p>
+          </div>
+          <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
+            {Array.from({ length: boxCount }, (_, i) => i + 1).map((n) => {
+              const on = n === box;
+              const isDone = doneBoxes.has(n);
+              const items = itemsIn(n);
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    setBoxNo(n);
+                    setUnit(null);
+                    setSaved(null);
+                    setChoices(null);
+                  }}
+                  className={`min-w-[5.5rem] flex-shrink-0 rounded-lg border px-3 py-2 text-left ${
+                    on ? 'border-honey-500 bg-honey-50 ring-2 ring-honey-500/30' : isDone ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <p className="flex items-center gap-1 text-sm font-semibold text-gray-900">
+                    {isDone ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Box className="h-4 w-4 text-gray-400" />} Box {n}
+                  </p>
+                  <p className="text-[11px] text-gray-500">{isDone ? 'Done' : items ? `${items} item${items === 1 ? '' : 's'}` : 'Not opened'}</p>
+                </button>
+              );
+            })}
+          </div>
+          {canEnter && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+              <p className="flex items-center gap-1.5 text-sm text-gray-700">
+                <PackageOpen className="h-4 w-4 text-honey-700" />
+                <span>
+                  Opening <strong>{boxLabel}</strong> · {itemsIn(box)} item{itemsIn(box) === 1 ? '' : 's'} entered
+                </span>
+              </p>
+              {doneBoxes.has(box) ? (
+                <button type="button" onClick={() => markBox(box, false)} disabled={boxBusy} className={`${secondaryBtn} !py-2 text-xs`}>
+                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Box {box} is done · open again
+                </button>
+              ) : (
+                <button type="button" onClick={() => markBox(box, true)} disabled={boxBusy || !!unit} className={`${primaryBtn} !py-2`}>
+                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Box {box} done
+                  {doneBoxes.size + 1 < boxCount ? ' — next box' : ''}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
         <div className="xl:col-span-3 space-y-4">
@@ -136,6 +272,8 @@ export default function UnpackStep({
                 <EntryForm
                   grn={grn}
                   bill={bill}
+                  boxNo={box}
+                  boxLabel={boxLabel}
                   unit={unit}
                   presetCost={presetCost}
                   shelfNow={shelfNow}
@@ -155,6 +293,36 @@ export default function UnpackStep({
                     else onReload();
                   }}
                 />
+              ) : choices ? (
+                <Card
+                  className="border-honey-300"
+                  title="Which one is in the box?"
+                  actions={
+                    <button type="button" onClick={() => setChoices(null)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">
+                      Cancel
+                    </button>
+                  }
+                >
+                  <ul className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                    {choices.units.map((r) => (
+                      <li key={`${r.productId}|${r.variantId || ''}`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cost = choices.cost;
+                            setChoices(null);
+                            pick(r, cost);
+                          }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-honey-50"
+                        >
+                          <span className="text-sm font-medium text-gray-900">{r.name || r.productName}</span>
+                          {r.variantLabel && <span className="text-sm text-gray-500"> · {r.variantLabel}</span>}
+                          {r.code && <span className="ml-2 font-mono text-[11px] text-gray-500">#{r.code}</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
               ) : (
                 <LookupBox
                   key={nextCode || 'scan'}
@@ -180,7 +348,7 @@ export default function UnpackStep({
         </div>
 
         <div className="xl:col-span-2 space-y-4">
-          <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onChanged={onChanged} onReload={onReload} />
+          <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
           <button type="button" onClick={onFinish} className={`${primaryBtn} w-full !py-3 text-base`}>
             Done unpacking — finish <ArrowRight className="h-5 w-5" />
           </button>
@@ -188,7 +356,10 @@ export default function UnpackStep({
         </div>
       </div>
 
-      {newProduct !== null && (
+      {newProduct !== null && canCreateProducts && (
+        <FullProductModal vendorName={bill.vendorName} boxLabel={boxLabel} initialName={newProduct} onClose={() => setNewProduct(null)} onCreated={afterCreate} />
+      )}
+      {newProduct !== null && !canCreateProducts && (
         <QuickProductModal
           grnId={grn._id}
           vendorName={bill.vendorName}
@@ -328,8 +499,11 @@ function LookupBox({
             )
           )}
         </div>
-        <button type="submit" className={`${primaryBtn} !h-12`} disabled={loading || !q.trim()} aria-label="Search">
+        <button type="submit" className={`${secondaryBtn} !h-12`} disabled={loading || !q.trim()} aria-label="Search">
           <Search className="h-5 w-5" />
+        </button>
+        <button type="button" onClick={() => onNew(q)} className={`${primaryBtn} !h-12 whitespace-nowrap`} title="Make a new product (not in the system yet)">
+          <PackagePlus className="h-5 w-5" /> <span className="hidden sm:inline">New product</span>
         </button>
       </form>
       <ErrorBox message={error} />
@@ -365,13 +539,6 @@ function LookupBox({
           </button>
         </div>
       )}
-      {!rows && (
-        <div className="mt-3 flex justify-end">
-          <button type="button" onClick={() => onNew(q)} className={`${secondaryBtn} text-xs`}>
-            <PackagePlus className="h-4 w-4" /> New product
-          </button>
-        </div>
-      )}
     </Card>
   );
 }
@@ -381,6 +548,8 @@ function LookupBox({
 function EntryForm({
   grn,
   bill,
+  boxNo,
+  boxLabel,
   unit,
   presetCost,
   shelfNow,
@@ -392,6 +561,9 @@ function EntryForm({
 }: {
   grn: GoodsReceipt;
   bill: GRNBillProgress;
+  /** box being unpacked (0 = no box count) */
+  boxNo: number;
+  boxLabel?: string;
   unit: ReceivingUnit;
   presetCost: number | null;
   shelfNow: boolean;
@@ -449,6 +621,7 @@ function EntryForm({
         qty: n,
         costPrice: c,
         damagedQty: d || undefined,
+        ...(boxNo > 0 ? { boxNo } : {}),
         ...(shelfNow && shelfId ? { shelfId, shelfQty: shelfN } : {}),
         requestId: requestId.current,
       });
@@ -479,6 +652,7 @@ function EntryForm({
           {unit.code && <span className="font-mono">#{unit.code} · </span>}
           Sale price <strong className="text-gray-800">{formatRs(unit.salePrice)}</strong>
           {ppb > 1 && ` · ${ppb} pcs per box`} · from {bill.vendorName}
+          {boxLabel && <strong className="text-gray-800"> · {boxLabel}</strong>}
           {unit.expected && <span className="text-honey-800 font-semibold"> · on the bill: {unit.expected.qtyLeft} pcs left</span>}
         </p>
 

@@ -79,6 +79,7 @@ export default function EntriesList({
                   <p className="text-[11px] text-gray-500">
                     {e.code && <span className="font-mono">#{e.code} · </span>}
                     {e.vendorName}
+                    {(e.boxNo || 0) > 0 && <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700">Box {e.boxNo}</span>}
                   </p>
                   <p className="text-xs text-gray-700 mt-0.5">
                     <strong>{e.qty} pcs</strong> × {formatRs(e.costPrice, { decimals: 2 })} = {formatRs(e.value)}

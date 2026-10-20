@@ -63,6 +63,10 @@ interface ProductFormProps {
   // Gets the saved product (create: use its id to open the stickers page)
   onSuccess?: (product?: ProductUI) => void;
   onManageAttributes?: () => void;
+  /** Receiving goods: stock comes from the delivery entry, so no stock is typed here (saved as 0). */
+  noStock?: boolean;
+  /** Create: name to start with (e.g. what was searched). */
+  defaultName?: string;
 }
 
 type VariantWithCodes = ProductVariant & VariantCodeFields;
@@ -124,7 +128,9 @@ export default function ProductForm({
   onSubmit,
   onCancel,
   onSuccess,
-  onManageAttributes
+  onManageAttributes,
+  noStock = false,
+  defaultName = "",
 }: ProductFormProps) {
   const { currency } = useCurrency();
   const searchParams = useSearchParams();
@@ -170,7 +176,7 @@ export default function ProductForm({
     dimensionWidth: (initialData as ExtendedProduct)?.dimensionWidth || "",
     dimensionHeight: (initialData as ExtendedProduct)?.dimensionHeight || "",
     weight: (initialData as ExtendedProduct)?.weight || ""
-  } : initialFormData);
+  } : { ...initialFormData, name: defaultName, ...(noStock ? { status: "published" as const } : {}) });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<TabKey>(getInitialTab);
@@ -657,7 +663,10 @@ export default function ProductForm({
         formData.set("stock", String(variantStock));
         formData.set("price", String(basePrice));
         // Drop view-only fields (totalStock) and clean options + barcodes
-        formData.append("variants", JSON.stringify((form.variants as VariantWithCodes[]).map((v) => variantPayload(v as unknown as Record<string, unknown>))));
+        formData.append("variants", JSON.stringify((form.variants as VariantWithCodes[]).map((v) => {
+          const payload = variantPayload(v as unknown as Record<string, unknown>);
+          return noStock ? { ...payload, stock: 0 } : payload;
+        })));
         
         // Colour pictures
         for (const [color, media] of Object.entries(colorMedia)) {
@@ -727,6 +736,9 @@ export default function ProductForm({
         await syncProductTier(productId, null, savedTierId.current);
         savedTierId.current = null;
       }
+
+      // Receiving goods: the pieces go in with the delivery entry, never here.
+      if (noStock) formData.set("stock", "0");
 
       let saved: ProductUI;
       if (mode === "create") {
@@ -1172,6 +1184,16 @@ export default function ProductForm({
                   </div>
                 )}
 
+                {noStock ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Stock Quantity
+                  </label>
+                  <p className="flex h-[38px] items-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 text-xs text-gray-500">
+                    Pieces are entered after saving
+                  </p>
+                </div>
+                ) : (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Stock Quantity
@@ -1205,6 +1227,7 @@ export default function ProductForm({
                     );
                   })()}
                 </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1264,6 +1287,7 @@ export default function ProductForm({
                     onChange={updatePackaging}
                     mode={mode}
                     productId={productId}
+                    hideStock={noStock}
                     errors={{
                       piecesPerBox: errors.piecesPerBox || "",
                       boxes: errors.boxes || "",
@@ -1731,7 +1755,7 @@ export default function ProductForm({
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost ({currency.symbol})</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Price ({currency.symbol})</th>
-                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            {!noStock && <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>}
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Options &amp; Codes</th>
                             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
                           </tr>
@@ -1789,7 +1813,7 @@ export default function ProductForm({
                                   className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                                 />
                               </td>
-                              <td className="px-3 py-3 whitespace-nowrap">
+                              {!noStock && <td className="px-3 py-3 whitespace-nowrap">
                                 <input
                                   type="number"
                                   min="0"
@@ -1803,7 +1827,7 @@ export default function ProductForm({
                                   }}
                                   className={`w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm ${hasBatches ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
                                 />
-                              </td>
+                              </td>}
                               <td className="px-3 py-3 whitespace-nowrap">
                                 <button
                                   type="button"

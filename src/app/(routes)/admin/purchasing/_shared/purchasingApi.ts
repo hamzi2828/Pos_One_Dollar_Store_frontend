@@ -52,6 +52,8 @@ export interface EntryInput {
   damagedQty?: number;
   shelfId?: string;
   shelfQty?: number;
+  /** box of the bill being unpacked (1..n) */
+  boxNo?: number;
   /** fresh id per save: a resend with the same id never enters twice */
   requestId?: string;
 }
@@ -188,6 +190,9 @@ export const purchasingApi = {
       },
     ),
   /** 201 `data` = one unit (lookup shape). Duplicate barcode -> 409. */
+  /** Mark a box fully unpacked (done = false opens it again). */
+  grnBoxDone: (id: string, body: { bill: string; boxNo: number; done?: boolean }) =>
+    storeApi.post<GoodsReceipt>(`${GRN}/${id}/boxes/done`, body).then((r) => r.data),
   grnNewProduct: (id: string, body: QuickProductInput) => storeApi.post<ReceivingUnit>(`${GRN}/${id}/new-product`, body).then((r) => r.data),
   /** Undo an entry: `data: { entry, grn }`. 409 NOT_IN_WAREHOUSE has a plain message. */
   grnUndoEntry: (id: string, entryId: string) =>
