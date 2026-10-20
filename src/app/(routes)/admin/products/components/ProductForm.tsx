@@ -91,12 +91,15 @@ const isValidUrl = (url: string | undefined): url is string => {
   }
 };
 
+// The shop sells most things at one price: new products start at Rs 300.
+const DEFAULT_SALE_PRICE = 300;
+
 const initialFormData: ProductFormData = {
   name: "",
   category: "",
   subCategory: "",
-  price: 0,
-  discountedPrice: undefined,
+  price: DEFAULT_SALE_PRICE,
+  discountedPrice: DEFAULT_SALE_PRICE,
   costPrice: undefined,
   stock: 0,
   status: "draft",

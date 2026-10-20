@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { Info, Layers, LayoutGrid, Package, Plus, Trash2 } from "lucide-react";
 import {
   type PackagingState,
@@ -54,6 +54,10 @@ export default function PackagingStockCard({
   hideStock = false,
 }: PackagingStockCardProps) {
   const toNum = (v: string) => (v === "" ? undefined : Number(v));
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  // Full-box price being typed (kept as typed; the per-piece price follows it).
+  const [boxSaleText, setBoxSaleText] = useState<string | null>(null);
+  const [boxCostText, setBoxCostText] = useState<string | null>(null);
 
   const set = (patch: Partial<PackagingState>) => onChange({ ...value, ...patch });
   const isBox = value.soldAs === "box";
@@ -192,9 +196,9 @@ export default function PackagingStockCard({
           </div>
           {errors.boxes && <p className="mt-2 text-xs text-red-600">{errors.boxes}</p>}
 
-          {/* Prices per piece */}
+          {/* Prices: per piece, or for one full box (split over the pieces) */}
           {onPricesChange && (
-            <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-3">
+            <div className="mt-3 sm:mt-4 grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sale price per piece ({currencySymbol}) <span className="text-red-500">*</span>
@@ -209,6 +213,28 @@ export default function PackagingStockCard({
                   onChange={(e) => onPricesChange({ salePrice: toNum(e.target.value), costPrice })}
                 />
                 {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">One full box: sale price ({currencySymbol})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={ppb > 1 ? "Price of the whole box" : "Enter pieces in one box first"}
+                  disabled={ppb < 2}
+                  className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
+                  value={boxSaleText ?? (ppb > 1 && salePrice ? String(round2(salePrice * ppb)) : "")}
+                  onFocus={(e) => setBoxSaleText(e.target.value)}
+                  onBlur={() => setBoxSaleText(null)}
+                  onChange={(e) => {
+                    setBoxSaleText(e.target.value);
+                    const box = toNum(e.target.value);
+                    if (ppb > 1) onPricesChange({ salePrice: box === undefined ? undefined : round2(box / ppb), costPrice });
+                  }}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {ppb > 1 ? `Split over ${ppb} pieces${salePrice ? ` = ${currencySymbol}${salePrice.toLocaleString()} per piece` : ""}` : "Type it here or the price per piece"}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -226,14 +252,25 @@ export default function PackagingStockCard({
                 {priceErrors.costPrice && <p className="mt-1 text-xs text-red-600">{priceErrors.costPrice}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">One full box</label>
-                <div className="flex h-[38px] items-center rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900">
-                  {ppb > 1 && salePrice
-                    ? `Sells for ${currencySymbol}${(salePrice * ppb).toLocaleString()}`
-                    : "-"}
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">One full box: cost price ({currencySymbol})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={ppb > 1 ? "What the whole box cost" : "Enter pieces in one box first"}
+                  disabled={ppb < 2}
+                  className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
+                  value={boxCostText ?? (ppb > 1 && costPrice ? String(round2(costPrice * ppb)) : "")}
+                  onFocus={(e) => setBoxCostText(e.target.value)}
+                  onBlur={() => setBoxCostText(null)}
+                  onChange={(e) => {
+                    setBoxCostText(e.target.value);
+                    const box = toNum(e.target.value);
+                    if (ppb > 1) onPricesChange({ salePrice, costPrice: box === undefined ? undefined : round2(box / ppb) });
+                  }}
+                />
                 <p className="mt-1 text-xs text-gray-500">
-                  {ppb > 1 && costPrice ? `Costs ${currencySymbol}${(costPrice * ppb).toLocaleString()}` : `${ppb > 1 ? ppb : "?"} pieces × price per piece`}
+                  {ppb > 1 ? `Split over ${ppb} pieces${costPrice ? ` = ${currencySymbol}${costPrice.toLocaleString()} per piece` : ""}` : "Type it here or the cost per piece"}
                 </p>
               </div>
             </div>
