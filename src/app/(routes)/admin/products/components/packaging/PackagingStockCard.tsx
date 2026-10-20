@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Info, Layers, LayoutGrid, Package, Plus, Trash2 } from "lucide-react";
 import {
   type PackagingState,
@@ -60,6 +60,10 @@ export default function PackagingStockCard({
   // Full box/pack price being typed (kept as typed; the price per sale follows it).
   const [boxSaleText, setBoxSaleText] = useState<string | null>(null);
   const [boxCostText, setBoxCostText] = useState<string | null>(null);
+  // Whole box/pack prices the user typed. They stay as typed; when the box/pack
+  // size or pieces per sale change, the price per sale is worked out again from them.
+  const [boxCost, setBoxCost] = useState<number | null>(null);
+  const [boxSale, setBoxSale] = useState<number | null>(null);
 
   const set = (patch: Partial<PackagingState>) => onChange({ ...value, ...patch });
   const isBox = value.soldAs === "box";
@@ -68,6 +72,15 @@ export default function PackagingStockCard({
   const ppb = piecesPerBoxOf(value); // sales in one box/pack
   const physical = physicalPerBoxOf(value); // pieces in one box/pack
   const unit = pps > 1 ? "sale" : "piece";
+  useEffect(() => {
+    if (!onPricesChange || ppb < 2 || (boxCost === null && boxSale === null)) return;
+    onPricesChange({
+      costPrice: boxCost !== null ? round2(boxCost / ppb) : costPrice,
+      salePrice: boxSale !== null ? round2(boxSale / ppb) : salePrice,
+    });
+    // Only when the number of sales in one box/pack changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ppb]);
   const units = (n: number) => (pps > 1 ? `${n} sale${n === 1 ? "" : "s"} of ${pps}` : `${n} piece${n === 1 ? "" : "s"}`);
 
   const setSoldAs = (soldAs: SoldAs) => {
@@ -241,7 +254,10 @@ export default function PackagingStockCard({
                   placeholder="0.00"
                   className={inputClass(!!priceErrors.costPrice)}
                   value={costPrice ?? ""}
-                  onChange={(e) => onPricesChange({ salePrice, costPrice: toNum(e.target.value) })}
+                  onChange={(e) => {
+                    setBoxCost(null);
+                    onPricesChange({ salePrice, costPrice: toNum(e.target.value) });
+                  }}
                 />
                 {priceErrors.costPrice && <p className="mt-1 text-xs text-red-600">{priceErrors.costPrice}</p>}
               </div>
@@ -254,12 +270,13 @@ export default function PackagingStockCard({
                   placeholder={ppb > 1 ? "What the whole box/pack cost" : "Enter pieces in one box/pack first"}
                   disabled={ppb < 2}
                   className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
-                  value={boxCostText ?? (ppb > 1 && costPrice ? String(round2(costPrice * ppb)) : "")}
+                  value={boxCostText ?? (ppb > 1 ? (boxCost !== null ? String(boxCost) : costPrice ? String(round2(costPrice * ppb)) : "") : "")}
                   onFocus={(e) => setBoxCostText(e.target.value)}
                   onBlur={() => setBoxCostText(null)}
                   onChange={(e) => {
                     setBoxCostText(e.target.value);
                     const box = toNum(e.target.value);
+                    setBoxCost(box === undefined ? null : box);
                     if (ppb > 1) onPricesChange({ salePrice, costPrice: box === undefined ? undefined : round2(box / ppb) });
                   }}
                 />
@@ -278,7 +295,10 @@ export default function PackagingStockCard({
                   placeholder="0.00"
                   className={inputClass(!!priceErrors.salePrice)}
                   value={salePrice ?? ""}
-                  onChange={(e) => onPricesChange({ salePrice: toNum(e.target.value), costPrice })}
+                  onChange={(e) => {
+                    setBoxSale(null);
+                    onPricesChange({ salePrice: toNum(e.target.value), costPrice });
+                  }}
                 />
                 {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
               </div>
@@ -291,12 +311,13 @@ export default function PackagingStockCard({
                   placeholder={ppb > 1 ? "Price of the whole box/pack" : "Enter pieces in one box/pack first"}
                   disabled={ppb < 2}
                   className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
-                  value={boxSaleText ?? (ppb > 1 && salePrice ? String(round2(salePrice * ppb)) : "")}
+                  value={boxSaleText ?? (ppb > 1 ? (boxSale !== null ? String(boxSale) : salePrice ? String(round2(salePrice * ppb)) : "") : "")}
                   onFocus={(e) => setBoxSaleText(e.target.value)}
                   onBlur={() => setBoxSaleText(null)}
                   onChange={(e) => {
                     setBoxSaleText(e.target.value);
                     const box = toNum(e.target.value);
+                    setBoxSale(box === undefined ? null : box);
                     if (ppb > 1) onPricesChange({ salePrice: box === undefined ? undefined : round2(box / ppb), costPrice });
                   }}
                 />
