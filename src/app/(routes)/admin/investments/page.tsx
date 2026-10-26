@@ -7,14 +7,15 @@
 // share are worked out from the money actually paid.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Download, Edit2, FileText, Loader2, PiggyBank, Plus, Search, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react';
+import { Download, Edit2, FileDown, FileText, Loader2, PiggyBank, Plus, Search, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { BACKEND_URL, apiErrorMessage, formatDate, formatRs, storeApi, type PageMeta } from '@/lib/storeApi';
 import { getAuthHeader } from '@/helper/helper';
 import { ErrorBox, Field, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { Chips } from '../purchasing/_shared/ui';
-import { SERIES, TRACK } from '../adminComponents/charts';
+import { TRACK } from '../adminComponents/charts';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { buildInvestmentPdf, partnerColor } from './investmentPdf';
 
 interface PartnerRef {
   _id: string;
@@ -118,6 +119,7 @@ export default function InvestmentsPage() {
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -204,6 +206,34 @@ export default function InvestmentsPage() {
     }
   };
 
+  // Full report (filters are ignored): fetches every bill, then one page per partner.
+  const exportPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const all: Investment[] = [];
+      let first: ListMeta | null = null;
+      for (let pg = 1, pages = 1; pg <= pages; pg++) {
+        const res = await storeApi.get<Investment[]>('/investments', { page: pg, limit: 200 });
+        const m = res.meta as unknown as ListMeta;
+        if (!first) first = m;
+        pages = m.pages;
+        all.push(...res.data);
+      }
+      if (!first) throw new Error('No data');
+      let storeName = 'DOLLAR & Co';
+      try {
+        storeName = localStorage.getItem('siteName') || storeName;
+      } catch {}
+      const doc = buildInvestmentPdf({ storeName, summary: first.summary, partners: first.partners, bills: all });
+      doc.save(`investment-report-${todayKey()}.pdf`);
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not make the PDF.'));
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   if (!canView) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -233,6 +263,11 @@ export default function InvestmentsPage() {
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} CSV
               </button>
             )}
+            {can('investments', 'export') && (
+              <button onClick={exportPdf} disabled={pdfBusy || !meta} className={secondaryBtn} title="One page per partner with all their bills">
+                {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} {pdfBusy ? 'Making PDF…' : 'PDF report'}
+              </button>
+            )}
             {canCreate && (
               <button onClick={() => setPartnerEdit('new')} className={secondaryBtn}>
                 <UserPlus className="h-4 w-4" /> Add partner
@@ -246,55 +281,56 @@ export default function InvestmentsPage() {
           </div>
         </header>
 
-        {/* Total + partners */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 rounded-xl bg-gray-950 p-5 text-white flex flex-col justify-between gap-4">
-            <div>
+        {/* Total, with every partner's share on one bar */}
+        <section className="rounded-xl bg-gray-950 p-5 sm:p-6 text-white space-y-5">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div className="min-w-0">
               <p className="text-sm font-medium text-gray-400">Total invested (paid)</p>
-              <p className="mt-1 text-4xl sm:text-5xl font-semibold tracking-tight text-honey-400 break-words">{s ? formatRs(s.totalInvested) : '…'}</p>
+              <p className="mt-1 text-4xl sm:text-5xl font-semibold tracking-tight text-honey-400 break-words tabular-nums">{s ? formatRs(s.totalInvested) : '…'}</p>
               <p className="mt-2 text-sm text-gray-400">
                 {s
                   ? `${bills(s.entries)} worth ${formatRs(s.billsTotal)}${s.since ? ` since ${formatDate(s.since)}` : ''} · ${partners.length} partner${partners.length === 1 ? '' : 's'}`
                   : ''}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-              <span className="text-gray-400">
-                Paid this month <span className="font-semibold text-white">{s ? formatRs(s.thisMonth) : '…'}</span>
-              </span>
-              {s && s.balance > 0 && (
+            <div className="grid grid-cols-2 gap-2 text-sm md:min-w-[22rem]">
+              <div className="rounded-lg bg-white/5 px-3 py-2">
+                <p className="text-xs text-gray-400">Paid this month</p>
+                <p className="font-semibold tabular-nums">{s ? formatRs(s.thisMonth) : '…'}</p>
+              </div>
+              {s && s.balance > 0 ? (
                 <button
                   onClick={() => pickStatus(status === 'due' ? '' : 'due')}
-                  className={`rounded-md px-2 py-1 -mx-2 text-left text-amber-300 hover:bg-white/10 ${status === 'due' ? 'bg-white/10' : ''}`}
+                  className={`rounded-lg px-3 py-2 text-left transition-colors hover:bg-amber-400/20 ${status === 'due' ? 'bg-amber-400/20 ring-1 ring-amber-300/60' : 'bg-amber-400/10'}`}
                   title="Show the bills that still have a balance"
                 >
-                  Balance to pay <span className="font-semibold text-amber-200">{formatRs(s.balance)}</span> on {bills(s.dueBills)}
+                  <p className="text-xs text-amber-300">Balance to pay · {bills(s.dueBills)}</p>
+                  <p className="font-semibold tabular-nums text-amber-200">{formatRs(s.balance)}</p>
                 </button>
-              )}
-              {s && s.balance === 0 && s.entries > 0 && <span className="text-green-400">All bills paid in full</span>}
-              {filtered && s && (
-                <span className="text-gray-400">
-                  Shown below <span className="font-semibold text-white">{formatRs(s.filteredTotal)}</span> paid
-                  {s.filteredBalance > 0 && <> · {formatRs(s.filteredBalance)} balance</>}
-                </span>
+              ) : (
+                <div className="rounded-lg bg-white/5 px-3 py-2">
+                  <p className="text-xs text-gray-400">Balance to pay</p>
+                  <p className="font-semibold text-green-400">{s && s.entries > 0 ? 'All paid' : '…'}</p>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                <Users className="h-4 w-4 text-gray-500" /> Partners
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-200">
+                <Users className="h-4 w-4 text-gray-400" /> Partners · share of money paid
               </h2>
               {canCreate && (
-                <button onClick={() => setPartnerEdit('new')} className="inline-flex items-center gap-1 text-xs font-medium text-honey-700 hover:underline">
+                <button onClick={() => setPartnerEdit('new')} className="inline-flex items-center gap-1 text-xs font-medium text-honey-300 hover:underline">
                   <Plus className="h-3.5 w-3.5" /> Add partner
                 </button>
               )}
             </div>
+
             {partners.length === 0 ? (
-              <div className="py-4 text-center">
-                <p className="text-xs text-gray-500">No partners yet. Add each person who puts money into the shop.</p>
+              <div className="rounded-lg bg-white/5 py-5 text-center">
+                <p className="text-sm text-gray-400">No partners yet. Add each person who puts money into the shop.</p>
                 {canCreate && (
                   <button onClick={() => setPartnerEdit('new')} className={`${primaryBtn} mt-3`}>
                     <UserPlus className="h-4 w-4" /> Add partner
@@ -302,48 +338,85 @@ export default function InvestmentsPage() {
                 )}
               </div>
             ) : (
-              <ul className="space-y-3">
-                {partners.map((p) => (
-                  <li key={p._id} className={`group rounded-md -mx-1.5 px-1.5 py-1 ${partner === p._id ? 'bg-honey-50 ring-1 ring-honey-300' : ''}`}>
-                    <div className="flex items-baseline justify-between gap-2 text-sm">
-                      <button onClick={() => pickPartner(p._id)} className="min-w-0 truncate text-left font-medium text-gray-800 hover:underline" title="Show this partner's bills">
-                        {p.name}
-                      </button>
-                      <span className="flex-shrink-0 font-semibold text-gray-900 tabular-nums">{formatRs(p.invested)}</span>
-                    </div>
-                    <div className="mt-1 h-1.5 w-full rounded-full" style={{ backgroundColor: TRACK }}>
-                      <div className="h-1.5 rounded-full" style={{ width: `${p.invested > 0 ? Math.max(2, Math.min(100, p.share)) : 0}%`, backgroundColor: SERIES }} />
-                    </div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">
-                      <span>
-                        {p.share}% of total · {bills(p.bills)}
-                        {p.balance > 0 && <span className="text-amber-700"> · {formatRs(p.balance)} to pay</span>}
+              <>
+                {/* One bar, one coloured piece per partner. Click a piece to see their bills. */}
+                <div className="flex h-4 w-full overflow-hidden rounded-full bg-white/10" role="img" aria-label="Share of money paid by each partner">
+                  {s &&
+                    s.totalInvested > 0 &&
+                    partners.map((p, i) =>
+                      p.invested > 0 ? (
+                        <button
+                          key={p._id}
+                          onClick={() => pickPartner(p._id)}
+                          title={`${p.name}: ${formatRs(p.invested)} (${p.share}%)`}
+                          className={`h-full border-r border-gray-950 last:border-r-0 transition-opacity ${partner && partner !== p._id ? 'opacity-30' : 'hover:opacity-80'}`}
+                          style={{ width: `${(p.invested / s.totalInvested) * 100}%`, backgroundColor: partnerColor(i) }}
+                        />
+                      ) : null,
+                    )}
+                  {s && s.noPartner > 0 && s.totalInvested > 0 && (
+                    <button
+                      onClick={() => pickPartner('none')}
+                      title={`No partner: ${formatRs(s.noPartner)}`}
+                      className="h-full bg-gray-500"
+                      style={{ width: `${(s.noPartner / s.totalInvested) * 100}%` }}
+                    />
+                  )}
+                </div>
+
+                <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {partners.map((p, i) => (
+                    <li
+                      key={p._id}
+                      className={`group rounded-lg px-3 py-2.5 transition-colors ${partner === p._id ? 'bg-white/15 ring-1 ring-honey-400/70' : 'bg-white/5 hover:bg-white/10'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: partnerColor(i) }} />
+                        <button onClick={() => pickPartner(p._id)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-gray-100 hover:underline" title="Show this partner's bills">
+                          {p.name}
+                        </button>
+                        <span className="flex gap-0.5">
+                          {canEdit && (
+                            <button onClick={() => setPartnerEdit(p)} className="rounded p-1 text-gray-500 hover:bg-white/10 hover:text-white" aria-label={`Edit ${p.name}`}>
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => removePartner(p)} disabled={deleting === p._id} className="rounded p-1 text-gray-500 hover:bg-red-500/20 hover:text-red-300 disabled:opacity-50" aria-label={`Remove ${p.name}`}>
+                              {deleting === p._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-baseline justify-between gap-2">
+                        <span className="text-lg font-semibold tabular-nums text-white">{formatRs(p.invested)}</span>
+                        <span className="text-sm font-semibold tabular-nums" style={{ color: partnerColor(i) }}>{p.share}%</span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-gray-400">
+                        {bills(p.bills)}
+                        {p.balance > 0 && <span className="text-amber-300"> · {formatRs(p.balance)} to pay</span>}
                         {p.phone ? ` · ${p.phone}` : ''}
-                      </span>
-                      <span className="flex gap-0.5">
-                        {canEdit && (
-                          <button onClick={() => setPartnerEdit(p)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-800" aria-label={`Edit ${p.name}`}>
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => removePartner(p)} disabled={deleting === p._id} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50" aria-label={`Remove ${p.name}`}>
-                            {deleting === p._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
-                        )}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
+
             {s && s.noPartnerBills > 0 && (
-              <button onClick={() => pickPartner('none')} className="mt-3 w-full rounded-md bg-amber-50 px-2.5 py-2 text-left text-xs text-amber-800 hover:bg-amber-100">
+              <button onClick={() => pickPartner('none')} className="mt-3 w-full rounded-lg bg-amber-400/10 px-3 py-2 text-left text-xs text-amber-200 hover:bg-amber-400/20">
                 {bills(s.noPartnerBills)} ({formatRs(s.noPartner)} paid) {s.noPartnerBills === 1 ? 'has' : 'have'} no partner yet. Show them and edit each to pick one.
               </button>
             )}
           </div>
-        </div>
+
+          {filtered && s && (
+            <p className="border-t border-white/10 pt-3 text-sm text-gray-400">
+              Shown below <span className="font-semibold text-white">{formatRs(s.filteredTotal)}</span> paid
+              {s.filteredBalance > 0 && <> · {formatRs(s.filteredBalance)} balance</>}
+            </p>
+          )}
+        </section>
 
         {/* Filters */}
         <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-col md:flex-row md:flex-wrap gap-2">
