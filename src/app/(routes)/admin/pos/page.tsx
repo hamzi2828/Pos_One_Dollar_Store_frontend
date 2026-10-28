@@ -3,6 +3,10 @@
 // amount comes from the server (POST /api/pos/quote) — rule discounts, manual
 // discount, tax and total are exactly what the sale will charge.
 // Keyboard: F2 = search box, F9 = take payment.
+// Offline (no internet, user has desktop_pos view + pos create): products and
+// codes come from the catalogue saved on this PC, the bill is priced here
+// (offline/offlinePricing.ts) and "Complete sale" saves to the outbox with an
+// OFF- slip number; offline/syncWorker.ts uploads it when the internet is back.
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -27,8 +31,17 @@ import { cartToOrderItems, giftLineId, paidLineId } from './utils/cartPayload';
 import { getCurrencySymbol } from './utils/currency';
 import { HeldCart } from './types';
 import { Archive, Filter, AlertCircle, ShoppingCart, LayoutGrid } from 'lucide-react';
-import { getAuthHeader } from '@/helper/helper';
+import { decodeJwt, getAuthHeader, getAuthToken, type UserPayload } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
+import OfflineBadge from './offline/OfflineBadge';
+import { useOfflineStatus } from './offline/useOfflineStatus';
+import { canSellOffline, getCatalogSnapshot, loadCatalog, lookupCatalogCode, searchCatalog } from './offline/catalogSync';
+import { isNetworkError, reportNetworkFailure, reportNetworkOk } from './offline/connectivity';
+import { isTypedCustomer, priceCartOffline, saveOfflineSale } from './offline/offlineSale';
+import { onUploadDone } from './offline/syncWorker';
+import { uuid } from './offline/device';
+import { registerPosServiceWorker } from './offline/registerSw';
+import { printReceipt } from './utils/receipt';
 import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
 import ProductInsightPanel from '@/components/store/ProductInsightPanel';
 
@@ -54,12 +67,28 @@ const salePrice = (u: { price: number; discountedPrice?: number }) =>
 export default function POSPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { can } = useAccess();
+  const { can, access } = useAccess();
   const symbol = getCurrencySymbol('PKR');
 
   const canEditPrice = can('pos', 'edit');
   const canGoBelowList = can('discounts', 'edit');
   const canGift = can('pos_gifts', 'create');
+
+  // ---------- offline selling
+  const offlineEnabled = canSellOffline(access);
+  const offline = useOfflineStatus(offlineEnabled);
+  const offlineMode = offline.offlineMode;
+  const offlineModeRef = useRef(offlineMode);
+  offlineModeRef.current = offlineMode;
+  const NEEDS_INTERNET = 'Needs internet';
+  const offlinePricer = useMemo(
+    () =>
+      offlineEnabled
+        ? (items: CartItem[], md: ManualDiscount | null | undefined, taxIds: string[]) =>
+            priceCartOffline(items, md, taxIds, { canEditPrice, canGoBelowList, canGift })
+        : null,
+    [offlineEnabled, canEditPrice, canGoBelowList, canGift]
+  );
 
   const urlTab = searchParams.get('tab') as POSTab | null;
   const initialTab: POSTab = urlTab && ['products', 'held', 'history', 'pending'].includes(urlTab) ? urlTab : 'products';
@@ -127,7 +156,8 @@ export default function POSPage() {
   const { quote, error: quoteError, loading: quoteLoading, ready: quoteReady, acceptQuote } = useCartQuote(
     cart.items,
     cart.manualDiscount,
-    selectedTaxIds
+    selectedTaxIds,
+    { offlineMode, offlinePricer }
   );
   const pricedCart = useMemo<POSCart>(() => {
     if (!quote || !quoteReady) return cart;
@@ -159,7 +189,9 @@ export default function POSPage() {
     });
   }, [quote, quoteReady]);
 
-  const tillBlocked = till && till.required && !till.open ? 'Open your till (cash drawer) before selling' : null;
+  // Offline sales are never refused for the till (the server attaches it or warns NO_TILL).
+  const tillBlocked =
+    !offlineMode && !quote?.offline && till && till.required && !till.open ? 'Open your till (cash drawer) before selling' : null;
   useEffect(() => {
     if (till?.open) setTillMessage(null);
   }, [till]);
@@ -177,8 +209,22 @@ export default function POSPage() {
 
   // ---------- loaders
   const loadSettings = useCallback(async () => {
+    // No connection: store name and taxes from the saved catalogue.
+    const fromCatalog = async () => {
+      await loadCatalog();
+      const snap = getCatalogSnapshot();
+      if (!snap) return;
+      if (snap.shop?.name) setStoreName(snap.shop.name);
+      const activeTaxes = (snap.taxes || []).filter((t) => t.isActive !== false) as POSTax[];
+      if (activeTaxes.length) {
+        setAvailableTaxes(activeTaxes);
+        const defaultTax = activeTaxes.find((t) => t.isDefault);
+        if (defaultTax) setSelectedTaxIds([defaultTax.taxId]);
+      }
+    };
     try {
       const response = await fetch(`${API_BASE_URL}/settings`, { headers: getAuthHeader() });
+      if (!response.ok && [502, 503, 504].includes(response.status)) await fromCatalog();
       if (response.ok) {
         const data = await response.json();
         if (data.data?.storeName) setStoreName(data.data.storeName);
@@ -191,23 +237,47 @@ export default function POSPage() {
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      if (isNetworkError(error)) {
+        reportNetworkFailure();
+        await fromCatalog();
+      }
     }
   }, []);
 
   // Only the newest product request may update the list.
   const productsRequest = useRef<AbortController | null>(null);
+  const offlineEnabledRef = useRef(offlineEnabled);
+  offlineEnabledRef.current = offlineEnabled;
   const loadProducts = useCallback(async (query: string) => {
     productsRequest.current?.abort();
     const controller = new AbortController();
     productsRequest.current = controller;
+    const fromCatalog = async () => {
+      await loadCatalog();
+      if (controller.signal.aborted) return;
+      setProducts(searchCatalog(query));
+      setLoadedQuery(query);
+    };
     try {
       setLoading(true);
+      if (offlineModeRef.current) {
+        await fromCatalog();
+        return;
+      }
       const data = await getPOSProducts(query, undefined, undefined, controller.signal);
       if (controller.signal.aborted) return;
+      reportNetworkOk();
       setProducts(data);
       setLoadedQuery(query);
     } catch (error) {
       if (controller.signal.aborted) return;
+      if (isNetworkError(error)) {
+        reportNetworkFailure();
+        if (offlineEnabledRef.current) {
+          await fromCatalog();
+          return;
+        }
+      }
       console.error('Failed to load products:', error);
       toast.error('Failed to load products');
       setLoadedQuery(query);
@@ -228,6 +298,18 @@ export default function POSPage() {
     loadSettings();
     loadHeldCarts();
   }, [loadSettings, loadHeldCarts]);
+
+  // Offline <-> online: reload the list from the right place.
+  const firstMode = useRef(true);
+  useEffect(() => {
+    if (firstMode.current) {
+      firstMode.current = false;
+      return;
+    }
+    loadProducts(searchQuery.trim());
+    if (!offlineMode) loadHeldCarts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offlineMode]);
 
   // Search products (debounced; first load runs straight away; same text = no reload)
   const trimmedQuery = searchQuery.trim();
@@ -250,7 +332,8 @@ export default function POSPage() {
       const qty = Math.max(1, Math.floor(opts.qty || 1));
       const baseId = variant ? `${product._id}-${variant.variantId}` : product._id;
       const itemId = opts.batchNo ? `${baseId}@${opts.batchNo}` : baseId;
-      const max = Number(variant ? variant.stock : product.stock) || 0;
+      // Offline: stock in the saved list may be old; the sale is allowed (server warns STOCK_SHORT).
+      const max = offlineModeRef.current ? 0 : Number(variant ? variant.stock : product.stock) || 0;
       const inCart = cartRef.current.items.find((i) => i.id === itemId)?.quantity || 0;
       if (max > 0 && inCart + qty > max) {
         toast.error(inCart >= max ? `No more ${product.name} in stock` : `Only ${max} of ${product.name} in stock`);
@@ -302,13 +385,35 @@ export default function POSPage() {
     if (selectedProduct) addToCart(selectedProduct, variant);
   };
 
+  /** Code lookup: server, or the saved catalogue when offline / the server cannot be reached. */
+  const lookupCode = async (code: string) => {
+    if (offlineModeRef.current) {
+      await loadCatalog();
+      return lookupCatalogCode(code);
+    }
+    try {
+      const r = await getProductByBarcode(code);
+      reportNetworkOk();
+      return r;
+    } catch (e) {
+      if (isNetworkError(e)) {
+        reportNetworkFailure();
+        if (offlineEnabledRef.current) {
+          await loadCatalog();
+          return lookupCatalogCode(code);
+        }
+      }
+      throw e;
+    }
+  };
+
   /** Enter in the search box: barcode / short code / box code / batch code. */
   const handleScan = async (code: string): Promise<boolean> => {
     if (scanLock.current) return false;
     scanLock.current = true;
     setScanning(true);
     try {
-      const r = await getProductByBarcode(code);
+      const r = await lookupCode(code);
       if (r.ok) {
         const { product, match } = r;
         if (product.productType === 'variant' && !match.variantId) {
@@ -404,6 +509,10 @@ export default function POSPage() {
       toast.error('Cart is empty');
       return;
     }
+    if (offlineMode) {
+      toast.error('Holding an order needs internet');
+      return;
+    }
     actionLock.current = true;
     setHolding(true);
     try {
@@ -497,6 +606,27 @@ export default function POSPage() {
   const checkoutRef = useRef(handleCheckout);
   checkoutRef.current = handleCheckout;
 
+  // Installable app + offline copy of this screen (production only).
+  useEffect(() => {
+    registerPosServiceWorker();
+  }, []);
+
+  // Tell the cashier when offline sales reach the server.
+  useEffect(
+    () =>
+      onUploadDone((s) => {
+        if (s.uploaded.length) {
+          const warned = s.uploaded.filter((u) => u.warnings.some((w) => ['PRICE_DIFF', 'STOCK_SHORT', 'NOT_ALLOWED'].includes(w.code))).length;
+          toast.success(
+            `${s.uploaded.length} offline sale${s.uploaded.length === 1 ? '' : 's'} uploaded${warned ? ` (${warned} with notes for the manager)` : ''}`,
+            { id: 'offline-upload', duration: 5000 }
+          );
+        }
+        if (s.failed) toast.error(`${s.failed} offline sale${s.failed === 1 ? '' : 's'} need attention (see the badge at the top)`, { duration: 7000 });
+      }),
+    []
+  );
+
   // F2 = search, F9 = payment
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -525,8 +655,50 @@ export default function POSPage() {
     if (payLock.current || !quote) return;
     payLock.current = true;
     setPaying(true);
+    // One id for this sale: sent with the online order AND used for the offline
+    // copy if the online call is lost, so the server never counts it twice.
+    const clientId = uuid();
+    const goOffline = async () => {
+      const jwt = decodeJwt<UserPayload>(getAuthToken() || '');
+      const me = access?.user;
+      const order = await saveOfflineSale({
+        clientId,
+        items: cart.items,
+        quote,
+        manualDiscount: cart.manualDiscount,
+        taxIds: selectedTaxIds,
+        paymentMethod,
+        cashAmount,
+        isPartialPayment,
+        paidAmount,
+        customer,
+        customerInfo,
+        cashier: {
+          id: me?.id || jwt?.id || '',
+          firstName: me?.firstName || jwt?.firstName,
+          lastName: me?.lastName || jwt?.lastName,
+          email: me?.email || jwt?.email,
+        },
+      });
+      toast.success(`Offline sale ${order.orderNumber} saved on this PC. It will upload by itself.`, { duration: 5000 });
+      setLastOrder(order);
+      resetSale();
+      setShowPaymentModal(false);
+      setMobileView('products');
+      printReceipt(order, storeName, symbol);
+      setTimeout(() => searchRef.current?.focus(), 50);
+    };
     try {
-      let customerId = customer?._id;
+      if (offlineModeRef.current || quote.offline) {
+        if (!offlineEnabled) {
+          toast.error('No internet. This user cannot sell offline.', { duration: 5000 });
+          return;
+        }
+        await goOffline();
+        return;
+      }
+      // A name typed while offline is not a customer record: send it as customerInfo.
+      let customerId = customer && !isTypedCustomer(customer) ? customer._id : undefined;
       if (customerInfo && !customerId) {
         try {
           const nameParts = customerInfo.name.trim().split(' ');
@@ -537,6 +709,11 @@ export default function POSPage() {
           });
           customerId = customerResult.data._id;
         } catch (customerError) {
+          if (offlineEnabled && isNetworkError(customerError)) {
+            reportNetworkFailure();
+            await goOffline();
+            return;
+          }
           console.error('Failed to create/find customer:', customerError);
           toast.error(`Failed to save customer: ${customerError instanceof Error ? customerError.message : 'Unknown error'}`);
           return;
@@ -565,9 +742,25 @@ export default function POSPage() {
         isPOS: true,
         isPartialPayment,
         paidAmount: isPartialPayment ? paidAmount : undefined,
+        clientId,
       };
 
-      const order = await createPOSOrder(orderData);
+      let order: POSOrder;
+      try {
+        order = await createPOSOrder(orderData);
+        reportNetworkOk();
+      } catch (sendError) {
+        if (isNetworkError(sendError)) {
+          reportNetworkFailure();
+          if (offlineEnabled) {
+            await goOffline();
+            return;
+          }
+          toast.error('No internet. The sale was not saved. Try again when the connection is back.', { duration: 6000 });
+          return;
+        }
+        throw sendError;
+      }
 
       const pendingAmount = order.pendingAmount || 0;
       if (pendingAmount > 0) {
@@ -598,6 +791,10 @@ export default function POSPage() {
         if (error.status === 403 || error.status === 400) setShowPaymentModal(false);
         return;
       }
+      if (error instanceof Error && /offline database|indexeddb/i.test(error.message || '')) {
+        toast.error(`Could not save the sale on this PC: ${error.message}`, { duration: 7000 });
+        return;
+      }
       toast.error(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       payLock.current = false;
@@ -610,10 +807,12 @@ export default function POSPage() {
     setInsight({ productId: product._id, variantId: variantId || null });
   };
 
-  const tabButton = (key: POSTab, label: React.ReactNode, active: string) => (
+  const tabButton = (key: POSTab, label: React.ReactNode, active: string, disabledReason?: string | null) => (
     <button
       onClick={() => handleTabChange(key)}
-      className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors relative whitespace-nowrap ${
+      disabled={!!disabledReason}
+      title={disabledReason || undefined}
+      className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors relative whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${
         tab === key ? `${active} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
       }`}
     >
@@ -632,7 +831,10 @@ export default function POSPage() {
 
           <div className="flex items-center justify-between gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Point of Sale</h1>
-            <div className="text-xs sm:text-sm text-gray-500 truncate">{storeName}</div>
+            <div className="flex items-center gap-2 min-w-0">
+              <OfflineBadge status={offline} symbol={symbol} />
+              <div className="text-xs sm:text-sm text-gray-500 truncate">{storeName}</div>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -647,9 +849,15 @@ export default function POSPage() {
                   <span className="absolute -top-1 -right-1 bg-honey-500 text-gray-900 text-xs rounded-full w-5 h-5 flex items-center justify-center">{heldCarts.length}</span>
                 )}
               </>,
-              'bg-honey-500'
+              'bg-honey-500',
+              offlineMode ? `${NEEDS_INTERNET}: held orders are kept on the server` : null
             )}
-            {tabButton('pending', <><AlertCircle className="h-4 w-4 inline mr-1.5" />Pending Payments</>, 'bg-orange-600')}
+            {tabButton(
+              'pending',
+              <><AlertCircle className="h-4 w-4 inline mr-1.5" />Pending Payments</>,
+              'bg-orange-600',
+              offlineMode ? `${NEEDS_INTERNET}: payments and sales history are on the server` : null
+            )}
           </div>
 
           {tillMessage && (
@@ -687,10 +895,15 @@ export default function POSPage() {
               resultsQuery={loadedQuery ?? ''}
             />
           )}
-          {tab === 'held' && (
+          {offlineMode && tab !== 'products' && (
+            <div className="max-w-md mx-auto mt-10 p-4 text-center text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg">
+              This needs internet. Go to Products to keep selling; it opens again when the connection is back.
+            </div>
+          )}
+          {!offlineMode && tab === 'held' && (
             <HeldOrders heldCarts={heldCarts} onRetrieve={handleRetrieveCart} onDelete={handleDeleteHeldCart} busy={heldBusy} currency={'PKR'} />
           )}
-          {tab === 'pending' && <PendingPaymentsTab currency={'PKR'} onPaymentComplete={() => {}} />}
+          {!offlineMode && tab === 'pending' && <PendingPaymentsTab currency={'PKR'} onPaymentComplete={() => {}} />}
         </div>
       </div>
 
@@ -715,6 +928,7 @@ export default function POSPage() {
           holding={holding}
           paying={paying}
           blockedReason={tillBlocked}
+          holdDisabledReason={offlineMode ? `${NEEDS_INTERNET}: held orders are kept on the server` : null}
           onSelectCustomer={() => setShowCustomerSelector(true)}
           currency={'PKR'}
           availableTaxes={availableTaxes}
@@ -747,7 +961,13 @@ export default function POSPage() {
       </div>
 
       {/* Modals */}
-      <CustomerSelector isOpen={showCustomerSelector} onClose={() => setShowCustomerSelector(false)} onSelect={setCustomer} currentCustomer={customer} />
+      <CustomerSelector
+        isOpen={showCustomerSelector}
+        onClose={() => setShowCustomerSelector(false)}
+        onSelect={setCustomer}
+        currentCustomer={customer}
+        offline={offlineMode}
+      />
 
       <VariantSelector
         isOpen={showVariantSelector}
@@ -769,6 +989,7 @@ export default function POSPage() {
         onConfirm={handlePaymentConfirm}
         processing={paying}
         currency={'PKR'}
+        offline={offlineMode || !!quote?.offline}
       />
 
       <ProductInsightPanel productId={insight?.productId ?? null} variantId={insight?.variantId ?? null} open={!!insight} onClose={() => setInsight(null)} />

@@ -203,6 +203,11 @@ export default function InvoicePage() {
             <div>
               <h1 className="text-2xl font-bold">INVOICE</h1>
               <p className="text-gray-300 mt-1">#{order.orderNumber}</p>
+              {order.offline?.clientId && (
+                <p className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-400 text-gray-900 print:bg-transparent print:border print:border-gray-400">
+                  Offline sale{order.offline.number ? ` · slip ${order.offline.number}` : ''}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="font-semibold">{storeName}</p>

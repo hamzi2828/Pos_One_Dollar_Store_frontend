@@ -7,12 +7,16 @@ import { POSCustomer } from '../types';
 import { Search, X, User, Plus, Loader2 } from 'lucide-react';
 import { searchCustomers, getAllCustomers } from '../services/posCustomerService';
 import AddCustomerModal from './AddCustomerModal';
+import { searchCatalogCustomers } from '../offline/catalogSync';
+import { TYPED_CUSTOMER_PREFIX } from '../offline/offlineSale';
 
 interface CustomerSelectorProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (customer: POSCustomer | null) => void;
   currentCustomer?: POSCustomer | null;
+  /** No connection: customers come from the PC copy; new customers cannot be saved (a typed name/phone still goes on the sale). */
+  offline?: boolean;
 }
 
 export default function CustomerSelector({
@@ -20,13 +24,20 @@ export default function CustomerSelector({
   onClose,
   onSelect,
   currentCustomer,
+  offline = false,
 }: CustomerSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState<POSCustomer[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [typedName, setTypedName] = useState('');
+  const [typedPhone, setTypedPhone] = useState('');
 
   const loadCustomers = useCallback(async () => {
+    if (offline) {
+      setCustomers(searchCatalogCustomers(''));
+      return;
+    }
     try {
       setLoading(true);
       const data = await getAllCustomers();
@@ -36,9 +47,13 @@ export default function CustomerSelector({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offline]);
 
   const handleSearch = useCallback(async (query: string) => {
+    if (offline) {
+      setCustomers(searchCatalogCustomers(query));
+      return;
+    }
     try {
       setLoading(true);
       const data = await searchCustomers(query);
@@ -48,7 +63,7 @@ export default function CustomerSelector({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offline]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,6 +84,22 @@ export default function CustomerSelector({
     onClose();
   };
 
+  // Offline: name + phone typed for this sale only (sent as customerInfo).
+  const applyTypedCustomer = () => {
+    const name = typedName.trim();
+    if (!name) return;
+    const parts = name.split(/\s+/);
+    pickCustomer({
+      _id: `${TYPED_CUSTOMER_PREFIX}${Date.now()}`,
+      firstName: parts[0],
+      lastName: parts.slice(1).join(' '),
+      phone: typedPhone.trim() || undefined,
+      customerType: 'walk-in',
+    });
+    setTypedName('');
+    setTypedPhone('');
+  };
+
   const handleCustomerCreated = (newCustomer: POSCustomer) => {
     setShowAddCustomerModal(false);
     pickCustomer(newCustomer);
@@ -85,7 +116,9 @@ export default function CustomerSelector({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowAddCustomerModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
+              disabled={offline}
+              title={offline ? 'Needs internet. Type the name and phone below instead.' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="h-4 w-4" />
               Add Customer
@@ -95,6 +128,38 @@ export default function CustomerSelector({
             </button>
           </div>
         </div>
+
+        {offline && (
+          <div className="px-4 pt-3 space-y-2">
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+              No internet: showing saved customers. New customer? Type the name and phone; they go on this sale.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="text"
+                value={typedName}
+                onChange={(e) => setTypedName(e.target.value)}
+                placeholder="Name"
+                className="flex-1 min-w-[8rem] px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+              />
+              <input
+                type="tel"
+                value={typedPhone}
+                onChange={(e) => setTypedPhone(e.target.value)}
+                placeholder="Phone"
+                className="flex-1 min-w-[8rem] px-3 py-1.5 text-sm border border-gray-300 rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={applyTypedCustomer}
+                disabled={!typedName.trim()}
+                className="px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg disabled:opacity-50"
+              >
+                Use
+              </button>
+            </div>
+          </div>
+        )}
 
         <ListStage
           searchQuery={searchQuery}

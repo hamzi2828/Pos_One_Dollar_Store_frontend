@@ -150,6 +150,8 @@ export interface CartQuote {
   canSeeCost?: boolean;
   nextDiscount: { name: string; label: string; minSubtotal: number; missing: number; message: string } | null;
   limits: { maxManualDiscountPct: number; maxManualDiscount: number; unlimitedManualDiscount: boolean };
+  /** Priced on this PC from the saved catalogue (no connection to the server). */
+  offline?: boolean;
 }
 
 export type WhatsAppStatus = 'none' | 'queued' | 'sent' | 'failed' | 'skipped';
@@ -261,6 +263,24 @@ export interface POSOrderData {
   taxIds?: string[];
   /** Total the cashier saw; the server answers 409 TOTAL_CHANGED if it differs. */
   expectedTotal?: number;
+  /** Idempotency key made on the PC. If this request is lost and the sale is
+   *  saved offline instead, the upload uses the same key (never counted twice). */
+  clientId?: string;
+}
+
+/** Offline-sale info on an order (POSOrder.offline on the server; `pending` = still on this PC). */
+export interface POSOrderOffline {
+  clientId?: string;
+  number?: string;
+  deviceId?: string;
+  deviceName?: string;
+  soldAt?: string;
+  uploadedAt?: string;
+  offlineTotal?: number;
+  serverTotal?: number;
+  warnings?: { code: string; [key: string]: unknown }[];
+  /** Only on this PC: saved in the outbox, not uploaded yet. */
+  pending?: boolean;
 }
 
 export interface POSOrder {
@@ -301,6 +321,7 @@ export interface POSOrder {
   orderStatus: string;
   paymentStatus: PaymentStatusType;
   completedAt?: string;
+  offline?: POSOrderOffline;
 }
 
 // Pending Orders Response

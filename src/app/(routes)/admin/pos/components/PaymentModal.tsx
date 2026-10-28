@@ -23,6 +23,8 @@ interface PaymentModalProps {
   currency?: string;
   /** Payment is being saved by the page (keeps the window locked). */
   processing?: boolean;
+  /** No connection: the sale is saved on this PC (no screenshot upload). */
+  offline?: boolean;
 }
 
 export default function PaymentModal({
@@ -33,6 +35,7 @@ export default function PaymentModal({
   onConfirm,
   currency = 'PKR',
   processing: processingFromPage = false,
+  offline = false,
 }: PaymentModalProps) {
   const symbol = getCurrencySymbol(currency);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
@@ -61,7 +64,9 @@ export default function PaymentModal({
   const pendingAmount = isPartialPayment ? cart.total - cashAmount : 0;
 
   // For partial payments (including 0), require a customer to be selected
-  const canDoPartialPayment = isPartialPayment && customer;
+  // (a saved customer: a name typed while offline has no account to owe on).
+  const knownCustomer = customer && !customer._id.startsWith('typed-') ? customer : null;
+  const canDoPartialPayment = isPartialPayment && knownCustomer;
 
   // Allow 0 payment if customer is selected (full pending)
   const isValidCash = paymentMethod === 'cash' && (cashAmount >= cart.total || !!canDoPartialPayment);
@@ -77,7 +82,7 @@ export default function PaymentModal({
 
     try {
       let screenshotUrl: string | undefined;
-      if (paymentMethod === 'bank_transfer' && bankScreenshotFile) {
+      if (paymentMethod === 'bank_transfer' && bankScreenshotFile && !offline) {
         try {
           const result = await uploadBankTransferScreenshot(bankScreenshotFile);
           screenshotUrl = result.url;
@@ -139,6 +144,11 @@ export default function PaymentModal({
         </div>
 
         <fieldset disabled={processing} aria-busy={processing} className="p-4 space-y-4 min-w-0 disabled:[&_button]:cursor-not-allowed">
+          {offline && (
+            <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+              No internet: this sale is saved on this PC and uploads by itself later.
+            </div>
+          )}
           {/* Customer Details (Read-only) */}
           {customer ? (
             <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -236,7 +246,7 @@ export default function PaymentModal({
                 />
               </div>
               <div className="grid grid-cols-5 gap-1.5">
-                {customer && (
+                {knownCustomer && (
                   <button
                     onClick={() => setCashReceived('0')}
                     className="py-1.5 text-xs bg-orange-100 text-orange-700 border border-orange-300 rounded hover:bg-orange-200"
@@ -267,14 +277,16 @@ export default function PaymentModal({
                     <span className="text-sm text-green-600">Paid: {symbol}{cashAmount.toFixed(2)}</span>
                     <span className="text-sm font-bold text-red-600">Pending: {symbol}{pendingAmount.toFixed(2)}</span>
                   </div>
-                  {!customer ? (
+                  {!knownCustomer ? (
                     <div className="mt-2 p-2 bg-red-100 rounded text-center">
                       <AlertCircle className="h-4 w-4 text-red-600 mx-auto mb-1" />
                       <p className="text-xs text-red-700 font-medium">Customer Required for Partial Payment</p>
-                      <p className="text-xs text-red-600">Please select a customer first</p>
+                      <p className="text-xs text-red-600">
+                        {customer ? 'Pick a saved customer (a typed name cannot owe money)' : 'Please select a customer first'}
+                      </p>
                     </div>
                   ) : (
-                    <p className="text-xs text-orange-600 mt-1">Pending saved under {customer.firstName} {customer.lastName}</p>
+                    <p className="text-xs text-orange-600 mt-1">Pending saved under {knownCustomer.firstName} {knownCustomer.lastName}</p>
                   )}
                 </div>
               )}
@@ -302,7 +314,7 @@ export default function PaymentModal({
                 />
               </div>
               <div className="grid grid-cols-5 gap-1.5">
-                {customer && (
+                {knownCustomer && (
                   <button
                     onClick={() => setCashReceived('0')}
                     className="py-1.5 text-xs bg-orange-100 text-orange-700 border border-orange-300 rounded hover:bg-orange-200"
@@ -321,20 +333,27 @@ export default function PaymentModal({
                     <span className="text-sm text-green-600">Paid: {symbol}{cashAmount.toFixed(2)}</span>
                     <span className="text-sm font-bold text-red-600">Pending: {symbol}{pendingAmount.toFixed(2)}</span>
                   </div>
-                  {!customer ? (
+                  {!knownCustomer ? (
                     <div className="mt-2 p-2 bg-red-100 rounded text-center">
                       <AlertCircle className="h-4 w-4 text-red-600 mx-auto mb-1" />
                       <p className="text-xs text-red-700 font-medium">Customer Required for Partial Payment</p>
-                      <p className="text-xs text-red-600">Please select a customer first</p>
+                      <p className="text-xs text-red-600">
+                        {customer ? 'Pick a saved customer (a typed name cannot owe money)' : 'Please select a customer first'}
+                      </p>
                     </div>
                   ) : (
-                    <p className="text-xs text-orange-600 mt-1">Pending saved under {customer.firstName} {customer.lastName}</p>
+                    <p className="text-xs text-orange-600 mt-1">Pending saved under {knownCustomer.firstName} {knownCustomer.lastName}</p>
                   )}
                 </div>
               )}
               {/* Screenshot Upload */}
-              <div className="flex items-center gap-2">
-                {bankScreenshotFile ? (
+              <div className="flex items-center gap-2" title={offline ? 'Needs internet: add the screenshot later from POS Orders' : undefined}>
+                {offline ? (
+                  <div className="flex-1 flex items-center gap-2 border border-dashed border-gray-300 rounded px-3 py-1.5 text-xs text-gray-500 cursor-not-allowed">
+                    <Upload className="h-4 w-4 text-gray-400" />
+                    Screenshot needs internet
+                  </div>
+                ) : bankScreenshotFile ? (
                   <div className="flex-1 flex items-center gap-2 bg-green-50 border border-green-200 rounded px-2 py-1.5">
                     <Check className="h-4 w-4 text-green-500" />
                     <span className="text-xs text-green-700 truncate flex-1">{bankScreenshotFile.name}</span>

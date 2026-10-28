@@ -35,15 +35,25 @@ export default function LastSaleBar({ order, storeName, symbol, onClose }: Props
   };
 
   const pending = order.pendingAmount || 0;
+  // Saved on this PC (offline): no server invoice / WhatsApp yet.
+  const offline = !!order.offline?.pending;
   return (
-    <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-sm">
-      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-      <span className="font-medium text-green-900">
-        Sale #{order.orderNumber} · {symbol}
+    <div
+      className={`flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
+        offline ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'
+      }`}
+    >
+      <CheckCircle2 className={`h-4 w-4 flex-shrink-0 ${offline ? 'text-amber-600' : 'text-green-600'}`} />
+      <span className={`font-medium ${offline ? 'text-amber-900' : 'text-green-900'}`}>
+        {offline ? 'Offline sale' : 'Sale'} #{order.orderNumber} · {symbol}
         {order.total.toFixed(2)}
         {pending > 0 && <span className="text-orange-700"> ({symbol}{pending.toFixed(2)} pending)</span>}
       </span>
-      <WhatsAppBadge status={order.whatsappStatus} orderId={order._id} compact />
+      {offline ? (
+        <span className="text-xs text-amber-800">Will upload automatically</span>
+      ) : (
+        <WhatsAppBadge status={order.whatsappStatus} orderId={order._id} compact />
+      )}
       <span className="flex-1" />
       <button
         type="button"
@@ -54,6 +64,7 @@ export default function LastSaleBar({ order, storeName, symbol, onClose }: Props
         {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
         Print
       </button>
+      {!offline && (
       <a
         href={`/admin/pos/invoice/${order._id}`}
         target="_blank"
@@ -63,6 +74,7 @@ export default function LastSaleBar({ order, storeName, symbol, onClose }: Props
         <FileText className="h-3.5 w-3.5" />
         Invoice
       </a>
+      )}
       <button type="button" onClick={onClose} className="p-1 text-green-700 hover:text-green-900" aria-label="Dismiss">
         <X className="h-4 w-4" />
       </button>

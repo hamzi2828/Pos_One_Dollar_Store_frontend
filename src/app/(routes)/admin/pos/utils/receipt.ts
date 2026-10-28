@@ -43,6 +43,13 @@ export function buildReceiptHtml(order: POSOrder, storeName: string, symbol: str
     ? `<div class="row"><span>Paid</span><span>${money(order.paidAmount)}</span></div><div class="row"><b>Pending</b><b>${money(order.pendingAmount)}</b></div>`
     : '';
 
+  // Sale saved on this PC while offline (OFF- number), or an uploaded offline sale.
+  const offlineNote = order.offline?.pending
+    ? `<div class="block" style="text-align:center;font-weight:bold">Offline sale – will upload automatically</div>`
+    : order.offline?.number && order.offline.number !== order.orderNumber
+    ? `<div class="block" style="text-align:center">Offline sale · slip ${esc(order.offline.number)}</div>`
+    : '';
+
   return `<!DOCTYPE html><html><head><title>${esc(order.orderNumber)}</title><style>
 @page{size:72mm auto;margin:0}*{margin:0;padding:0;box-sizing:border-box}
 html,body{width:72mm}body{font-family:'Courier New',monospace;font-size:11px;padding:3mm;background:#fff}
@@ -70,6 +77,7 @@ ${order.cashAmount ? `<div class="row"><span>Cash:</span><span>${money(order.cas
 ${order.changeGiven ? `<div class="row"><span>Change:</span><span>${money(order.changeGiven)}</span></div>` : ''}
 ${pending}
 </div>
+${offlineNote}
 <div class="footer"><div>Thank you!</div><div>Please come again</div></div>
 </body></html>`;
 }

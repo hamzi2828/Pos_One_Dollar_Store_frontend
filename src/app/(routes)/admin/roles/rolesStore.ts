@@ -131,7 +131,6 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'shifts', label: 'Shifts & Roster', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'hr_policies', label: 'HR Policies', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'attendance', label: 'Attendance', actions: ['view', 'create', 'edit', 'export'] },
-      { key: 'attendance_kiosk', label: 'Attendance desktop app', actions: ['view', 'create'] },
       { key: 'payroll', label: 'Payroll & Advances', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'category_assignments', label: 'Category Staff', actions: ['view', 'edit'] },
     ],
@@ -147,6 +146,15 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'settings', label: 'Settings', actions: ['view', 'edit'] },
       { key: 'notifications', label: 'Notifications', actions: ['view', 'edit'] },
       { key: 'whatsapp', label: 'WhatsApp', actions: ['view', 'edit'] },
+    ],
+  },
+  {
+    key: 'desktop',
+    label: 'Desktop app',
+    iconKey: 'desktop',
+    groups: [
+      { key: 'attendance_kiosk', label: 'Attendance (fingerprint)', actions: ['view', 'create'] },
+      { key: 'desktop_pos', label: 'Sales on the counter PC (works offline)', actions: ['view', 'create'] },
     ],
   },
   {

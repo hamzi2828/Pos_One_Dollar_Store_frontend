@@ -538,6 +538,14 @@ function OrderRow({
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3">
         <div className="font-medium text-gray-900">{order.orderNumber}</div>
+        {order.offline?.clientId && (
+          <span
+            className="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800"
+            title={order.offline.number ? `Sold offline, slip ${order.offline.number}` : 'Sold offline'}
+          >
+            Offline sale{order.offline.number ? ` · ${order.offline.number}` : ''}
+          </span>
+        )}
         {order.cashier && (
           <div className="text-[11px] text-gray-400">
             by {order.cashier.firstName} {order.cashier.lastName}
@@ -611,9 +619,9 @@ function OrderRow({
           {canRefund && (
             <button
               onClick={onRefund}
-              disabled={deleting}
+              disabled={deleting || (typeof navigator !== 'undefined' && navigator.onLine === false)}
               className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded disabled:opacity-60 disabled:cursor-not-allowed"
-              title="Refund (stock goes back)"
+              title={typeof navigator !== 'undefined' && navigator.onLine === false ? 'Refunds need internet' : 'Refund (stock goes back)'}
               aria-label="Refund order"
             >
               <Undo2 className="h-4 w-4" />

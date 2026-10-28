@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminHeader from '@/components/admin/AdminHeader';
 import AdminSidebar from '@/components/admin/AdminSidebar';
-import { getRole, isAuthenticated } from '@/helper/helper';
+import { getAuthToken, getRole, isAuthenticated } from '@/helper/helper';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { AccessProvider } from '@/context/AccessContext';
 
@@ -53,9 +53,12 @@ export default function AdminLayout({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Client-side guard: only allow authenticated admin
+  // Client-side guard: only allow authenticated admin.
+  // No internet: keep the signed-in session even if the token has just expired
+  // (the POS keeps selling offline; the upload asks to sign in again if needed).
   useEffect(() => {
-    const authed = isAuthenticated();
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const authed = isAuthenticated() || (offline && !!getAuthToken());
     const role = getRole();
     if (!authed) {
       router.replace('/authentication');

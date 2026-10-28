@@ -40,6 +40,8 @@ interface CartPanelProps {
   paying?: boolean;
   /** Why "Process Payment" is locked (e.g. till not open). */
   blockedReason?: string | null;
+  /** Why "Hold Order" is off (e.g. needs internet). */
+  holdDisabledReason?: string | null;
 }
 
 export default function CartPanel({
@@ -67,6 +69,7 @@ export default function CartPanel({
   holding = false,
   paying = false,
   blockedReason = null,
+  holdDisabledReason = null,
 }: CartPanelProps) {
   const busy = holding || paying;
   const symbol = getCurrencySymbol(currency);
@@ -339,6 +342,12 @@ export default function CartPanel({
             )}
           </div>
 
+          {quote?.offline && quoteReady && (
+            <div className="px-3 py-1.5 text-[11px] bg-amber-50 text-amber-800 border border-amber-200 rounded-lg">
+              Priced on this PC (no internet). Same rules as the server.
+            </div>
+          )}
+
           {quoteError && (
             <div className="flex items-start gap-2 px-3 py-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -376,7 +385,8 @@ export default function CartPanel({
             {payHint && !paying && <p className="text-[11px] text-center text-gray-500">{payHint}</p>}
             <button
               onClick={onHoldCart}
-              disabled={busy}
+              disabled={busy || !!holdDisabledReason}
+              title={holdDisabledReason || undefined}
               aria-busy={holding}
               className="w-full border border-gray-300 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white"
             >
