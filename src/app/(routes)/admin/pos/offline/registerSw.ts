@@ -9,6 +9,9 @@ export function registerPosServiceWorker() {
   if (done || typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
   if (process.env.NODE_ENV !== 'production') return;
   done = true;
+  // Ask the browser to keep this site's saved data for good, so sales waiting
+  // to upload are never cleared to free disk space.
+  navigator.storage?.persist?.().catch(() => undefined);
   navigator.serviceWorker
     .register('/sw.js', { scope: '/' })
     .then(() => navigator.serviceWorker.ready)
