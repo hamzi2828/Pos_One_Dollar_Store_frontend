@@ -1,12 +1,12 @@
 'use client';
 
-// Step 2 — Unpack & enter, box by box: pick the vendor, open Box 1, scan or
+// Step 2 — Unpack & enter, box by box: open a vendor's card, open Box 1, scan or
 // search each product (or make a new one), enter pieces + cost per piece
 // (+ damaged, + shelf now), save -> stock is in the warehouse at once -> print
 // tags and stick them on. "Box done" moves on to the next box.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ArrowRight, Box, CheckCircle2, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Box, CheckCircle2, ChevronDown, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -76,6 +76,8 @@ export default function UnpackStep({
 }) {
   const progress = billProgress(grn);
   const [billId, setBillId] = useState<string>(() => (progress.find((p) => p.left > 0) || progress[0])?.bill || '');
+  // The open vendor card (one at a time); false = all cards closed.
+  const [open, setOpen] = useState(true);
   const bill = progress.find((p) => p.bill === billId) || progress[0];
   const [unit, setUnit] = useState<ReceivingUnit | null>(null);
   const [presetCost, setPresetCost] = useState<number | null>(null);
@@ -164,201 +166,237 @@ export default function UnpackStep({
     <div className="space-y-4">
       {(sameReceiver || !grn.canVerify) && <SameReceiverNote />}
 
-      {/* Which vendor's boxes */}
-      <div>
-        <p className="text-xs font-medium text-gray-600 mb-1.5">Whose boxes/packs are you opening?</p>
-        <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
-          {progress.map((p) => {
-            const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
-            const on = p.bill === bill.bill;
-            return (
+      {/* One card per vendor bill: open one, unpack its boxes/packs, enter its goods. */}
+      <div className="space-y-3">
+        {progress.map((p) => {
+          const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
+          const isOpen = open && p.bill === bill.bill;
+          const pBoxes = boxCountOf(grn, p.bill);
+          const pDone = doneBoxesOf(grn, p.bill).size;
+          const pItems = (grn.entries || []).filter((e) => !e.undone && e.bill === p.bill).length;
+          const status =
+            (pBoxes > 0 && pDone >= pBoxes) || (p.billTotal > 0 && pct >= 100)
+              ? { text: 'Done', cls: 'bg-green-100 text-green-700' }
+              : pItems > 0 || pDone > 0
+                ? { text: 'In progress', cls: 'bg-honey-100 text-honey-800' }
+                : { text: 'Not started', cls: 'bg-gray-100 text-gray-600' };
+          return (
+            <div key={p.bill} className={`rounded-xl border bg-white shadow-sm ${isOpen ? 'border-honey-400 ring-2 ring-honey-500/20' : 'border-gray-200'}`}>
               <button
-                key={p.bill}
                 type="button"
                 onClick={() => {
+                  if (p.bill === bill.bill) {
+                    setOpen((v) => !v);
+                    return;
+                  }
                   setBillId(p.bill);
+                  setOpen(true);
                   setBoxNo(firstOpenBox(grn, p.bill));
                   setUnit(null);
                   setSaved(null);
                   setChoices(null);
                 }}
-                className={`min-w-[10rem] max-w-[14rem] flex-shrink-0 text-left rounded-lg border px-3 py-2 ${on ? 'border-honey-500 bg-honey-50 ring-2 ring-honey-500/30' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                aria-expanded={isOpen}
+                className="w-full text-left px-4 py-3 flex items-center gap-3"
               >
-                <p className="text-sm font-semibold text-gray-900 truncate">{p.vendorName}</p>
-                <p className="text-[11px] text-gray-600 tabular-nums">
-                  {formatRs(p.entered)} / {formatRs(p.billTotal)}
-                </p>
-                <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className={`h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {boxCount > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-medium text-gray-600">
-              Which box/pack of {bill.vendorName}? <span className="text-gray-400">({doneBoxes.size} of {boxCount} done)</span>
-            </p>
-          </div>
-          <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
-            {Array.from({ length: boxCount }, (_, i) => i + 1).map((n) => {
-              const on = n === box;
-              const isDone = doneBoxes.has(n);
-              const items = itemsIn(n);
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => {
-                    setBoxNo(n);
-                    setUnit(null);
-                    setSaved(null);
-                    setChoices(null);
-                  }}
-                  className={`min-w-[7rem] flex-shrink-0 rounded-lg border px-3 py-2 text-left ${
-                    on ? 'border-honey-500 bg-honey-50 ring-2 ring-honey-500/30' : isDone ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'
-                  }`}
-                >
-                  <p className="flex items-center gap-1 text-sm font-semibold text-gray-900">
-                    {isDone ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Box className="h-4 w-4 text-gray-400" />} Box/pack {n}
-                  </p>
-                  <p className="text-[11px] text-gray-500">{isDone ? 'Done' : items ? `${items} item${items === 1 ? '' : 's'}` : 'Not opened'}</p>
-                </button>
-              );
-            })}
-          </div>
-          {canEnter && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
-              <p className="flex items-center gap-1.5 text-sm text-gray-700">
-                <PackageOpen className="h-4 w-4 text-honey-700" />
-                <span>
-                  Opening <strong>{boxLabel}</strong> · {itemsIn(box)} item{itemsIn(box) === 1 ? '' : 's'} entered
+                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${isOpen ? 'bg-honey-100 text-honey-800' : 'bg-gray-100 text-gray-500'}`}>
+                  <PackageOpen className="h-5 w-5" />
                 </span>
-              </p>
-              {doneBoxes.has(box) ? (
-                <button type="button" onClick={() => markBox(box, false)} disabled={boxBusy} className={`${secondaryBtn} !py-2 text-xs`}>
-                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Box/pack {box} is done · open again
-                </button>
-              ) : (
-                <button type="button" onClick={() => markBox(box, true)} disabled={boxBusy || !!unit} className={`${primaryBtn} !py-2`}>
-                  {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Box/pack {box} done
-                  {doneBoxes.size + 1 < boxCount ? ' — next box/pack' : ''}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
-        <div className="xl:col-span-3 space-y-4">
-          {canEnter ? (
-            <>
-              {saved ? (
-                <SavedCard
-                  result={saved}
-                  tagSize={tagSize}
-                  onTagSize={(s) => {
-                    onTagSize(s);
-                    saveTagSize(s);
-                  }}
-                  onNext={(code) => {
-                    setNextCode(code);
-                    setSaved(null);
-                    focusScan();
-                  }}
-                />
-              ) : unit ? (
-                <EntryForm
-                  grn={grn}
-                  bill={bill}
-                  boxNo={box}
-                  boxLabel={boxLabel}
-                  unit={unit}
-                  presetCost={presetCost}
-                  presetPieces={presetPieces}
-                  shelfNow={shelfNow}
-                  onShelfNow={setShelfNow}
-                  onCancel={() => {
-                    setUnit(null);
-                    focusScan();
-                  }}
-                  onSameReceiver={() => setSameReceiver(true)}
-                  onStale={onReload}
-                  onSaved={(res) => {
-                    setUnit(null);
-                    setSaved(res);
-                    if (res.repeated) toast('This was already saved — not entered twice.', { icon: 'ℹ️' });
-                    res.warnings.forEach((w) => toast(w, { icon: '⚠️', duration: 7000 }));
-                    if (res.grn && 'grnNumber' in res.grn) onChanged(res.grn);
-                    else onReload();
-                  }}
-                />
-              ) : choices ? (
-                <Card
-                  className="border-honey-300"
-                  title="Which one is in the box/pack?"
-                  actions={
-                    <button type="button" onClick={() => setChoices(null)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">
-                      Cancel
-                    </button>
-                  }
-                >
-                  <ul className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-                    {choices.units.map((r) => (
-                      <li key={`${r.productId}|${r.variantId || ''}`}>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm sm:text-base font-semibold text-gray-900 truncate">{p.vendorName}</span>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${status.cls}`}>{status.text}</span>
+                  </span>
+                  <span className="block text-[11px] text-gray-500">
+                    {p.billNo ? `Bill ${p.billNo}` : 'No bill no.'}
+                    {pBoxes > 0 && ` · ${pDone} of ${pBoxes} boxes/packs done`}
+                    {` · ${pItems} item${pItems === 1 ? '' : 's'} entered`}
+                  </span>
+                  <span className="mt-1.5 flex items-center gap-2">
+                    <span className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                      <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="text-[11px] text-gray-600 tabular-nums whitespace-nowrap">
+                      {formatRs(p.entered)} / {formatRs(p.billTotal)}
+                    </span>
+                  </span>
+                </span>
+                <ChevronDown className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isOpen && (
+                <div className="border-t border-gray-100 p-3 sm:p-4 space-y-4 bg-gray-50/40">
+              {boxCount > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-gray-600">
+                      Which box/pack of {bill.vendorName}? <span className="text-gray-400">({doneBoxes.size} of {boxCount} done)</span>
+                    </p>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
+                    {Array.from({ length: boxCount }, (_, i) => i + 1).map((n) => {
+                      const on = n === box;
+                      const isDone = doneBoxes.has(n);
+                      const items = itemsIn(n);
+                      return (
                         <button
+                          key={n}
                           type="button"
                           onClick={() => {
-                            const cost = choices.cost;
+                            setBoxNo(n);
+                            setUnit(null);
+                            setSaved(null);
                             setChoices(null);
-                            pick(r, cost);
                           }}
-                          className="w-full text-left px-3 py-2.5 hover:bg-honey-50"
+                          className={`min-w-[7rem] flex-shrink-0 rounded-lg border px-3 py-2 text-left ${
+                            on ? 'border-honey-500 bg-honey-50 ring-2 ring-honey-500/30' : isDone ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
                         >
-                          <span className="text-sm font-medium text-gray-900">{r.name || r.productName}</span>
-                          {r.variantLabel && <span className="text-sm text-gray-500"> · {r.variantLabel}</span>}
-                          {r.code && <span className="ml-2 font-mono text-[11px] text-gray-500">#{r.code}</span>}
+                          <p className="flex items-center gap-1 text-sm font-semibold text-gray-900">
+                            {isDone ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Box className="h-4 w-4 text-gray-400" />} Box/pack {n}
+                          </p>
+                          <p className="text-[11px] text-gray-500">{isDone ? 'Done' : items ? `${items} item${items === 1 ? '' : 's'}` : 'Not opened'}</p>
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              ) : (
-                <LookupBox
-                  key={nextCode || 'scan'}
-                  grnId={grn._id}
-                  billId={bill.bill}
-                  initialCode={nextCode}
-                  inputRef={scanRef}
-                  onPick={(u) => {
-                    setNextCode('');
-                    pick(u);
-                  }}
-                  onNew={(text) => setNewProduct(text)}
-                />
+                      );
+                    })}
+                  </div>
+                  {canEnter && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+                      <p className="flex items-center gap-1.5 text-sm text-gray-700">
+                        <PackageOpen className="h-4 w-4 text-honey-700" />
+                        <span>
+                          Opening <strong>{boxLabel}</strong> · {itemsIn(box)} item{itemsIn(box) === 1 ? '' : 's'} entered
+                        </span>
+                      </p>
+                      {doneBoxes.has(box) ? (
+                        <button type="button" onClick={() => markBox(box, false)} disabled={boxBusy} className={`${secondaryBtn} !py-2 text-xs`}>
+                          {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Box/pack {box} is done · open again
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => markBox(box, true)} disabled={boxBusy || !!unit} className={`${primaryBtn} !py-2`}>
+                          {boxBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Box/pack {box} done
+                          {doneBoxes.size + 1 < boxCount ? ' — next box/pack' : ''}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
-            </>
-          ) : (
-            grn.status === 'in_progress' && !grn.canVerify ? null : (
-              <p className="text-sm text-gray-500">You can look at the entries but not add new ones.</p>
-            )
-          )}
 
-          {lines.length > 0 && <Checklist lines={lines} grn={grn} disabled={!canEnter || !!unit} onPick={(u) => pick(u)} />}
-        </div>
+              <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
+                <div className="xl:col-span-3 space-y-4">
+                  {canEnter ? (
+                    <>
+                      {saved ? (
+                        <SavedCard
+                          result={saved}
+                          tagSize={tagSize}
+                          onTagSize={(s) => {
+                            onTagSize(s);
+                            saveTagSize(s);
+                          }}
+                          onNext={(code) => {
+                            setNextCode(code);
+                            setSaved(null);
+                            focusScan();
+                          }}
+                        />
+                      ) : unit ? (
+                        <EntryForm
+                          grn={grn}
+                          bill={bill}
+                          boxNo={box}
+                          boxLabel={boxLabel}
+                          unit={unit}
+                          presetCost={presetCost}
+                          presetPieces={presetPieces}
+                          shelfNow={shelfNow}
+                          onShelfNow={setShelfNow}
+                          onCancel={() => {
+                            setUnit(null);
+                            focusScan();
+                          }}
+                          onSameReceiver={() => setSameReceiver(true)}
+                          onStale={onReload}
+                          onSaved={(res) => {
+                            setUnit(null);
+                            setSaved(res);
+                            if (res.repeated) toast('This was already saved — not entered twice.', { icon: 'ℹ️' });
+                            res.warnings.forEach((w) => toast(w, { icon: '⚠️', duration: 7000 }));
+                            if (res.grn && 'grnNumber' in res.grn) onChanged(res.grn);
+                            else onReload();
+                          }}
+                        />
+                      ) : choices ? (
+                        <Card
+                          className="border-honey-300"
+                          title="Which one is in the box/pack?"
+                          actions={
+                            <button type="button" onClick={() => setChoices(null)} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1">
+                              Cancel
+                            </button>
+                          }
+                        >
+                          <ul className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                            {choices.units.map((r) => (
+                              <li key={`${r.productId}|${r.variantId || ''}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const cost = choices.cost;
+                                    setChoices(null);
+                                    pick(r, cost);
+                                  }}
+                                  className="w-full text-left px-3 py-2.5 hover:bg-honey-50"
+                                >
+                                  <span className="text-sm font-medium text-gray-900">{r.name || r.productName}</span>
+                                  {r.variantLabel && <span className="text-sm text-gray-500"> · {r.variantLabel}</span>}
+                                  {r.code && <span className="ml-2 font-mono text-[11px] text-gray-500">#{r.code}</span>}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </Card>
+                      ) : (
+                        <LookupBox
+                          key={nextCode || 'scan'}
+                          grnId={grn._id}
+                          billId={bill.bill}
+                          initialCode={nextCode}
+                          inputRef={scanRef}
+                          onPick={(u) => {
+                            setNextCode('');
+                            pick(u);
+                          }}
+                          onNew={(text) => setNewProduct(text)}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    grn.status === 'in_progress' && !grn.canVerify ? null : (
+                      <p className="text-sm text-gray-500">You can look at the entries but not add new ones.</p>
+                    )
+                  )}
 
-        <div className="xl:col-span-2 space-y-4">
-          <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
-          <button type="button" onClick={onFinish} className={`${primaryBtn} w-full !py-3 text-base`}>
-            Done unpacking — finish <ArrowRight className="h-5 w-5" />
-          </button>
-          <p className="text-[11px] text-gray-500 text-center">Goods already entered are in the warehouse. You can finish later.</p>
-        </div>
+                  {lines.length > 0 && <Checklist lines={lines} grn={grn} disabled={!canEnter || !!unit} onPick={(u) => pick(u)} />}
+                </div>
+
+                <div className="xl:col-span-2 space-y-4">
+                  <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
+                </div>
+              </div>
+
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-1">
+        <button type="button" onClick={onFinish} className={`${primaryBtn} w-full !py-3 text-base`}>
+          Done unpacking — finish <ArrowRight className="h-5 w-5" />
+        </button>
+        <p className="text-[11px] text-gray-500 text-center">Goods already entered are in the warehouse. You can finish later.</p>
       </div>
 
       {newProduct !== null && canCreateProducts && (
