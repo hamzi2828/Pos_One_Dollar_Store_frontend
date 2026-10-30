@@ -4,6 +4,7 @@
 // amount, boxes, bill photo and what was paid at the market. Items are optional
 // (typed on the bill card, or entered while unpacking).
 import { useEffect, useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { Loader2, Plus, Receipt } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
@@ -158,15 +159,7 @@ export default function BillModal({
           required={!hasItems}
           hint={hasItems && !(toNum(billAmount) > 0) ? `Empty = items total (${formatRs(itemsTotal)}).` : 'The total written on the vendor’s bill.'}
         >
-          <input
-            type="number"
-            min={0}
-            inputMode="decimal"
-            value={billAmount}
-            onChange={(e) => setBillAmount(e.target.value)}
-            className={`${inputClass} text-base font-semibold`}
-            placeholder="0"
-          />
+          <MoneyInput value={billAmount} onValue={setBillAmount} className={`${inputClass} text-base font-semibold`} placeholder="0" />
         </Field>
         <Field label="Boxes/packs" hint="How many boxes/packs (cartons, bags) you got from this vendor.">
           <NumberStepper value={cartons} onChange={setCartons} min={0} label="boxes/packs" />
@@ -175,15 +168,7 @@ export default function BillModal({
         <div className="rounded-lg border border-gray-200 p-3 space-y-3">
           <Field label="Paid now (Rs)" hint="Money given to the vendor at the market. 0 = nothing paid.">
             <div className="flex gap-2">
-              <input
-                type="number"
-                min={0}
-                inputMode="decimal"
-                value={paidNow}
-                onChange={(e) => setPaidNow(e.target.value)}
-                className={inputClass}
-                placeholder="0"
-              />
+              <MoneyInput value={paidNow} onValue={setPaidNow} className={inputClass} placeholder="0" />
               {total > 0 && (
                 <button type="button" onClick={() => setPaidNow(String(total))} className={`${secondaryBtn} !px-2 text-xs whitespace-nowrap`}>
                   Paid full
@@ -231,7 +216,7 @@ export default function BillModal({
           <div className="space-y-3">
             {hasItems && (
               <Field label="Discount on items (Rs)" hint="Only used when the bill amount is empty.">
-                <input type="number" min={0} inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} className={inputClass} placeholder="0" />
+                <MoneyInput value={discount} onValue={setDiscount} className={inputClass} placeholder="0" />
               </Field>
             )}
             <Field label="Notes">

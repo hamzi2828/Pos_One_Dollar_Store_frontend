@@ -3,6 +3,7 @@
 // Purchase trip modals: send to warehouse (boxes + optional transport details),
 // edit details, new product from a bill.
 import { useEffect, useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { AlertTriangle, ClipboardList, Loader2, PackagePlus, Truck } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, HelpBox, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -125,7 +126,7 @@ export function CloseModal({
                 <input value={transporter} onChange={(e) => setTransporter(e.target.value)} className={inputClass} placeholder="e.g. Daewoo Cargo" />
               </Field>
               <Field label="Freight paid (Rs)" hint="Added to trip costs">
-                <input type="number" min={0} inputMode="decimal" value={freight} onChange={(e) => setFreight(e.target.value)} className={inputClass} placeholder="0" />
+                <MoneyInput value={freight} onValue={setFreight} className={inputClass} placeholder="0" />
               </Field>
             </div>
             <Field label="Builty photo">
@@ -303,7 +304,7 @@ export function NewProductModal({
             <input type="number" min={0} step="0.01" inputMode="decimal" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Sale price (Rs)" required>
-            <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
+            <MoneyInput value={salePrice} onValue={setSalePrice} className={inputClass} />
           </Field>
         </div>
         <p className="text-[11px] text-gray-500">Short code, SKU and barcode are made automatically. Add photos and details later on the product page.</p>

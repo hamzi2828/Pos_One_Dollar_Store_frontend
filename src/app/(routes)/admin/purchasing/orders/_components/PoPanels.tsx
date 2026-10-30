@@ -2,6 +2,7 @@
 
 // Purchase trip panels: trip costs, cost-per-piece preview (advanced), suggested items.
 import { useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
 import { AlertTriangle, Calculator, Lightbulb, Loader2, Plus, Trash2, Truck } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
@@ -126,14 +127,11 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
                 </option>
               ))}
             </SearchSelect>
-            <input
-              type="number"
-              min={0}
-              inputMode="decimal"
+            <MoneyInput
               placeholder="Rs"
               aria-label="Amount (Rs)"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onValue={setAmount}
               onKeyDown={(e) => e.key === 'Enter' && add()}
               className={inputClass}
             />
