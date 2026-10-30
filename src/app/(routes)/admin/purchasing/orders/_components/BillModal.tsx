@@ -217,7 +217,7 @@ export default function BillModal({
               <Money label="Still owed" value={formatRs(owed)} strong />
             </div>
           )}
-          <p className="text-[11px] text-gray-500">The payment is added to the vendor&apos;s account when you send the trip to the warehouse.</p>
+          <p className="text-[11px] text-gray-500">The bill and this payment go into the vendor&apos;s account as soon as you save.</p>
         </div>
 
         <Field label="Bill photo" hint="Optional. Take a photo of the paper bill.">

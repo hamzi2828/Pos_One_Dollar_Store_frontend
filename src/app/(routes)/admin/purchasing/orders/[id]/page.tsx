@@ -178,7 +178,7 @@ function Workspace() {
     act(
       'cancel',
       (r) => purchasingApi.cancel(po._id, r),
-      `Cancel ${po.poNumber}?${po.status === 'closed' ? '\nThe vendor bills and payments made at the market will be voided in the vendor accounts.' : ''}\n\nReason (optional):`,
+      `Cancel ${po.poNumber}?\nThe vendor bills and payments made at the market will be taken out of the vendor accounts.\n\nReason (optional):`,
       'Trip cancelled',
       'Could not cancel.',
     );
@@ -186,7 +186,7 @@ function Workspace() {
     act(
       'reopen',
       (r) => purchasingApi.reopen(po._id, r),
-      `Reopen ${po.poNumber} to fix it?\nThe vendor bills and payments are taken out of the vendor accounts and added again when you send it.\n\nReason (optional):`,
+      `Reopen ${po.poNumber} to fix it?\nThe vendor bills stay in the vendor accounts; any change you make updates them.\n\nReason (optional):`,
       'Trip reopened',
       'Could not reopen.',
     );
