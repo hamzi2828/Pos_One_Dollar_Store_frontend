@@ -82,10 +82,19 @@ export interface POTotals {
   lines: number;
 }
 
+/** GET /purchase-orders/buyers: active staff logins for the Buyer dropdown. */
+export interface BuyerOption {
+  id: string;
+  name: string;
+  role: string | null;
+}
+
 export interface PurchaseOrder {
   _id: string;
   poNumber: string;
   status: POStatus;
+  /** Staff login the trip is bought by (the receiving rule checks this). */
+  buyer?: string | null;
   buyerName: string;
   notes: string;
   expectedArrival: string | null;

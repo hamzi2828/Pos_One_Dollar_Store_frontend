@@ -2,11 +2,12 @@
 
 // Purchase trip modals: send to warehouse (boxes + optional transport details),
 // edit details, new product from a bill.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ClipboardList, Loader2, PackagePlus, Truck } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, HelpBox, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
+import { BuyerField, OTHER_BUYER, buyerPayload, buyerProblem, useBuyers } from '../../_shared/BuyerField';
 import { Disclosure, NumberStepper, PhotoPicker, PhotoStrip, billTotalOf, dateInput, paidOf, todayInput } from '../../_shared/ui';
 import type { POBill, PurchaseOrder } from '../../_shared/types';
 
@@ -153,18 +154,29 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 // ---------------------------------------------------------------- trip details
 
 export function DetailsModal({ po, onClose, onSaved }: { po: PurchaseOrder; onClose: () => void; onSaved: (po: PurchaseOrder) => void }) {
-  const [buyerName, setBuyerName] = useState(po.buyerName || '');
+  const { buyers, failed } = useBuyers();
+  // Staff id when the trip's buyer is that staff login (same name); otherwise the typed name.
+  const [buyer, setBuyer] = useState<string | null>(null);
+  const [otherName, setOtherName] = useState(po.buyerName || '');
   const [expected, setExpected] = useState(dateInput(po.expectedArrival));
   const [notes, setNotes] = useState(po.notes || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (buyer !== null || !buyers) return;
+    const staff = buyers.find((b) => b.id === po.buyer && b.name === po.buyerName);
+    setBuyer(staff ? staff.id : OTHER_BUYER);
+  }, [buyers, buyer, po.buyer, po.buyerName]);
+
   const submit = async () => {
     if (busy) return;
+    const problem = buyerProblem(buyer || '', otherName);
+    if (problem) return setError(problem);
     setBusy(true);
     setError(null);
     try {
-      onSaved(await purchasingApi.update(po._id, { buyerName, expectedArrival: expected || null, notes }));
+      onSaved(await purchasingApi.update(po._id, { ...buyerPayload(buyer || '', otherName), expectedArrival: expected || null, notes }));
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not save.'));
       setBusy(false);
@@ -185,9 +197,14 @@ export function DetailsModal({ po, onClose, onSaved }: { po: PurchaseOrder; onCl
       }
     >
       <div className="space-y-4">
-        <Field label="Buyer">
-          <input value={buyerName} onChange={(e) => setBuyerName(e.target.value)} className={inputClass} />
-        </Field>
+        <BuyerField
+          buyers={buyers}
+          failed={failed}
+          choice={buyer || ''}
+          onChoice={setBuyer}
+          otherName={otherName}
+          onOtherName={setOtherName}
+        />
         <Field label="Expected arrival">
           <input type="date" value={expected} onChange={(e) => setExpected(e.target.value)} className={inputClass} />
         </Field>

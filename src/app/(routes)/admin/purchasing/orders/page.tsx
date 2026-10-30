@@ -13,6 +13,7 @@ import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, HelpBox, LoadingCard, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi } from '../_shared/purchasingApi';
 import { VendorSearch } from '../_shared/Pickers';
+import { BuyerField, buyerPayload, buyerProblem, useBuyers } from '../_shared/BuyerField';
 import { EmptyState, POStatusBadge, StatTile, Tabs } from '../_shared/ui';
 import type { POListMeta, PurchaseOrder, VendorOption } from '../_shared/types';
 
@@ -274,16 +275,28 @@ function OrdersList() {
 function NewPOModal({ suggestedCount, onClose, onCreated }: { suggestedCount: number; onClose: () => void; onCreated: (po: PurchaseOrder) => void }) {
   const [notes, setNotes] = useState('');
   const [expected, setExpected] = useState('');
-  const [buyerName, setBuyerName] = useState('');
+  const { access } = useAccess();
+  const { buyers, failed } = useBuyers();
+  // Buyer: a staff id, OTHER_BUYER, or '' (= whoever starts the trip). Starts on "you".
+  const [buyer, setBuyer] = useState<string | null>(null);
+  const [otherName, setOtherName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (buyer !== null || !buyers) return;
+    const me = access?.user?.id;
+    setBuyer(me && buyers.some((b) => b.id === me) ? me : '');
+  }, [buyers, buyer, access]);
+
   const submit = async () => {
     if (busy) return;
+    const problem = buyerProblem(buyer || '', otherName);
+    if (problem) return setError(problem);
     setBusy(true);
     setError(null);
     try {
-      onCreated(await purchasingApi.create({ notes, expectedArrival: expected || undefined, buyerName: buyerName || undefined }));
+      onCreated(await purchasingApi.create({ notes, expectedArrival: expected || undefined, ...buyerPayload(buyer || '', otherName) }));
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not start the purchase trip.'));
       setBusy(false);
@@ -311,9 +324,15 @@ function NewPOModal({ suggestedCount, onClose, onCreated }: { suggestedCount: nu
             <span>{suggestedCount} products from the demand report will be listed as suggested items in this trip.</span>
           </div>
         )}
-        <Field label="Buyer" hint="Who is going to buy. Leave empty to use your name.">
-          <input value={buyerName} onChange={(e) => setBuyerName(e.target.value)} className={inputClass} placeholder="e.g. Ali (driver)" />
-        </Field>
+        <BuyerField
+          buyers={buyers}
+          failed={failed}
+          choice={buyer || ''}
+          onChoice={setBuyer}
+          otherName={otherName}
+          onOtherName={setOtherName}
+          hint="Who is going to buy. Not in the list? Press + to add them as staff."
+        />
         <Field label="Expected arrival">
           <input type="date" value={expected} onChange={(e) => setExpected(e.target.value)} className={inputClass} />
         </Field>

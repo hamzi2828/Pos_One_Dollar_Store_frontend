@@ -86,6 +86,16 @@ export default function StaffPage() {
     setPage(1);
   }, [debounced, roleFilter, statusFilter, limit]);
 
+  // /admin/staff?add=1 (the "+" next to a staff dropdown, e.g. Buyer): open "Add Staff Login" straight away.
+  useEffect(() => {
+    if (!canCreate) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('add') !== '1') return;
+    setEditing({ open: true, user: null });
+    url.searchParams.delete('add');
+    window.history.replaceState(null, '', url.pathname + url.search);
+  }, [canCreate]);
+
   // Roles (for the filter and the form).
   useEffect(() => {
     if (!canView) return;

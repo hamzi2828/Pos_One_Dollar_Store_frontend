@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { storeApi, BACKEND_URL } from '@/lib/storeApi';
 import type {
+  BuyerOption,
   Costing,
   GoodsReceipt,
   GRNEntry,
@@ -101,6 +102,7 @@ const toForm = (fields: Record<string, unknown>, photos: File[] = []) => {
 
 export const purchasingApi = {
   meta: () => storeApi.get<POMeta>(`${PO}/meta`).then((r) => r.data),
+  buyers: () => storeApi.get<BuyerOption[]>(`${PO}/buyers`).then((r) => r.data || []),
   searchProducts: (search: string) => storeApi.get<ProductUnit[]>(`${PO}/product-search`, { search, limit: 15 }).then((r) => r.data),
   productsByIds: (ids: string[]) => storeApi.get<ProductUnit[]>(`${PO}/product-search`, { ids: ids.join(',') }).then((r) => r.data),
   /** Vendors module contract (§6): GET /api/vendors?search=&isActive=true */
@@ -111,7 +113,7 @@ export const purchasingApi = {
     storeApi.get<PurchaseOrder[]>(PO, params).then((r) => ({ data: r.data, meta: r.meta as unknown as POListMeta })),
   get: (id: string) => storeApi.get<PurchaseOrder>(`${PO}/${id}`).then((r) => r.data),
   costing: (id: string) => storeApi.get<Costing>(`${PO}/${id}/costing`).then((r) => r.data),
-  create: (body: { notes?: string; expectedArrival?: string; buyerName?: string }) =>
+  create: (body: { notes?: string; expectedArrival?: string; buyerId?: string | null; buyerName?: string }) =>
     storeApi.post<PurchaseOrder>(PO, body).then((r) => r.data),
   update: (id: string, body: Record<string, unknown>) => storeApi.put<PurchaseOrder>(`${PO}/${id}`, body).then((r) => r.data),
 
