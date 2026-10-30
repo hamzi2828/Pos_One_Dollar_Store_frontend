@@ -13,9 +13,26 @@ import { PAYMENT_METHODS } from '@/app/(routes)/admin/vendors/services/vendorApi
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { ProductSearch } from '../../_shared/Pickers';
 import { Disclosure, PhotoStrip, billTotalOf, owedOf, paidOf } from '../../_shared/ui';
-import type { POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
+import type { BillWarehouseStatus, POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
 
 const cellInput = `${inputClass} !px-2 !py-1 text-right`;
+
+/** Small chip: where this vendor's goods are at the warehouse. */
+function WarehouseChip({ w }: { w: BillWarehouseStatus }) {
+  const [cls, text] =
+    w.status === 'checked'
+      ? ['bg-blue-50 text-blue-700 border-blue-200', `Checked · ${w.received ?? 0} of ${w.expected} boxes/packs`]
+      : w.status === 'unpacking'
+        ? ['bg-amber-50 text-amber-700 border-amber-200', `Unpacking · ${w.items} item${w.items === 1 ? '' : 's'}`]
+        : w.status === 'done'
+          ? ['bg-green-50 text-green-700 border-green-200', 'Done']
+          : ['bg-gray-50 text-gray-600 border-gray-200', 'Not checked'];
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${cls}`} title="At the warehouse">
+      {text}
+    </span>
+  );
+}
 
 export const methodLabel = (m?: string) =>
   m === 'bank_transfer' ? 'Bank transfer' : PAYMENT_METHODS.find((x) => x.value === m)?.label || (m ? m.replace(/_/g, ' ') : 'Cash');
@@ -23,6 +40,7 @@ export const methodLabel = (m?: string) =>
 export default function BillCard({
   poId,
   bill,
+  warehouse,
   editable,
   onChange,
   onEdit,
@@ -30,6 +48,8 @@ export default function BillCard({
 }: {
   poId: string;
   bill: POBill;
+  /** Warehouse progress for this bill (only once the trip is sent). */
+  warehouse?: BillWarehouseStatus;
   editable: boolean;
   onChange: (po: PurchaseOrder) => void;
   onEdit: () => void;
@@ -65,7 +85,10 @@ export default function BillCard({
             <Receipt className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900 truncate">{bill.vendorName}</h3>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
+              <h3 className="text-sm font-semibold text-gray-900 truncate">{bill.vendorName}</h3>
+              {warehouse && <WarehouseChip w={warehouse} />}
+            </div>
             <p className="text-[11px] text-gray-500">
               {bill.billNo ? `Bill ${bill.billNo}` : 'No bill no.'} · {formatDate(bill.billDate)} ·{' '}
               <span className={noBoxes ? 'text-red-600 font-semibold' : 'font-semibold text-gray-700'}>

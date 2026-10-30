@@ -91,6 +91,16 @@ export interface BuyerOption {
   role: string | null;
 }
 
+/** One vendor bill's progress at the warehouse (`po.grn.byBill`). `bill` = PurchaseOrder bill _id. */
+export interface BillWarehouseStatus {
+  bill: string;
+  status: 'not_checked' | 'checked' | 'unpacking' | 'done';
+  expected: number;
+  received: number | null;
+  boxesDone: number;
+  items: number;
+}
+
 export interface PurchaseOrder {
   _id: string;
   poNumber: string;
@@ -107,7 +117,15 @@ export interface PurchaseOrder {
   totals: POTotals;
   goodsReceipt: string | null;
   grnNumber: string;
-  grn?: { _id: string; grnNumber: string; status: GRNStatus; receiverName: string; completedAt: string | null } | null;
+  grn?: {
+    _id: string;
+    grnNumber: string;
+    status: GRNStatus;
+    receiverName: string;
+    completedAt: string | null;
+    /** Warehouse progress per vendor bill (GET trip only). */
+    byBill?: BillWarehouseStatus[];
+  } | null;
   closedAt: string | null;
   receivedAt: string | null;
   cancelledAt: string | null;

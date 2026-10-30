@@ -61,6 +61,8 @@ export default function BoxesStep({
     () => (startBill && boxes.some((b) => b.bill === startBill) ? startBill : firstUncheckedBill(grn)) || boxes[0]?.bill || '',
   );
   const [search, setSearch] = useState('');
+  // Checked (verified and saved) vendors are hidden unless asked for.
+  const [showChecked, setShowChecked] = useState(false);
   useEffect(() => {
     if (openBill) onBill?.(openBill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,8 +70,11 @@ export default function BoxesStep({
 
   const idx = Math.max(0, boxes.findIndex((b) => b.bill === openBill));
   const cur = boxes[idx];
-  const prev = boxes[idx - 1];
-  const next = boxes[idx + 1];
+  // Previous / Next walk the vendors in the list (not checked yet, unless checked ones are shown).
+  const walk = boxes.filter((b) => showChecked || !isBoxChecked(grn, b) || b.bill === openBill);
+  const wIdx = walk.findIndex((b) => b.bill === openBill);
+  const prev = wIdx > 0 ? walk[wIdx - 1] : undefined;
+  const next = wIdx >= 0 ? walk[wIdx + 1] : undefined;
   const curChecked = !!cur && isBoxChecked(grn, cur);
   const curLocked = !!cur && entriesOf(cur.bill) > 0;
   // A vendor's count can be changed until its goods are being entered.
@@ -113,7 +118,10 @@ export default function BoxesStep({
   };
 
   const q = search.trim().toLowerCase();
-  const shown = q ? boxes.filter((b) => `${b.vendorName} ${b.billNo || ''}`.toLowerCase().includes(q)) : boxes;
+  const hiddenChecked = showChecked ? 0 : boxes.filter((b) => isBoxChecked(grn, b)).length;
+  const shown = boxes
+    .filter((b) => showChecked || !isBoxChecked(grn, b))
+    .filter((b) => !q || `${b.vendorName} ${b.billNo || ''}`.toLowerCase().includes(q));
 
   return (
     <div className="space-y-4">
@@ -167,8 +175,19 @@ export default function BoxesStep({
                 </li>
               );
             })}
-            {shown.length === 0 && <li className="px-2 py-2 text-xs text-gray-500">No vendor matches.</li>}
+            {shown.length === 0 && (
+              <li className="px-2 py-2 text-xs text-gray-500">{q ? 'No vendor matches.' : 'All vendors are checked.'}</li>
+            )}
           </ul>
+          {(hiddenChecked > 0 || showChecked) && (
+            <button
+              type="button"
+              onClick={() => setShowChecked((v) => !v)}
+              className="mt-2 w-full rounded-md border border-dashed border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+            >
+              {showChecked ? 'Hide checked vendors' : `Show checked vendors (${hiddenChecked})`}
+            </button>
+          )}
         </Card>
 
         {/* Right: the picked vendor: count, save, unpack */}

@@ -18,19 +18,21 @@ import { purchasingApi } from '../../_shared/purchasingApi';
 import { GRNStatusBadge, StepStrip } from '../../_shared/ui';
 import type { GoodsReceipt } from '../../_shared/types';
 import OldCounting from './_components/OldCounting';
-import BoxesStep, { firstUncheckedBill } from './_components/BoxesStep';
 import UnpackStep from './_components/UnpackStep';
 import FinishStep, { DoneView } from './_components/FinishStep';
 import { loadTagSize, type StickerSize } from './_components/tags';
 
-const STEPS = ['Check boxes/packs', 'Unpack & enter', 'Finish'];
-type View = 0 | 1 | 2;
-// Step and vendor live in the URL (?status=unpack&vendor=<bill id>), so a reload or a shared link opens the same place.
-const STEP_KEYS = ['check', 'unpack', 'finish'] as const;
+// Checking boxes/packs and unpacking are one step, vendor by vendor (owner, 2026-10-31).
+const STEPS = ['Check & unpack', 'Finish'];
+type View = 0 | 1;
+// Step and vendor live in the URL (?status=receive&vendor=<bill id>), so a reload or a shared link opens the same place.
+const STEP_KEYS = ['receive', 'finish'] as const;
 const readUrl = () => {
   if (typeof window === 'undefined') return { step: null as View | null, vendor: undefined as string | undefined };
   const q = new URLSearchParams(window.location.search);
-  const i = STEP_KEYS.indexOf((q.get('status') || '') as (typeof STEP_KEYS)[number]);
+  const key = q.get('status') || '';
+  // Old links: check / unpack → the one step.
+  const i = ['check', 'unpack'].includes(key) ? 0 : STEP_KEYS.indexOf(key as (typeof STEP_KEYS)[number]);
   return { step: i >= 0 ? (i as View) : null, vendor: q.get('vendor') || undefined };
 };
 
@@ -65,12 +67,10 @@ export default function ReceiveGoodsPage() {
     try {
       const g = await purchasingApi.grnGet(id);
       setGrn(g);
-      // Open on step 1 while some vendor's boxes/packs are not checked yet.
       setView((v) => {
         if (v !== null) return v;
         const fromUrl = readUrl().step;
-        if (fromUrl !== null && fromUrl <= reachedStep(g)) return fromUrl;
-        return firstUncheckedBill(g) ? 0 : reachedStep(g);
+        return fromUrl !== null && fromUrl <= reachedStep(g) ? fromUrl : 0;
       });
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not load this trip.'));
@@ -96,7 +96,7 @@ export default function ReceiveGoodsPage() {
     if (view === null) return;
     const q = new URLSearchParams(window.location.search);
     q.set('status', STEP_KEYS[view]);
-    if (urlBill && view !== 2) q.set('vendor', urlBill);
+    if (urlBill && view === 0) q.set('vendor', urlBill);
     else q.delete('vendor');
     const next = `${window.location.pathname}?${q.toString()}`;
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next);
@@ -194,25 +194,6 @@ export default function ReceiveGoodsPage() {
         {done ? (
           <DoneView grn={grn} />
         ) : cancelled ? null : current === 0 ? (
-          <BoxesStep
-            key={`${grn._id}-${startBill || ''}`}
-            grn={grn}
-            mayEdit={mayEdit}
-            startBill={startBill}
-            onBill={setUrlBill}
-            onSaved={(g, bill) => {
-              setGrn(g);
-              setStartBill(bill);
-              setView(1);
-              const name = (g.boxes || []).find((b) => b.bill === bill)?.vendorName || 'this vendor';
-              toast.success(`Boxes/packs checked. Now unpack ${name}.`);
-            }}
-            onGo={(bill) => {
-              setStartBill(bill);
-              setView(1);
-            }}
-          />
-        ) : current === 1 ? (
           <UnpackStep
             grn={grn}
             mayEdit={mayEdit}
@@ -220,19 +201,15 @@ export default function ReceiveGoodsPage() {
             onTagSize={setTagSize}
             onChanged={setGrn}
             onReload={reload}
-            onFinish={() => setView(2)}
+            onFinish={() => setView(1)}
             startBill={startBill}
             onBill={setUrlBill}
-            onCheckNext={(bill) => {
-              setStartBill(bill);
-              setView(0);
-            }}
           />
         ) : (
           <FinishStep
             grn={grn}
             mayEdit={mayEdit}
-            onBack={() => setView(1)}
+            onBack={() => setView(0)}
             onDone={(g) => {
               setGrn(g);
               toast.success('Finished. Well done!');

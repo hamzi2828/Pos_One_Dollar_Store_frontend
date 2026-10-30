@@ -6,7 +6,7 @@
 // tags and stick them on. "Box done" moves on to the next box.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ArrowRight, Box, CheckCircle2, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Box, CheckCircle2, Circle, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -20,6 +20,7 @@ import FullProductModal from './FullProductModal';
 import type { ProductUI } from '@/app/(routes)/admin/products/services/productService';
 import { SameReceiverNote, marginPct, r2 } from './bits';
 import { firstUncheckedBill, isBoxChecked } from './BoxesStep';
+import CheckCard from './CheckCard';
 import { STICKER_SIZES, printTags, saveTagSize, type StickerSize } from './tags';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
@@ -67,7 +68,6 @@ export default function UnpackStep({
   onReload,
   onFinish,
   startBill,
-  onCheckNext,
   onBill,
 }: {
   grn: GoodsReceipt;
@@ -79,18 +79,24 @@ export default function UnpackStep({
   onFinish: () => void;
   /** Vendor bill to open first (picked in step 1). */
   startBill?: string;
-  /** Back to step 1 to count this vendor's boxes/packs. */
-  onCheckNext?: (bill: string) => void;
   /** The vendor on screen changed (kept in the URL). */
   onBill?: (bill: string) => void;
 }) {
-  // Only vendors whose boxes/packs are checked can be unpacked.
-  const checkedBills = new Set((grn.boxes || []).filter((b) => isBoxChecked(grn, b)).map((b) => b.bill));
-  const progress = billProgress(grn).filter((p) => checkedBills.has(p.bill));
-  const notChecked = (grn.boxes || []).length - progress.length;
+  // One step: pick a vendor; not checked yet → count its boxes/packs; checked → unpack it.
+  const boxOf = (billId: string) => (grn.boxes || []).find((b) => b.bill === billId);
+  const isChecked = (billId: string) => {
+    const b = boxOf(billId);
+    return !!b && isBoxChecked(grn, b);
+  };
+  const progress = billProgress(grn);
   const [search, setSearch] = useState('');
+  const [showDone, setShowDone] = useState(false);
+  // Correcting the count of a checked vendor (before its goods are entered).
+  const [recount, setRecount] = useState(false);
   const [billId, setBillId] = useState<string>(
-    () => (progress.find((p) => p.bill === startBill) || progress.find((p) => p.left > 0) || progress[0])?.bill || '',
+    () =>
+      (progress.find((p) => p.bill === startBill) || progress.find((p) => p.bill === firstUncheckedBill(grn)) || progress.find((p) => p.left > 0) || progress[0])
+        ?.bill || '',
   );
   const bill = progress.find((p) => p.bill === billId) || progress[0];
   const [unit, setUnit] = useState<ReceivingUnit | null>(null);
@@ -128,12 +134,7 @@ export default function UnpackStep({
   if (!bill) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6 text-center space-y-3">
-        <p className="text-sm text-gray-600">No vendor is checked yet. Check a vendor&apos;s boxes/packs first, then unpack it here.</p>
-        {onCheckNext && (grn.boxes || [])[0] && (
-          <button type="button" onClick={() => onCheckNext(firstUncheckedBill(grn) || (grn.boxes || [])[0].bill)} className={primaryBtn}>
-            Check boxes/packs <ArrowRight className="h-4 w-4" />
-          </button>
-        )}
+        <p className="text-sm text-gray-600">This receipt has no vendor bills.</p>
       </div>
     );
   }
@@ -144,6 +145,12 @@ export default function UnpackStep({
   const boxLabel = box ? `Box/pack ${box} of ${boxCount}` : undefined;
   const liveEntries = (grn.entries || []).filter((e) => !e.undone && e.bill === bill.bill);
   const itemsIn = (n: number) => liveEntries.filter((e) => (e.boxNo || 0) === n).length;
+  /** Vendor finished: all its boxes/packs done, or goods worth the whole bill entered. */
+  const vendorDone = (p: (typeof progress)[number]) => {
+    if (!isChecked(p.bill)) return false;
+    const n = boxCountOf(grn, p.bill);
+    return (n > 0 && doneBoxesOf(grn, p.bill).size >= n) || (p.billTotal > 0 && p.entered >= p.billTotal);
+  };
 
   const markBox = async (n: number, done: boolean) => {
     if (boxBusy) return;
@@ -202,7 +209,7 @@ export default function UnpackStep({
             <p className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <PackageOpen className="h-4 w-4 text-honey-700" /> Vendors ({progress.length})
             </p>
-            <span className="text-xs text-gray-500">checked</span>
+            <span className="text-xs text-gray-500">{progress.filter((p) => isChecked(p.bill)).length} checked</span>
           </div>
           <div className="p-3">
             {progress.length > 6 && (
@@ -211,13 +218,15 @@ export default function UnpackStep({
             <ul className="-mx-1 max-h-[60vh] overflow-y-auto space-y-0.5">
               {progress
                 .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+                .filter((p) => showDone || p.bill === bill.bill || !vendorDone(p))
                 .map((p) => {
                   const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
                   const on = p.bill === bill.bill;
                   const pBoxes = boxCountOf(grn, p.bill);
                   const pDone = doneBoxesOf(grn, p.bill).size;
                   const pItems = (grn.entries || []).filter((e) => !e.undone && e.bill === p.bill).length;
-                  const finished = (pBoxes > 0 && pDone >= pBoxes) || (p.billTotal > 0 && pct >= 100);
+                  const finished = vendorDone(p);
+                  const pChecked = isChecked(p.bill);
                   return (
                     <li key={p.bill}>
                       <button
@@ -229,19 +238,23 @@ export default function UnpackStep({
                           setUnit(null);
                           setSaved(null);
                           setChoices(null);
+                          setRecount(false);
                         }}
                         className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 ${on ? 'bg-honey-100 ring-1 ring-honey-400' : 'hover:bg-gray-50'}`}
                       >
                         {finished ? (
                           <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600" />
+                        ) : !pChecked ? (
+                          <Circle className="h-4 w-4 flex-shrink-0 text-gray-300" />
                         ) : (
                           <PackageOpen className={`h-4 w-4 flex-shrink-0 ${pItems || pDone ? 'text-honey-600' : 'text-gray-300'}`} />
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium text-gray-900 truncate">{p.vendorName}</span>
                           <span className="block text-[11px] text-gray-500 truncate">
-                            {finished ? 'Done' : pItems || pDone ? 'In progress' : 'Not started'} · {pItems} item{pItems === 1 ? '' : 's'}
-                            {pBoxes > 0 && ` · ${pDone}/${pBoxes} boxes/packs`}
+                            {!pChecked
+                              ? `Not checked · ${boxOf(p.bill)?.expected ?? 0} boxes/packs expected`
+                              : `${finished ? 'Done' : pItems || pDone ? 'Unpacking' : 'Checked'} · ${pItems} item${pItems === 1 ? '' : 's'}${pBoxes > 0 ? ` · ${pDone}/${pBoxes} boxes/packs` : ''}`}
                           </span>
                           <span className="mt-1 block h-1 rounded-full bg-gray-100 overflow-hidden">
                             <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
@@ -252,15 +265,18 @@ export default function UnpackStep({
                   );
                 })}
             </ul>
-            {notChecked > 0 && onCheckNext && (
-              <button
-                type="button"
-                onClick={() => onCheckNext(firstUncheckedBill(grn, bill.bill) || bill.bill)}
-                className="mt-2 w-full rounded-md border border-dashed border-gray-300 px-2 py-2 text-xs text-gray-600 hover:bg-gray-50"
-              >
-                {notChecked} vendor{notChecked === 1 ? '' : 's'} not checked yet · Check boxes/packs
-              </button>
-            )}
+            {(() => {
+              const hidden = progress.filter((p) => p.bill !== bill.bill && vendorDone(p)).length;
+              return hidden > 0 || showDone ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDone((v) => !v)}
+                  className="mt-2 w-full rounded-md border border-dashed border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                >
+                  {showDone ? 'Hide done vendors' : `Show done vendors (${hidden})`}
+                </button>
+              ) : null;
+            })()}
           </div>
         </div>
 
@@ -287,16 +303,38 @@ export default function UnpackStep({
                 </div>
               </div>
                 <div className="p-3 sm:p-4 space-y-4">
-              {onCheckNext && (grn.boxes || []).some((b) => b.bill === bill.bill && !isBoxChecked(grn, b)) && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-                  <p className="flex items-center gap-1.5 text-xs text-amber-800">
-                    <AlertTriangle className="h-4 w-4" /> Boxes/packs of {bill.vendorName} are not checked yet.
+              {(!isChecked(bill.bill) || recount) && boxOf(bill.bill) ? (
+                <CheckCard
+                  key={`${bill.bill}-${recount}`}
+                  grn={grn}
+                  box={boxOf(bill.bill)!}
+                  mayEdit={mayEdit}
+                  onCancel={recount ? () => setRecount(false) : undefined}
+                  onSameReceiver={() => setSameReceiver(true)}
+                  onSaved={(g) => {
+                    onChanged(g);
+                    setRecount(false);
+                    setBoxNo(firstOpenBox(g, bill.bill));
+                    focusScan();
+                  }}
+                />
+              ) : (
+              <>
+              {(() => {
+                const b = boxOf(bill.bill);
+                if (!b) return null;
+                const locked = liveEntries.length > 0;
+                return (
+                  <p className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" /> Boxes/packs checked: <strong className="text-gray-900">{b.received} of {b.expected}</strong> came
+                    {mayEdit && !locked && grn.status === 'in_progress' && (
+                      <button type="button" onClick={() => setRecount(true)} className="text-honey-700 underline hover:text-honey-800">
+                        Change count
+                      </button>
+                    )}
                   </p>
-                  <button type="button" onClick={() => onCheckNext(bill.bill)} className={`${secondaryBtn} !py-1.5 text-xs`}>
-                    Check boxes/packs first
-                  </button>
-                </div>
-              )}
+                );
+              })()}
               {boxCount > 0 && (
                 <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -457,23 +495,36 @@ export default function UnpackStep({
                 </div>
               </div>
 
-              {/* Vendor by vendor: when this one is unpacked, go count the next vendor's boxes/packs. */}
-              {onCheckNext &&
-                (() => {
-                  const nextBill = firstUncheckedBill(grn, bill.bill);
-                  if (!nextBill) return null;
-                  const nextName = (grn.boxes || []).find((b) => b.bill === nextBill)?.vendorName || 'next vendor';
-                  return (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-honey-200 bg-honey-50 px-3 py-2.5">
-                      <p className="text-xs text-gray-700">
-                        Done with <strong>{bill.vendorName}</strong>? Check the boxes/packs of the next vendor.
-                      </p>
-                      <button type="button" onClick={() => onCheckNext(nextBill)} className={`${primaryBtn} !py-2 text-sm`}>
-                        Next: check {nextName} <ArrowRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })()}
+              {/* Done with this vendor? Next one that is not done. */}
+              {(() => {
+                const at = progress.findIndex((p) => p.bill === bill.bill);
+                const nextP = [...progress.slice(at + 1), ...progress.slice(0, at)].find((p) => !vendorDone(p));
+                if (!nextP) return null;
+                return (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-honey-200 bg-honey-50 px-3 py-2.5">
+                    <p className="text-xs text-gray-700">
+                      Done with <strong>{bill.vendorName}</strong>?
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBillId(nextP.bill);
+                        setBoxNo(firstOpenBox(grn, nextP.bill));
+                        setUnit(null);
+                        setSaved(null);
+                        setChoices(null);
+                        setRecount(false);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`${primaryBtn} !py-2 text-sm`}
+                    >
+                      Next: {nextP.vendorName} <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })()}
+              </>
+              )}
 
                 </div>
             </div>

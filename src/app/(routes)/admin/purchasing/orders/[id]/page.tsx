@@ -1,7 +1,7 @@
 'use client';
 
 // Purchase trip: Buy (vendor bills: amount, boxes, paid now; items optional)
-// -> Send to warehouse -> Check boxes -> Unpack & enter -> Done.
+// -> Send to warehouse -> Receive goods (check boxes/packs, unpack & enter) -> Done.
 // After "Send to warehouse" the trip costs, builty and details lock, but vendor
 // bills can still be added (owner keeps buying for the same trip); new bills show
 // up in Receive Goods. Bills already being unpacked are locked by the backend (409).
@@ -15,14 +15,14 @@ import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi } from '../../_shared/purchasingApi';
 import { Card, Disclosure, PhotoStrip, POStatusBadge, StatTile, StepStrip, billTotalOf, paidOf } from '../../_shared/ui';
-import type { AllocationMethod, Costing, POBill, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
+import type { AllocationMethod, BillWarehouseStatus, Costing, POBill, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
 import BillCard from '../_components/BillCard';
 import BillModal from '../_components/BillModal';
 import { ChargesCard, CostingCard, SuggestedItems } from '../_components/PoPanels';
 import { CloseModal, DetailsModal, NewProductModal } from '../_components/PoModals';
 
-const STEPS = ['Buy', 'Send to warehouse', 'Check boxes/packs', 'Unpack & enter', 'Done'];
-const TRIP_STATUS_KEYS = ['buy', 'send', 'check', 'unpack', 'done'] as const;
+const STEPS = ['Buy', 'Send to warehouse', 'Receive goods', 'Done'];
+const TRIP_STATUS_KEYS = ['buy', 'send', 'receive', 'done'] as const;
 /** Put ?status=<key> in the URL without reloading (other params kept). */
 const setUrlStatus = (key: string) => {
   const q = new URLSearchParams(window.location.search);
@@ -30,11 +30,10 @@ const setUrlStatus = (key: string) => {
   window.history.replaceState(window.history.state, '', `${window.location.pathname}?${q.toString()}`);
 };
 
-/** Which step a trip is at (index into STEPS; 5 = all done). */
+/** Which step a trip is at (index into STEPS; STEPS.length = all done). */
 function tripStep(po: PurchaseOrder) {
-  if (po.status === 'received') return 5;
-  if (po.status === 'receiving' || po.grn?.status === 'in_progress') return 3;
-  if (po.status === 'closed') return 2;
+  if (po.status === 'received') return STEPS.length;
+  if (po.status === 'closed' || po.status === 'receiving') return 2;
   const ready = po.bills.length > 0 && po.bills.every((b) => billTotalOf(b) > 0) && po.bills.some((b) => b.cartons > 0);
   return ready ? 1 : 0;
 }
@@ -110,7 +109,7 @@ function Workspace() {
     purchasingApi.productsByIds(ids).then(setSuggested).catch(() => setSuggested([]));
   }, [productIds, canView]);
 
-  // The step is kept in the URL (?status=buy|send|check|unpack|done). Opening a link with
+  // The step is kept in the URL (?status=buy|send|receive|done). Opening a link with
   // ?status=buy scrolls to the vendor bills; otherwise the URL shows where the trip is.
   const urlDone = useRef(false);
   useEffect(() => {
@@ -182,6 +181,10 @@ function Workspace() {
   const paid = po.bills.reduce((s, b) => s + paidOf(b), 0);
   const boxes = po.bills.reduce((s, b) => s + (b.cartons || 0), 0);
   const canReceive = !!po.goodsReceipt && can('goods_receiving', 'view');
+  /** Warehouse progress per vendor bill, shown on each bill card once the trip is sent. */
+  const warehouseByBill = new Map<string, BillWarehouseStatus>(
+    sent || po.status === 'received' ? (po.grn?.byBill || []).map((r) => [r.bill, r]) : [],
+  );
 
   const act = async (key: 'cancel' | 'reopen', fn: (reason: string) => Promise<unknown>, question: string, done: string, fail: string) => {
     if (lock.current) return;
@@ -315,7 +318,7 @@ function Workspace() {
             }
             actions={
               canReceive ? (
-                <Link href={`/admin/purchasing/receiving/${po.goodsReceipt}?status=check`} className={primaryBtn}>
+                <Link href={`/admin/purchasing/receiving/${po.goodsReceipt}?status=receive`} className={primaryBtn}>
                   <PackageCheck className="h-4 w-4" /> {po.status === 'received' ? 'View receiving' : 'Open in Receive Goods'}
                 </Link>
               ) : null
@@ -371,6 +374,7 @@ function Workspace() {
                   key={bill._id}
                   poId={po._id}
                   bill={bill}
+                  warehouse={warehouseByBill.get(bill._id)}
                   editable={canBuy}
                   onChange={applyPO}
                   onEdit={() => setBillModal({ open: true, bill })}

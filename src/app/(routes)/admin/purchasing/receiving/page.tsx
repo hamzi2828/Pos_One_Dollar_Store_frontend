@@ -127,7 +127,7 @@ export default function ReceivingQueuePage() {
               return (
                 <Link
                   key={g._id}
-                  href={`/admin/purchasing/receiving/${g._id}?status=check`}
+                  href={`/admin/purchasing/receiving/${g._id}?status=receive`}
                   className={`block bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow ${g.status === 'pending' ? 'border-amber-200' : 'border-gray-200'}`}
                 >
                   <div className="flex items-center justify-between gap-2">
