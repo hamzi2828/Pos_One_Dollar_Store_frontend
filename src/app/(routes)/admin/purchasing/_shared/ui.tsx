@@ -2,7 +2,7 @@
 
 // Small UI pieces shared by the purchasing pages.
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ChevronDown, Minus, Plus, X } from 'lucide-react';
+import { Camera, Check, ChevronDown, FileText, Minus, Plus, X } from 'lucide-react';
 import { fileUrl, toNum } from './purchasingApi';
 import type { GRNStatus, POBill, POStatus } from './types';
 
@@ -209,16 +209,39 @@ export function Card({ title, actions, children, className = '' }: { title?: Rea
   );
 }
 
-/** Thumbnails that open the full photo in a new tab. */
+/** True for a PDF file / URL (bill scans can be PDFs). */
+export const isPdf = (urlOrName: string, type?: string) => type === 'application/pdf' || /\.pdf($|[?#])/i.test(urlOrName);
+
+/** A PDF has no thumbnail: icon + short file name. */
+function PdfTile({ name }: { name: string }) {
+  const last = name.split('/').pop() || 'PDF';
+  let short = last;
+  try {
+    short = decodeURIComponent(last);
+  } catch {}
+  short = short.replace(/^\d+-\d+-/, ''); // drop the upload time prefix
+  return (
+    <span className="h-full w-full flex flex-col items-center justify-center gap-0.5 bg-red-50 text-red-700 px-1">
+      <FileText className="h-5 w-5 shrink-0" />
+      <span className="w-full truncate text-center text-[9px] leading-tight">{short}</span>
+    </span>
+  );
+}
+
+/** Thumbnails that open the full photo (or PDF) in a new tab. */
 export function PhotoStrip({ photos, onRemove, size = 'h-14 w-14' }: { photos: string[]; onRemove?: (url: string) => void; size?: string }) {
   if (!photos.length) return null;
   return (
     <div className="flex flex-wrap gap-2">
       {photos.map((p) => (
         <div key={p} className={`relative ${size} rounded-md overflow-hidden border border-gray-200 bg-gray-50`}>
-          <a href={fileUrl(p)} target="_blank" rel="noreferrer" title="Open photo">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fileUrl(p)} alt="Photo" className="h-full w-full object-cover" />
+          <a href={fileUrl(p)} target="_blank" rel="noreferrer" title={isPdf(p) ? 'Open PDF' : 'Open photo'} className="block h-full w-full">
+            {isPdf(p) ? (
+              <PdfTile name={p} />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={fileUrl(p)} alt="Photo" className="h-full w-full object-cover" />
+            )}
           </a>
           {onRemove && (
             <button
@@ -236,9 +259,25 @@ export function PhotoStrip({ photos, onRemove, size = 'h-14 w-14' }: { photos: s
   );
 }
 
-/** Pick photos (camera on phones) with local previews. */
-export function PhotoPicker({ files, onChange, max = 5, label = 'Add photo' }: { files: File[]; onChange: (f: File[]) => void; max?: number; label?: string }) {
+// Server allows 5 MB a file, but Vercel refuses a request over ~4.5 MB in total.
+const MAX_PICK_BYTES = 4 * 1024 * 1024;
+
+/** Pick photos (camera on phones) with local previews. `allowPdf` also takes PDF files. */
+export function PhotoPicker({
+  files,
+  onChange,
+  max = 5,
+  label = 'Add photo',
+  allowPdf = false,
+}: {
+  files: File[];
+  onChange: (f: File[]) => void;
+  max?: number;
+  label?: string;
+  allowPdf?: boolean;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [tooBig, setTooBig] = useState<string[]>([]);
   const [previews, setPreviews] = useState<{ f: File; url: string }[]>([]);
   // Object URLs made and freed in the same effect (safe with React strict mode).
   useEffect(() => {
@@ -250,8 +289,14 @@ export function PhotoPicker({ files, onChange, max = 5, label = 'Add photo' }: {
     <div className="flex flex-wrap items-center gap-2">
       {previews.map(({ f, url }, i) => (
         <div key={url} className="relative h-14 w-14 rounded-md overflow-hidden border border-gray-200">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={f.name} className="h-full w-full object-cover" />
+          {isPdf(f.name, f.type) ? (
+            <a href={url} target="_blank" rel="noreferrer" title="Open PDF" className="block h-full w-full">
+              <PdfTile name={f.name} />
+            </a>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={f.name} className="h-full w-full object-cover" />
+          )}
           <button
             type="button"
             onClick={() => onChange(files.filter((_, j) => j !== i))}
@@ -275,15 +320,17 @@ export function PhotoPicker({ files, onChange, max = 5, label = 'Add photo' }: {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={allowPdf ? 'image/*,application/pdf' : 'image/*'}
         multiple
         className="hidden"
         onChange={(e) => {
-          const picked = Array.from(e.target.files || []);
-          onChange([...files, ...picked].slice(0, max));
+          const picked = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/') || (allowPdf && isPdf(f.name, f.type)));
+          setTooBig(picked.filter((f) => f.size > MAX_PICK_BYTES).map((f) => f.name));
+          onChange([...files, ...picked.filter((f) => f.size <= MAX_PICK_BYTES)].slice(0, max));
           e.target.value = '';
         }}
       />
+      {tooBig.length > 0 && <p className="w-full text-[11px] text-red-600">Too big (max 4 MB): {tooBig.join(', ')}</p>}
     </div>
   );
 }

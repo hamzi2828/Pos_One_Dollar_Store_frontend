@@ -185,7 +185,7 @@ export default function OldCounting({ grn, setGrn }: { grn: GoodsReceipt; setGrn
               <PhotoStrip photos={grn.builty.photos || []} />
               {(grn.purchaseOrder.bills || []).some((b) => b.photos.length) && (
                 <div className="mt-3">
-                  <p className="text-[11px] text-gray-500 mb-1">Vendor bill photos</p>
+                  <p className="text-[11px] text-gray-500 mb-1">Vendor bill photos / PDFs</p>
                   <PhotoStrip photos={(grn.purchaseOrder.bills || []).flatMap((b) => b.photos)} />
                 </div>
               )}

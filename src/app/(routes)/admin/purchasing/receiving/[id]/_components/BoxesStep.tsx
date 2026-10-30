@@ -153,7 +153,7 @@ export default function BoxesStep({
             <PhotoStrip photos={grn.builty?.photos || []} />
             {billPhotos.length > 0 && (
               <div>
-                <p className="text-[11px] text-gray-500 mb-1">Vendor bill photos</p>
+                <p className="text-[11px] text-gray-500 mb-1">Vendor bill photos / PDFs</p>
                 <PhotoStrip photos={billPhotos} />
               </div>
             )}

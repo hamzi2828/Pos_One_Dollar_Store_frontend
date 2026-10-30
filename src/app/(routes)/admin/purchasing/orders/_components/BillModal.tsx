@@ -220,10 +220,10 @@ export default function BillModal({
           <p className="text-[11px] text-gray-500">The bill and this payment go into the vendor&apos;s account as soon as you save.</p>
         </div>
 
-        <Field label="Bill photo" hint="Optional. Take a photo of the paper bill.">
+        <Field label="Bill photo or PDF" hint="Optional. Take a photo of the paper bill, or add the PDF.">
           <div className="space-y-2">
             <PhotoStrip photos={existing} onRemove={(p) => setRemoved((r) => [...r, p])} />
-            <PhotoPicker files={photos} onChange={setPhotos} max={5} />
+            <PhotoPicker files={photos} onChange={setPhotos} max={5} label="Add photo / PDF" allowPdf />
           </div>
         </Field>
 
