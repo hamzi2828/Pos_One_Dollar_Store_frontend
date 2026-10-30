@@ -13,12 +13,15 @@ import type { ProductUI } from '@/app/(routes)/admin/products/services/productSe
 
 export default function FullProductModal({
   vendorName,
+  vendorId,
   boxLabel,
   initialName = '',
   onClose,
   onCreated,
 }: {
   vendorName: string;
+  /** Pre-picked as the product's vendor. */
+  vendorId?: string;
   /** e.g. "Box 2 of 5" */
   boxLabel?: string;
   /** what was typed in the search box (a barcode is not used as the name) */
@@ -67,6 +70,7 @@ export default function FullProductModal({
           noStock
           defaultName={looksLikeCode ? '' : initialName.trim()}
           defaultBarcode={looksLikeCode ? initialName.trim() : ''}
+          defaultVendorId={vendorId || ''}
           categories={data.categories}
           colorOptions={data.colorOptions}
           sizeOptions={data.sizeOptions}

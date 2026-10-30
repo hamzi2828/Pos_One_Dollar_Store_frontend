@@ -1,4 +1,5 @@
 "use client";
+import VendorPicker from "@/components/store/VendorPicker";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -72,6 +73,8 @@ interface ProductFormProps {
   defaultName?: string;
   /** Create: barcode already on the item (e.g. scanned in the search box). */
   defaultBarcode?: string;
+  /** Create: vendor to start with (receiving: the bill's vendor). */
+  defaultVendorId?: string;
 }
 
 type VariantWithCodes = ProductVariant & VariantCodeFields;
@@ -140,6 +143,7 @@ export default function ProductForm({
   noStock = false,
   defaultName = "",
   defaultBarcode = "",
+  defaultVendorId = "",
 }: ProductFormProps) {
   const { currency } = useCurrency();
   const searchParams = useSearchParams();
@@ -205,6 +209,9 @@ export default function ProductForm({
     if (mode === "create" && defaultBarcode.trim()) p.barcodes = [{ code: defaultBarcode.trim(), qty: 1 }];
     return p;
   });
+  // Vendor of the product (saved as its last vendor; receiving also updates it).
+  const savedVendorId = String((initialData as { lastVendor?: string | null } | undefined)?.lastVendor || "");
+  const [vendorId, setVendorId] = useState<string>(() => (mode === "create" ? defaultVendorId : savedVendorId));
   // First barcode of the item itself (not the full box/pack code).
   const itemBarcode = packaging.barcodes.find((b) => b.label !== "full-box")?.code || "";
   const setItemBarcode = (code: string) =>
@@ -678,6 +685,9 @@ export default function ProductForm({
       if (!isVariant) {
         appendPackagingFields(formData, packaging, mode);
       }
+
+      // Vendor: always on create; on edit only when changed ("" clears it).
+      if (mode === "create" ? !!vendorId : vendorId !== savedVendorId) formData.append("vendorId", vendorId);
 
       // Cost Price for single products
       if (!isVariant && form.costPrice !== undefined && form.costPrice !== null) {
@@ -1204,46 +1214,18 @@ export default function ProductForm({
                 </div>
 
                 {noStock ? (
-                <div className="space-y-4">
-                {!isVariant && (
-                <div className="rounded-lg border border-honey-300 bg-honey-50 p-3">
-                  <label className="block text-sm font-medium text-gray-800 mb-1">
-                    Barcode on the item <span className="font-normal text-gray-500">(if it already has one)</span>
-                  </label>
-                  <input
-                    type="text"
-                    autoComplete="off"
-                    placeholder="Scan the item's barcode here"
-                    className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-                    value={itemBarcode}
-                    onChange={(e) => setItemBarcode(e.target.value)}
-                    onKeyDown={(e) => {
-                      // A scanner ends with Enter: keep it from submitting the form.
-                      if (e.key === "Enter") e.preventDefault();
-                    }}
-                  />
-                  <p className="mt-1 text-xs text-gray-600">
-                    {itemBarcode.trim() ? "The item's own barcode is used at the counter. No new sticker needed." : "Empty = a new sticker with our code is printed."}
-                  </p>
-                  {codeErrors.barcodes && <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>}
-                </div>
-                )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Stock Quantity <span className="font-normal text-gray-500">(pieces received now)</span>
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pieces received now</label>
                   <input
                     type="number"
                     min="0"
                     step="1"
                     inputMode="numeric"
-                    placeholder="e.g. 12"
+                    placeholder="e.g. 12 (empty = later)"
                     className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
                     value={receivedPieces}
                     onChange={(e) => setReceivedPieces(e.target.value)}
                   />
-                  <p className="mt-1 text-xs text-gray-500">Goes into the warehouse with this delivery when you save. Empty = enter after saving.</p>
-                </div>
                 </div>
                 ) : (
                 <div>
@@ -1281,7 +1263,7 @@ export default function ProductForm({
                 </div>
                 )}
 
-                <div>
+                <div className={noStock ? "hidden" : ""}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
                   </label>
@@ -1319,8 +1301,36 @@ export default function ProductForm({
               </div>
 
               {/* SKU (made automatically; the short code behind it is printed on the sticker) */}
-              {!isVariant && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
+                  {noStock && !isVariant && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Barcode on the item <span className="font-normal text-gray-500">(if printed)</span>
+                      </label>
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Scan it here"
+                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${itemBarcode.trim() ? "border-green-400 bg-green-50" : "border-honey-400 bg-honey-50"}`}
+                        value={itemBarcode}
+                        onChange={(e) => setItemBarcode(e.target.value)}
+                        onKeyDown={(e) => {
+                          // A scanner ends with Enter: keep it from submitting the form.
+                          if (e.key === "Enter") e.preventDefault();
+                        }}
+                      />
+                      {codeErrors.barcodes ? (
+                        <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>
+                      ) : (
+                        <p className="mt-1 text-xs text-gray-500">{itemBarcode.trim() ? "No new sticker needed." : "Empty = we print a sticker."}</p>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
+                    <VendorPicker value={vendorId || null} onChange={(id) => setVendorId(id || "")} placeholder="Search vendor…" />
+                  </div>
+                  {!isVariant && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
                     <input
@@ -1330,9 +1340,8 @@ export default function ProductForm({
                       value={autoSku || (pickingCode ? "Creating…" : "Created when saved")}
                     />
                   </div>
-
+                  )}
               </div>
-              )}
 
               {/* Packaging & Stock: boxes, batches, barcodes, short code (single products) */}
               {!isVariant && (

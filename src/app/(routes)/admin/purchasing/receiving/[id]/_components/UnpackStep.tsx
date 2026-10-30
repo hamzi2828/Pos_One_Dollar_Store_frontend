@@ -544,7 +544,7 @@ export default function UnpackStep({
       </div>
 
       {newProduct !== null && canCreateProducts && (
-        <FullProductModal vendorName={bill.vendorName} boxLabel={boxLabel} initialName={newProduct} onClose={() => setNewProduct(null)} onCreated={afterCreate} />
+        <FullProductModal vendorName={bill.vendorName} vendorId={boxOf(bill.bill)?.vendor || undefined} boxLabel={boxLabel} initialName={newProduct} onClose={() => setNewProduct(null)} onCreated={afterCreate} />
       )}
       {newProduct !== null && !canCreateProducts && (
         <QuickProductModal
