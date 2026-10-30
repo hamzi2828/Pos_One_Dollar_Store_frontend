@@ -315,7 +315,7 @@ function Workspace() {
             }
             actions={
               canReceive ? (
-                <Link href={`/admin/purchasing/receiving/${po.goodsReceipt}`} className={primaryBtn}>
+                <Link href={`/admin/purchasing/receiving/${po.goodsReceipt}?status=check`} className={primaryBtn}>
                   <PackageCheck className="h-4 w-4" /> {po.status === 'received' ? 'View receiving' : 'Open in Receive Goods'}
                 </Link>
               ) : null
