@@ -1,4 +1,5 @@
 "use client";
+import BarcodeChipsInput from "./packaging/BarcodeChipsInput";
 import VendorPicker from "@/components/store/VendorPicker";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
@@ -11,6 +12,7 @@ import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ChevronDown, Hash, Loader2 } from "lucide-react";
 import PackagingStockCard from "./packaging/PackagingStockCard";
+import SoldByBarcodeCard from "./SoldByBarcodeCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
 import {
   type PackagingState,
@@ -212,18 +214,14 @@ export default function ProductForm({
   // Vendor of the product (saved as its last vendor; receiving also updates it).
   const savedVendorId = String((initialData as { lastVendor?: string | null } | undefined)?.lastVendor || "");
   const [vendorId, setVendorId] = useState<string>(() => (mode === "create" ? defaultVendorId : savedVendorId));
-  // First barcode of the item itself (not the full box/pack code).
-  const itemBarcode = packaging.barcodes.find((b) => b.label !== "full-box")?.code || "";
-  const setItemBarcode = (code: string) =>
-    setPackaging((prev) => {
-      const list = [...prev.barcodes];
-      const i = list.findIndex((b) => b.label !== "full-box");
-      if (i >= 0) {
-        if (code) list[i] = { ...list[i], code };
-        else list.splice(i, 1);
-      } else if (code) list.unshift({ code, qty: 1 });
-      return { ...prev, barcodes: list };
-    });
+  // Barcodes printed on the item itself (not the full box/pack code). Several are fine:
+  // e.g. 5 colors with their own barcodes, one product, one price.
+  const itemCodes = packaging.barcodes.filter((b) => b.label !== "full-box").map((b) => b.code);
+  const itemBarcode = itemCodes[0] || "";
+  const addItemCode = (code: string) =>
+    setPackaging((prev) => (prev.barcodes.some((b) => b.code === code) ? prev : { ...prev, barcodes: [...prev.barcodes, { code, qty: 1 }] }));
+  const removeItemCode = (code: string) =>
+    setPackaging((prev) => ({ ...prev, barcodes: prev.barcodes.filter((b) => b.label === "full-box" || b.code !== code) }));
   // Errors from the backend for a code (409 duplicate / 400 invalid short code)
   const [codeErrors, setCodeErrors] = useState<Record<string, string>>({});
   // Variant rows with the "options & barcodes" row open (key = color|size)
@@ -1305,24 +1303,19 @@ export default function ProductForm({
                   {noStock && !isVariant && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Barcode on the item <span className="font-normal text-gray-500">(if printed)</span>
+                        Barcodes on the item <span className="font-normal text-gray-500">(if printed)</span>
                       </label>
-                      <input
-                        type="text"
-                        autoComplete="off"
-                        placeholder="Scan it here"
-                        className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${itemBarcode.trim() ? "border-green-400 bg-green-50" : "border-honey-400 bg-honey-50"}`}
-                        value={itemBarcode}
-                        onChange={(e) => setItemBarcode(e.target.value)}
-                        onKeyDown={(e) => {
-                          // A scanner ends with Enter: keep it from submitting the form.
-                          if (e.key === "Enter") e.preventDefault();
-                        }}
+                      <BarcodeChipsInput
+                        codes={itemCodes}
+                        onAdd={addItemCode}
+                        onRemove={removeItemCode}
+                        placeholder="Scan each barcode (one per color)"
+                        compact
                       />
                       {codeErrors.barcodes ? (
                         <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>
                       ) : (
-                        <p className="mt-1 text-xs text-gray-500">{itemBarcode.trim() ? "No new sticker needed." : "Empty = we print a sticker."}</p>
+                        <p className="mt-1 text-xs text-gray-500">{itemCodes.length ? `${itemCodes.length} barcode${itemCodes.length === 1 ? "" : "s"}: any of them sells this product. No new sticker needed.` : "Empty = we print a sticker."}</p>
                       )}
                     </div>
                   )}
@@ -1370,6 +1363,13 @@ export default function ProductForm({
                     }
                     priceErrors={{ salePrice: errors.discountedPrice, costPrice: errors.costPrice }}
                   />
+                </div>
+              )}
+
+              {/* Sold by barcode (edit, single products) */}
+              {!isVariant && mode === "edit" && productId && (
+                <div className="mt-3 sm:mt-4">
+                  <SoldByBarcodeCard productId={productId} />
                 </div>
               )}
 

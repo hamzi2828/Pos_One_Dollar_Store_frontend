@@ -58,7 +58,8 @@ export interface CartItem {
   giftReason?: string;
   /** Cashier typed this price (needs pos edit; the server checks). */
   priceOverride?: boolean;
-  /** Barcode / batch the cashier scanned (stock comes from that batch first). */
+  /** Exact barcode / code the cashier scanned or typed for this line (sent as items[].scannedCode;
+   *  empty for lines added by name search / click). One line per code. */
   scannedCode?: string;
   batchNo?: string;
 }

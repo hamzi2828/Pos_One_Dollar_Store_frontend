@@ -3,6 +3,20 @@ import { getAuthHeader } from '@/helper/helper';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+// One row of GET /products/:id/sold-by-barcode.
+export interface SoldByBarcodeRow {
+  code: string;
+  qty: number;
+  sales: number;
+  amount: number;
+  lastSoldAt: string | null;
+}
+
+export interface SoldByBarcodeReport {
+  data: SoldByBarcodeRow[];
+  meta: { totalQty: number };
+}
+
 // Extra code on a unit (maker's EAN, full-box code...). qty = pieces sold per scan.
 export interface ProductBarcodeDTO {
   code: string;
@@ -253,6 +267,16 @@ export const productService = {
       console.error(`Error fetching product ${id}:`, err);
       throw err;
     }
+  },
+  // Pieces sold per scanned barcode (code '' = added by name search). Old sales have no code.
+  async getSoldByBarcode(id: string): Promise<SoldByBarcodeReport> {
+    const res = await axios.get(`${API_BASE_URL}/products/${id}/sold-by-barcode`, {
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    });
+    return {
+      data: Array.isArray(res.data?.data) ? res.data.data : [],
+      meta: { totalQty: Number(res.data?.meta?.totalQty) || 0 },
+    };
   },
   // Is this code (short code / barcode) free? excludeId = product being edited.
   async checkCode(code: string, excludeId?: string): Promise<CodeCheckResult> {

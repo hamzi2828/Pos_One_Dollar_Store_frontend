@@ -333,11 +333,17 @@ export default function POSPage() {
   const addToCart = useCallback(
     (product: POSProduct, variant?: POSVariant, opts: { qty?: number; scannedCode?: string; batchNo?: string } = {}) => {
       const qty = Math.max(1, Math.floor(opts.qty || 1));
+      const scannedCode = (opts.scannedCode || '').trim().slice(0, 64);
       const baseId = variant ? `${product._id}-${variant.variantId}` : product._id;
-      const itemId = opts.batchNo ? `${baseId}@${opts.batchNo}` : baseId;
+      // One line per scanned code: 2 barcodes of the same product (e.g. colours)
+      // stay 2 lines so "sold by barcode" counts are right; the same code again adds qty.
+      const batchId = opts.batchNo ? `${baseId}@${opts.batchNo}` : baseId;
+      const itemId = scannedCode ? `${batchId}#${scannedCode}` : batchId;
       // Offline: stock in the saved list may be old; the sale is allowed (server warns STOCK_SHORT).
       const max = offlineModeRef.current ? 0 : Number(variant ? variant.stock : product.stock) || 0;
-      const inCart = cartRef.current.items.find((i) => i.id === itemId)?.quantity || 0;
+      // Stock is shared by every line of this unit (other codes, gift line).
+      const sameUnit = (i: CartItem) => i.product._id === product._id && (i.variantId || '') === (variant?.variantId || '');
+      const inCart = cartRef.current.items.filter(sameUnit).reduce((s, i) => s + i.quantity, 0);
       if (max > 0 && inCart + qty > max) {
         toast.error(inCart >= max ? `No more ${product.name} in stock` : `Only ${max} of ${product.name} in stock`);
         if (inCart >= max) return false;
@@ -345,11 +351,13 @@ export default function POSPage() {
       const price = salePrice(variant || product);
       setCart((prev) => {
         const existing = prev.items.find((i) => i.id === itemId);
+        // Room left for this line = stock - pieces of the same unit on other lines.
+        const room = max > 0 ? max - prev.items.filter((i) => sameUnit(i) && i.id !== itemId).reduce((s, i) => s + i.quantity, 0) : 0;
         if (existing) {
-          const quantity = max > 0 ? Math.min(max, existing.quantity + qty) : existing.quantity + qty;
+          const quantity = max > 0 ? Math.max(existing.quantity, Math.min(room, existing.quantity + qty)) : existing.quantity + qty;
           return { ...prev, items: prev.items.map((i) => (i.id === itemId ? { ...i, quantity, subtotal: i.unitPrice * quantity } : i)) };
         }
-        const quantity = max > 0 ? Math.min(max, qty) : qty;
+        const quantity = max > 0 ? Math.max(1, Math.min(room, qty)) : qty;
         const newItem: CartItem = {
           id: itemId,
           product,
@@ -362,7 +370,7 @@ export default function POSPage() {
           subtotal: price * quantity,
           color: variant?.color,
           size: variant?.size,
-          scannedCode: opts.scannedCode,
+          scannedCode,
           batchNo: opts.batchNo,
         };
         return { ...prev, items: [...prev.items, newItem] };
@@ -372,9 +380,13 @@ export default function POSPage() {
     []
   );
 
+  // Code scanned for a variant product whose variant must still be picked (kept on that line).
+  const pendingScanCode = useRef('');
+
   const handleProductSelect = useCallback(
     (product: POSProduct) => {
       if (product.productType === 'variant') {
+        pendingScanCode.current = '';
         setSelectedProduct(product);
         setShowVariantSelector(true);
       } else {
@@ -385,7 +397,7 @@ export default function POSPage() {
   );
 
   const handleVariantSelect = (variant: POSVariant) => {
-    if (selectedProduct) addToCart(selectedProduct, variant);
+    if (selectedProduct) addToCart(selectedProduct, variant, { scannedCode: pendingScanCode.current || undefined });
   };
 
   /** Code lookup: server, or the saved catalogue when offline / the server cannot be reached. */
@@ -420,6 +432,7 @@ export default function POSPage() {
       if (r.ok) {
         const { product, match } = r;
         if (product.productType === 'variant' && !match.variantId) {
+          pendingScanCode.current = match.code || code;
           setSelectedProduct(product);
           setShowVariantSelector(true);
           return true;

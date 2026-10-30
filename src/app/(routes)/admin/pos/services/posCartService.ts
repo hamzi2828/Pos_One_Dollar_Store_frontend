@@ -20,6 +20,7 @@ interface ApiHeldItem {
   isGift?: boolean;
   giftReason?: string;
   priceOverride?: boolean;
+  scannedCode?: string;
 }
 
 interface ApiHeldOrder {
@@ -77,6 +78,7 @@ function transformToHeldCart(apiOrder: ApiHeldOrder): HeldCart {
         isGift: !!item.isGift,
         giftReason: item.giftReason,
         priceOverride: !!item.priceOverride,
+        scannedCode: item.scannedCode || undefined,
       })),
       subtotal: apiOrder.subtotal,
       tax: apiOrder.tax,
