@@ -102,7 +102,7 @@ export default function ProductSearch({
             {resultCount === 0 ? <>No products match &ldquo;{query}&rdquo;</> : <>{resultCount} product{resultCount !== 1 ? 's' : ''} found for &ldquo;{query}&rdquo; — Enter adds a scanned code</>}
           </span>
         ) : isBarcodeMode ? (
-          <span className="text-gray-500">Scan a barcode (or type a short code) and press Enter to add it</span>
+          <span className="text-gray-500">Scanner ready: scan any time, the cursor can be anywhere. Or type a short code and press Enter</span>
         ) : null}
       </div>
       <style>{`@keyframes pos-search-bar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}`}</style>

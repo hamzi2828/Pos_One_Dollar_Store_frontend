@@ -1,5 +1,6 @@
 // POS Page - Point of Sale System
-// Scanner first: scan (or type a short code) + Enter adds the item. Every
+// Scanner first: scan (or type a short code) + Enter adds the item. A USB
+// scanner works wherever the cursor is (hooks/useBarcodeScanner). Every
 // amount comes from the server (POST /api/pos/quote) — rule discounts, manual
 // discount, tax and total are exactly what the sale will charge.
 // Keyboard: F2 = search box, F9 = take payment.
@@ -27,6 +28,8 @@ import { createPOSOrder, POSApiError } from './services/posOrderService';
 import { createOrFindCustomer } from './services/posCustomerService';
 import { holdCart, getHeldCarts, retrieveHeldCart, clearHeldCart } from './services/posCartService';
 import { useCartQuote } from './hooks/useCartQuote';
+import { useBarcodeScanner } from './hooks/useBarcodeScanner';
+import { playScanError } from './utils/scanSound';
 import { cartToOrderItems, giftLineId, paidLineId } from './utils/cartPayload';
 import { getCurrencySymbol } from './utils/currency';
 import { HeldCart } from './types';
@@ -437,12 +440,15 @@ export default function POSPage() {
           return true;
         }
         if (!isSearching && loadedQuery === code && products.length > 1) return false; // pick from the list
+        playScanError();
         toast.error(`No product with code "${code}"`, { id: 'pos-scan' });
         return false;
       }
+      playScanError();
       toast.error(r.message, { id: 'pos-scan' }); // e.g. out of stock
       return true;
     } catch {
+      playScanError();
       toast.error('Could not look up the code. Check the connection.', { id: 'pos-scan' });
       return false;
     } finally {
@@ -450,6 +456,34 @@ export default function POSPage() {
       setScanning(false);
     }
   };
+
+  // Codes are looked up one after another, so a quick 2nd scan waits for the
+  // 1st instead of being dropped while the 1st is still being looked up.
+  const handleScanRef = useRef(handleScan);
+  handleScanRef.current = handleScan;
+  const scanQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const queueScan = useCallback((code: string): Promise<boolean> => {
+    const run = scanQueue.current.then(() => handleScanRef.current(code));
+    scanQueue.current = run.catch(() => undefined);
+    return run;
+  }, []);
+
+  // USB barcode scanner: works wherever the cursor is (see hooks/useBarcodeScanner).
+  useBarcodeScanner((code) => {
+    const blocked = showPaymentModal
+      ? 'Finish or close the payment first, then scan'
+      : showVariantSelector
+        ? 'Pick the size / colour first, then scan'
+        : showCustomerSelector
+          ? 'Close the customer window first, then scan'
+          : null;
+    if (blocked) {
+      playScanError();
+      toast.error(blocked, { id: 'pos-scan' });
+      return;
+    }
+    void queueScan(code);
+  });
 
   const updateQuantity = (itemId: string, quantity: number) => {
     setCart((prev) => ({
@@ -873,7 +907,7 @@ export default function POSPage() {
             <ProductSearch
               value={searchQuery}
               onChange={setSearchQuery}
-              onBarcodeScanned={handleScan}
+              onBarcodeScanned={queueScan}
               searching={isSearching && trimmedQuery !== ''}
               scanning={scanning}
               resultCount={!isSearching && trimmedQuery ? products.length : undefined}
