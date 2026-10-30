@@ -305,6 +305,12 @@ function Workspace() {
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
           <div className="xl:col-span-2 space-y-4">
+            {/* Same button above the bills too, so a long list needs no scrolling (owner, 2026-10-30). */}
+            {editable && po.bills.length > 0 && (
+              <button className={`${secondaryBtn} w-full border-dashed !py-3`} onClick={() => setBillModal({ open: true, bill: null })}>
+                <Plus className="h-4 w-4" /> Add another vendor bill
+              </button>
+            )}
             {po.bills.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-300 text-center py-10 px-4">
                 <p className="text-sm text-gray-600 mb-3">No vendor bills yet. Add one bill for each vendor you buy from on this trip.</p>
