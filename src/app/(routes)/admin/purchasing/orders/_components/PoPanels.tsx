@@ -7,17 +7,21 @@ import { AlertTriangle, Calculator, Lightbulb, Loader2, Plus, Trash2, Truck } fr
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
-import { Card, Disclosure } from '../../_shared/ui';
+import { Card, Disclosure, PhotoPicker, PhotoStrip } from '../../_shared/ui';
 import type { AllocationMethod, ChargeType, Costing, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
 // ---------------------------------------------------------------- trip costs
+
+const MAX_COST_FILES = 5;
+const NO_FILES: File[] = [];
 
 export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrder; meta: POMeta | null; editable: boolean; onChange: (po: PurchaseOrder) => void }) {
   const [type, setType] = useState<ChargeType>('car_rent');
   const [amount, setAmount] = useState('');
   const [paidTo, setPaidTo] = useState('');
   const [note, setNote] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const lock = useRef(false);
   const label = (t: string) => meta?.chargeTypes.find((c) => c.value === t)?.label || t.replace(/_/g, ' ');
@@ -40,8 +44,9 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
 
   const add = async () => {
     if (!(toNum(amount) > 0)) return toast.error('Enter the amount');
-    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), paidTo: paidTo.trim(), note: note.trim() }), 'Could not add the cost.');
+    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), paidTo: paidTo.trim(), note: note.trim() }, files), 'Could not add the cost.');
     if (ok) {
+      setFiles([]);
       setAmount('');
       setPaidTo('');
       setNote('');
@@ -62,31 +67,60 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
         <p className="text-xs text-gray-500 mb-3">No trip costs yet.</p>
       ) : (
         <ul className="divide-y divide-gray-100 mb-3">
-          {po.charges.map((c) => (
-            <li key={c._id} className="flex items-center justify-between gap-2 py-2">
-              <div className="min-w-0">
-                <p className="text-sm text-gray-900">
-                  {label(c.type)}
-                  {c.source === 'builty' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">freight</span>}
-                </p>
-                {(c.paidTo || c.note) && <p className="text-[11px] text-gray-500 truncate">{[c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ')}</p>}
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-medium">{formatRs(c.amount)}</span>
-                {editable && (
-                  <button
-                    type="button"
-                    onClick={() => run(c._id, () => purchasingApi.removeCharge(po._id, c._id), 'Could not remove the cost.')}
-                    disabled={!!busy}
-                    className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-50"
-                    aria-label="Remove cost"
-                  >
-                    {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  </button>
+          {po.charges.map((c) => {
+            const photos = c.photos || [];
+            const ownFiles = editable && c.source === 'manual';
+            return (
+              <li key={c._id} className="py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-900">
+                      {label(c.type)}
+                      {c.source === 'builty' && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">freight</span>}
+                    </p>
+                    {(c.paidTo || c.note) && <p className="text-[11px] text-gray-500 truncate">{[c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ')}</p>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-medium">{formatRs(c.amount)}</span>
+                    {editable && (
+                      <button
+                        type="button"
+                        onClick={() => run(c._id, () => purchasingApi.removeCharge(po._id, c._id), 'Could not remove the cost.')}
+                        disabled={!!busy}
+                        className="p-2 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                        aria-label="Remove cost"
+                      >
+                        {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {(photos.length > 0 || ownFiles) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <PhotoStrip
+                      photos={photos}
+                      onRemove={
+                        ownFiles && !busy
+                          ? (url) => run(c._id, () => purchasingApi.updateCharge(po._id, c._id, { removePhotos: [url] }), 'Could not remove the file.')
+                          : undefined
+                      }
+                    />
+                    {ownFiles && photos.length < MAX_COST_FILES && (
+                      <PhotoPicker
+                        files={NO_FILES}
+                        max={MAX_COST_FILES - photos.length}
+                        allowPdf
+                        label="Add proof"
+                        onChange={(picked) => {
+                          if (picked.length) run(c._id, () => purchasingApi.updateCharge(po._id, c._id, {}, picked), 'Could not upload the file.');
+                        }}
+                      />
+                    )}
+                  </div>
                 )}
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
       {editable && (
@@ -116,6 +150,7 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
               <input placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} />
             </div>
           </Disclosure>
+          <PhotoPicker files={files} onChange={setFiles} max={MAX_COST_FILES} allowPdf label="Add screenshot" />
           <button type="button" onClick={add} disabled={!!busy} className={`${primaryBtn} w-full`}>
             {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add cost
           </button>

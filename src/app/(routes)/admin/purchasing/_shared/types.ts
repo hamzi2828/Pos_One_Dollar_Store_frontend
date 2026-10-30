@@ -59,6 +59,8 @@ export interface POCharge {
   amount: number;
   note: string;
   paidTo: string;
+  /** Payment proof: screenshots / PDFs (max 5) */
+  photos?: string[];
   source: 'manual' | 'builty';
 }
 
