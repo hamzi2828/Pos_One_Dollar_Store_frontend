@@ -65,6 +65,7 @@ export default function UnpackStep({
   onChanged,
   onReload,
   onFinish,
+  startBill,
 }: {
   grn: GoodsReceipt;
   mayEdit: boolean;
@@ -73,9 +74,13 @@ export default function UnpackStep({
   onChanged: (g: GoodsReceipt) => void;
   onReload: () => Promise<void>;
   onFinish: () => void;
+  /** Vendor bill to open first (picked in step 1). */
+  startBill?: string;
 }) {
   const progress = billProgress(grn);
-  const [billId, setBillId] = useState<string>(() => (progress.find((p) => p.left > 0) || progress[0])?.bill || '');
+  const [billId, setBillId] = useState<string>(
+    () => (progress.find((p) => p.bill === startBill) || progress.find((p) => p.left > 0) || progress[0])?.bill || '',
+  );
   // The open vendor card (one at a time); false = all cards closed.
   const [open, setOpen] = useState(true);
   const bill = progress.find((p) => p.bill === billId) || progress[0];
@@ -85,6 +90,13 @@ export default function UnpackStep({
   const [presetPieces, setPresetPieces] = useState<number | null>(null);
   const [saved, setSaved] = useState<EntryResult | null>(null);
   const [newProduct, setNewProduct] = useState<string | null>(null);
+  // Came from step 1 with a vendor picked: bring its card into view (after the page's scroll-to-top).
+  useEffect(() => {
+    if (!startBill) return;
+    const t = window.setTimeout(() => document.getElementById(`unpack-${startBill}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [nextCode, setNextCode] = useState('');
   const [shelfNow, setShelfNow] = useState(false);
   const [sameReceiver, setSameReceiver] = useState(false);
@@ -181,7 +193,7 @@ export default function UnpackStep({
                 ? { text: 'In progress', cls: 'bg-honey-100 text-honey-800' }
                 : { text: 'Not started', cls: 'bg-gray-100 text-gray-600' };
           return (
-            <div key={p.bill} className={`rounded-xl border bg-white shadow-sm ${isOpen ? 'border-honey-400 ring-2 ring-honey-500/20' : 'border-gray-200'}`}>
+            <div key={p.bill} id={`unpack-${p.bill}`} className={`scroll-mt-4 rounded-xl border bg-white shadow-sm ${isOpen ? 'border-honey-400 ring-2 ring-honey-500/20' : 'border-gray-200'}`}>
               <button
                 type="button"
                 onClick={() => {

@@ -16,11 +16,15 @@ export default function BoxesStep({
   grn,
   mayEdit,
   onSaved,
+  onGo,
 }: {
   grn: GoodsReceipt;
   /** can edit at all (permission + not the buyer) */
   mayEdit: boolean;
-  onSaved: (g: GoodsReceipt) => void;
+  /** Saved; `bill` = the vendor on screen, opened next in step 2. */
+  onSaved: (g: GoodsReceipt, bill: string) => void;
+  /** Go to step 2 with this vendor open (count already locked). */
+  onGo?: (bill: string) => void;
 }) {
   const boxes: GRNBox[] = grn.boxes || [];
   const checked = !!grn.boxesCheckedAt;
@@ -59,7 +63,7 @@ export default function BoxesStep({
         note: note.trim() || undefined,
       });
       res.warnings.forEach((w) => toast(w, { icon: '⚠️', duration: 6000 }));
-      onSaved(res.grn);
+      onSaved(res.grn, (boxes.find((b) => b.bill === openBill) || boxes[0])?.bill || '');
     } catch (e) {
       if (apiErrorCode(e) === 'SAME_RECEIVER') setSameReceiver(true);
       else setError(apiErrorMessage(e, 'Could not save the box/pack count.'));
@@ -205,11 +209,16 @@ export default function BoxesStep({
                 <ErrorBox message={error} />
                 <button type="button" onClick={submit} disabled={busy} aria-busy={busy} className={`${primaryBtn} w-full !py-3 text-base`}>
                   {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-                  {busy ? 'Saving...' : checked ? 'Save box/pack count' : 'Boxes/packs are checked'}
+                  {busy ? 'Saving...' : `Save count & unpack ${cur?.vendorName || ''}`.trim()}
                 </button>
               </div>
             )}
             {mayEdit && hasEntries && <p className="mt-3 text-[11px] text-gray-500">Goods are already being entered, so the box/pack count can no longer be changed.</p>}
+            {!editable && checked && onGo && cur && (
+              <button type="button" onClick={() => onGo(cur.bill)} className={`${primaryBtn} mt-3 w-full !py-3 text-base`}>
+                Unpack {cur.vendorName} <ArrowRight className="h-5 w-5" />
+              </button>
+            )}
           </Card>
 
       {(grn.builty?.builtyNo || grn.builty?.transporter || (grn.builty?.photos || []).length > 0) && (

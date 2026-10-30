@@ -45,6 +45,7 @@ export default function ReceiveGoodsPage() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
   const [tagSize, setTagSize] = useState<StickerSize>('38x25');
+  const [startBill, setStartBill] = useState<string | undefined>(undefined);
 
   useEffect(() => setTagSize(loadTagSize()), []);
 
@@ -164,10 +165,15 @@ export default function ReceiveGoodsPage() {
             key={`${grn._id}-${grn.boxesCheckedAt || 'new'}`}
             grn={grn}
             mayEdit={mayEdit}
-            onSaved={(g) => {
+            onSaved={(g, bill) => {
               setGrn(g);
+              setStartBill(bill);
               setView(1);
               toast.success('Boxes/packs checked. Now unpack and enter the goods.');
+            }}
+            onGo={(bill) => {
+              setStartBill(bill);
+              setView(1);
             }}
           />
         ) : current === 1 ? (
@@ -179,6 +185,7 @@ export default function ReceiveGoodsPage() {
             onChanged={setGrn}
             onReload={reload}
             onFinish={() => setView(2)}
+            startBill={startBill}
           />
         ) : (
           <FinishStep
