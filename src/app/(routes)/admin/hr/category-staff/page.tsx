@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { UsersRound, Plus, Pencil, Trash2, Target, Search, Loader2 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { Modal, Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 
 interface CategoryOption {
@@ -366,7 +367,7 @@ function AssignmentModal({
             </datalist>
           </Field>
           <Field label="Monthly sales target (Rs)" hint="Pro-rated for shorter periods in the report.">
-            <input type="number" min={0} inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value)} className={inputClass} placeholder="e.g. 150000" />
+            <MoneyInput value={target} onValue={setTarget} className={inputClass} placeholder="e.g. 150000" />
           </Field>
           <div className="flex items-end pb-1">
             <Toggle checked={isActive} onChange={setIsActive} label="Active" hint="Paused assignments do not count in the report." />

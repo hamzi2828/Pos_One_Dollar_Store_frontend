@@ -14,6 +14,7 @@ import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage } from '@/helper/access';
 import { formatRs, formatDate } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, LoadingCard, inputClass, primaryBtn, secondaryBtn, Toggle } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import {
   vendorApi,
   PAYMENT_METHODS,
@@ -310,7 +311,7 @@ export default function VendorVisitModal({ vendorId, onClose, onDone }: { vendor
                 {payNow && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <Field label="Amount (Rs)">
-                      <input value={payAmount} onChange={(e) => setPayAmount(e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" />
+                      <MoneyInput value={payAmount} onValue={setPayAmount} className={inputClass} />
                     </Field>
                     <Field label="Method">
                       <SearchSelect value={payMethod} onChange={(e) => setPayMethod(e.target.value as PaymentMethod)} className={inputClass}>
@@ -404,11 +405,10 @@ export default function VendorVisitModal({ vendorId, onClose, onDone }: { vendor
                       </div>
                       <label className="text-[10px] text-gray-500">
                         Rate
-                        <input
+                        <MoneyInput
                           value={it.rate}
-                          onChange={(e) => setItems(items.map((x) => (x.key === it.key ? { ...x, rate: e.target.value.replace(/[^0-9.]/g, '') } : x)))}
+                          onValue={(v) => setItems(items.map((x) => (x.key === it.key ? { ...x, rate: v } : x)))}
                           className={`${inputClass} !w-20 text-right`}
-                          inputMode="decimal"
                         />
                       </label>
                       <label className="text-[10px] text-gray-500">

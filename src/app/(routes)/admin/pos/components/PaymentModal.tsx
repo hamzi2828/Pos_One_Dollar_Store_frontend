@@ -6,6 +6,7 @@ import { PaymentMethodType, POSCart, POSCustomer, CustomerInfo } from '../types'
 import { X, CreditCard, Banknote, Building2, Upload, Loader2, Check, AlertCircle, User, Phone } from 'lucide-react';
 import { uploadBankTransferScreenshot } from '../services/posUploadService';
 import { getCurrencySymbol } from '../utils/currency';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -236,10 +237,9 @@ export default function PaymentModal({
             <div className="space-y-3">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">{symbol}</span>
-                <input
-                  type="number"
+                <MoneyInput
                   value={cashReceived}
-                  onChange={(e) => setCashReceived(e.target.value)}
+                  onValue={setCashReceived}
                   placeholder="Enter amount"
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg"
                   autoFocus
@@ -305,10 +305,9 @@ export default function PaymentModal({
             <div className="space-y-3">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">{symbol}</span>
-                <input
-                  type="number"
+                <MoneyInput
                   value={cashReceived}
-                  onChange={(e) => setCashReceived(e.target.value)}
+                  onValue={setCashReceived}
                   placeholder={cart.total.toFixed(2)}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-lg"
                 />

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Edit2, Loader2, PackagePlus, Plus, Receipt, Trash2 } from 'lucide-react';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { PAYMENT_METHODS } from '@/app/(routes)/admin/vendors/services/vendorApi';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { ProductSearch } from '../../_shared/Pickers';
@@ -247,14 +248,14 @@ function ItemRow({ poId, billId, item, editable, onChange }: { poId: string; bil
       </td>
       <td className="py-2 px-2 text-right">
         {editable ? (
-          <input type="number" min={0} step="0.01" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} onBlur={save} onKeyDown={onKey} className={cellInput} disabled={busy} aria-label="Unit price" />
+          <MoneyInput value={price} onValue={setPrice} onBlur={save} onKeyDown={onKey} className={cellInput} disabled={busy} aria-label="Unit price" />
         ) : (
           formatRs(item.unitPrice, { decimals: 2 })
         )}
       </td>
       <td className="py-2 px-2 text-right">
         {editable ? (
-          <input type="number" min={0} inputMode="decimal" value={discount} placeholder="0" onChange={(e) => setDiscount(e.target.value)} onBlur={save} onKeyDown={onKey} className={cellInput} disabled={busy} aria-label="Line discount" />
+          <MoneyInput value={discount} placeholder="0" onValue={setDiscount} onBlur={save} onKeyDown={onKey} className={cellInput} disabled={busy} aria-label="Line discount" />
         ) : item.discount ? (
           formatRs(item.discount)
         ) : (
@@ -384,11 +385,11 @@ function AddItemRow({ poId, billId, onChange, onNewProduct }: { poId: string; bi
               </button>
             )}
           </span>
-          <input type="number" min={0} step="0.01" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} onKeyDown={onKey} className={inputClass} />
+          <MoneyInput value={price} onValue={setPrice} onKeyDown={onKey} className={inputClass} />
         </label>
         <label className="text-[11px] text-gray-600">
           Discount (Rs)
-          <input type="number" min={0} inputMode="decimal" value={discount} placeholder="0" onChange={(e) => setDiscount(e.target.value)} onKeyDown={onKey} className={inputClass} />
+          <MoneyInput value={discount} placeholder="0" onValue={setDiscount} onKeyDown={onKey} className={inputClass} />
         </label>
         <button type="button" onClick={add} disabled={busy} className={`${primaryBtn} h-[38px]`}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Add

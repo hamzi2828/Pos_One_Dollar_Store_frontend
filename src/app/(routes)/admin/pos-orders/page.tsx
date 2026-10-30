@@ -2,6 +2,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
@@ -970,12 +971,9 @@ function AddPaymentModal({
               Amount Received <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <MoneyInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValue={setAmount}
                 className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                 disabled={processing}
               />
@@ -1027,12 +1025,9 @@ function AddPaymentModal({
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Discount <span className="text-gray-400 text-[10px]">(optional)</span>
               </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <MoneyInput
                 value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
+                onValue={setDiscount}
                 placeholder="0.00"
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                 disabled={processing}

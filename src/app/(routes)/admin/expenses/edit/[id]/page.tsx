@@ -9,6 +9,7 @@ import { expenseService } from '../../service/expenseService';
 import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod } from '../../types';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -203,12 +204,9 @@ export default function EditExpensePage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Amount <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
+              <MoneyInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValue={setAmount}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
                 placeholder="0.00"
                 disabled={loading}

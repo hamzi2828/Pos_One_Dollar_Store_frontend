@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, PackagePlus } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { purchasingApi, toNum } from '../../../_shared/purchasingApi';
 import type { ReceivingUnit } from '../../../_shared/types';
 
@@ -93,10 +94,10 @@ export default function QuickProductModal({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Cost / piece (Rs)" hint="Vendor price">
-            <input type="number" min={0} step="0.01" inputMode="decimal" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className={inputClass} />
+            <MoneyInput value={costPrice} onValue={setCostPrice} className={inputClass} />
           </Field>
           <Field label="Sale price (Rs)" required>
-            <input type="number" min={0} inputMode="decimal" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} className={inputClass} />
+            <MoneyInput value={salePrice} onValue={setSalePrice} className={inputClass} />
           </Field>
           <Field label="Pieces per box/pack">
             <input type="number" min={1} inputMode="numeric" value={perBox} onChange={(e) => setPerBox(e.target.value)} className={inputClass} />

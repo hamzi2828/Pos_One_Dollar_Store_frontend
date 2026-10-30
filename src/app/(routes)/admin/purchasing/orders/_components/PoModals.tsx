@@ -301,7 +301,7 @@ export function NewProductModal({
             <input type="number" min={1} inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Vendor price / piece" required>
-            <input type="number" min={0} step="0.01" inputMode="decimal" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} className={inputClass} />
+            <MoneyInput value={unitPrice} onValue={setUnitPrice} className={inputClass} />
           </Field>
           <Field label="Sale price (Rs)" required>
             <MoneyInput value={salePrice} onValue={setSalePrice} className={inputClass} />

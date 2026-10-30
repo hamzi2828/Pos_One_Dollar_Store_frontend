@@ -6,6 +6,7 @@
 // "Test a bill amount" shows exactly what the POS will give.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
 import { Percent, Plus, Search, Pencil, Trash2, Loader2, Calculator, Sparkles, Power, Layers } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate, type PageMeta } from '@/lib/storeApi';
@@ -309,7 +310,7 @@ function BillCalculator({ reloadKey }: { reloadKey: number }) {
       <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-3 md:gap-6 items-start">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1.5">Bill subtotal (Rs)</label>
-          <input type="number" min={0} inputMode="decimal" className={`${inputClass} text-lg font-semibold`} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <MoneyInput className={`${inputClass} text-lg font-semibold`} value={amount} onValue={setAmount} />
           <div className="flex flex-wrap gap-1 mt-2">
             {[1000, 2500, 5000, 10000].map((v) => (
               <button key={v} type="button" onClick={() => setAmount(String(v))} className="px-2 py-0.5 text-[11px] rounded border border-gray-200 text-gray-600 hover:bg-gray-50">
@@ -476,16 +477,20 @@ function RuleForm({ rule, onClose, onSaved }: { rule: DiscountRule | null; onClo
             </SearchSelect>
           </Field>
           <Field label={form.valueType === 'percentage' ? 'Percent off' : 'Rupees off'} required>
-            <input type="number" min={0} className={inputClass} value={form.value} onChange={(e) => set('value', e.target.value)} />
+            {form.valueType === 'fixed' ? (
+              <MoneyInput className={inputClass} value={form.value} onValue={(v) => set('value', v)} />
+            ) : (
+              <input type="number" min={0} className={inputClass} value={form.value} onChange={(e) => set('value', e.target.value)} />
+            )}
           </Field>
           {form.kind === 'threshold' && (
             <Field label="Cut-off: bill of at least (Rs)" required>
-              <input type="number" min={0} className={inputClass} value={form.minSubtotal} onChange={(e) => set('minSubtotal', e.target.value)} />
+              <MoneyInput className={inputClass} value={form.minSubtotal} onValue={(v) => set('minSubtotal', v)} />
             </Field>
           )}
           {form.valueType === 'percentage' && (
             <Field label="Maximum discount (Rs)" hint="Empty = no cap">
-              <input type="number" min={0} className={inputClass} value={form.maxDiscount} onChange={(e) => set('maxDiscount', e.target.value)} />
+              <MoneyInput className={inputClass} value={form.maxDiscount} onValue={(v) => set('maxDiscount', v)} />
             </Field>
           )}
         </div>

@@ -6,6 +6,7 @@ import React, { useRef, useState } from 'react';
 import { Scale, Loader2, Check } from 'lucide-react';
 import { apiErrorMessage } from '@/helper/access';
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { vendorApi, pkToday } from '../services/vendorApi';
 import { BalanceText } from './ui';
 
@@ -90,7 +91,7 @@ export default function AdjustmentModal({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Amount (Rs)" required>
-            <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" autoFocus />
+            <MoneyInput value={amount} onValue={setAmount} className={inputClass} autoFocus />
           </Field>
           <Field label="Date">
             <input type="date" value={date} max={pkToday()} onChange={(e) => setDate(e.target.value)} className={inputClass} />

@@ -11,6 +11,7 @@ import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { Modal, Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { formatTime } from '@/components/store/TillStatusBar';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 interface Counter {
   _id: string;
@@ -341,12 +342,9 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
           </Field>
         </div>
         <Field label="Usual opening float (Rs)" hint="Change money put in the drawer. Not part of sales.">
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
+          <MoneyInput
             value={form.defaultFloat}
-            onChange={(e) => set('defaultFloat', e.target.value)}
+            onValue={(v) => set('defaultFloat', v)}
             className={inputClass}
             placeholder="5000"
             disabled={busy}

@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { FileText, Loader2, Minus, Plus, Save, Trash2, X } from 'lucide-react';
 import { Field, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { hoursText, payrollApi, type Adjustment, type MoneyRow, type PayrollLine, type PayrollRun } from '../../_shared/payrollApi';
 import { StatusChip, minusRs } from '../../_shared/PayrollBits';
 
@@ -219,7 +220,7 @@ export default function LineDrawer({
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Change this line</h3>
               <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] gap-2">
                 <Field label="Bonus (Rs)">
-                  <input type="number" inputMode="numeric" min={0} value={bonus} onChange={(e) => setBonus(e.target.value)} className={inputClass} placeholder="0" />
+                  <MoneyInput value={bonus} onValue={setBonus} className={inputClass} placeholder="0" />
                 </Field>
                 <Field label="Bonus note">
                   <input value={bonusNote} onChange={(e) => setBonusNote(e.target.value)} className={inputClass} placeholder="e.g. Eid bonus" maxLength={200} />
@@ -248,12 +249,9 @@ export default function LineDrawer({
                         >
                           {x.sign === 1 ? <Plus className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
                         </button>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
+                        <MoneyInput
                           value={x.amount}
-                          onChange={(e) => setAdjs((list) => list.map((y, j) => (j === i ? { ...y, amount: e.target.value } : y)))}
+                          onValue={(v) => setAdjs((list) => list.map((y, j) => (j === i ? { ...y, amount: v } : y)))}
                           className={inputClass}
                           placeholder="Rs"
                         />
@@ -294,13 +292,9 @@ export default function LineDrawer({
                     .join('; ')}). Leave empty to follow the plan. Most you can take: ${formatRs(advanceBalance)}.`}
                 >
                   <div className="flex gap-2">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={advanceBalance}
+                    <MoneyInput
                       value={override}
-                      onChange={(e) => setOverride(e.target.value)}
+                      onValue={setOverride}
                       className={inputClass}
                       placeholder={String(line.advanceSuggested)}
                     />

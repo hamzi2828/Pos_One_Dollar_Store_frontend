@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { useRouter } from 'next/navigation';
 import { CircleAlert, CircleCheck, Info, Layers, Loader2, PackagePlus, Printer, RefreshCw, X } from 'lucide-react';
 import {
@@ -363,12 +364,9 @@ export default function ReceiveStockModal({ productId, productName, initialVaria
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700">Cost price (optional)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="any"
+                    <MoneyInput
                       value={costPrice}
-                      onChange={(e) => setCostPrice(e.target.value)}
+                      onValue={setCostPrice}
                       className={inputCls}
                       placeholder="Per piece"
                     />

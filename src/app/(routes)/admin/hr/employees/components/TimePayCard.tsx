@@ -15,6 +15,7 @@ import { SectionCard } from './EmployeeBits';
 import { DAYS, type Day } from '../services/employeeApi';
 import { fmtDuration, fmtTime, type Shift } from '../../roster/services/rosterApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 interface PolicyOption {
   _id: string;
@@ -152,7 +153,7 @@ function SettingsModal({ data, onClose, onSaved }: { data: TimeSettings; onClose
         </Field>
         {form.payType === 'daily' && !data.sensitiveHidden && (
           <Field label="Daily rate (Rs)" required>
-            <input type="number" min={0} step={50} inputMode="numeric" value={form.dailyRate || ''} onChange={(e) => set('dailyRate', Number(e.target.value))} placeholder="1200" className={inputClass} />
+            <MoneyInput value={form.dailyRate || ''} onValue={(v) => set('dailyRate', Number(v))} placeholder="1200" className={inputClass} />
           </Field>
         )}
 

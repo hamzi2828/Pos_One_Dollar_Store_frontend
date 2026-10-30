@@ -38,6 +38,7 @@ import {
   type EmploymentType,
 } from '../services/employeeApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 type Form = {
   firstName: string;
@@ -483,7 +484,7 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
           <SectionCard title="Salary (per month)" icon={<Wallet className="h-4 w-4" />}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field label="Basic salary (Rs)">
-                <input type="number" min={0} step="1" inputMode="numeric" {...input('basic')} placeholder="e.g. 30000" />
+                <MoneyInput value={f.basic} onValue={(v) => set('basic', v)} className={inputClass} placeholder="e.g. 30000" />
               </Field>
               <Field label="Paid by (day of next month)">
                 <SearchSelect {...input('salaryPayDay')}>
@@ -513,12 +514,9 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
                       placeholder="e.g. Conveyance, Food, Mobile"
                       className={inputClass}
                     />
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
+                    <MoneyInput
                       value={a.amount}
-                      onChange={(e) => set('allowances', f.allowances.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))}
+                      onValue={(v) => set('allowances', f.allowances.map((x, j) => (j === i ? { ...x, amount: v } : x)))}
                       placeholder="Rs"
                       className={`${inputClass} max-w-[8rem]`}
                     />

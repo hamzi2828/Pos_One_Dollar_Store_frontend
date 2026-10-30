@@ -9,6 +9,7 @@ import { apiErrorMessage } from '@/helper/access';
 import { formatRs } from '@/lib/storeApi';
 import VendorPicker, { type VendorPickerOption } from '@/components/store/VendorPicker';
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { vendorApi, pkToday, PAYMENT_METHODS, type BankOption, type PaymentMethod, type VendorPayment } from '../services/vendorApi';
 import { BalanceText } from './ui';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -134,7 +135,7 @@ export default function PaymentModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Amount (Rs)" required>
             <div className="flex gap-2">
-              <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" placeholder="0" />
+              <MoneyInput value={amount} onValue={setAmount} className={inputClass} placeholder="0" />
               {balance > 0 && (
                 <button type="button" onClick={() => setAmount(String(balance))} className={`${secondaryBtn} !px-2 text-xs whitespace-nowrap`} title="Pay the full balance">
                   Full {formatRs(balance)}

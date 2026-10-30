@@ -2,6 +2,7 @@
 
 // Create / edit a price tier. A new price re-prices every linked product.
 import { useRef, useState } from 'react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
 import { Loader2, Tags } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
@@ -64,15 +65,12 @@ export default function TierForm({ tier, onClose, onSaved }: { tier: PriceTier |
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sale price (Rs)" required>
-            <input
-              type="number"
-              min={1}
-              inputMode="decimal"
+            <MoneyInput
               className={`${inputClass} text-lg font-semibold`}
               value={price}
-              onChange={(e) => {
-                setPrice(e.target.value);
-                if (!tier && (!name || /^Rs \d+(\.\d+)?$/.test(name))) setName(e.target.value ? `Rs ${e.target.value}` : '');
+              onValue={(v) => {
+                setPrice(v);
+                if (!tier && (!name || /^Rs \d+(\.\d+)?$/.test(name))) setName(v ? `Rs ${v}` : '');
               }}
               autoFocus
             />

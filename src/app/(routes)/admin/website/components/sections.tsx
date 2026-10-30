@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { apiErrorMessage, formatRs, storeApi } from '@/lib/storeApi';
 import { Field, HelpBox, Toggle, inputClass, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { Grid2, IconPicker, ImageField, ListEditor, SectionCard, TextField, UrlField, useEditor } from './fields';
 import { ICONS, type EditableContent, type IconItem, type OfferItem, type SectionKey, type TabKey } from './types';
 
@@ -143,14 +144,10 @@ function PricesTab({ c, set }: TabProps) {
           <>
             <Grid2>
               <Field label="Price (Rs)">
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  inputMode="decimal"
+                <MoneyInput
                   className={inputClass}
                   value={Number.isFinite(it.price) ? String(it.price) : ''}
-                  onChange={(e) => setIt({ price: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0) })}
+                  onValue={(v) => setIt({ price: v === '' ? 0 : Math.max(0, Number(v) || 0) })}
                   disabled={!canEdit}
                 />
               </Field>

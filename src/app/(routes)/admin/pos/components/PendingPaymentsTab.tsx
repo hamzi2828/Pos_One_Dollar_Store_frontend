@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { POSOrder, PaymentMethodType } from '../types';
 import { getPendingOrders, addPaymentToOrder } from '../services/posOrderService';
 import { getCurrencySymbol } from '../utils/currency';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { Clock, User, CreditCard, Banknote, Building2, X, Loader2, Check, AlertCircle, RefreshCw, ChevronDown, ChevronUp, Receipt, Calendar, MessageSquare, Percent } from 'lucide-react';
 
 interface PendingPaymentsTabProps {
@@ -514,22 +515,18 @@ export default function PendingPaymentsTab({
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
                     {symbol}
                   </span>
-                  <input
-                    type="number"
+                  <MoneyInput
                     value={discountAmount}
-                    onChange={(e) => {
-                      setDiscountAmount(e.target.value);
+                    onValue={(v) => {
+                      setDiscountAmount(v);
                       // Auto-adjust payment amount when discount changes
-                      const discount = parseFloat(e.target.value) || 0;
+                      const discount = parseFloat(v) || 0;
                       const newRemaining = (selectedOrder.pendingAmount || 0) - discount;
                       if (newRemaining >= 0) {
                         setPaymentAmount(newRemaining.toFixed(2));
                       }
                     }}
                     placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    max={selectedOrder.pendingAmount}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
@@ -544,14 +541,10 @@ export default function PendingPaymentsTab({
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
                     {symbol}
                   </span>
-                  <input
-                    type="number"
+                  <MoneyInput
                     value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    onValue={setPaymentAmount}
                     placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    max={(selectedOrder.pendingAmount || 0) - (parseFloat(discountAmount) || 0)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                 </div>

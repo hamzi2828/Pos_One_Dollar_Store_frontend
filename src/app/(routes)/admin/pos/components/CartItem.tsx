@@ -9,6 +9,7 @@ import { CartItem as CartItemType, QuoteLine } from '../types';
 import { Minus, Plus, X, Edit2, Check, Gift, Info, MapPin, Undo2 } from 'lucide-react';
 import { getColorThumbnail, getProductThumbnail } from '../utils/imageHelper';
 import { getCurrencySymbol } from '../utils/currency';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 const GIFT_REASONS = ['Loyal customer', 'Kids gift', 'Eid / festival', 'Sorry for the wait'];
 
@@ -186,10 +187,9 @@ export default function CartItem({
               {isEditingPrice ? (
                 <div className="flex items-center gap-1 justify-end mt-1">
                   <span className="text-xs text-gray-500">{symbol}</span>
-                  <input
-                    type="number"
+                  <MoneyInput
                     value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
+                    onValue={setEditPrice}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handlePriceEdit();
                       if (e.key === 'Escape') {
@@ -198,8 +198,6 @@ export default function CartItem({
                       }
                     }}
                     className="w-16 text-xs border rounded px-1 py-0.5 text-right"
-                    min={minPrice}
-                    step="0.01"
                     autoFocus
                   />
                   <button type="button" onClick={handlePriceEdit} className="text-green-600 hover:text-green-700" aria-label="Save price">

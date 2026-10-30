@@ -9,6 +9,7 @@ import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { STATUS_LABEL, STATUS_STYLE, assetApi, fileUrl, type Asset } from '../services/assetApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 type Panel = null | 'maintenance' | 'dispose';
 
@@ -257,7 +258,7 @@ export default function AssetDetailModal({
                 <input type="date" value={m.date} onChange={(e) => setM({ ...m, date: e.target.value })} className={inputClass} />
               </Field>
               <Field label="Cost (Rs)">
-                <input type="number" min={0} value={m.cost} onChange={(e) => setM({ ...m, cost: e.target.value })} className={inputClass} />
+                <MoneyInput value={m.cost} onValue={(v) => setM({ ...m, cost: v })} className={inputClass} />
               </Field>
               <div className="col-span-2">
                 <Field label="Status after">
@@ -299,7 +300,7 @@ export default function AssetDetailModal({
                 <input type="date" value={d.date} onChange={(e) => setD({ ...d, date: e.target.value })} className={inputClass} />
               </Field>
               <Field label={d.type === 'sold' ? 'Sold for (Rs)' : 'Money received (Rs)'}>
-                <input type="number" min={0} value={d.amount} onChange={(e) => setD({ ...d, amount: e.target.value })} placeholder="0" className={inputClass} />
+                <MoneyInput value={d.amount} onValue={(v) => setD({ ...d, amount: v })} placeholder="0" className={inputClass} />
               </Field>
             </div>
             <Field label="Note">

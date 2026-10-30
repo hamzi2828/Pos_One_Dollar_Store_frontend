@@ -21,6 +21,7 @@ import type { ProductUI } from '@/app/(routes)/admin/products/services/productSe
 import { SameReceiverNote, marginPct, r2 } from './bits';
 import { STICKER_SIZES, printTags, saveTagSize, type StickerSize } from './tags';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 /** Boxes of a bill that arrived (or were expected when not counted). */
 const boxCountOf = (grn: GoodsReceipt, billId: string) => {
@@ -706,14 +707,10 @@ function EntryForm({
         </Field>
 
         <Field label={pps > 1 ? `Cost price per sale (${pps} pieces) (Rs)` : 'Cost price per piece (Rs)'} hint={unit.lastCost ? `Last cost ${formatRs(unit.lastCost, { decimals: 2 })}` : undefined}>
-          <input
+          <MoneyInput
             ref={costRef}
-            type="number"
-            min={0}
-            step="any"
-            inputMode="decimal"
             value={cost}
-            onChange={(e) => setCost(e.target.value)}
+            onValue={setCost}
             onFocus={(e) => e.currentTarget.select()}
             onKeyDown={(e) => e.key === 'Enter' && save()}
             className={`${inputClass} !h-12 !text-lg font-semibold`}

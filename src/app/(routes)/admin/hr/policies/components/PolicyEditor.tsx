@@ -10,6 +10,7 @@ import { apiErrorMessage } from '@/lib/storeApi';
 import { ErrorBox, Field, Modal, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { EXAMPLE_DAY_HOURS, exampleLines, policyApi, summaryParts, type FieldLimit, type Policy, type PolicyInput, type PolicyRules } from '../services/policyApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 type Obj = Record<string, unknown>;
 const getAt = (o: unknown, path: string): unknown => path.split('.').reduce<unknown>((x, k) => (x && typeof x === 'object' ? (x as Obj)[k] : undefined), o);
@@ -86,17 +87,26 @@ export default function PolicyEditor({
     return (
       <Field label={label} hint={opts.hint}>
         <div className="relative">
-          <input
-            type="number"
-            inputMode="decimal"
-            min={lim.min}
-            max={lim.max}
-            step={opts.step ?? (lim.decimal ? 0.5 : 1)}
-            value={Number.isFinite(v) ? v : ''}
-            onChange={(e) => set(path, e.target.value === '' ? NaN : Number(e.target.value))}
-            disabled={off}
-            className={`${inputClass} ${opts.suffix ? 'pr-16' : ''}`}
-          />
+          {opts.suffix === 'Rs' ? (
+            <MoneyInput
+              value={Number.isFinite(v) ? v : ''}
+              onValue={(s) => set(path, s === '' ? NaN : Number(s))}
+              disabled={off}
+              className={`${inputClass} pr-16`}
+            />
+          ) : (
+            <input
+              type="number"
+              inputMode="decimal"
+              min={lim.min}
+              max={lim.max}
+              step={opts.step ?? (lim.decimal ? 0.5 : 1)}
+              value={Number.isFinite(v) ? v : ''}
+              onChange={(e) => set(path, e.target.value === '' ? NaN : Number(e.target.value))}
+              disabled={off}
+              className={`${inputClass} ${opts.suffix ? 'pr-16' : ''}`}
+            />
+          )}
           {opts.suffix && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">{opts.suffix}</span>}
         </div>
       </Field>
@@ -186,13 +196,9 @@ export default function PolicyEditor({
               <span className="font-semibold text-gray-900">On</span>
               <span className="inline-flex items-center gap-1">
                 Rs
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1000}
+                <MoneyInput
                   value={salary || ''}
-                  onChange={(e) => setSalary(Number(e.target.value))}
+                  onValue={(s) => setSalary(Number(s))}
                   className="w-24 rounded border border-honey-300 bg-white px-1.5 py-0.5 text-xs text-gray-900"
                   aria-label="Example monthly salary"
                 />

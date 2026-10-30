@@ -11,6 +11,7 @@ import { apiErrorMessage } from '@/helper/access';
 import { formatRs } from '@/lib/storeApi';
 import VendorPicker from '@/components/store/VendorPicker';
 import { Modal, Field, ErrorBox, HelpBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { vendorApi, RETURN_REASONS, type LookupProduct, type LookupUnit, type ReturnReason, type VendorReturn } from '../services/vendorApi';
 import ProductSearch from './ProductSearch';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -289,11 +290,10 @@ export default function ReturnFormModal({
                     </label>
                     <label className="text-[11px] text-gray-500">
                       Price / pc
-                      <input
+                      <MoneyInput
                         value={l.unitCost}
-                        onChange={(e) => update(l.key, { unitCost: e.target.value.replace(/[^0-9.]/g, ''), costTouched: true })}
+                        onValue={(v) => update(l.key, { unitCost: v, costTouched: true })}
                         className={inputClass}
-                        inputMode="decimal"
                       />
                       <span className="block text-[10px] text-gray-400 truncate">
                         {COST_SOURCE[l.costSource]}: {formatRs(l.defaultCost)}

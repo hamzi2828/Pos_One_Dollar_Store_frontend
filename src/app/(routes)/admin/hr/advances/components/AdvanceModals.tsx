@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Ban, CheckCircle2, HandCoins, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { ErrorBox, Field, Modal, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
+import MoneyInput from '@/components/ui/MoneyInput';
 import {
   METHODS,
   METHOD_LABEL,
@@ -106,7 +107,7 @@ export function GiveAdvanceModal({ onClose, onDone }: { onClose: () => void; onD
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Amount (Rs)" required>
-            <input type="number" inputMode="numeric" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} placeholder="e.g. 10000" />
+            <MoneyInput value={amount} onValue={setAmount} className={inputClass} placeholder="e.g. 10000" />
           </Field>
           <Field label="Installments (months)" required>
             <input type="number" inputMode="numeric" min={1} max={24} value={installments} onChange={(e) => setInstallments(e.target.value)} className={inputClass} />
@@ -187,7 +188,7 @@ export function AddDeductionModal({ canApprove, onClose, onDone }: { canApprove:
             </SearchSelect>
           </Field>
           <Field label="Amount (Rs)" required>
-            <input type="number" inputMode="numeric" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} />
+            <MoneyInput value={amount} onValue={setAmount} className={inputClass} />
           </Field>
         </div>
         <Field label="Date" required hint="Payroll of this month (or later) cuts it.">
@@ -229,7 +230,7 @@ export function ApproveDeductionModal({ deduction, onClose, onDone }: { deductio
       <div className="space-y-4">
         {deduction.note && <p className="text-sm text-gray-700">{deduction.note}</p>}
         <Field label="Amount to cut (Rs)" hint={`Full amount ${formatRs(deduction.amount)}. Write less to cut only part of it.`}>
-          <input type="number" inputMode="numeric" min={1} max={Math.round(deduction.amount)} value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} autoFocus />
+          <MoneyInput value={amount} onValue={setAmount} className={inputClass} autoFocus />
         </Field>
         <ErrorBox message={error} />
       </div>

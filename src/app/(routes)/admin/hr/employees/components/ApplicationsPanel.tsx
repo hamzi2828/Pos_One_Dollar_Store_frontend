@@ -10,6 +10,7 @@ import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate } from '@/lib/storeApi';
 import { ErrorBox, Field, LoadingCard, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { Tabs, isPdf, todayInput } from '../../../purchasing/_shared/ui';
 import { Avatar, InfoRow, Pager } from './EmployeeBits';
 import { EMPLOYMENT_LABEL, fileUrl, type EmploymentType } from '../services/employeeApi';
@@ -338,13 +339,9 @@ function ApplicationModal({ initial, onClose, onChanged }: { initial: EmployeeAp
                 <input type="date" value={job.joiningDate} onChange={(e) => setJob({ ...job, joiningDate: e.target.value })} className={inputClass} />
               </Field>
               <Field label={job.payType === 'daily' ? 'Salary per day (Rs)' : 'Salary per month (Rs)'}>
-                <input
-                  type="number"
-                  min={0}
-                  step="1"
-                  inputMode="numeric"
+                <MoneyInput
                   value={job.salary}
-                  onChange={(e) => setJob({ ...job, salary: e.target.value })}
+                  onValue={(v) => setJob({ ...job, salary: v })}
                   className={inputClass}
                   placeholder="e.g. 30000"
                 />

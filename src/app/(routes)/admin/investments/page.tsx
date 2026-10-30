@@ -15,6 +15,7 @@ import { ErrorBox, Field, Modal, NoAccessCard, inputClass, primaryBtn, secondary
 import { Chips } from '../purchasing/_shared/ui';
 import { TRACK } from '../adminComponents/charts';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { buildInvestmentPdf, partnerColor } from './investmentPdf';
 
 interface PartnerRef {
@@ -775,13 +776,9 @@ function PaymentsModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Amount paid (Rs)" required>
                 <div className="flex gap-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="any"
+                  <MoneyInput
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onValue={setAmount}
                     placeholder="0"
                     className={`${inputClass} text-base font-semibold`}
                     autoFocus
@@ -825,13 +822,9 @@ function PaymentsModal({
                   <li key={p._id} className="space-y-2 bg-honey-50/40 px-3 py-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Field label={`Payment ${i + 1}: amount (Rs)`} required>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          step="any"
+                        <MoneyInput
                           value={edit.amount}
-                          onChange={(e) => setEdit({ ...edit, amount: e.target.value })}
+                          onValue={(v) => setEdit({ ...edit, amount: v })}
                           className={inputClass}
                           autoFocus
                         />
@@ -1100,7 +1093,7 @@ function InvestmentForm({
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Bill total (Rs)" required>
-            <input type="number" inputMode="decimal" min={1} step="any" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className={`${inputClass} text-base font-semibold`} />
+            <MoneyInput value={amount} onValue={setAmount} placeholder="0" className={`${inputClass} text-base font-semibold`} />
           </Field>
           <Field label="Date">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
@@ -1123,7 +1116,7 @@ function InvestmentForm({
                   label={row ? 'Paid (Rs)' : 'Paid now (Rs)'}
                   hint="Money paid on this bill so far. 0 = nothing paid yet. Pay the rest later with the Pay button."
                 >
-                  <input type="number" inputMode="decimal" min={0} step="any" value={paidNow} onChange={(e) => setPaidNow(e.target.value)} placeholder="0" className={inputClass} autoFocus={!row} />
+                  <MoneyInput value={paidNow} onValue={setPaidNow} placeholder="0" className={inputClass} autoFocus={!row} />
                 </Field>
               )}
             </>

@@ -26,6 +26,7 @@ import {
 } from "./packaging/packagingUtils";
 import PriceTierSelect, { syncProductTier, type TierChoice } from "../price-tiers/components/PriceTierSelect";
 import { SearchSelect } from "@/components/ui/SearchSelect";
+import NumberMoneyInput from "./NumberMoneyInput";
 
 // Product as loaded for editing (fields not shown in the list type)
 interface ExtendedProduct extends Product {
@@ -1135,18 +1136,12 @@ export default function ProductForm({
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
+                      <NumberMoneyInput
                         placeholder="0.00"
                         disabled={packaging.soldAs === "box"}
                         className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-900'}`}
-                        value={form.costPrice ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setField("costPrice", val === "" ? undefined : Number(val));
-                        }}
+                        value={form.costPrice}
+                        onNumber={(n) => setField("costPrice", n)}
                       />
                     </div>
                     {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
@@ -1160,10 +1155,7 @@ export default function ProductForm({
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                    <NumberMoneyInput
                       disabled={isVariant || packaging.soldAs === "box" || !!priceTier}
                       placeholder="0.00"
                       className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm ${
@@ -1171,12 +1163,8 @@ export default function ProductForm({
                           ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-300'
                           : errors.discountedPrice ? 'border-red-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900' : 'border-gray-300 text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
                       }`}
-                      value={isVariant ? "" : (form.discountedPrice ?? "")}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const n = val === "" ? undefined : Number(val);
-                        setForm((prev) => ({ ...prev, discountedPrice: n, price: n ?? 0 }));
-                      }}
+                      value={isVariant ? undefined : form.discountedPrice}
+                      onNumber={(n) => setForm((prev) => ({ ...prev, discountedPrice: n, price: n ?? 0 }))}
                     />
                   </div>
                   {errors.discountedPrice && <p className="mt-1 text-sm text-red-600">{errors.discountedPrice}</p>}
@@ -1809,29 +1797,23 @@ export default function ProductForm({
                                 <span className="text-xs font-mono text-gray-500">{variant.sku || "Auto"}</span>
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
+                                <NumberMoneyInput
                                   placeholder="0.00"
-                                  value={(variant as any).costPrice ?? ""}
-                                  onChange={(e) => {
+                                  value={(variant as any).costPrice}
+                                  onNumber={(n) => {
                                     const newVariants = [...(form.variants as ProductVariant[] || [])];
-                                    newVariants[index] = { ...variant, costPrice: e.target.value ? Number(e.target.value) : undefined } as ProductVariant;
+                                    newVariants[index] = { ...variant, costPrice: n } as ProductVariant;
                                     setField("variants", newVariants);
                                   }}
                                   className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                                 />
                               </td>
                               <td className="px-3 py-3 whitespace-nowrap">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={variant.discountedPrice || ""}
-                                  onChange={(e) => {
+                                <NumberMoneyInput
+                                  value={variant.discountedPrice || undefined}
+                                  onNumber={(n) => {
                                     const newVariants = [...(form.variants as ProductVariant[] || [])];
-                                    const newDiscountedPrice = e.target.value ? Number(e.target.value) : undefined;
+                                    const newDiscountedPrice = n;
                                     newVariants[index] = { ...variant, discountedPrice: newDiscountedPrice, price: newDiscountedPrice ?? 0 };
                                     setField("variants", newVariants);
                                   }}

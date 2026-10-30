@@ -19,6 +19,7 @@ import {
   type DepMethod,
 } from '../services/assetApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 type EmployeeOption = { _id: string; name: string; employeeCode?: string; designation?: string };
 
@@ -216,7 +217,7 @@ export default function AssetFormModal({
               <input type="number" min={1} step={1} inputMode="numeric" {...bind('quantity')} />
             </Field>
             <Field label="Price per unit (Rs)" required>
-              <input type="number" min={0} inputMode="decimal" {...bind('purchasePrice')} placeholder="0" />
+              <MoneyInput value={f.purchasePrice} onValue={(v) => set('purchasePrice', v)} className={inputClass} placeholder="0" />
             </Field>
             <Field label="Purchase date" required>
               <input type="date" {...bind('purchaseDate')} />
@@ -238,7 +239,7 @@ export default function AssetFormModal({
               <input type="number" min={0} max={100} step="0.5" {...bind('usefulLifeYears')} placeholder={cat ? String(cat.usefulLifeYears) : ''} disabled={method === 'none'} />
             </Field>
             <Field label="Salvage value per unit (Rs)" hint="Expected resale value at the end">
-              <input type="number" min={0} {...bind('salvageValue')} placeholder="0" disabled={method === 'none'} />
+              <MoneyInput value={f.salvageValue} onValue={(v) => set('salvageValue', v)} className={inputClass} placeholder="0" disabled={method === 'none'} />
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-2 rounded-lg bg-honey-50 border border-honey-100 px-3 py-2 text-center">

@@ -7,6 +7,7 @@ import React, { useRef, useState } from 'react';
 import { Truck, Loader2, Check } from 'lucide-react';
 import { apiErrorMessage } from '@/helper/access';
 import { Modal, Field, Toggle, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import MoneyInput from '@/components/ui/MoneyInput';
 import { vendorApi, pkToday, type Vendor, type VendorDetail, type VendorPayload } from '../services/vendorApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
@@ -181,7 +182,7 @@ export default function VendorFormModal({
               <p className="text-xs font-semibold text-gray-700">Opening balance (from before this system)</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-2 gap-3">
                 <Field label="Amount (Rs)">
-                  <input value={f.openingAmount} onChange={(e) => set('openingAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} inputMode="decimal" placeholder="0" />
+                  <MoneyInput value={f.openingAmount} onValue={(v) => set('openingAmount', v)} className={inputClass} placeholder="0" />
                 </Field>
                 <Field label="Who owes">
                   <SearchSelect value={f.openingSide} onChange={(e) => set('openingSide', e.target.value as 'payable' | 'receivable')} className={inputClass}>

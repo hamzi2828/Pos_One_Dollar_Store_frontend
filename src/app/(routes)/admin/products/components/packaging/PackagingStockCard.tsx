@@ -1,6 +1,8 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { Info, Layers, LayoutGrid, Package, Plus, Trash2 } from "lucide-react";
+import MoneyInput, { toPlain } from "@/components/ui/MoneyInput";
+import NumberMoneyInput from "../NumberMoneyInput";
 import {
   type PackagingState,
   type SoldAs,
@@ -55,7 +57,7 @@ export default function PackagingStockCard({
   priceErrors = {},
   hideStock = false,
 }: PackagingStockCardProps) {
-  const toNum = (v: string) => (v === "" ? undefined : Number(v));
+  const toNum = (v: string) => (v === "" || !Number.isFinite(Number(v)) ? undefined : Number(v));
   const round2 = (n: number) => Math.round(n * 100) / 100;
   // Cost keeps 4 decimals (1600 / 6 = 266.6667) so the box/pack adds back up exactly.
   const round4 = (n: number) => Math.round(n * 10000) / 10000;
@@ -244,35 +246,29 @@ export default function PackagingStockCard({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {pps > 1 ? `Cost price per sale (${pps} pieces)` : "Cost price per piece"} ({currencySymbol}) <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
+                <NumberMoneyInput
                   placeholder="0.00"
                   className={inputClass(!!priceErrors.costPrice)}
-                  value={costPrice ?? ""}
-                  onChange={(e) => {
+                  value={costPrice}
+                  onNumber={(n) => {
                     setBoxCost(null);
-                    onPricesChange({ salePrice, costPrice: toNum(e.target.value) });
+                    onPricesChange({ salePrice, costPrice: n });
                   }}
                 />
                 {priceErrors.costPrice && <p className="mt-1 text-xs text-red-600">{priceErrors.costPrice}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">One full box/pack: cost price ({currencySymbol})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <MoneyInput
                   placeholder={ppb > 1 ? "What the whole box/pack cost" : "Enter pieces in one box/pack first"}
                   disabled={ppb < 2}
                   className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
                   value={boxCostText ?? (ppb > 1 ? (boxCost !== null ? String(boxCost) : costPrice ? String(round2(costPrice * ppb)) : "") : "")}
-                  onFocus={(e) => setBoxCostText(e.target.value)}
+                  onFocus={(e) => setBoxCostText(toPlain(e.target.value))}
                   onBlur={() => setBoxCostText(null)}
-                  onChange={(e) => {
-                    setBoxCostText(e.target.value);
-                    const box = toNum(e.target.value);
+                  onValue={(plain) => {
+                    setBoxCostText(plain);
+                    const box = toNum(plain);
                     setBoxCost(box === undefined ? null : box);
                     if (ppb > 1) onPricesChange({ salePrice, costPrice: box === undefined ? undefined : round4(box / ppb) });
                   }}
@@ -285,35 +281,29 @@ export default function PackagingStockCard({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {pps > 1 ? `One sale price (${pps} pieces)` : "Sale price per piece"} ({currencySymbol}) <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <NumberMoneyInput
                   placeholder="0.00"
                   className={inputClass(!!priceErrors.salePrice)}
-                  value={salePrice ?? ""}
-                  onChange={(e) => {
+                  value={salePrice}
+                  onNumber={(n) => {
                     setBoxSale(null);
-                    onPricesChange({ salePrice: toNum(e.target.value), costPrice });
+                    onPricesChange({ salePrice: n, costPrice });
                   }}
                 />
                 {priceErrors.salePrice && <p className="mt-1 text-xs text-red-600">{priceErrors.salePrice}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">One full box/pack: sale price ({currencySymbol})</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <MoneyInput
                   placeholder={ppb > 1 ? "Price of the whole box/pack" : "Enter pieces in one box/pack first"}
                   disabled={ppb < 2}
                   className={`${inputClass(false)} disabled:bg-gray-50 disabled:text-gray-400`}
                   value={boxSaleText ?? (ppb > 1 ? (boxSale !== null ? String(boxSale) : salePrice ? String(round2(salePrice * ppb)) : "") : "")}
-                  onFocus={(e) => setBoxSaleText(e.target.value)}
+                  onFocus={(e) => setBoxSaleText(toPlain(e.target.value))}
                   onBlur={() => setBoxSaleText(null)}
-                  onChange={(e) => {
-                    setBoxSaleText(e.target.value);
-                    const box = toNum(e.target.value);
+                  onValue={(plain) => {
+                    setBoxSaleText(plain);
+                    const box = toNum(plain);
                     setBoxSale(box === undefined ? null : box);
                     if (ppb > 1) onPricesChange({ salePrice: box === undefined ? undefined : round2(box / ppb), costPrice });
                   }}

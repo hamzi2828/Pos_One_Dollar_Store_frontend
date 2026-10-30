@@ -10,6 +10,7 @@ import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Percent, X,
 import { getCurrencySymbol } from '../utils/currency';
 import type { QuoteError } from '../hooks/useCartQuote';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 interface CartPanelProps {
   cart: POSCart;
@@ -295,13 +296,11 @@ export default function CartPanel({
                         <option value="fixed">Fixed ({symbol})</option>
                         <option value="percentage">Percent (%)</option>
                       </SearchSelect>
-                      <input
-                        type="number"
-                        min="0"
+                      <MoneyInput
                         placeholder="0"
                         value={discountValue}
-                        onChange={(e) => {
-                          setDiscountValue(e.target.value);
+                        onValue={(v) => {
+                          setDiscountValue(v);
                           setDiscountError(null);
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && applyDiscount()}
