@@ -134,7 +134,7 @@ export default function ReceiveGoodsPage() {
             <GRNStatusBadge status={grn.status} />
           </div>
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
-            {vendors.join(', ') || '—'} · bought by {grn.buyerName || '—'}
+            {vendors.length > 3 ? `${vendors.length} vendors` : vendors.join(', ') || '—'} · bought by {grn.buyerName || '—'}
             {grn.receiverName && ` · receiving: ${grn.receiverName}`}
             {can('purchase_orders', 'view') && grn.purchaseOrder?._id && (
               <>
