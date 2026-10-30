@@ -23,13 +23,9 @@ export default function VendorFormModal({
   const [f, setF] = useState({
     name: vendor?.name ?? '',
     code: vendor?.code ?? '',
-    contactPerson: vendor?.contactPerson ?? '',
     phone: vendor?.phone ?? '',
-    whatsapp: vendor?.whatsapp ?? '',
     email: vendor?.email ?? '',
-    city: vendor?.city ?? '',
     street: vendor?.address?.street ?? '',
-    cnic: vendor?.cnic ?? '',
     ntn: vendor?.ntn ?? '',
     categories: (vendor?.categories ?? []).join(', '),
     paymentTermsDays: String(vendor?.paymentTermsDays ?? 0),
@@ -62,13 +58,10 @@ export default function VendorFormModal({
     const payload: VendorPayload = {
       name: f.name.trim(),
       code: f.code.trim() || undefined,
-      contactPerson: f.contactPerson.trim(),
+      // Contact person, WhatsApp, city and CNIC are no longer asked (owner, 2026-10-30); old values stay saved.
       phone: f.phone.trim(),
-      whatsapp: f.whatsapp.trim(),
       email: f.email.trim(),
-      city: f.city.trim(),
       address: { street: f.street.trim() },
-      cnic: f.cnic.trim(),
       ntn: f.ntn.trim(),
       categories: f.categories
         .split(',')
@@ -136,37 +129,19 @@ export default function VendorFormModal({
             </Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="Contact person">
-              <input value={f.contactPerson} onChange={(e) => set('contactPerson', e.target.value)} className={inputClass} />
-            </Field>
             <Field label="Phone">
               <input value={f.phone} onChange={(e) => set('phone', e.target.value)} className={inputClass} placeholder="03xx xxxxxxx" inputMode="tel" />
-            </Field>
-            <Field label="WhatsApp">
-              <input value={f.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} className={inputClass} placeholder="03xx xxxxxxx" inputMode="tel" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="City">
-              <input value={f.city} onChange={(e) => set('city', e.target.value)} className={inputClass} placeholder="e.g. Lahore" />
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="Address">
-                <input value={f.street} onChange={(e) => set('street', e.target.value)} className={inputClass} placeholder="Shop / market address" />
-              </Field>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="CNIC">
-              <input value={f.cnic} onChange={(e) => set('cnic', e.target.value)} className={inputClass} placeholder="xxxxx-xxxxxxx-x" />
-            </Field>
-            <Field label="NTN">
-              <input value={f.ntn} onChange={(e) => set('ntn', e.target.value)} className={inputClass} />
             </Field>
             <Field label="Email">
               <input value={f.email} onChange={(e) => set('email', e.target.value)} className={inputClass} type="email" />
             </Field>
+            <Field label="NTN">
+              <input value={f.ntn} onChange={(e) => set('ntn', e.target.value)} className={inputClass} />
+            </Field>
           </div>
+          <Field label="Address">
+            <input value={f.street} onChange={(e) => set('street', e.target.value)} className={inputClass} placeholder="Shop / market address" />
+          </Field>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
               <Field label="Categories supplied" hint="Comma separated, e.g. Kitchen, Toys, Crockery">
