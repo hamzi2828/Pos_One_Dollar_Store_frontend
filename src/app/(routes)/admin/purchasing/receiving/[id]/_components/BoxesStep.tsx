@@ -1,9 +1,10 @@
 'use client';
 
-// Step 1 — Check boxes: per vendor "expected N boxes", type how many came.
+// Step 1 — Check boxes: one card per vendor (open one at a time) with its
+// bill photos and "expected N boxes/packs"; type how many came.
 import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, CheckCircle2, Loader2, PackageCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Loader2, PackageCheck } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { ErrorBox, Field, inputClass, primaryBtn } from '@/components/admin/FormBits';
 import { apiErrorCode, purchasingApi, toNum } from '../../../_shared/purchasingApi';
@@ -34,11 +35,13 @@ export default function BoxesStep({
   const [error, setError] = useState<string | null>(null);
   const [sameReceiver, setSameReceiver] = useState(false);
   const lock = useRef(false);
+  // Open vendor card (one at a time); '' = all closed.
+  const [openBill, setOpenBill] = useState<string>(() => boxes[0]?.bill || '');
 
   const expected = boxes.reduce((s, b) => s + (b.expected || 0), 0);
   const received = boxes.reduce((s, b) => s + toNum(counts[b.bill]), 0);
   const diff = received - expected;
-  const billPhotos = (grn.purchaseOrder.bills || []).flatMap((b) => b.photos || []);
+  const photosOf = (billId: string) => (grn.purchaseOrder.bills || []).find((x) => x._id === billId)?.photos || [];
 
   const submit = async () => {
     if (lock.current || !editable) return;
@@ -77,27 +80,57 @@ export default function BoxesStep({
         actions={<span className="text-xs text-gray-500">{expected} expected</span>}
       >
         <p className="text-xs text-gray-500 mb-3">Count the boxes/packs from each vendor. Change the number if some are missing.</p>
-        <ul className="space-y-3">
-          {boxes.map((b) => {
+        <ul className="space-y-2">
+          {boxes.map((b, i) => {
             const n = toNum(counts[b.bill]);
             const off = n !== b.expected;
+            const isOpen = openBill === b.bill;
+            const photos = photosOf(b.bill);
+            const next = boxes[i + 1];
             return (
-              <li key={b.bill} className={`rounded-lg border p-3 ${off ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200'}`}>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{b.vendorName}</p>
-                    <p className="text-[11px] text-gray-500">{b.billNo ? `Bill ${b.billNo} · ` : ''}Expected {b.expected} box{b.expected === 1 ? '' : 'es'}/pack{b.expected === 1 ? '' : 's'}</p>
-                  </div>
+              <li key={b.bill} className={`rounded-lg border bg-white ${isOpen ? 'border-honey-400 ring-2 ring-honey-500/20' : off ? 'border-amber-300' : 'border-gray-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => setOpenBill(isOpen ? '' : b.bill)}
+                  aria-expanded={isOpen}
+                  className="w-full text-left px-3 py-2.5 flex items-center gap-2"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-gray-900 truncate">{b.vendorName}</span>
+                    <span className="block text-[11px] text-gray-500">
+                      {b.billNo ? `Bill ${b.billNo} · ` : ''}Expected {b.expected} box{b.expected === 1 ? '' : 'es'}/pack{b.expected === 1 ? '' : 's'}
+                      {photos.length > 0 && ` · ${photos.length} bill file${photos.length === 1 ? '' : 's'}`}
+                    </span>
+                  </span>
                   {!off ? (
                     <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
                   ) : (
                     <span className="text-xs font-semibold text-amber-700 whitespace-nowrap">{n - b.expected > 0 ? `+${n - b.expected}` : n - b.expected}</span>
                   )}
-                </div>
-                {editable ? (
-                  <NumberStepper value={counts[b.bill] ?? ''} onChange={(v) => setCounts((c) => ({ ...c, [b.bill]: v }))} min={0} label={`boxes/packs from ${b.vendorName}`} disabled={busy} />
-                ) : (
-                  <p className="text-lg font-semibold text-gray-900">{checked ? b.received : '—'} came</p>
+                  <ChevronDown className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isOpen && (
+                  <div className="border-t border-gray-100 px-3 py-3 space-y-3">
+                    {photos.length > 0 && (
+                      <div>
+                        <p className="text-[11px] text-gray-500 mb-1">Bill photos / PDFs of {b.vendorName}</p>
+                        <PhotoStrip photos={photos} />
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">How many boxes/packs came from {b.vendorName}?</p>
+                      {editable ? (
+                        <NumberStepper value={counts[b.bill] ?? ''} onChange={(v) => setCounts((c) => ({ ...c, [b.bill]: v }))} min={0} label={`boxes/packs from ${b.vendorName}`} disabled={busy} />
+                      ) : (
+                        <p className="text-lg font-semibold text-gray-900">{checked ? b.received : '—'} came</p>
+                      )}
+                    </div>
+                    {next && (
+                      <button type="button" onClick={() => setOpenBill(next.bill)} className="inline-flex items-center gap-1 text-xs font-medium text-honey-800 hover:underline">
+                        Next vendor: {next.vendorName} <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 )}
               </li>
             );
@@ -141,8 +174,8 @@ export default function BoxesStep({
         {mayEdit && hasEntries && <p className="mt-3 text-[11px] text-gray-500">Goods are already being entered, so the box/pack count can no longer be changed.</p>}
       </Card>
 
-      {(grn.builty?.builtyNo || grn.builty?.transporter || (grn.builty?.photos || []).length > 0 || billPhotos.length > 0) && (
-        <Card title="Papers">
+      {(grn.builty?.builtyNo || grn.builty?.transporter || (grn.builty?.photos || []).length > 0) && (
+        <Card title="Builty">
           <div className="space-y-3 text-xs text-gray-600">
             {(grn.builty?.builtyNo || grn.builty?.transporter) && (
               <p>
@@ -151,12 +184,6 @@ export default function BoxesStep({
               </p>
             )}
             <PhotoStrip photos={grn.builty?.photos || []} />
-            {billPhotos.length > 0 && (
-              <div>
-                <p className="text-[11px] text-gray-500 mb-1">Vendor bill photos / PDFs</p>
-                <PhotoStrip photos={billPhotos} />
-              </div>
-            )}
           </div>
         </Card>
       )}
