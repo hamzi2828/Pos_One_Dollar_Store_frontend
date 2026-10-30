@@ -18,7 +18,7 @@ import { purchasingApi } from '../../_shared/purchasingApi';
 import { GRNStatusBadge, StepStrip } from '../../_shared/ui';
 import type { GoodsReceipt } from '../../_shared/types';
 import OldCounting from './_components/OldCounting';
-import BoxesStep from './_components/BoxesStep';
+import BoxesStep, { firstUncheckedBill } from './_components/BoxesStep';
 import UnpackStep from './_components/UnpackStep';
 import FinishStep, { DoneView } from './_components/FinishStep';
 import { loadTagSize, type StickerSize } from './_components/tags';
@@ -55,7 +55,8 @@ export default function ReceiveGoodsPage() {
     try {
       const g = await purchasingApi.grnGet(id);
       setGrn(g);
-      setView((v) => (v === null ? reachedStep(g) : v));
+      // Open on step 1 while some vendor's boxes/packs are not checked yet.
+      setView((v) => (v === null ? (firstUncheckedBill(g) ? 0 : reachedStep(g)) : v));
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not load this trip.'));
     } finally {
@@ -162,14 +163,16 @@ export default function ReceiveGoodsPage() {
           <DoneView grn={grn} />
         ) : cancelled ? null : current === 0 ? (
           <BoxesStep
-            key={`${grn._id}-${grn.boxesCheckedAt || 'new'}`}
+            key={`${grn._id}-${startBill || ''}`}
             grn={grn}
             mayEdit={mayEdit}
+            startBill={startBill}
             onSaved={(g, bill) => {
               setGrn(g);
               setStartBill(bill);
               setView(1);
-              toast.success('Boxes/packs checked. Now unpack and enter the goods.');
+              const name = (g.boxes || []).find((b) => b.bill === bill)?.vendorName || 'this vendor';
+              toast.success(`Boxes/packs checked. Now unpack ${name}.`);
             }}
             onGo={(bill) => {
               setStartBill(bill);
@@ -186,6 +189,10 @@ export default function ReceiveGoodsPage() {
             onReload={reload}
             onFinish={() => setView(2)}
             startBill={startBill}
+            onCheckNext={(bill) => {
+              setStartBill(bill);
+              setView(0);
+            }}
           />
         ) : (
           <FinishStep

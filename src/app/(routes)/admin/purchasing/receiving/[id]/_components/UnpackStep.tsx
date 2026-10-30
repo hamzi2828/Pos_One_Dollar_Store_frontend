@@ -19,6 +19,7 @@ import QuickProductModal from './QuickProductModal';
 import FullProductModal from './FullProductModal';
 import type { ProductUI } from '@/app/(routes)/admin/products/services/productService';
 import { SameReceiverNote, marginPct, r2 } from './bits';
+import { firstUncheckedBill, isBoxChecked } from './BoxesStep';
 import { STICKER_SIZES, printTags, saveTagSize, type StickerSize } from './tags';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
@@ -66,6 +67,7 @@ export default function UnpackStep({
   onReload,
   onFinish,
   startBill,
+  onCheckNext,
 }: {
   grn: GoodsReceipt;
   mayEdit: boolean;
@@ -76,6 +78,8 @@ export default function UnpackStep({
   onFinish: () => void;
   /** Vendor bill to open first (picked in step 1). */
   startBill?: string;
+  /** Back to step 1 to count this vendor's boxes/packs. */
+  onCheckNext?: (bill: string) => void;
 }) {
   const progress = billProgress(grn);
   const [billId, setBillId] = useState<string>(
@@ -237,6 +241,16 @@ export default function UnpackStep({
               </button>
               {isOpen && (
                 <div className="border-t border-gray-100 p-3 sm:p-4 space-y-4 bg-gray-50/40">
+              {onCheckNext && (grn.boxes || []).some((b) => b.bill === bill.bill && !isBoxChecked(grn, b)) && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <p className="flex items-center gap-1.5 text-xs text-amber-800">
+                    <AlertTriangle className="h-4 w-4" /> Boxes/packs of {bill.vendorName} are not checked yet.
+                  </p>
+                  <button type="button" onClick={() => onCheckNext(bill.bill)} className={`${secondaryBtn} !py-1.5 text-xs`}>
+                    Check boxes/packs first
+                  </button>
+                </div>
+              )}
               {boxCount > 0 && (
                 <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -396,6 +410,24 @@ export default function UnpackStep({
                   <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
                 </div>
               </div>
+
+              {/* Vendor by vendor: when this one is unpacked, go count the next vendor's boxes/packs. */}
+              {onCheckNext &&
+                (() => {
+                  const nextBill = firstUncheckedBill(grn, bill.bill);
+                  if (!nextBill) return null;
+                  const nextName = (grn.boxes || []).find((b) => b.bill === nextBill)?.vendorName || 'next vendor';
+                  return (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-honey-200 bg-honey-50 px-3 py-2.5">
+                      <p className="text-xs text-gray-700">
+                        Done with <strong>{bill.vendorName}</strong>? Check the boxes/packs of the next vendor.
+                      </p>
+                      <button type="button" onClick={() => onCheckNext(nextBill)} className={`${primaryBtn} !py-2 text-sm`}>
+                        Next: check {nextName} <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })()}
 
                 </div>
               )}

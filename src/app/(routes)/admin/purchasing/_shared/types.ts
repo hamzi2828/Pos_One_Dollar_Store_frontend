@@ -363,6 +363,8 @@ export interface GRNBox {
   billNo: string;
   expected: number;
   received: number;
+  /** This vendor's boxes/packs were counted (vendors are checked one by one). */
+  checkedAt?: string | null;
 }
 
 /** One "unpack & enter" row: pieces of one product from one vendor bill, already in the warehouse. */
