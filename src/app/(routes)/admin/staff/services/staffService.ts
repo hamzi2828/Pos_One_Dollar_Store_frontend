@@ -29,7 +29,21 @@ export interface StaffListParams {
   limit?: number;
 }
 
+/** HR employee with no login yet (GET /admin/staff/employees). */
+export interface LoginlessEmployee {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  employeeCode: string | null;
+  position: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
 export interface StaffPayload {
+  /** New login: the HR employee it belongs to (name + phone come from HR). */
+  employeeId?: string;
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -67,6 +81,11 @@ export const staffService = {
       items: response.data?.data ?? [],
       pagination: response.data?.pagination ?? EMPTY_PAGINATION,
     };
+  },
+
+  async employeesWithoutLogin(): Promise<LoginlessEmployee[]> {
+    const response = await axios.get(`${STAFF_URL}/employees`, { headers: headers() });
+    return response.data?.data ?? [];
   },
 
   async create(payload: StaffPayload): Promise<StaffUser> {

@@ -34,7 +34,7 @@ import {
   primaryBtn,
   secondaryBtn,
 } from '@/components/admin/FormBits';
-import { assignableRoles as pickAssignableRoles, staffService, type StaffUser, type StaffPayload } from './services/staffService';
+import { assignableRoles as pickAssignableRoles, staffService, type LoginlessEmployee, type StaffUser, type StaffPayload } from './services/staffService';
 import { roleService } from '../roles/service/roleService';
 import type { Role } from '../roles/rolesStore';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -459,6 +459,35 @@ function StaffFormModal({
   const saveLockRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
+  // New login = for an HR employee (only the owner's super admin login may skip it).
+  const [employees, setEmployees] = useState<LoginlessEmployee[] | null>(null);
+  const [employeeId, setEmployeeId] = useState('');
+  const employee = employees?.find((e) => e.id === employeeId) || null;
+  useEffect(() => {
+    if (isEdit) return;
+    const load = () =>
+      staffService
+        .employeesWithoutLogin()
+        .then(setEmployees)
+        .catch(() => setEmployees((v) => v ?? []));
+    load();
+    // Back from registering an employee in another tab: show them.
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
+  }, [isEdit]);
+
+  const pickEmployee = (id: string) => {
+    setEmployeeId(id);
+    const e = employees?.find((x) => x.id === id);
+    if (!e) return;
+    setFirstName(e.firstName);
+    setLastName(e.lastName);
+    if (e.email) setEmail(e.email);
+    if (e.phone) setPhone(e.phone);
+  };
+  const needsEmployee = !isEdit && !makeSuper;
+  const showNames = isEdit || !employee;
+
   // If the role list arrives after the modal opened, pick a default.
   useEffect(() => {
     if (!roleId && defaultRole && !isEdit) setRoleId(defaultRole);
@@ -466,14 +495,14 @@ function StaffFormModal({
 
   const submit = async () => {
     if (saveLockRef.current) return;
-    if (!firstName.trim() || !lastName.trim()) return setError('Please enter first and last name.');
+    if (needsEmployee && !employee) return setError('Pick the employee. Not in the list? Press + to register them in HR first.');
+    if (!employee && (!firstName.trim() || !lastName.trim())) return setError('Please enter first and last name.');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError('Please enter a valid email.');
     if (!isEdit && password.length < MIN_PASSWORD) return setError(`Password must be at least ${MIN_PASSWORD} characters.`);
     if (!makeSuper && !roleId) return setError('Please choose a role.');
 
     const payload: StaffPayload = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      ...(employee ? { employeeId: employee.id } : { firstName: firstName.trim(), lastName: lastName.trim() }),
       email: email.trim().toLowerCase(),
       phone: phone.trim(),
       isActive,
@@ -510,7 +539,7 @@ function StaffFormModal({
   return (
     <Modal
       title={isEdit ? 'Edit Staff Login' : 'Add Staff Login'}
-      subtitle={isEdit ? user?.email : 'Create a sign-in for a staff member'}
+      subtitle={isEdit ? user?.email : 'Create a sign-in for an employee'}
       icon={<UserCog className="h-5 w-5" />}
       onClose={onClose}
       busy={saving}
@@ -534,14 +563,60 @@ function StaffFormModal({
       >
         <fieldset disabled={saving} className="min-w-0 space-y-4">
         <ErrorBox message={error} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="First name" required>
-            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} autoFocus />
+        {!isEdit && (
+          <Field
+            label="Employee"
+            required={!makeSuper}
+            hint={
+              employees && employees.length === 0
+                ? 'Every employee already has a login. Press + to register a new employee in HR first.'
+                : 'Only registered employees can get a login. Not in the list? Press + to register them in HR.'
+            }
+          >
+            <div className="flex gap-2">
+              <div className="flex-1 min-w-0">
+                <SearchSelect
+                  value={employeeId}
+                  onChange={(e) => pickEmployee(e.target.value)}
+                  disabled={employees === null}
+                  placeholder={employees === null ? 'Loading employees…' : 'Pick the employee'}
+                  searchable
+                  aria-label="Employee"
+                  className={inputClass}
+                >
+                  {makeSuper && <option value="">No employee (owner)</option>}
+                  {(employees || []).map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                      {e.employeeCode ? ` · ${e.employeeCode}` : ''}
+                      {e.position ? ` · ${e.position}` : ''}
+                    </option>
+                  ))}
+                </SearchSelect>
+              </div>
+              <Link
+                href="/admin/hr/employees/new"
+                target="_blank"
+                rel="noopener"
+                title="Register a new employee (opens in a new tab)"
+                aria-label="Register a new employee"
+                className="inline-flex items-center justify-center w-11 flex-shrink-0 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+              >
+                <Plus className="h-5 w-5" />
+              </Link>
+            </div>
           </Field>
-          <Field label="Last name" required>
-            <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
-          </Field>
-        </div>
+        )}
+        {showNames && (isEdit || makeSuper) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="First name" required>
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} autoFocus={isEdit} />
+            </Field>
+            <Field label="Last name" required>
+              <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
+            </Field>
+          </div>
+        )}
         <Field label="Email (used to sign in)" required>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" className={inputClass} autoComplete="off" />
         </Field>
