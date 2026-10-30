@@ -6,7 +6,7 @@
 // tags and stick them on. "Box done" moves on to the next box.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ArrowRight, Box, CheckCircle2, ChevronDown, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Box, CheckCircle2, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -68,6 +68,7 @@ export default function UnpackStep({
   onFinish,
   startBill,
   onCheckNext,
+  onBill,
 }: {
   grn: GoodsReceipt;
   mayEdit: boolean;
@@ -80,13 +81,17 @@ export default function UnpackStep({
   startBill?: string;
   /** Back to step 1 to count this vendor's boxes/packs. */
   onCheckNext?: (bill: string) => void;
+  /** The vendor on screen changed (kept in the URL). */
+  onBill?: (bill: string) => void;
 }) {
-  const progress = billProgress(grn);
+  // Only vendors whose boxes/packs are checked can be unpacked.
+  const checkedBills = new Set((grn.boxes || []).filter((b) => isBoxChecked(grn, b)).map((b) => b.bill));
+  const progress = billProgress(grn).filter((p) => checkedBills.has(p.bill));
+  const notChecked = (grn.boxes || []).length - progress.length;
+  const [search, setSearch] = useState('');
   const [billId, setBillId] = useState<string>(
     () => (progress.find((p) => p.bill === startBill) || progress.find((p) => p.left > 0) || progress[0])?.bill || '',
   );
-  // The open vendor card (one at a time); false = all cards closed.
-  const [open, setOpen] = useState(true);
   const bill = progress.find((p) => p.bill === billId) || progress[0];
   const [unit, setUnit] = useState<ReceivingUnit | null>(null);
   const [presetCost, setPresetCost] = useState<number | null>(null);
@@ -94,13 +99,10 @@ export default function UnpackStep({
   const [presetPieces, setPresetPieces] = useState<number | null>(null);
   const [saved, setSaved] = useState<EntryResult | null>(null);
   const [newProduct, setNewProduct] = useState<string | null>(null);
-  // Came from step 1 with a vendor picked: bring its card into view (after the page's scroll-to-top).
   useEffect(() => {
-    if (!startBill) return;
-    const t = window.setTimeout(() => document.getElementById(`unpack-${startBill}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
-    return () => window.clearTimeout(t);
+    if (bill?.bill) onBill?.(bill.bill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bill?.bill]);
   const [nextCode, setNextCode] = useState('');
   const [shelfNow, setShelfNow] = useState(false);
   const [sameReceiver, setSameReceiver] = useState(false);
@@ -123,7 +125,18 @@ export default function UnpackStep({
 
   const lines = useMemo(() => (grn.lines || []).filter((l) => l.bill === bill?.bill), [grn.lines, bill?.bill]);
 
-  if (!bill) return <p className="text-sm text-gray-500">This receipt has no vendor bills.</p>;
+  if (!bill) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-6 text-center space-y-3">
+        <p className="text-sm text-gray-600">No vendor is checked yet. Check a vendor&apos;s boxes/packs first, then unpack it here.</p>
+        {onCheckNext && (grn.boxes || [])[0] && (
+          <button type="button" onClick={() => onCheckNext(firstUncheckedBill(grn) || (grn.boxes || [])[0].bill)} className={primaryBtn}>
+            Check boxes/packs <ArrowRight className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const boxCount = boxCountOf(grn, bill.bill);
   const doneBoxes = doneBoxesOf(grn, bill.bill);
@@ -182,65 +195,98 @@ export default function UnpackStep({
     <div className="space-y-4">
       {(sameReceiver || !grn.canVerify) && <SameReceiverNote />}
 
-      {/* One card per vendor bill: open one, unpack its boxes/packs, enter its goods. */}
-      <div className="space-y-3">
-        {progress.map((p) => {
-          const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
-          const isOpen = open && p.bill === bill.bill;
-          const pBoxes = boxCountOf(grn, p.bill);
-          const pDone = doneBoxesOf(grn, p.bill).size;
-          const pItems = (grn.entries || []).filter((e) => !e.undone && e.bill === p.bill).length;
-          const status =
-            (pBoxes > 0 && pDone >= pBoxes) || (p.billTotal > 0 && pct >= 100)
-              ? { text: 'Done', cls: 'bg-green-100 text-green-700' }
-              : pItems > 0 || pDone > 0
-                ? { text: 'In progress', cls: 'bg-honey-100 text-honey-800' }
-                : { text: 'Not started', cls: 'bg-gray-100 text-gray-600' };
-          return (
-            <div key={p.bill} id={`unpack-${p.bill}`} className={`scroll-mt-4 rounded-xl border bg-white shadow-sm ${isOpen ? 'border-honey-400 ring-2 ring-honey-500/20' : 'border-gray-200'}`}>
+      {/* Same as step 1: checked vendors on the left, the picked vendor on the right. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-4 items-start">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <PackageOpen className="h-4 w-4 text-honey-700" /> Vendors ({progress.length})
+            </p>
+            <span className="text-xs text-gray-500">checked</span>
+          </div>
+          <div className="p-3">
+            {progress.length > 6 && (
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a vendor..." className={`${inputClass} !py-1.5 mb-2`} />
+            )}
+            <ul className="-mx-1 max-h-[60vh] overflow-y-auto space-y-0.5">
+              {progress
+                .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+                .map((p) => {
+                  const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
+                  const on = p.bill === bill.bill;
+                  const pBoxes = boxCountOf(grn, p.bill);
+                  const pDone = doneBoxesOf(grn, p.bill).size;
+                  const pItems = (grn.entries || []).filter((e) => !e.undone && e.bill === p.bill).length;
+                  const finished = (pBoxes > 0 && pDone >= pBoxes) || (p.billTotal > 0 && pct >= 100);
+                  return (
+                    <li key={p.bill}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (on) return;
+                          setBillId(p.bill);
+                          setBoxNo(firstOpenBox(grn, p.bill));
+                          setUnit(null);
+                          setSaved(null);
+                          setChoices(null);
+                        }}
+                        className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 ${on ? 'bg-honey-100 ring-1 ring-honey-400' : 'hover:bg-gray-50'}`}
+                      >
+                        {finished ? (
+                          <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600" />
+                        ) : (
+                          <PackageOpen className={`h-4 w-4 flex-shrink-0 ${pItems || pDone ? 'text-honey-600' : 'text-gray-300'}`} />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-gray-900 truncate">{p.vendorName}</span>
+                          <span className="block text-[11px] text-gray-500 truncate">
+                            {finished ? 'Done' : pItems || pDone ? 'In progress' : 'Not started'} · {pItems} item{pItems === 1 ? '' : 's'}
+                            {pBoxes > 0 && ` · ${pDone}/${pBoxes} boxes/packs`}
+                          </span>
+                          <span className="mt-1 block h-1 rounded-full bg-gray-100 overflow-hidden">
+                            <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+            </ul>
+            {notChecked > 0 && onCheckNext && (
               <button
                 type="button"
-                onClick={() => {
-                  if (p.bill === bill.bill) {
-                    setOpen((v) => !v);
-                    return;
-                  }
-                  setBillId(p.bill);
-                  setOpen(true);
-                  setBoxNo(firstOpenBox(grn, p.bill));
-                  setUnit(null);
-                  setSaved(null);
-                  setChoices(null);
-                }}
-                aria-expanded={isOpen}
-                className="w-full text-left px-4 py-3 flex items-center gap-3"
+                onClick={() => onCheckNext(firstUncheckedBill(grn, bill.bill) || bill.bill)}
+                className="mt-2 w-full rounded-md border border-dashed border-gray-300 px-2 py-2 text-xs text-gray-600 hover:bg-gray-50"
               >
-                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${isOpen ? 'bg-honey-100 text-honey-800' : 'bg-gray-100 text-gray-500'}`}>
-                  <PackageOpen className="h-5 w-5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm sm:text-base font-semibold text-gray-900 truncate">{p.vendorName}</span>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${status.cls}`}>{status.text}</span>
-                  </span>
-                  <span className="block text-[11px] text-gray-500">
-                    {p.billNo ? `Bill ${p.billNo}` : 'No bill no.'}
-                    {pBoxes > 0 && ` · ${pDone} of ${pBoxes} boxes/packs done`}
-                    {` · ${pItems} item${pItems === 1 ? '' : 's'} entered`}
-                  </span>
-                  <span className="mt-1.5 flex items-center gap-2">
-                    <span className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
-                      <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
-                    </span>
-                    <span className="text-[11px] text-gray-600 tabular-nums whitespace-nowrap">
-                      {formatRs(p.entered)} / {formatRs(p.billTotal)}
-                    </span>
-                  </span>
-                </span>
-                <ChevronDown className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                {notChecked} vendor{notChecked === 1 ? '' : 's'} not checked yet · Check boxes/packs
               </button>
-              {isOpen && (
-                <div className="border-t border-gray-100 p-3 sm:p-4 space-y-4 bg-gray-50/40">
+            )}
+          </div>
+        </div>
+
+        {(() => {
+          const pct = bill.billTotal > 0 ? Math.min(100, Math.round((bill.entered / bill.billTotal) * 100)) : 0;
+          const idx = progress.findIndex((p) => p.bill === bill.bill);
+          return (
+            <div className="min-w-0 rounded-xl border border-honey-300 bg-white shadow-sm">
+              <div className="border-b border-gray-100 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">{bill.vendorName}</p>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                    Vendor {idx + 1} of {progress.length}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-[11px] text-gray-500 whitespace-nowrap">{bill.billNo ? `Bill ${bill.billNo}` : 'No bill no.'}</span>
+                  <span className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
+                    <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
+                  </span>
+                  <span className="text-[11px] text-gray-600 tabular-nums whitespace-nowrap">
+                    {formatRs(bill.entered)} / {formatRs(bill.billTotal)}
+                  </span>
+                </div>
+              </div>
+                <div className="p-3 sm:p-4 space-y-4">
               {onCheckNext && (grn.boxes || []).some((b) => b.bill === bill.bill && !isBoxChecked(grn, b)) && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
                   <p className="flex items-center gap-1.5 text-xs text-amber-800">
@@ -430,10 +476,9 @@ export default function UnpackStep({
                 })()}
 
                 </div>
-              )}
             </div>
           );
-        })}
+        })()}
       </div>
 
       <div className="space-y-1">

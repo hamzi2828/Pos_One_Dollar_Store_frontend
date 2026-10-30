@@ -3,7 +3,7 @@
 // Step 1 — Check boxes, vendor by vendor: pick a vendor, see its bill photos and
 // "expected N boxes/packs", type how many came, save — step 2 opens that vendor.
 // When it is unpacked, come back here for the next vendor.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Circle, Loader2, PackageCheck, PackageOpen } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/storeApi';
@@ -32,6 +32,7 @@ export default function BoxesStep({
   startBill,
   onSaved,
   onGo,
+  onBill,
 }: {
   grn: GoodsReceipt;
   /** can edit at all (permission + not the buyer) */
@@ -42,6 +43,8 @@ export default function BoxesStep({
   onSaved: (g: GoodsReceipt, bill: string) => void;
   /** Go to step 2 with this vendor open. */
   onGo: (bill: string) => void;
+  /** The vendor on screen changed (kept in the URL). */
+  onBill?: (bill: string) => void;
 }) {
   const boxes: GRNBox[] = grn.boxes || [];
   const open = grn.status === 'pending' || grn.status === 'in_progress';
@@ -58,6 +61,10 @@ export default function BoxesStep({
     () => (startBill && boxes.some((b) => b.bill === startBill) ? startBill : firstUncheckedBill(grn)) || boxes[0]?.bill || '',
   );
   const [search, setSearch] = useState('');
+  useEffect(() => {
+    if (openBill) onBill?.(openBill);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openBill]);
 
   const idx = Math.max(0, boxes.findIndex((b) => b.bill === openBill));
   const cur = boxes[idx];

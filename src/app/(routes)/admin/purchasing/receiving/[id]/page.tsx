@@ -25,6 +25,14 @@ import { loadTagSize, type StickerSize } from './_components/tags';
 
 const STEPS = ['Check boxes/packs', 'Unpack & enter', 'Finish'];
 type View = 0 | 1 | 2;
+// Step and vendor live in the URL (?status=unpack&vendor=<bill id>), so a reload or a shared link opens the same place.
+const STEP_KEYS = ['check', 'unpack', 'finish'] as const;
+const readUrl = () => {
+  if (typeof window === 'undefined') return { step: null as View | null, vendor: undefined as string | undefined };
+  const q = new URLSearchParams(window.location.search);
+  const i = STEP_KEYS.indexOf((q.get('status') || '') as (typeof STEP_KEYS)[number]);
+  return { step: i >= 0 ? (i as View) : null, vendor: q.get('vendor') || undefined };
+};
 
 /** Old receipt: the server says it was counted line by line (`mode: 'lines'`), or (older servers) no boxes / counted lines. */
 const isOldReceipt = (g: GoodsReceipt) => {
@@ -45,7 +53,9 @@ export default function ReceiveGoodsPage() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
   const [tagSize, setTagSize] = useState<StickerSize>('38x25');
-  const [startBill, setStartBill] = useState<string | undefined>(undefined);
+  const [startBill, setStartBill] = useState<string | undefined>(() => readUrl().vendor);
+  // Vendor on screen now (for the URL).
+  const [urlBill, setUrlBill] = useState<string | undefined>(() => readUrl().vendor);
 
   useEffect(() => setTagSize(loadTagSize()), []);
 
@@ -56,7 +66,12 @@ export default function ReceiveGoodsPage() {
       const g = await purchasingApi.grnGet(id);
       setGrn(g);
       // Open on step 1 while some vendor's boxes/packs are not checked yet.
-      setView((v) => (v === null ? (firstUncheckedBill(g) ? 0 : reachedStep(g)) : v));
+      setView((v) => {
+        if (v !== null) return v;
+        const fromUrl = readUrl().step;
+        if (fromUrl !== null && fromUrl <= reachedStep(g)) return fromUrl;
+        return firstUncheckedBill(g) ? 0 : reachedStep(g);
+      });
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not load this trip.'));
     } finally {
@@ -76,6 +91,16 @@ export default function ReceiveGoodsPage() {
   useEffect(() => {
     if (canView) load();
   }, [load, canView]);
+
+  useEffect(() => {
+    if (view === null) return;
+    const q = new URLSearchParams(window.location.search);
+    q.set('status', STEP_KEYS[view]);
+    if (urlBill && view !== 2) q.set('vendor', urlBill);
+    else q.delete('vendor');
+    const next = `${window.location.pathname}?${q.toString()}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next);
+  }, [view, urlBill]);
 
   // Keep the page at the top when moving between steps (phones).
   useEffect(() => {
@@ -155,7 +180,14 @@ export default function ReceiveGoodsPage() {
             steps={STEPS}
             current={done ? STEPS.length : current}
             reached={done ? undefined : reached}
-            onPick={done ? undefined : (i) => setView(i as View)}
+            onPick={
+              done
+                ? undefined
+                : (i) => {
+                    setStartBill(urlBill);
+                    setView(i as View);
+                  }
+            }
           />
         )}
 
@@ -167,6 +199,7 @@ export default function ReceiveGoodsPage() {
             grn={grn}
             mayEdit={mayEdit}
             startBill={startBill}
+            onBill={setUrlBill}
             onSaved={(g, bill) => {
               setGrn(g);
               setStartBill(bill);
@@ -189,6 +222,7 @@ export default function ReceiveGoodsPage() {
             onReload={reload}
             onFinish={() => setView(2)}
             startBill={startBill}
+            onBill={setUrlBill}
             onCheckNext={(bill) => {
               setStartBill(bill);
               setView(0);

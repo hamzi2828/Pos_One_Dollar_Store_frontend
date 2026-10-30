@@ -205,9 +205,9 @@ function OrdersList() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rows.map((po) => (
-                  <tr key={po._id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/admin/purchasing/orders/${po._id}`)}>
+                  <tr key={po._id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/admin/purchasing/orders/${po._id}?status=buy`)}>
                     <td className="px-4 py-3">
-                      <Link href={`/admin/purchasing/orders/${po._id}`} className="font-semibold text-gray-900 hover:text-honey-700" onClick={(e) => e.stopPropagation()}>
+                      <Link href={`/admin/purchasing/orders/${po._id}?status=buy`} className="font-semibold text-gray-900 hover:text-honey-700" onClick={(e) => e.stopPropagation()}>
                         {po.poNumber}
                       </Link>
                       <p className="text-[11px] text-gray-500">{formatDate(po.createdAt)} · {po.buyerName}</p>
@@ -227,7 +227,7 @@ function OrdersList() {
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-gray-100">
               {rows.map((po) => (
-                <Link key={po._id} href={`/admin/purchasing/orders/${po._id}`} className="block px-4 py-3 hover:bg-gray-50">
+                <Link key={po._id} href={`/admin/purchasing/orders/${po._id}?status=buy`} className="block px-4 py-3 hover:bg-gray-50">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-gray-900">{po.poNumber}</span>
                     <POStatusBadge status={po.status} />

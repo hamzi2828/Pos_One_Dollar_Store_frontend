@@ -22,6 +22,13 @@ import { ChargesCard, CostingCard, SuggestedItems } from '../_components/PoPanel
 import { CloseModal, DetailsModal, NewProductModal } from '../_components/PoModals';
 
 const STEPS = ['Buy', 'Send to warehouse', 'Check boxes/packs', 'Unpack & enter', 'Done'];
+const TRIP_STATUS_KEYS = ['buy', 'send', 'check', 'unpack', 'done'] as const;
+/** Put ?status=<key> in the URL without reloading (other params kept). */
+const setUrlStatus = (key: string) => {
+  const q = new URLSearchParams(window.location.search);
+  q.set('status', key);
+  window.history.replaceState(window.history.state, '', `${window.location.pathname}?${q.toString()}`);
+};
 
 /** Which step a trip is at (index into STEPS; 5 = all done). */
 function tripStep(po: PurchaseOrder) {
@@ -102,6 +109,21 @@ function Workspace() {
     if (!ids.length || !canView) return;
     purchasingApi.productsByIds(ids).then(setSuggested).catch(() => setSuggested([]));
   }, [productIds, canView]);
+
+  // The step is kept in the URL (?status=buy|send|check|unpack|done). Opening a link with
+  // ?status=buy scrolls to the vendor bills; otherwise the URL shows where the trip is.
+  const urlDone = useRef(false);
+  useEffect(() => {
+    if (!po || urlDone.current) return;
+    urlDone.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const asked = q.get('status');
+    if (asked && TRIP_STATUS_KEYS.includes(asked as (typeof TRIP_STATUS_KEYS)[number])) {
+      if (asked === 'buy') setTimeout(() => document.getElementById('trip-bills')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+      return;
+    }
+    setUrlStatus(TRIP_STATUS_KEYS[Math.min(tripStep(po), TRIP_STATUS_KEYS.length - 1)]);
+  }, [po]);
 
   /** Every change returns the saved trip; refresh the cost preview after it. */
   const applyPO = useCallback(
@@ -254,7 +276,10 @@ function Workspace() {
           <StepStrip
             steps={STEPS}
             current={step}
-            onPick={(i) => document.getElementById(i === 0 ? 'trip-bills' : 'trip-sent')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            onPick={(i) => {
+              setUrlStatus(TRIP_STATUS_KEYS[i]);
+              document.getElementById(i === 0 ? 'trip-bills' : 'trip-sent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
           />
         )}
 
