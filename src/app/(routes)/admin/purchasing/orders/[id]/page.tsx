@@ -2,7 +2,9 @@
 
 // Purchase trip: Buy (vendor bills: amount, boxes, paid now; items optional)
 // -> Send to warehouse -> Check boxes -> Unpack & enter -> Done.
-// Locked after "Send to warehouse", with a link to Receive Goods.
+// After "Send to warehouse" the trip costs, builty and details lock, but vendor
+// bills can still be added (owner keeps buying for the same trip); new bills show
+// up in Receive Goods. Bills already being unpacked are locked by the backend (409).
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -146,6 +148,9 @@ function Workspace() {
 
   const isOpen = po.status === 'open';
   const editable = isOpen && can('purchase_orders', 'edit');
+  /** Vendor bills stay open for adding/editing until the trip is fully received. */
+  const sent = po.status === 'closed' || po.status === 'receiving';
+  const canBuy = (isOpen || sent) && can('purchase_orders', 'edit');
   const grnPending = !po.grn || po.grn.status === 'pending';
   const canCancel = can('purchase_orders', 'delete') && (isOpen || (po.status === 'closed' && grnPending));
   const canReopen = can('purchase_orders', 'edit') && po.status === 'closed' && grnPending;
@@ -245,7 +250,13 @@ function Workspace() {
           </div>
         </div>
 
-        {po.status !== 'cancelled' && <StepStrip steps={STEPS} current={step} />}
+        {po.status !== 'cancelled' && (
+          <StepStrip
+            steps={STEPS}
+            current={step}
+            onPick={(i) => document.getElementById(i === 0 ? 'trip-bills' : 'trip-sent')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          />
+        )}
 
         {/* What to do next */}
         {po.status === 'open' && (
@@ -270,6 +281,7 @@ function Workspace() {
 
         {/* After sending: where the goods are */}
         {!isOpen && po.status !== 'cancelled' && (
+          <div id="trip-sent" className="scroll-mt-4">
           <Card
             title={
               <span className="flex items-center gap-2">
@@ -299,14 +311,22 @@ function Workspace() {
             </div>
             <PhotoStrip photos={po.builty?.photos || []} />
           </Card>
+          </div>
         )}
 
         {editable && suggested.length > 0 && <SuggestedItems po={po} units={suggested} onChange={applyPO} onDismiss={() => setSuggested([])} />}
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
-          <div className="xl:col-span-2 space-y-4">
+          <div id="trip-bills" className="xl:col-span-2 space-y-4 scroll-mt-4">
+            {sent && (
+              <p className="text-xs sm:text-sm text-gray-600">
+                {canBuy
+                  ? 'Sent to the warehouse. You can still add more vendor bills; new ones show up there to check and unpack.'
+                  : 'Sent to the warehouse. These are the vendor bills on this trip.'}
+              </p>
+            )}
             {/* Same button above the bills too, so a long list needs no scrolling (owner, 2026-10-30). */}
-            {editable && po.bills.length > 0 && (
+            {canBuy && po.bills.length > 0 && (
               <button className={`${secondaryBtn} w-full border-dashed !py-3`} onClick={() => setBillModal({ open: true, bill: null })}>
                 <Plus className="h-4 w-4" /> Add another vendor bill
               </button>
@@ -314,7 +334,7 @@ function Workspace() {
             {po.bills.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-300 text-center py-10 px-4">
                 <p className="text-sm text-gray-600 mb-3">No vendor bills yet. Add one bill for each vendor you buy from on this trip.</p>
-                {editable && (
+                {canBuy && (
                   <button className={primaryBtn} onClick={() => setBillModal({ open: true, bill: null })}>
                     <Plus className="h-4 w-4" /> Add vendor bill
                   </button>
@@ -326,20 +346,20 @@ function Workspace() {
                   key={bill._id}
                   poId={po._id}
                   bill={bill}
-                  editable={editable}
+                  editable={canBuy}
                   onChange={applyPO}
                   onEdit={() => setBillModal({ open: true, bill })}
-                  onNewProduct={editable && canCreateProduct ? () => setNewProductBill(bill) : undefined}
+                  onNewProduct={canBuy && canCreateProduct ? () => setNewProductBill(bill) : undefined}
                 />
               ))
             )}
-            {editable && po.bills.length > 0 && (
+            {canBuy && po.bills.length > 0 && (
               <button className={`${secondaryBtn} w-full border-dashed !py-3`} onClick={() => setBillModal({ open: true, bill: null })}>
                 <Plus className="h-4 w-4" /> Add another vendor bill
               </button>
             )}
             {editable && po.bills.length > 0 && <div className="sm:hidden [&>button]:w-full [&>button]:!py-3">{sendBtn}</div>}
-            {editable && !canCreateProduct && (
+            {canBuy && !canCreateProduct && (
               <p className="text-[11px] text-gray-500">
                 Product not in the list? Ask someone who can create products, or{' '}
                 <Link href="/admin/products/create" target="_blank" className="underline">
