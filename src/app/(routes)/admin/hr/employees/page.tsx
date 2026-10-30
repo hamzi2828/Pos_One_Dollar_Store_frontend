@@ -4,7 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Contact, Plus, Search, X, AlertCircle, Phone, Link2 } from 'lucide-react';
+import { Contact, Plus, Search, X, AlertCircle, Phone, Link2, Copy, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -43,6 +44,25 @@ export default function EmployeesPage() {
   const reqId = useRef(0);
 
   const [view, setView] = useState<'employees' | 'applications'>('employees');
+
+  // One click: copy the public join link (share it on WhatsApp etc.).
+  const [copying, setCopying] = useState(false);
+  const copyJoinLink = async () => {
+    setCopying(true);
+    try {
+      const link = await joinAdminApi.link();
+      if (!link.enabled) {
+        toast.error('The join link is switched off. Open "Join link" to turn it on.');
+        return;
+      }
+      await navigator.clipboard.writeText(`${window.location.origin}/join/${link.token}`);
+      toast.success('Join link copied. Paste it in WhatsApp to share.');
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not copy the link. Use "Join link" instead.'));
+    } finally {
+      setCopying(false);
+    }
+  };
   // ?tab=applications (link in the "new application" notification) opens that tab.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('tab') === 'applications') setView('applications');
@@ -113,6 +133,9 @@ export default function EmployeesPage() {
           </div>
           {canCreate && (
             <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={copyJoinLink} disabled={copying} className={secondaryBtn}>
+                {copying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />} Copy join link
+              </button>
               <button type="button" onClick={() => setShowJoin(true)} className={secondaryBtn}>
                 <Link2 className="h-4 w-4" /> Join link
               </button>
