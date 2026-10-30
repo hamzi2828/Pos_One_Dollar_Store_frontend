@@ -269,13 +269,17 @@ export function PhotoPicker({
   max = 5,
   label = 'Add photo',
   allowPdf = false,
+  compact = false,
 }: {
   files: File[];
   onChange: (f: File[]) => void;
   max?: number;
   label?: string;
   allowPdf?: boolean;
+  /** Small one-line button and small previews (tight panels like Trip costs). */
+  compact?: boolean;
 }) {
+  const tile = compact ? 'h-9 w-9' : 'h-14 w-14';
   const inputRef = useRef<HTMLInputElement>(null);
   const [tooBig, setTooBig] = useState<string[]>([]);
   const [previews, setPreviews] = useState<{ f: File; url: string }[]>([]);
@@ -288,7 +292,7 @@ export function PhotoPicker({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {previews.map(({ f, url }, i) => (
-        <div key={url} className="relative h-14 w-14 rounded-md overflow-hidden border border-gray-200">
+        <div key={url} className={`relative ${tile} rounded-md overflow-hidden border border-gray-200`}>
           {isPdf(f.name, f.type) ? (
             <a href={url} target="_blank" rel="noreferrer" title="Open PDF" className="block h-full w-full">
               <PdfTile name={f.name} />
@@ -311,7 +315,11 @@ export function PhotoPicker({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="h-14 px-3 inline-flex flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-gray-300 text-[11px] text-gray-500 hover:border-honey-400 hover:text-honey-700"
+          className={
+            compact
+              ? 'h-9 px-2.5 inline-flex items-center gap-1.5 rounded-md border border-dashed border-gray-300 text-xs text-gray-600 hover:border-honey-400 hover:text-honey-700'
+              : 'h-14 px-3 inline-flex flex-col items-center justify-center gap-0.5 rounded-md border border-dashed border-gray-300 text-[11px] text-gray-500 hover:border-honey-400 hover:text-honey-700'
+          }
         >
           <Camera className="h-4 w-4" />
           {label}
