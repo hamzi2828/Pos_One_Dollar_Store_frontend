@@ -64,12 +64,14 @@ interface ProductFormProps {
   onCancel?: () => void;
   // Gets the saved product (create: use its id to open the stickers page)
   // receivedPieces: receiving popup only (pieces typed in "Stock Quantity", entered with the delivery)
-  onSuccess?: (product?: ProductUI, extra?: { receivedPieces?: number }) => void;
+  onSuccess?: (product?: ProductUI, extra?: { receivedPieces?: number; barcode?: string }) => void;
   onManageAttributes?: () => void;
   /** Receiving goods: stock comes from the delivery entry, so no stock is typed here (saved as 0). */
   noStock?: boolean;
   /** Create: name to start with (e.g. what was searched). */
   defaultName?: string;
+  /** Create: barcode already on the item (e.g. scanned in the search box). */
+  defaultBarcode?: string;
 }
 
 type VariantWithCodes = ProductVariant & VariantCodeFields;
@@ -137,6 +139,7 @@ export default function ProductForm({
   onManageAttributes,
   noStock = false,
   defaultName = "",
+  defaultBarcode = "",
 }: ProductFormProps) {
   const { currency } = useCurrency();
   const searchParams = useSearchParams();
@@ -196,9 +199,24 @@ export default function ProductForm({
   const savedTierId = useRef<string | null>(null);
 
   // Packaging / barcodes / batches (single products). Edit: loaded from the product.
-  const [packaging, setPackaging] = useState<PackagingState>(() =>
-    initPackaging(initialData && initialData.productType !== "variant" ? (initialData as unknown as ProductCodeFields) : null)
-  );
+  const [packaging, setPackaging] = useState<PackagingState>(() => {
+    const p = initPackaging(initialData && initialData.productType !== "variant" ? (initialData as unknown as ProductCodeFields) : null);
+    // The item already has a barcode (scanned): use it, so no new sticker is needed.
+    if (mode === "create" && defaultBarcode.trim()) p.barcodes = [{ code: defaultBarcode.trim(), qty: 1 }];
+    return p;
+  });
+  // First barcode of the item itself (not the full box/pack code).
+  const itemBarcode = packaging.barcodes.find((b) => b.label !== "full-box")?.code || "";
+  const setItemBarcode = (code: string) =>
+    setPackaging((prev) => {
+      const list = [...prev.barcodes];
+      const i = list.findIndex((b) => b.label !== "full-box");
+      if (i >= 0) {
+        if (code) list[i] = { ...list[i], code };
+        else list.splice(i, 1);
+      } else if (code) list.unshift({ code, qty: 1 });
+      return { ...prev, barcodes: list };
+    });
   // Errors from the backend for a code (409 duplicate / 400 invalid short code)
   const [codeErrors, setCodeErrors] = useState<Record<string, string>>({});
   // Variant rows with the "options & barcodes" row open (key = color|size)
@@ -782,7 +800,7 @@ export default function ProductForm({
       
       const received = noStock ? Math.max(0, Math.floor(Number(receivedPieces) || 0)) : 0;
       if (noStock) setReceivedPieces("");
-      if (onSuccess) onSuccess(saved, noStock ? { receivedPieces: received } : undefined);
+      if (onSuccess) onSuccess(saved, noStock ? { receivedPieces: received, barcode: itemBarcode.trim() || undefined } : undefined);
       
     } catch (error) {
       console.error(`Error ${mode === "create" ? "creating" : "updating"} product:`, error);
@@ -1186,6 +1204,30 @@ export default function ProductForm({
                 </div>
 
                 {noStock ? (
+                <div className="space-y-4">
+                {!isVariant && (
+                <div className="rounded-lg border border-honey-300 bg-honey-50 p-3">
+                  <label className="block text-sm font-medium text-gray-800 mb-1">
+                    Barcode on the item <span className="font-normal text-gray-500">(if it already has one)</span>
+                  </label>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Scan the item's barcode here"
+                    className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+                    value={itemBarcode}
+                    onChange={(e) => setItemBarcode(e.target.value)}
+                    onKeyDown={(e) => {
+                      // A scanner ends with Enter: keep it from submitting the form.
+                      if (e.key === "Enter") e.preventDefault();
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-gray-600">
+                    {itemBarcode.trim() ? "The item's own barcode is used at the counter. No new sticker needed." : "Empty = a new sticker with our code is printed."}
+                  </p>
+                  {codeErrors.barcodes && <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>}
+                </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Stock Quantity <span className="font-normal text-gray-500">(pieces received now)</span>
@@ -1201,6 +1243,7 @@ export default function ProductForm({
                     onChange={(e) => setReceivedPieces(e.target.value)}
                   />
                   <p className="mt-1 text-xs text-gray-500">Goes into the warehouse with this delivery when you save. Empty = enter after saving.</p>
+                </div>
                 </div>
                 ) : (
                 <div>

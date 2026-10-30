@@ -105,6 +105,8 @@ export default function UnpackStep({
   const [presetPieces, setPresetPieces] = useState<number | null>(null);
   const [saved, setSaved] = useState<EntryResult | null>(null);
   const [newProduct, setNewProduct] = useState<string | null>(null);
+  // New products saved with their own printed barcode (product id -> code): no sticker needed.
+  const [ownCodes, setOwnCodes] = useState<Record<string, string>>({});
   useEffect(() => {
     if (bill?.bill) onBill?.(bill.bill);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,8 +185,9 @@ export default function UnpackStep({
   };
 
   /** A product made with the full form: find its unit(s) on this receipt and pick it. */
-  const afterCreate = async (p: ProductUI, receivedPieces = 0) => {
+  const afterCreate = async (p: ProductUI, receivedPieces = 0, barcode?: string) => {
     setNewProduct(null);
+    if (barcode) setOwnCodes((m) => ({ ...m, [p.id]: barcode }));
     const cost = p.costPrice && p.costPrice > 0 ? p.costPrice : null;
     try {
       const rows = await purchasingApi.grnLookup(grn._id, p.shortCode || p.sku || p.name, bill.bill);
@@ -399,6 +402,7 @@ export default function UnpackStep({
                       {saved ? (
                         <SavedCard
                           result={saved}
+                          ownBarcode={ownCodes[saved.tags?.productId || saved.entry?.product || '']}
                           tagSize={tagSize}
                           onTagSize={(s) => {
                             onTagSize(s);
@@ -964,8 +968,11 @@ function SavedCard({
   tagSize,
   onTagSize,
   onNext,
+  ownBarcode,
 }: {
   result: EntryResult;
+  /** The item has its own printed barcode: no sticker needed. */
+  ownBarcode?: string;
   tagSize: StickerSize;
   onTagSize: (s: StickerSize) => void;
   onNext: (scanned: string) => void;
@@ -1007,6 +1014,11 @@ function SavedCard({
             )}
           </div>
         </div>
+        {ownBarcode && (
+          <p className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+            <ScanLine className="h-4 w-4 flex-shrink-0" /> Has its own barcode <span className="font-mono">{ownBarcode}</span>. No sticker needed.
+          </p>
+        )}
         {copies > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
             <Field label="Tag size">
@@ -1018,8 +1030,8 @@ function SavedCard({
                 ))}
               </SearchSelect>
             </Field>
-            <button type="button" onClick={print} disabled={printing} aria-busy={printing} className={`${primaryBtn} !py-3 text-base`}>
-              {printing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />} Print tags ({copies})
+            <button type="button" onClick={print} disabled={printing} aria-busy={printing} className={`${ownBarcode ? secondaryBtn : primaryBtn} !py-3 text-base`}>
+              {printing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />} {ownBarcode ? 'Print tags anyway' : 'Print tags'} ({copies})
             </button>
           </div>
         )}
