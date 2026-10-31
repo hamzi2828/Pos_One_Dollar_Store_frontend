@@ -133,7 +133,10 @@ export default function ApplicationsPanel({ onCounts }: { onCounts?: (c: Applica
                     </td>
                     <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">{a.phone || '—'}</td>
                     <td className="px-4 py-2.5 text-gray-700 font-mono whitespace-nowrap">{a.cnic || '—'}</td>
-                    <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">{formatDate(a.submittedAt, true)}</td>
+                    <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">
+                      {formatDate(a.submittedAt, true)}
+                      {a.updatedBySubmitterAt && <p className="text-[11px] text-amber-700">Updated by applicant {formatDate(a.updatedBySubmitterAt, true)}</p>}
+                    </td>
                     <td className="px-4 py-2.5">
                       <ApplicationStatusChip status={a.status} />
                     </td>
@@ -160,6 +163,7 @@ export default function ApplicationsPanel({ onCounts }: { onCounts?: (c: Applica
                   <p className="text-xs text-gray-500 truncate">
                     <span className="font-mono">{a.reference}</span> · {formatDate(a.submittedAt)}
                   </p>
+                  {a.updatedBySubmitterAt && <p className="text-[11px] text-amber-700">Updated by applicant {formatDate(a.updatedBySubmitterAt)}</p>}
                   {a.phone && (
                     <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                       <Phone className="h-3 w-3" /> {a.phone}
@@ -377,6 +381,7 @@ function ApplicationModal({ initial, onClose, onChanged }: { initial: EmployeeAp
               <Avatar url={app.photo} name={name || '?'} size="lg" />
               <div className="min-w-0 space-y-1">
                 <ApplicationStatusChip status={app.status} />
+                {app.updatedBySubmitterAt && <p className="text-xs text-amber-700">Updated by applicant {formatDate(app.updatedBySubmitterAt, true)}</p>}
                 {app.status !== 'pending' && (
                   <p className="text-xs text-gray-500">
                     {APPLICATION_STATUS_LABEL[app.status]} {app.reviewedAt ? formatDate(app.reviewedAt, true) : ''}

@@ -52,6 +52,9 @@ export interface EmployeeApplication extends ApplicantDetails {
   reviewedAt?: string | null;
   reviewedByName?: string | null;
   rejectReason?: string | null;
+  /** Set when the person changed their own form from the join link. */
+  updatedBySubmitterAt?: string | null;
+  submitterEdits?: number;
   /** Employee made on approval (id or populated). */
   employee?: string | { _id: string; name?: string } | null;
 }
@@ -104,20 +107,46 @@ export const joinAdminApi = {
     (await storeApi.post<EmployeeApplication>(`/employee-applications/${id}/reject`, { reason })).data,
 };
 
+/** The person's own form, as the public page sees it (no review notes). */
+export interface MyApplication extends ApplicantDetails {
+  reference: string;
+  status: ApplicationStatus;
+  submittedAt: string;
+  updatedAt?: string | null;
+  photo?: string | null;
+  files: ApplicationFile[];
+}
+
+const joinForm = (details: ApplicantDetails, photo: File | null, files: File[], website: string) => {
+  const form = new FormData();
+  form.append('data', JSON.stringify(details));
+  if (photo) form.append('photo', photo);
+  files.forEach((f) => form.append('files', f));
+  form.append('website', website);
+  return form;
+};
+
+const mineUrl = (token: string) => `${API_URL}/public/join/${encodeURIComponent(token)}/mine`;
+
 /** Public side (no login): the /join/<token> page. */
 export const joinPublicApi = {
   info: async (token: string) =>
     (await axios.get<{ success: boolean; data: { shopName: string; open: boolean } }>(`${API_URL}/public/join/${encodeURIComponent(token)}`)).data.data,
   submit: async (token: string, details: ApplicantDetails, photo: File | null, files: File[], website: string) => {
-    const form = new FormData();
-    form.append('data', JSON.stringify(details));
-    if (photo) form.append('photo', photo);
-    files.forEach((f) => form.append('files', f));
-    form.append('website', website);
-    const res = await axios.post<{ success: boolean; data: { reference: string } }>(
+    const res = await axios.post<{ success: boolean; data: { reference: string; editKey?: string } }>(
       `${API_URL}/public/join/${encodeURIComponent(token)}`,
-      form,
+      joinForm(details, photo, files, website),
     );
     return res.data.data;
   },
+  /** The form this person sent before (`editKey` from submit). 404 when the key is not known. */
+  mine: async (token: string, editKey: string) =>
+    (await axios.get<{ success: boolean; data: MyApplication }>(mineUrl(token), { headers: { 'x-join-key': editKey } })).data.data,
+  /** Change it while pending (409 once approved or rejected). New photo / files replace the old ones. */
+  updateMine: async (token: string, editKey: string, details: ApplicantDetails, photo: File | null, files: File[], website: string) =>
+    (
+      await axios.put<{ success: boolean; data: MyApplication }>(mineUrl(token), joinForm(details, photo, files, website), {
+        headers: { 'x-join-key': editKey },
+      })
+    ).data.data,
 };

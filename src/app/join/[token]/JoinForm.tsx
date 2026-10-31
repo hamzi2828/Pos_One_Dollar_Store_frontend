@@ -16,6 +16,7 @@ import {
   Loader2,
   Paperclip,
   Phone,
+  Pencil,
   ShieldCheck,
   User,
   X,
@@ -23,8 +24,8 @@ import {
 import { Wordmark } from '@/components/ui/wordmark';
 import { Field, ErrorBox, inputClass } from '@/components/admin/FormBits';
 import { apiErrorMessage } from '@/lib/storeApi';
-import { CNIC_PATTERN, formatCnicInput } from '@/app/(routes)/admin/hr/employees/services/employeeApi';
-import { joinPublicApi, type ApplicantDetails } from '@/app/(routes)/admin/hr/employees/services/joinApi';
+import { CNIC_PATTERN, fileUrl, formatCnicInput } from '@/app/(routes)/admin/hr/employees/services/employeeApi';
+import { joinPublicApi, type ApplicantDetails, type MyApplication } from '@/app/(routes)/admin/hr/employees/services/joinApi';
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 const MAX_FILES = 5;
@@ -89,6 +90,75 @@ async function shrinkImage(file: File): Promise<File> {
 }
 
 const s = (v: string) => v.trim() || null;
+
+// After sending, the person's edit key is kept in this browser so they can open
+// the link again and change their form until it is approved.
+const SAVED_KEY = 'join-app';
+type Saved = { reference: string; editKey: string };
+
+function readSaved(): Saved | null {
+  try {
+    const raw = window.localStorage.getItem(SAVED_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Partial<Saved> | null;
+    return v && typeof v.editKey === 'string' && v.editKey ? { reference: String(v.reference || ''), editKey: v.editKey } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSaved(v: Saved) {
+  try {
+    window.localStorage.setItem(SAVED_KEY, JSON.stringify(v));
+  } catch {
+    /* private mode / storage blocked: editing later just will not be offered */
+  }
+}
+
+function clearSaved() {
+  try {
+    window.localStorage.removeItem(SAVED_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+const t = (v?: string | null) => (v == null ? '' : String(v));
+const dateInput = (v?: string | null) => (v ? String(v).slice(0, 10) : '');
+
+/** The saved application back into the form fields. */
+function fromMine(m: MyApplication): FormState {
+  return {
+    firstName: t(m.firstName),
+    lastName: t(m.lastName),
+    fatherHusbandName: t(m.fatherHusbandName),
+    phone: t(m.phone),
+    email: t(m.email),
+    cnic: t(m.cnic),
+    cnicExpiry: dateInput(m.cnicExpiry),
+    dateOfBirth: dateInput(m.dateOfBirth),
+    gender: (m.gender || '') as Gender,
+    maritalStatus: (m.maritalStatus || '') as Marital,
+    street: t(m.address?.street),
+    city: t(m.address?.city),
+    state: t(m.address?.state),
+    qualification: t(m.qualification),
+    experience: t(m.experience),
+    previousEmployer: t(m.previousEmployer),
+    eName: t(m.emergencyContact?.name),
+    ePhone: t(m.emergencyContact?.phone),
+    eRelation: t(m.emergencyContact?.relationship),
+    gName: t(m.guarantor?.name),
+    gCnic: t(m.guarantor?.cnic),
+    gPhone: t(m.guarantor?.phone),
+    gRelation: t(m.guarantor?.relation),
+    gAddress: t(m.guarantor?.address),
+    accountTitle: t(m.bankDetails?.accountTitle),
+    bankName: t(m.bankDetails?.bankName),
+    accountNumber: t(m.bankDetails?.accountNumber),
+    iban: t(m.bankDetails?.iban),
+  };
+}
 
 function toDetails(f: FormState): ApplicantDetails {
   return {
@@ -184,7 +254,7 @@ function CenterCard({ icon, title, children }: { icon: React.ReactNode; title: s
 // ---------------------------------------------------------------------------
 
 export default function JoinForm({ token }: { token: string }) {
-  const [phase, setPhase] = useState<'loading' | 'invalid' | 'form' | 'done'>('loading');
+  const [phase, setPhase] = useState<'loading' | 'invalid' | 'form' | 'done' | 'status'>('loading');
   const [loadError, setLoadError] = useState('');
   const [shopName, setShopName] = useState('DOLLAR & Co');
   const [f, setF] = useState<FormState>(EMPTY);
@@ -196,6 +266,10 @@ export default function JoinForm({ token }: { token: string }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reference, setReference] = useState('');
+  // The form this person already sent (from the saved edit key), if any.
+  const [mine, setMine] = useState<MyApplication | null>(null);
+  const [editKey, setEditKey] = useState('');
+  const [updated, setUpdated] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -210,6 +284,29 @@ export default function JoinForm({ token }: { token: string }) {
         setLoadError('This link is closed. Ask the shop for a new link.');
         setPhase('invalid');
         return;
+      }
+      const saved = readSaved();
+      if (saved) {
+        try {
+          const m = await joinPublicApi.mine(token, saved.editKey);
+          setMine(m);
+          setEditKey(saved.editKey);
+          setReference(m.reference || saved.reference);
+          if (m.status === 'pending') {
+            setF(fromMine(m));
+            setPhoto(null);
+            setFiles([]);
+            setPhase('form');
+          } else {
+            setPhase('status');
+          }
+          return;
+        } catch (e) {
+          if (!(axios.isAxiosError(e) && e.response?.status === 404)) throw e;
+          clearSaved(); // the shop no longer has it: start a new form
+          setMine(null);
+          setEditKey('');
+        }
       }
       setPhase('form');
     } catch (e) {
@@ -236,6 +333,22 @@ export default function JoinForm({ token }: { token: string }) {
     setPhotoUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [photo]);
+
+  /** "This is not me / fill a new form": forget the saved form in this browser. */
+  const startNew = () => {
+    clearSaved();
+    setMine(null);
+    setEditKey('');
+    setReference('');
+    setUpdated(false);
+    setF(EMPTY);
+    setPhoto(null);
+    setFiles([]);
+    setFileNote('');
+    setError(null);
+    setPhase('form');
+    window.scrollTo({ top: 0 });
+  };
 
   const set = <K extends Key>(k: K, v: FormState[K]) => setF((p) => ({ ...p, [k]: v }));
   const input = (k: Key) => ({
@@ -293,11 +406,32 @@ export default function JoinForm({ token }: { token: string }) {
     setSending(true);
     setError(null);
     try {
-      const res = await joinPublicApi.submit(token, toDetails(f), photo, files, website);
-      setReference(res?.reference || '');
+      if (mine && editKey) {
+        const m = await joinPublicApi.updateMine(token, editKey, toDetails(f), photo, files, website);
+        setMine(m);
+        setReference(m.reference);
+        setUpdated(true);
+      } else {
+        const res = await joinPublicApi.submit(token, toDetails(f), photo, files, website);
+        setReference(res?.reference || '');
+        setUpdated(false);
+        if (res?.editKey) writeSaved({ reference: res.reference, editKey: res.editKey });
+      }
       setPhase('done');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (mine && status === 409) {
+        load(); // approved or rejected in the meantime: show the status
+        return;
+      }
+      if (mine && status === 404) {
+        clearSaved();
+        setMine(null);
+        setEditKey('');
+        showError('We could not find your form. Please press the button again to send it as a new form.');
+        return;
+      }
       showError(apiErrorMessage(err, 'Could not send your form. Check your internet and try again.'));
     } finally {
       setSending(false);
@@ -328,13 +462,46 @@ export default function JoinForm({ token }: { token: string }) {
   if (phase === 'done') {
     return (
       <Shell>
-        <CenterCard icon={<CheckCircle2 className="h-12 w-12 text-green-500" />} title="Thank you!">
+        <CenterCard icon={<CheckCircle2 className="h-12 w-12 text-green-500" />} title={updated ? 'Your changes are saved' : 'Thank you!'}>
           {reference && (
             <p className="text-sm text-gray-700">
               Your reference is <span className="font-mono font-semibold text-gray-900">{reference}</span>.
             </p>
           )}
           <p className="mt-1 text-sm text-gray-600">The shop will contact you.</p>
+          {readSaved() && (
+            <>
+              <p className="mt-3 text-xs text-gray-500">You can open this link again on this phone to change your form until it is approved.</p>
+              <button type="button" onClick={load} className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-honey-700 underline">
+                <Pencil className="h-4 w-4" /> Change my details
+              </button>
+            </>
+          )}
+        </CenterCard>
+      </Shell>
+    );
+  }
+
+  if (phase === 'status' && mine) {
+    const approved = mine.status === 'approved';
+    return (
+      <Shell>
+        <CenterCard
+          icon={approved ? <CheckCircle2 className="h-12 w-12 text-green-500" /> : <AlertCircle className="h-10 w-10 text-gray-400" />}
+          title={approved ? 'Your form was approved' : 'Your form was not approved'}
+        >
+          {mine.reference && (
+            <p className="text-sm text-gray-700">
+              Reference <span className="font-mono font-semibold text-gray-900">{mine.reference}</span>.
+            </p>
+          )}
+          <p className="mt-1 text-sm text-gray-600">
+            {approved ? 'The shop will contact you.' : 'Thank you for your interest. You can ask the shop for more details.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">This form cannot be changed now.</p>
+          <button type="button" onClick={startNew} className="mt-5 text-sm font-medium text-honey-700 underline">
+            This is not me / fill a new form
+          </button>
         </CenterCard>
       </Shell>
     );
@@ -344,6 +511,17 @@ export default function JoinForm({ token }: { token: string }) {
     <Shell>
       <div className="mb-4 text-center">
         <h2 className="text-lg font-semibold text-gray-900">Work at {shopName}</h2>
+        {mine && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-left text-sm text-amber-900">
+            <p>
+              You already sent this form{mine.reference ? <> (<span className="font-mono">{mine.reference}</span>)</> : null}. You can change it until it is
+              approved.
+            </p>
+            <button type="button" onClick={startNew} className="mt-1 text-xs font-medium text-amber-800 underline">
+              This is not me / fill a new form
+            </button>
+          </div>
+        )}
         <p className="mt-1 text-sm text-gray-600">
           Fill in your details and send. Only <span className="font-medium">first name</span> and <span className="font-medium">mobile number</span> are
           a must.
@@ -499,9 +677,9 @@ export default function JoinForm({ token }: { token: string }) {
         <Section title="Your photo" icon={<Camera className="h-4 w-4" />} note="A clear photo of your face.">
           <div className="sm:col-span-2 flex items-center gap-4">
             <div className="h-24 w-24 flex-shrink-0 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center">
-              {photoUrl ? (
+              {photoUrl || mine?.photo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
+                <img src={photoUrl || fileUrl(mine?.photo)} alt="Your photo" className="h-full w-full object-cover" />
               ) : (
                 <User className="h-10 w-10 text-gray-300" />
               )}
@@ -545,6 +723,24 @@ export default function JoinForm({ token }: { token: string }) {
 
         <Section title="Documents" icon={<FileText className="h-4 w-4" />} note={`CNIC front and back, CV, certificates. Pictures or PDF, max 4 MB each, up to ${MAX_FILES} files.`}>
           <div className="sm:col-span-2 space-y-2">
+            {mine && mine.files.length > 0 && files.length === 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500">Files you sent before. Add new files only if you want to replace them.</p>
+                <ul className="space-y-1.5">
+                  {mine.files.map((file, i) => (
+                    <li key={`${file.url}-${i}`} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                      {file.type === 'pdf' ? <FileText className="h-4 w-4 text-red-600 flex-shrink-0" /> : <Paperclip className="h-4 w-4 text-gray-500 flex-shrink-0" />}
+                      <a href={fileUrl(file.url)} target="_blank" rel="noreferrer" className="truncate flex-1 text-gray-700 hover:underline">
+                        {file.name || `Document ${i + 1}`}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {mine && mine.files.length > 0 && files.length > 0 && (
+              <p className="text-xs text-amber-700">These new files will replace the files you sent before.</p>
+            )}
             {files.length > 0 && (
               <ul className="space-y-1.5">
                 {files.map((file, i) => (
@@ -594,8 +790,10 @@ export default function JoinForm({ token }: { token: string }) {
         >
           {sending ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" /> Sending…
+              <Loader2 className="h-5 w-5 animate-spin" /> {mine ? 'Saving…' : 'Sending…'}
             </>
+          ) : mine ? (
+            'Update my details'
           ) : (
             'Send my form'
           )}
