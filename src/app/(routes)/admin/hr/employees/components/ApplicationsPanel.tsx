@@ -10,6 +10,7 @@ import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate } from '@/lib/storeApi';
 import { ErrorBox, Field, LoadingCard, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import DesignationField from './DesignationField';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { Tabs, isPdf, todayInput } from '../../../purchasing/_shared/ui';
 import { Avatar, InfoRow, Pager } from './EmployeeBits';
@@ -323,18 +324,7 @@ function ApplicationModal({ initial, onClose, onChanged }: { initial: EmployeeAp
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Designation">
-                <input
-                  value={job.designation}
-                  onChange={(e) => setJob({ ...job, designation: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g. Cashier, Salesman, Store keeper"
-                  list="hr-approve-designations"
-                />
-                <datalist id="hr-approve-designations">
-                  {['Cashier', 'Salesman', 'Sales girl', 'Store keeper', 'Shop manager', 'Warehouse assistant', 'Purchaser', 'Packer', 'Helper', 'Security guard', 'Cleaner', 'Rider'].map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
+                <DesignationField value={job.designation} onChange={(v) => setJob({ ...job, designation: v })} />
               </Field>
               <Field label="Department">
                 <input value={job.department} onChange={(e) => setJob({ ...job, department: e.target.value })} className={inputClass} placeholder="e.g. Sales, Store, Accounts" />

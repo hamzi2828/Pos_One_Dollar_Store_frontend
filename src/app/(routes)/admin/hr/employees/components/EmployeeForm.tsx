@@ -38,6 +38,7 @@ import {
   type EmploymentType,
 } from '../services/employeeApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import DesignationField from './DesignationField';
 import MoneyInput from '@/components/ui/MoneyInput';
 
 type Form = {
@@ -411,12 +412,7 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
           <SectionCard title="Job" icon={<Briefcase className="h-4 w-4" />}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Field label="Designation">
-                <input {...input('designation')} placeholder="e.g. Cashier, Salesman, Store keeper" list="hr-designations" />
-                <datalist id="hr-designations">
-                  {['Cashier', 'Salesman', 'Sales girl', 'Store keeper', 'Shop manager', 'Warehouse assistant', 'Purchaser', 'Packer', 'Helper', 'Security guard', 'Cleaner', 'Rider'].map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
+                <DesignationField value={f.designation} onChange={(v) => set('designation', v as never)} />
               </Field>
               <Field label="Department">
                 <input {...input('department')} placeholder="e.g. Sales, Store, Accounts" />
