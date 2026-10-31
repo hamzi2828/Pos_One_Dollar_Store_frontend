@@ -201,6 +201,9 @@ export const purchasingApi = {
   /** Undo an entry: `data: { entry, grn }`. 409 NOT_IN_WAREHOUSE has a plain message. */
   grnUndoEntry: (id: string, entryId: string) =>
     storeApi.del<{ entry: GRNEntry; grn: GoodsReceipt }>(`${GRN}/${id}/entries/${entryId}`).then((r) => r.data),
+  /** Fix an entry: old pieces go back out, the corrected entry goes in. */
+  grnEditEntry: (id: string, entryId: string, body: { qty: number; damagedQty: number; costPrice: number; boxNo: number }) =>
+    storeApi.put<{ entry: GRNEntry; grn: GoodsReceipt; warnings?: string[] }>(`${GRN}/${id}/entries/${entryId}`, body).then((r) => r.data),
 };
 
 /** Machine code of an API error (e.g. 'SAME_RECEIVER'), if the server sent one. */
