@@ -3,14 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Settings, Image as ImageIcon, RotateCcw, Zap, Loader2, MonitorDown } from 'lucide-react';
+import { Settings, Image as ImageIcon, RotateCcw, Zap, Loader2 } from 'lucide-react';
 
 import GeneralSettings from './components/GeneralSettings';
 import LogoSettings from './components/LogoSettings';
-import DesktopAppSettings from './components/DesktopAppSettings';
 import { settingsService, SettingsData, SettingsBusyAction } from './services/settingsService';
 
-const VALID_TABS = ['general', 'logo', 'desktop'] as const;
+const VALID_TABS = ['general', 'logo'] as const;
 type TabType = typeof VALID_TABS[number];
 
 export default function SettingsPage() {
@@ -37,6 +36,10 @@ export default function SettingsPage() {
   };
 
   const tabParam = searchParams.get('tab');
+  // The desktop app download moved to its own page.
+  useEffect(() => {
+    if (tabParam === 'desktop') router.replace('/admin/desktop-app');
+  }, [tabParam, router]);
   const activeTab: TabType = VALID_TABS.includes(tabParam as TabType) ? (tabParam as TabType) : 'general';
 
   const setActiveTab = (tab: TabType) => {
@@ -173,7 +176,6 @@ export default function SettingsPage() {
   const tabs: { id: TabType; label: string; icon: typeof Settings }[] = [
     { id: 'general', label: 'General', icon: Settings },
     { id: 'logo', label: 'Logo & Icon', icon: ImageIcon },
-    { id: 'desktop', label: 'Desktop app', icon: MonitorDown },
   ];
 
   return (
@@ -267,7 +269,6 @@ export default function SettingsPage() {
               />
             )}
 
-            {activeTab === 'desktop' && <DesktopAppSettings />}
           </div>
         </div>
       </div>

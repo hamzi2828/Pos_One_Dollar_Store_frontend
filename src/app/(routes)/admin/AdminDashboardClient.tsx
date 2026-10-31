@@ -61,6 +61,7 @@ const LANDING: [string, string][] = [
   ['stock_adjustments', '/admin/inventory/adjustments'], ['report_sales', '/admin/reports/sales'], ['report_stock', '/admin/reports/stock'],
   ['customers', '/admin/users'], ['expenses', '/admin/expenses'], ['employees', '/admin/hr/employees'], ['attendance', '/admin/hr/attendance'],
   ['payroll', '/admin/hr/payroll'], ['staff', '/admin/staff'], ['roles', '/admin/roles'], ['notifications', '/admin/notifications'],
+  ['desktop_download', '/admin/desktop-app'],
 ];
 
 export default function AdminDashboardClient() {

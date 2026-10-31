@@ -62,6 +62,7 @@ import {
   Banknote,
   MessageCircle,
   Route,
+  MonitorDown,
 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
@@ -259,6 +260,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Notifications', path: '/admin/notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'notifications' },
     { name: 'WhatsApp', path: '/admin/whatsapp', icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'whatsapp' },
     { name: 'Website', path: '/admin/website', icon: <Globe className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'website' },
+    { name: 'Desktop app', path: '/admin/desktop-app', icon: <MonitorDown className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'desktop_download' },
   ];
 
   const renderMenuItem = (item: MenuItem) => {
