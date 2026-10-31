@@ -6,13 +6,13 @@
 // tags and stick them on. "Box done" moves on to the next box.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ArrowRight, Box, CheckCircle2, Circle, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Box, FileImage, CheckCircle2, Circle, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import ShelfPicker, { invalidateShelfOptions } from '@/components/store/ShelfPicker';
 import { apiErrorCode, newRequestId, purchasingApi, toNum, type EntryResult } from '../../../_shared/purchasingApi';
-import { Card, Disclosure, NumberStepper } from '../../../_shared/ui';
+import { Card, Disclosure, NumberStepper, PhotoStrip } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNBillProgress, GRNLine, ReceivingUnit } from '../../../_shared/types';
 import EntriesList from './EntriesList';
 import QuickProductModal from './QuickProductModal';
@@ -91,6 +91,8 @@ export default function UnpackStep({
   const progress = billProgress(grn);
   const [search, setSearch] = useState('');
   const [showDone, setShowDone] = useState(false);
+  // Bill photos / PDFs uploaded while buying, opened from the vendor header (bill id).
+  const [photosFor, setPhotosFor] = useState<string | null>(null);
   // Owner, 2026-10-31: filter the vendor list by opened (unpacking started) / not opened.
   const [openFilter, setOpenFilter] = useState<'all' | 'not_opened' | 'opened'>('all');
   // Correcting the count of a checked vendor (before its goods are entered).
@@ -309,13 +311,25 @@ export default function UnpackStep({
         {(() => {
           const pct = bill.billTotal > 0 ? Math.min(100, Math.round((bill.entered / bill.billTotal) * 100)) : 0;
           const idx = progress.findIndex((p) => p.bill === bill.bill);
+          const billPhotos = (grn.purchaseOrder?.bills || []).find((x) => x._id === bill.bill)?.photos || [];
+          const photosOpen = photosFor === bill.bill;
           return (
             <div className="min-w-0 rounded-xl border border-honey-300 bg-white shadow-sm">
               <div className="border-b border-gray-100 px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">{bill.vendorName}</p>
-                  <span className="text-xs text-gray-500 whitespace-nowrap">
-                    Vendor {idx + 1} of {progress.length}
+                  <span className="flex items-center gap-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setPhotosFor(photosOpen ? null : bill.bill)}
+                      disabled={!billPhotos.length}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50 ${photosOpen ? 'border-honey-400 bg-honey-50 text-honey-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      <FileImage className="h-3.5 w-3.5" /> {billPhotos.length ? `Bills (${billPhotos.length})` : 'No bill photo'}
+                    </button>
+                    <span className="text-xs text-gray-500">
+                      Vendor {idx + 1} of {progress.length}
+                    </span>
                   </span>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
@@ -327,6 +341,12 @@ export default function UnpackStep({
                     {formatRs(bill.entered)} / {formatRs(bill.billTotal)}
                   </span>
                 </div>
+                {photosOpen && billPhotos.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
+                    <p className="mb-1 text-[11px] text-gray-500">Bill photos / PDFs from buying (tap to open full size)</p>
+                    <PhotoStrip photos={billPhotos} size="h-24 w-24" />
+                  </div>
+                )}
               </div>
                 <div className="p-3 sm:p-4 space-y-4">
               {(!isChecked(bill.bill) || recount) && boxOf(bill.bill) ? (
