@@ -10,7 +10,8 @@ import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
-import { ChevronDown, Hash, Loader2 } from "lucide-react";
+import { ChevronDown, Hash, Loader2, Sparkles } from "lucide-react";
+import { apiErrorMessage, storeApi } from "@/lib/storeApi";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import SoldByBarcodeCard from "./SoldByBarcodeCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
@@ -211,6 +212,29 @@ export default function ProductForm({
     if (mode === "create" && defaultBarcode.trim()) p.barcodes = [{ code: defaultBarcode.trim(), qty: 1 }];
     return p;
   });
+  // "Improve name": OpenAI on the server fixes spelling / capitals. `nameBefore` allows Undo.
+  const [improving, setImproving] = useState(false);
+  const [nameBefore, setNameBefore] = useState<string | null>(null);
+  const improveName = async () => {
+    const typed = form.name.trim();
+    if (!typed || improving) return;
+    setImproving(true);
+    try {
+      const res = await storeApi.post<{ name: string }>("/products/improve-name", { name: typed, category: form.category || undefined });
+      const better = res.data?.name?.trim();
+      if (!better || better === typed) {
+        toast("The name already looks fine.");
+      } else {
+        setNameBefore(form.name);
+        setField("name", better);
+      }
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Could not improve the name."));
+    } finally {
+      setImproving(false);
+    }
+  };
+
   // Vendor of the product (saved as its last vendor; receiving also updates it).
   const savedVendorId = String((initialData as { lastVendor?: string | null } | undefined)?.lastVendor || "");
   const [vendorId, setVendorId] = useState<string>(() => (mode === "create" ? defaultVendorId : savedVendorId));
@@ -917,14 +941,44 @@ export default function ProductForm({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Product Name <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g., Steel Water Bottle 500 ml"
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
-                    value={form.name}
-                    onChange={(e) => setField("name", e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g., Steel Water Bottle 500 ml"
+                      className="block w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
+                      value={form.name}
+                      onChange={(e) => {
+                        setField("name", e.target.value);
+                        setNameBefore(null);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={improveName}
+                      disabled={improving || !form.name.trim()}
+                      title="Fix spelling and capitals of the name"
+                      className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-honey-400 bg-honey-50 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-honey-100 disabled:opacity-50"
+                    >
+                      {improving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      <span className="hidden sm:inline">Improve name</span>
+                    </button>
+                  </div>
+                  {nameBefore !== null && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Was: <span className="text-gray-700">{nameBefore}</span>{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-honey-700 underline"
+                        onClick={() => {
+                          setField("name", nameBefore);
+                          setNameBefore(null);
+                        }}
+                      >
+                        Undo
+                      </button>
+                    </p>
+                  )}
                   {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                 </div>
 
