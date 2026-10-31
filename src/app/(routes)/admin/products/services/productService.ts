@@ -278,6 +278,15 @@ export const productService = {
       meta: { totalQty: Number(res.data?.meta?.totalQty) || 0 },
     };
   },
+  // "Improve name": OpenAI on the server fixes spelling / capitals of a product name.
+  async improveName(name: string, category?: string): Promise<string> {
+    const res = await axios.post(
+      `${API_BASE_URL}/products/improve-name`,
+      { name, category: category || undefined },
+      { headers: { 'Content-Type': 'application/json', ...getAuthHeader() } },
+    );
+    return String(res.data?.data?.name || '').trim();
+  },
   // Is this code (short code / barcode) free? excludeId = product being edited.
   async checkCode(code: string, excludeId?: string): Promise<CodeCheckResult> {
     const params = new URLSearchParams({ code });

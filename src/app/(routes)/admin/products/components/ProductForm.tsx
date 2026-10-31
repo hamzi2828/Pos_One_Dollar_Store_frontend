@@ -11,7 +11,7 @@ import { slugify, buildVariantCombos, syncVariants, type Variant } from "../serv
 import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ChevronDown, Hash, Loader2, Sparkles } from "lucide-react";
-import { apiErrorMessage, storeApi } from "@/lib/storeApi";
+import { apiErrorMessage } from "@/lib/storeApi";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import SoldByBarcodeCard from "./SoldByBarcodeCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
@@ -220,8 +220,7 @@ export default function ProductForm({
     if (!typed || improving) return;
     setImproving(true);
     try {
-      const res = await storeApi.post<{ name: string }>("/products/improve-name", { name: typed, category: form.category || undefined });
-      const better = res.data?.name?.trim();
+      const better = await productService.improveName(typed, form.category);
       if (!better || better === typed) {
         toast("The name already looks fine.");
       } else {
