@@ -7,7 +7,7 @@
 import { Download, Fingerprint, MonitorDown, ShoppingCart } from 'lucide-react';
 
 const FILE = '/downloads/DollarCoPos-Setup.exe';
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const BUILT = '31 Oct 2026';
 const SIZE = '3.6 MB';
 
@@ -39,7 +39,7 @@ export default function DesktopAppSettings() {
           </p>
           <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
             <span className="inline-flex items-center gap-1">
-              <Fingerprint className="h-3.5 w-3.5" /> Fingerprint attendance (SecuGen or DigitalPersona)
+              <Fingerprint className="h-3.5 w-3.5" /> Fingerprint attendance (SecuGen or DigitalPersona) · Sticker printing on the label printer
             </span>
             <span className="inline-flex items-center gap-1">
               <ShoppingCart className="h-3.5 w-3.5" /> Sales button (works offline)
