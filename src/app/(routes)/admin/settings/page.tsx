@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
-import { Settings, Image as ImageIcon, RotateCcw, Zap, Loader2 } from 'lucide-react';
+import { Settings, Image as ImageIcon, RotateCcw, Zap, Loader2, MonitorDown } from 'lucide-react';
 
 import GeneralSettings from './components/GeneralSettings';
 import LogoSettings from './components/LogoSettings';
+import DesktopAppSettings from './components/DesktopAppSettings';
 import { settingsService, SettingsData, SettingsBusyAction } from './services/settingsService';
 
-const VALID_TABS = ['general', 'logo'] as const;
+const VALID_TABS = ['general', 'logo', 'desktop'] as const;
 type TabType = typeof VALID_TABS[number];
 
 export default function SettingsPage() {
@@ -172,6 +173,7 @@ export default function SettingsPage() {
   const tabs: { id: TabType; label: string; icon: typeof Settings }[] = [
     { id: 'general', label: 'General', icon: Settings },
     { id: 'logo', label: 'Logo & Icon', icon: ImageIcon },
+    { id: 'desktop', label: 'Desktop app', icon: MonitorDown },
   ];
 
   return (
@@ -264,6 +266,8 @@ export default function SettingsPage() {
                 busyAction={busyAction}
               />
             )}
+
+            {activeTab === 'desktop' && <DesktopAppSettings />}
           </div>
         </div>
       </div>
