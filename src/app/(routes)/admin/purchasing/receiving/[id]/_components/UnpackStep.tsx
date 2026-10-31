@@ -30,6 +30,9 @@ const boxCountOf = (grn: GoodsReceipt, billId: string) => {
   const b = (grn.boxes || []).find((x) => x.bill === billId);
   return b ? b.received || b.expected || 0 : 0;
 };
+/** Entered vs bill: less = red, more = blue, equal = green. */
+const amountTone = (entered: number, total: number) =>
+  Math.round(entered) < Math.round(total) ? 'text-red-600' : Math.round(entered) > Math.round(total) ? 'text-blue-600' : 'text-green-600';
 const doneBoxesOf = (grn: GoodsReceipt, billId: string) => new Set((grn.boxesDone || []).filter((d) => d.bill === billId).map((d) => d.boxNo));
 /** First box of the bill not done yet (1 when all are done / no boxes). */
 const firstOpenBox = (grn: GoodsReceipt, billId: string) => {
@@ -284,6 +287,9 @@ export default function UnpackStep({
                               ? `Not checked · ${boxOf(p.bill)?.expected ?? 0} boxes/packs expected`
                               : `${finished ? 'Done' : pItems || pDone ? 'Unpacking' : 'Checked'} · ${pItems} item${pItems === 1 ? '' : 's'}${pBoxes > 0 ? ` · ${pDone}/${pBoxes} boxes/packs` : ''}`}
                           </span>
+                          <span className={`block text-[11px] font-medium tabular-nums ${amountTone(p.entered, p.billTotal)}`}>
+                            {formatRs(p.entered)} / {formatRs(p.billTotal)}
+                          </span>
                           <span className="mt-1 block h-1 rounded-full bg-gray-100 overflow-hidden">
                             <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
                           </span>
@@ -337,7 +343,7 @@ export default function UnpackStep({
                   <span className="h-1.5 flex-1 rounded-full bg-gray-100 overflow-hidden">
                     <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
                   </span>
-                  <span className="text-[11px] text-gray-600 tabular-nums whitespace-nowrap">
+                  <span className={`text-[11px] font-medium tabular-nums whitespace-nowrap ${amountTone(bill.entered, bill.billTotal)}`}>
                     {formatRs(bill.entered)} / {formatRs(bill.billTotal)}
                   </span>
                 </div>
