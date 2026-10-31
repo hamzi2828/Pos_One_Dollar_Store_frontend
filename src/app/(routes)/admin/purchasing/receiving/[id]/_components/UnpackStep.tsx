@@ -91,6 +91,8 @@ export default function UnpackStep({
   const progress = billProgress(grn);
   const [search, setSearch] = useState('');
   const [showDone, setShowDone] = useState(false);
+  // Owner, 2026-10-31: filter the vendor list by opened (unpacking started) / not opened.
+  const [openFilter, setOpenFilter] = useState<'all' | 'not_opened' | 'opened'>('all');
   // Correcting the count of a checked vendor (before its goods are entered).
   const [recount, setRecount] = useState(false);
   const [billId, setBillId] = useState<string>(
@@ -148,6 +150,8 @@ export default function UnpackStep({
   const liveEntries = (grn.entries || []).filter((e) => !e.undone && e.bill === bill.bill);
   const itemsIn = (n: number) => liveEntries.filter((e) => (e.boxNo || 0) === n).length;
   /** Vendor finished: all its boxes/packs done, or goods worth the whole bill entered. */
+  const isOpened = (billId: string) =>
+    (grn.entries || []).some((e) => !e.undone && e.bill === billId) || doneBoxesOf(grn, billId).size > 0;
   const vendorDone = (p: (typeof progress)[number]) => {
     if (!isChecked(p.bill)) return false;
     const n = boxCountOf(grn, p.bill);
@@ -218,10 +222,29 @@ export default function UnpackStep({
             {progress.length > 6 && (
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a vendor..." className={`${inputClass} !py-1.5 mb-2`} />
             )}
+            <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-0.5 text-xs">
+              {(
+                [
+                  ['all', 'All', progress.length],
+                  ['not_opened', 'Not opened', progress.filter((p) => !isOpened(p.bill)).length],
+                  ['opened', 'Opened', progress.filter((p) => isOpened(p.bill)).length],
+                ] as const
+              ).map(([key, label, n]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setOpenFilter(key)}
+                  className={`rounded-md px-1.5 py-1 font-medium ${openFilter === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  {label} ({n})
+                </button>
+              ))}
+            </div>
             <ul className="-mx-1 max-h-[60vh] overflow-y-auto space-y-0.5">
               {progress
                 .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
-                .filter((p) => showDone || p.bill === bill.bill || !vendorDone(p))
+                .filter((p) => openFilter === 'all' || (openFilter === 'opened') === isOpened(p.bill))
+                .filter((p) => showDone || openFilter === 'opened' || p.bill === bill.bill || !vendorDone(p))
                 .map((p) => {
                   const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
                   const on = p.bill === bill.bill;
@@ -270,7 +293,7 @@ export default function UnpackStep({
             </ul>
             {(() => {
               const hidden = progress.filter((p) => p.bill !== bill.bill && vendorDone(p)).length;
-              return hidden > 0 || showDone ? (
+              return openFilter !== 'opened' && (hidden > 0 || showDone) ? (
                 <button
                   type="button"
                   onClick={() => setShowDone((v) => !v)}
