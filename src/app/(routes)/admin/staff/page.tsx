@@ -484,7 +484,20 @@ function StaffFormModal({
     setLastName(e.lastName);
     if (e.email) setEmail(e.email);
     if (e.phone) setPhone(e.phone);
+    // The employee's designation is their role: pick it.
+    const match = roleFor(e);
+    if (match) setRoleId(match.id);
   };
+  // Role named like the employee's designation (e.g. "Warehouse Assistant").
+  const roleFor = (e: LoginlessEmployee | null) => {
+    const d = (e?.designation || e?.position || '').trim().toLowerCase();
+    return d ? roles.find((r) => r.name.trim().toLowerCase() === d) || null : null;
+  };
+  const designationRole = !isEdit ? roleFor(employee) : null;
+  // Roles may load after the employee was picked.
+  useEffect(() => {
+    if (designationRole && roleId !== designationRole.id) setRoleId(designationRole.id);
+  }, [designationRole, roleId]);
   const needsEmployee = !isEdit && !makeSuper;
   const showNames = isEdit || !employee;
 
@@ -646,8 +659,18 @@ function StaffFormModal({
         </Field>
 
         {!makeSuper && (
-          <Field label="Role" required hint="What this person may do.">
-            <SearchSelect value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass}>
+          <Field
+            label="Role"
+            required
+            hint={
+              designationRole
+                ? `From ${employee?.firstName || 'the employee'}'s designation. Change the designation on the employee page to change it.`
+                : employee && (employee.designation || employee.position)
+                  ? `No role is called "${employee.designation || employee.position}". Choose one, or set the designation to a role name.`
+                  : 'What this person may do.'
+            }
+          >
+            <SearchSelect value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass} disabled={!!designationRole}>
               <option value="">Choose a role…</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>

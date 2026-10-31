@@ -44,8 +44,16 @@ function loginRoleName(user: EmployeeLogin, roles: Role[]): string | null {
   return ref;
 }
 
+/** The role named exactly like the designation (designations are picked from the roles). */
+function designationRoleOf(employee: Employee, roles: Role[]): Role | null {
+  const d = (employee.designation || employee.position || '').trim().toLowerCase();
+  return d ? roles.find((r) => r.name.trim().toLowerCase() === d) || null : null;
+}
+
 /** Suggest a role from the designation, e.g. "Cashier" -> Cashier. */
 function suggestRole(employee: Employee, roles: Role[]): string {
+  const exact = designationRoleOf(employee, roles);
+  if (exact) return exact.id;
   const job = `${employee.designation || ''} ${employee.position || ''}`.toLowerCase();
   const find = (name: string) => roles.find((r) => r.name.toLowerCase() === name)?.id;
   const guess =
@@ -196,10 +204,13 @@ function CreateLoginModal({
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
 
+  // The designation is the role: shown, not chosen.
+  const fixedRole = designationRoleOf(employee, roles);
   // The role list may arrive after the modal opened.
   useEffect(() => {
-    if (!roleId && roles.length) setRoleId(suggestRole(employee, roles));
-  }, [roles, roleId, employee]);
+    if (fixedRole && roleId !== fixedRole.id) setRoleId(fixedRole.id);
+    else if (!roleId && roles.length) setRoleId(suggestRole(employee, roles));
+  }, [roles, roleId, employee, fixedRole]);
 
   const generate = () => {
     setPassword(generatePassword());
@@ -294,8 +305,18 @@ function CreateLoginModal({
               </button>
             </div>
           </Field>
-          <Field label="Role" required hint="What this person may do.">
-            <SearchSelect value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass} disabled={rolesLoading && !roles.length}>
+          <Field
+            label="Role"
+            required
+            hint={
+              fixedRole
+                ? 'From the designation. Change the designation to change it.'
+                : employee.designation
+                  ? `No role is called "${employee.designation}". Choose one, or set the designation to a role name.`
+                  : 'What this person may do.'
+            }
+          >
+            <SearchSelect value={roleId} onChange={(e) => setRoleId(e.target.value)} className={inputClass} disabled={(rolesLoading && !roles.length) || !!fixedRole}>
               <option value="">{rolesLoading && !roles.length ? 'Loading roles…' : 'Choose a role…'}</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>

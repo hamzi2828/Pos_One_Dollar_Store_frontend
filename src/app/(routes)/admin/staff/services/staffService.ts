@@ -37,6 +37,8 @@ export interface LoginlessEmployee {
   lastName: string;
   employeeCode: string | null;
   position: string | null;
+  /** Job designation (picked from the roles): gives the login its role. */
+  designation?: string | null;
   phone: string | null;
   email: string | null;
 }
