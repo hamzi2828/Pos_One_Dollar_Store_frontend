@@ -10,6 +10,8 @@ export type PayType = 'monthly' | 'daily';
 export interface JoinLink {
   token: string;
   enabled: boolean;
+  /** Links that still work (every open makes a new one; old ones keep working). */
+  activeLinks?: number;
 }
 
 export interface ApplicationFile {
@@ -89,7 +91,8 @@ export const employeeIdOf = (a: Pick<EmployeeApplication, 'employee'>): string |
 /** Admin side (logged in). */
 export const joinAdminApi = {
   link: async () => (await storeApi.get<JoinLink>('/employee-join-link')).data,
-  regenerate: async () => (await storeApi.post<JoinLink>('/employee-join-link/regenerate')).data,
+  /** A new link; older links keep working unless `blockOld`. */
+  regenerate: async (blockOld = false) => (await storeApi.post<JoinLink>('/employee-join-link/regenerate', blockOld ? { blockOld: true } : {})).data,
   setEnabled: async (enabled: boolean) => (await storeApi.put<JoinLink>('/employee-join-link', { enabled })).data,
 
   applications: (params: { status: ApplicationStatus | 'all'; page: number; limit: number }) =>

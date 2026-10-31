@@ -16,8 +16,9 @@ export default function JoinLinkModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Every open makes a fresh link to share; links shared before keep working.
     joinAdminApi
-      .link()
+      .regenerate()
       .then(setLink)
       .catch((e) => setError(apiErrorMessage(e, 'Could not load the join link.')))
       .finally(() => setLoading(false));
@@ -103,17 +104,17 @@ export default function JoinLinkModal({ onClose }: { onClose: () => void }) {
               <div className="rounded-lg border border-gray-200 p-3">
                 {confirmNew ? (
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-800">Make a new link? The old link will stop working.</p>
+                    <p className="text-sm text-gray-800">Block all older links? Only this new link will work. People who got an older link can&apos;t send the form.</p>
                     <div className="flex gap-2">
                       <button
                         type="button"
                         disabled={busy}
                         onClick={async () => {
-                          if (await run(() => joinAdminApi.regenerate(), 'New link made')) setConfirmNew(false);
+                          if (await run(() => joinAdminApi.regenerate(true), 'Older links blocked')) setConfirmNew(false);
                         }}
                         className={primaryBtn}
                       >
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Yes, make a new link
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Yes, block older links
                       </button>
                       <button type="button" disabled={busy} onClick={() => setConfirmNew(false)} className={secondaryBtn}>
                         Cancel
@@ -122,9 +123,11 @@ export default function JoinLinkModal({ onClose }: { onClose: () => void }) {
                   </div>
                 ) : (
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-gray-500">Shared the link with the wrong person? Make a new one.</p>
+                    <p className="text-xs text-gray-500">
+                      A new link is made every time you open this. {link.activeLinks && link.activeLinks > 1 ? `${link.activeLinks} links work now.` : ''} Shared one with the wrong person?
+                    </p>
                     <button type="button" onClick={() => setConfirmNew(true)} className={secondaryBtn} disabled={busy}>
-                      <RefreshCw className="h-4 w-4" /> Make a new link
+                      <RefreshCw className="h-4 w-4" /> Block older links
                     </button>
                   </div>
                 )}

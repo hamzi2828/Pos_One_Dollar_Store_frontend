@@ -50,7 +50,8 @@ export default function EmployeesPage() {
   const copyJoinLink = async () => {
     setCopying(true);
     try {
-      const link = await joinAdminApi.link();
+      // A fresh link each time; links shared before keep working.
+      const link = await joinAdminApi.regenerate();
       if (!link.enabled) {
         toast.error('The join link is switched off. Open "Join link" to turn it on.');
         return;
