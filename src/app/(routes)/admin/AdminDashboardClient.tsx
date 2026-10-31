@@ -5,6 +5,7 @@
 // what stock is worth and which tills are open. Shop time = Asia/Karachi.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Banknote, Loader2, Printer, ReceiptText, RefreshCw, Table2, BarChart3, TrendingUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { dashboardService, RANGE_OPTIONS, type DashboardData, type RangeKey } from './dashboardService';
@@ -51,8 +52,26 @@ const ago = (d: Date | null) => {
   return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 };
 
+// No dashboard permission: open the first page the role may use (work pages first, then menu order).
+const LANDING: [string, string][] = [
+  ['pos', '/admin/pos'], ['purchase_orders', '/admin/purchasing/orders'], ['goods_receiving', '/admin/purchasing/receiving'],
+  ['pos_orders', '/admin/pos-orders'], ['till', '/admin/till'], ['products', '/admin/products'], ['product_stock', '/admin/products/stock'],
+  ['vendors', '/admin/vendors'], ['stock_putaway', '/admin/inventory/putaway'], ['racks', '/admin/inventory/racks'],
+  ['stock_movements', '/admin/inventory/movements'], ['damages', '/admin/inventory/damages'], ['shop_use', '/admin/inventory/shop-use'],
+  ['stock_adjustments', '/admin/inventory/adjustments'], ['report_sales', '/admin/reports/sales'], ['report_stock', '/admin/reports/stock'],
+  ['customers', '/admin/users'], ['expenses', '/admin/expenses'], ['employees', '/admin/hr/employees'], ['attendance', '/admin/hr/attendance'],
+  ['payroll', '/admin/hr/payroll'], ['staff', '/admin/staff'], ['roles', '/admin/roles'], ['notifications', '/admin/notifications'],
+];
+
 export default function AdminDashboardClient() {
   const { access, can } = useAccess();
+  const router = useRouter();
+  const noDashboard = !!access && !can('dashboard', 'view');
+  useEffect(() => {
+    if (!noDashboard) return;
+    const to = LANDING.find(([perm]) => can(perm, 'view'))?.[1];
+    if (to) router.replace(to);
+  }, [noDashboard, can, router]);
   const [range, setRange] = useState<RangeKey>('today');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,16 +114,17 @@ export default function AdminDashboardClient() {
   }, []);
 
   useEffect(() => {
+    if (noDashboard) return;
     load(range);
-  }, [range, load]);
+  }, [range, load, noDashboard]);
 
   // Auto refresh every minute while the tab is visible.
   useEffect(() => {
     const t = window.setInterval(() => {
-      if (document.visibilityState === 'visible') load(range);
+      if (!noDashboard && document.visibilityState === 'visible') load(range);
     }, REFRESH_MS);
     return () => window.clearInterval(t);
-  }, [range, load]);
+  }, [range, load, noDashboard]);
 
   const pickRange = (r: RangeKey) => {
     setRange(r);
