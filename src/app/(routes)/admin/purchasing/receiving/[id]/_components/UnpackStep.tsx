@@ -222,7 +222,7 @@ export default function UnpackStep({
             {progress.length > 6 && (
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a vendor..." className={`${inputClass} !py-1.5 mb-2`} />
             )}
-            <div className="mb-2 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-0.5 text-xs">
+            <div className="mb-2 flex gap-0.5 rounded-md bg-gray-100 p-0.5 text-[11px] leading-4">
               {(
                 [
                   ['all', 'All', progress.length],
@@ -234,9 +234,9 @@ export default function UnpackStep({
                   key={key}
                   type="button"
                   onClick={() => setOpenFilter(key)}
-                  className={`rounded-md px-1.5 py-1 font-medium ${openFilter === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                  className={`flex-1 whitespace-nowrap rounded px-1 py-0.5 font-medium ${openFilter === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                 >
-                  {label} ({n})
+                  {label} <span className="text-gray-400">{n}</span>
                 </button>
               ))}
             </div>
