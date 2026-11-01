@@ -6,7 +6,8 @@
 // tags and stick them on. "Box done" moves on to the next box.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ArrowRight, Box, FileImage, CheckCircle2, Circle, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
+import { downloadBillsPdf } from '../../../_shared/billsPdf';
+import { AlertTriangle, ArrowRight, Box, Download, FileImage, CheckCircle2, Circle, ListChecks, Loader2, PackageOpen, PackagePlus, Printer, RotateCcw, ScanLine, Search, X } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox, Field, Toggle, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -96,6 +97,7 @@ export default function UnpackStep({
   const [showDone, setShowDone] = useState(false);
   // Bill photos / PDFs uploaded while buying, opened from the vendor header (bill id).
   const [photosFor, setPhotosFor] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
   // Owner, 2026-10-31: filter the vendor list by opened (unpacking started) / not opened.
   const [openFilter, setOpenFilter] = useState<'all' | 'not_opened' | 'opened'>('all');
   // Correcting the count of a checked vendor (before its goods are entered).
@@ -333,6 +335,29 @@ export default function UnpackStep({
                     >
                       <FileImage className="h-3.5 w-3.5" /> {billPhotos.length ? `Bills (${billPhotos.length})` : 'No bill photo'}
                     </button>
+                    {billPhotos.length > 0 && (
+                      <button
+                        type="button"
+                        title="Download all bill photos / PDFs as one PDF"
+                        aria-label="Download bills as one PDF"
+                        disabled={pdfBusy}
+                        onClick={async () => {
+                          setPdfBusy(true);
+                          try {
+                            const name = `${grn.poNumber || grn.grnNumber} - ${bill.vendorName}${bill.billNo ? ` - ${bill.billNo}` : ''} - bills`;
+                            const { skipped } = await downloadBillsPdf(billPhotos, name);
+                            if (skipped) toast(`${skipped} file${skipped === 1 ? '' : 's'} could not be added.`, { icon: '⚠️' });
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : 'Could not make the PDF.');
+                          } finally {
+                            setPdfBusy(false);
+                          }
+                        }}
+                        className="inline-flex items-center rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {pdfBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
                     <span className="text-xs text-gray-500">
                       Vendor {idx + 1} of {progress.length}
                     </span>

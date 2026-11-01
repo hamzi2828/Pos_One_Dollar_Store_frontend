@@ -12,13 +12,13 @@ import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
-import { apiErrorMessage, formatDate } from '@/lib/storeApi';
+import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi } from '../../_shared/purchasingApi';
 import { GRNStatusBadge, StepStrip } from '../../_shared/ui';
 import type { GoodsReceipt } from '../../_shared/types';
 import OldCounting from './_components/OldCounting';
-import UnpackStep from './_components/UnpackStep';
+import UnpackStep, { billProgress } from './_components/UnpackStep';
 import FinishStep, { DoneView } from './_components/FinishStep';
 import { loadTagSize, type StickerSize } from './_components/tags';
 
@@ -41,6 +41,32 @@ const isOldReceipt = (g: GoodsReceipt) => {
   if (g.mode) return g.mode === 'lines';
   return !Array.isArray(g.boxes) || g.boxes.length === 0 || (!g.boxesCheckedAt && !(g.entries || []).length && (g.lines || []).some((l) => l.receivedQty > 0));
 };
+
+/** Whole trip: goods worth how much entered out of all bills. */
+function TripEnteredBar({ grn }: { grn: GoodsReceipt }) {
+  const rows = billProgress(grn);
+  const billTotal = grn.progress?.billTotal ?? rows.reduce((s, r) => s + r.billTotal, 0);
+  const entered = grn.progress?.entered ?? rows.reduce((s, r) => s + r.entered, 0);
+  if (!(billTotal > 0)) return null;
+  const pct = Math.round((entered / billTotal) * 100);
+  const left = billTotal - entered;
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="text-sm text-gray-700">
+          Entered <span className="font-semibold text-gray-900 tabular-nums">{formatRs(entered)}</span> of{' '}
+          <span className="font-semibold text-gray-900 tabular-nums">{formatRs(billTotal)}</span> bought
+        </p>
+        <p className={`text-sm font-semibold tabular-nums ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-blue-600' : 'text-green-600'}`}>
+          {pct}% · {left > 0.5 ? `${formatRs(left)} left` : left < -0.5 ? `${formatRs(-left)} over` : 'all entered'}
+        </p>
+      </div>
+      <div className="mt-2 h-2.5 rounded-full bg-gray-100 overflow-hidden">
+        <div className={`h-full rounded-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      </div>
+    </div>
+  );
+}
 
 /** Furthest step this receipt has reached. */
 const reachedStep = (g: GoodsReceipt): View => (g.status === 'in_progress' && g.boxesCheckedAt ? 1 : 0);
@@ -174,6 +200,8 @@ export default function ReceiveGoodsPage() {
           </p>
           {cancelled && <p className="mt-1 text-xs text-red-600">This trip was cancelled{grn.completedAt ? ` on ${formatDate(grn.completedAt)}` : ''}.</p>}
         </div>
+
+        {!cancelled && <TripEnteredBar grn={grn} />}
 
         {!cancelled && (
           <StepStrip
