@@ -1375,7 +1375,7 @@ export default function ProductForm({
 
               {/* SKU (made automatically; the short code behind it is printed on the sticker) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                  {noStock && !isVariant && (
+                  {(noStock || mode === "edit") && !isVariant && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Barcodes on the item <span className="font-normal text-gray-500">(if printed)</span>
@@ -1390,7 +1390,7 @@ export default function ProductForm({
                       {codeErrors.barcodes ? (
                         <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>
                       ) : (
-                        <p className="mt-1 text-xs text-gray-500">{itemCodes.length ? `${itemCodes.length} barcode${itemCodes.length === 1 ? "" : "s"}: any of them sells this product. No new sticker needed.` : "Empty = we print a sticker."}</p>
+                        <p className="mt-1 text-xs text-gray-500">{itemCodes.length ? `${itemCodes.length} barcode${itemCodes.length === 1 ? "" : "s"}: any of them sells this product. No new sticker needed.` : mode === "edit" ? "Empty = sold by our sticker. Scan to add a barcode." : "Empty = we print a sticker."}</p>
                       )}
                     </div>
                   )}
