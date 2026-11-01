@@ -10,8 +10,8 @@ import { CheckCircle2, Download, Fingerprint, MonitorDown, RefreshCw, ShoppingCa
 import { storeApi } from '@/lib/storeApi';
 
 const FILE = '/downloads/DollarCoPos-Setup.exe';
-const VERSION = '1.5.0';
-const BUILT = '31 Oct 2026';
+const VERSION = '1.6.0';
+const BUILT = '1 Nov 2026';
 const SIZE = '3.6 MB';
 const DRIVER_FILE = '/downloads/SecuGen-Fingerprint-Driver.zip';
 const DRIVER_SIZE = '45 MB';
@@ -97,7 +97,7 @@ export default function DesktopAppSettings() {
               <Fingerprint className="h-3.5 w-3.5" /> Fingerprint attendance (SecuGen or DigitalPersona) · Sticker printing on the label printer
             </span>
             <span className="inline-flex items-center gap-1">
-              <ShoppingCart className="h-3.5 w-3.5" /> Sales button (signs in as the same person, works offline)
+              <ShoppingCart className="h-3.5 w-3.5" /> Sales button (signs in as the same person, works offline) · Break button
             </span>
           </p>
         </div>
