@@ -28,6 +28,8 @@ import {
   validatePackaging,
   variantPayload,
 } from "./packaging/packagingUtils";
+
+const roundCost = (n: number) => Math.round(n * 10000) / 10000;
 import PriceTierSelect, { syncProductTier, type TierChoice } from "../price-tiers/components/PriceTierSelect";
 import { SearchSelect } from "@/components/ui/SearchSelect";
 import NumberMoneyInput from "./NumberMoneyInput";
@@ -1211,19 +1213,33 @@ export default function ProductForm({
                 {!isVariant && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {pps > 1 ? `Cost price (one sale = ${pps} pieces)` : "Cost Price"} ({currency.symbol}) <span className="text-red-500">*</span>
+                      {pps > 1 && packaging.soldAs !== "box" ? "Cost price of one piece" : "Cost Price"} ({currency.symbol}) <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{currency.symbol}</span>
+                      {/* Saved cost is per sale; for loose items sold N together the box takes one piece's cost. */}
                       <NumberMoneyInput
                         placeholder="0.00"
                         disabled={packaging.soldAs === "box"}
                         className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-900'}`}
-                        value={form.costPrice}
-                        onNumber={(n) => setField("costPrice", n)}
+                        value={packaging.soldAs === "box" || form.costPrice == null ? form.costPrice : roundCost(form.costPrice / pps)}
+                        onNumber={(n) => setField("costPrice", packaging.soldAs === "box" || n == null ? n : roundCost(n * pps))}
                       />
                     </div>
                     {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                    {pps > 1 && packaging.soldAs !== "box" && (
+                      <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                        Cost of one sale ({pps} pieces):{" "}
+                        {form.costPrice != null ? (
+                          <>
+                            {currency.symbol}{roundCost(form.costPrice / pps).toLocaleString()} × {pps} ={" "}
+                            <span className="font-semibold text-gray-900">{currency.symbol}{form.costPrice.toLocaleString()}</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </p>
+                    )}
                     {packaging.soldAs === "box" && <p className="mt-1 text-xs text-gray-500">Set in the Box/pack section below</p>}
                   </div>
                 )}
@@ -1339,7 +1355,13 @@ export default function ProductForm({
                       step="1"
                       className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${errors.piecesPerSale ? 'border-red-300' : 'border-gray-300'}`}
                       value={packaging.piecesPerSale}
-                      onChange={(e) => updatePackaging({ ...packaging, piecesPerSale: e.target.value })}
+                      onChange={(e) => {
+                        // Keep one piece's cost the same: the cost of one sale follows the new count.
+                        const next = { ...packaging, piecesPerSale: e.target.value };
+                        const nextPps = piecesPerSaleOf(next);
+                        if (form.costPrice != null && nextPps !== pps) setField("costPrice", roundCost((form.costPrice / pps) * nextPps));
+                        updatePackaging(next);
+                      }}
                     />
                     {errors.piecesPerSale ? (
                       <p className="mt-1 text-sm text-red-600">{errors.piecesPerSale}</p>
