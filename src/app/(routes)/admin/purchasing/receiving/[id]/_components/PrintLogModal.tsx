@@ -26,7 +26,20 @@ interface PrintLog {
 const modeText = (r: PrintRow) =>
   r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
 
-export default function PrintLogModal({ productId, variantId, name, onClose }: { productId: string; variantId?: string | null; name: string; onClose: () => void }) {
+export default function PrintLogModal({
+  productId,
+  variantId,
+  name,
+  need: needNow,
+  onClose,
+}: {
+  productId: string;
+  variantId?: string | null;
+  name: string;
+  /** Stickers this entry needs now (its pieces, after any edit). Missing = the newest print's "of N". */
+  need?: number;
+  onClose: () => void;
+}) {
   const [log, setLog] = useState<PrintLog | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +67,8 @@ export default function PrintLogModal({ productId, variantId, name, onClose }: {
       ) : (
         <>
           {(() => {
-            // Newest print's "of N" = stickers this product needs.
-            const need = log.prints[0].total;
+            // Stickers needed: the entry's pieces now (an edit may have changed them), else the newest print's "of N".
+            const need = needNow && needNow > 0 ? needNow : log.prints[0].total;
             const done = log.totalStickers;
             const left = Math.max(0, need - done);
             const pct = need > 0 ? Math.min(100, Math.round((done / need) * 100)) : 100;
@@ -77,7 +90,7 @@ export default function PrintLogModal({ productId, variantId, name, onClose }: {
             {log.prints.map((r, i) => {
               // Printed so far up to this print (list is newest first).
               const upTo = log.prints.slice(i).reduce((t, x) => t + x.count, 0) + (log.totalStickers - log.prints.reduce((t, x) => t + x.count, 0));
-              const left = Math.max(0, r.total - upTo);
+              const left = Math.max(0, (needNow && needNow > 0 ? needNow : r.total) - upTo);
               return (
               <li key={r.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="min-w-0">

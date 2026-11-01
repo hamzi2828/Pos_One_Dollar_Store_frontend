@@ -151,7 +151,7 @@ export default function EntriesList({
           ))}
         </ul>
       )}
-      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} onClose={() => setLogOf(null)} />}
+      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={(logOf.stockQty || 0) * Math.max(1, logOf.piecesPerSale || 1)} onClose={() => setLogOf(null)} />}
       {editing && (
         <EditEntryModal
           grn={grn}
