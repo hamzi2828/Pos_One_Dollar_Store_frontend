@@ -10,31 +10,23 @@ import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, FilePen, Loader2, Printer } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
-import { BACKEND_URL, apiErrorMessage, formatDate } from '@/lib/storeApi';
+import { apiErrorMessage, formatDate } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import TemplateEditorModal from '../../components/TemplateEditorModal';
 import { employeeApi, type ContractRender, type ContractTemplate, type Placeholder } from '../../services/employeeApi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
-// Uploaded logos live on the backend; '/images/...' defaults are frontend files.
-const logoSrc = (url: string) => (!url ? '' : /^https?:\/\//.test(url) ? url : url.startsWith('/uploads') ? `${BACKEND_URL}${url}` : url);
+// Company letterhead (marketing/Dollar & Co Letterhead - Color.pdf), cut into
+// three full-width A4 strips: header 0–49mm, watermark 102–194mm, footer 279–297mm.
+const LH = {
+  header: '/images/letterhead/header.png',
+  mark: '/images/letterhead/mark.png',
+  footer: '/images/letterhead/footer.png',
+};
 
-function Letter({ data }: { data: ContractRender }) {
-  const h = data.letterhead;
-  const [logoOk, setLogoOk] = useState(true);
+function LetterContent({ data }: { data: ContractRender }) {
   return (
     <article className="contract-letter">
-      <header className="letterhead">
-        {h.logoUrl && logoOk && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoSrc(h.logoUrl)} alt="" className="letterhead-logo" onError={() => setLogoOk(false)} />
-        )}
-        <div className="letterhead-text">
-          <div className="letterhead-name">{h.shopName}</div>
-          {h.shopAddress && <div>{h.shopAddress}</div>}
-          {h.shopPhone && <div>{h.shopPhone}</div>}
-        </div>
-      </header>
       <div className="letter-ref">
         <span>Ref: {data.employee.employeeCode || '—'}</span>
         <span>{formatDate(new Date())}</span>
@@ -43,6 +35,59 @@ function Letter({ data }: { data: ContractRender }) {
     </article>
   );
 }
+
+/* eslint-disable @next/next/no-img-element */
+// On screen: one A4-shaped sheet (grows if the letter is longer).
+function ScreenLetter({ data }: { data: ContractRender }) {
+  return (
+    <div className="lh-sheet">
+      <img src={LH.header} alt="Dollar & Co letterhead" className="lh-sheet-header" />
+      <div className="lh-sheet-mark" aria-hidden>
+        <img src={LH.mark} alt="" />
+      </div>
+      <div className="lh-sheet-body">
+        <LetterContent data={data} />
+      </div>
+      <img src={LH.footer} alt="" className="lh-sheet-footer" />
+    </div>
+  );
+}
+
+// Print: fixed images repeat on every page; the table's thead/tfoot spacers
+// repeat too, so text never runs under the header or footer.
+function PrintLetter({ data }: { data: ContractRender }) {
+  return (
+    <>
+      <img src={LH.header} alt="" className="lh-print-header" />
+      <img src={LH.mark} alt="" className="lh-print-mark" />
+      <img src={LH.footer} alt="" className="lh-print-footer" />
+      <table className="lh-print-table">
+        <thead>
+          <tr>
+            <td>
+              <div className="lh-print-top" />
+            </td>
+          </tr>
+        </thead>
+        <tfoot>
+          <tr>
+            <td>
+              <div className="lh-print-bottom" />
+            </td>
+          </tr>
+        </tfoot>
+        <tbody>
+          <tr>
+            <td className="lh-print-cell">
+              <LetterContent data={data} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </>
+  );
+}
+/* eslint-enable @next/next/no-img-element */
 
 export default function ContractLetterPage() {
   const { id } = useParams<{ id: string }>();
@@ -196,14 +241,21 @@ export default function ContractLetterPage() {
             </button>
           </div>
         ) : data ? (
-          <div className={`bg-white shadow-sm border border-gray-200 rounded-lg mx-auto max-w-[210mm] px-5 py-6 sm:px-12 sm:py-10 ${loading ? 'opacity-60' : ''}`}>
-            <Letter data={data} />
+          <div className={`bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden mx-auto max-w-[210mm] ${loading ? 'opacity-60' : ''}`}>
+            <ScreenLetter data={data} />
           </div>
         ) : null}
       </div>
 
       {/* Print copy outside the admin layout, so only the letter is printed. */}
-      {mounted && data && createPortal(<div className="contract-print-root"><Letter data={data} /></div>, document.body)}
+      {mounted &&
+        data &&
+        createPortal(
+          <div className="contract-print-root">
+            <PrintLetter data={data} />
+          </div>,
+          document.body
+        )}
 
       {editorOpen && (
         <TemplateEditorModal
@@ -226,31 +278,36 @@ export default function ContractLetterPage() {
           font-size: 13.5px;
           line-height: 1.6;
         }
-        .contract-letter .letterhead {
+        /* Screen sheet: A4 proportions, side margins match the letterhead line (19mm of 210mm). */
+        .lh-sheet {
+          position: relative;
           display: flex;
-          align-items: center;
-          gap: 14px;
-          border-bottom: 2px solid #111827;
-          padding-bottom: 10px;
-          margin-bottom: 10px;
+          flex-direction: column;
+          aspect-ratio: 210 / 297;
+          background: #fff;
         }
-        .contract-letter .letterhead-logo {
-          height: 54px;
-          width: auto;
-          max-width: 140px;
-          object-fit: contain;
+        .lh-sheet-header,
+        .lh-sheet-footer,
+        .lh-sheet-mark img {
+          display: block;
+          width: 100%;
+          height: auto;
+          user-select: none;
+          pointer-events: none;
         }
-        .contract-letter .letterhead-text {
-          font-family: Arial, Helvetica, sans-serif;
-          font-size: 11.5px;
-          color: #374151;
-          line-height: 1.45;
+        .lh-sheet-footer {
+          margin-top: auto;
         }
-        .contract-letter .letterhead-name {
-          font-size: 20px;
-          font-weight: 700;
-          color: #111827;
-          letter-spacing: 0.02em;
+        .lh-sheet-mark {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          padding-top: 48.571%; /* 102mm / 210mm */
+        }
+        .lh-sheet-body {
+          position: relative;
+          padding: 1.5% 9.05% 4%;
         }
         .contract-letter .letter-ref {
           display: flex;
@@ -335,7 +392,7 @@ export default function ContractLetterPage() {
         }
         @page {
           size: A4;
-          margin: 14mm 15mm 16mm;
+          margin: 0;
         }
         @media print {
           body > *:not(.contract-print-root) {
@@ -343,9 +400,46 @@ export default function ContractLetterPage() {
           }
           body {
             background: #fff !important;
+            margin: 0 !important;
           }
           .contract-print-root {
             display: block;
+          }
+          .lh-print-header,
+          .lh-print-mark,
+          .lh-print-footer {
+            position: fixed;
+            left: 0;
+            width: 210mm;
+            height: auto;
+            z-index: 0;
+          }
+          .lh-print-header {
+            top: 0;
+          }
+          .lh-print-mark {
+            top: 102mm;
+          }
+          .lh-print-footer {
+            bottom: 0;
+          }
+          .lh-print-table {
+            position: relative;
+            z-index: 1;
+            width: 210mm;
+            border-collapse: collapse;
+          }
+          .lh-print-table td {
+            padding: 0;
+          }
+          .lh-print-top {
+            height: 51mm;
+          }
+          .lh-print-bottom {
+            height: 24mm;
+          }
+          .lh-print-cell {
+            padding: 0 19mm !important;
           }
           .contract-print-root .contract-letter .signatures {
             grid-template-columns: repeat(3, minmax(0, 1fr));
