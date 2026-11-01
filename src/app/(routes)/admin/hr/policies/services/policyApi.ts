@@ -15,6 +15,7 @@ export interface PolicyRules {
     earlyLeaveCountsAsLate: boolean;
     halfDay: { enabled: boolean; lateAfterMinutes: number; minWorkedPct: number };
     missingOutCountsAs: MissingOut;
+    breakMinutes: number;
   };
   pay: {
     dayDivisor: DayDivisor;
@@ -106,6 +107,7 @@ export function summaryParts(p: PolicyRules): string[] {
   const ts = p.tillShortage;
   const parts: string[] = [];
   parts.push(Number(a.graceMinutes) ? `${a.graceMinutes} min grace` : 'no grace time');
+  parts.push(Number(a.breakMinutes) ? `${a.breakMinutes} min break` : 'no break limit');
   if (lr.type === 'count' && Number(lr.cutDays) > 0) parts.push(`every ${lr.latesPerCut} lates cut ${days(lr.cutDays)}`);
   else if (lr.type === 'minutes') parts.push('late minutes cut from pay');
   else parts.push('lates only noted (no cut)');

@@ -266,6 +266,9 @@ export default function PolicyEditor({
               'Until a manager corrects the day.'
             )}
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {num('attendance.breakMinutes', 'Break allowed a day', { suffix: 'min', hint: 'Break button on the counter PC. Longer breaks show as over break. 0 = no limit.' })}
+          </div>
           {tog('attendance.earlyLeaveCountsAsLate', 'Leaving early counts as a late', 'Early leaves are added to the lates for the late rule.')}
           {tog('attendance.halfDay.enabled', 'Half day rule', 'Very late or a short day counts as half a day.')}
           {a.halfDay.enabled && (

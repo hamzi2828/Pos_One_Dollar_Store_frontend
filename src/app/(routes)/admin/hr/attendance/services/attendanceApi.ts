@@ -49,7 +49,7 @@ export interface DayPlan {
 
 export interface Punch {
   at: string;
-  kind: 'in' | 'out';
+  kind: 'in' | 'out' | 'break_start' | 'break_end';
   source: 'kiosk' | 'manual' | 'device';
   photo: string | null;
   note: string;
@@ -76,11 +76,15 @@ export interface BoardRow {
   /** Latest time correction: shown as "Corrected by X: reason". */
   lastCorrection: { at: string; byName: string; reason: string; field: string } | null;
   inNow: boolean;
+  onBreak?: boolean;
   status: AttendanceStatus;
   lateMinutes: number;
   earlyLeaveMinutes: number;
   workedMinutes: number;
   overtimeMinutes: number;
+  /** Break button minutes, and minutes beyond the policy's allowed break. */
+  breakMinutes?: number;
+  overBreakMinutes?: number;
   overtimeApproved: boolean | null;
   locked: boolean;
   /** Locked placeholder written by payroll approval on a day with no record (no times). */
@@ -138,6 +142,9 @@ export interface SheetCell {
   earlyLeaveMinutes: number;
   workedMinutes: number;
   overtimeMinutes: number;
+  /** Break button minutes, and minutes beyond the policy's allowed break. */
+  breakMinutes?: number;
+  overBreakMinutes?: number;
   overtimeApproved: boolean | null;
   extra: boolean;
   /** Day closed by an approved payroll. */

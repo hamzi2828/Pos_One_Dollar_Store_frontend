@@ -213,7 +213,14 @@ export default function TodayTab({ canEdit }: { canEdit: boolean }) {
 
                   <div className="mt-1.5 md:mt-0 flex flex-wrap items-center gap-1.5 pl-[3.25rem] md:pl-0">
                     <StatusChip status={r.status} />
-                    {r.inNow && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-green-600 text-white">IN NOW</span>}
+                    {r.inNow && !r.onBreak && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-green-600 text-white">IN NOW</span>}
+                    {r.onBreak && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-500 text-white">ON BREAK</span>}
+                    {(r.breakMinutes ?? 0) > 0 && (
+                      <span className={`text-xs ${r.overBreakMinutes ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                        break {mins(r.breakMinutes ?? 0)}
+                        {r.overBreakMinutes ? ` · ${mins(r.overBreakMinutes)} over` : ''}
+                      </span>
+                    )}
                     {r.lateMinutes > 0 && <span className="text-xs text-amber-700 font-medium">{mins(r.lateMinutes)} late</span>}
                     {r.earlyLeaveMinutes > 0 && <span className="text-xs text-amber-700">left {mins(r.earlyLeaveMinutes)} early</span>}
                     {r.workedMinutes > 0 && <span className="text-xs text-gray-500">worked {mins(r.workedMinutes)}</span>}

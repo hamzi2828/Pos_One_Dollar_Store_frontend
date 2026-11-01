@@ -225,6 +225,11 @@ export default function DayModal({
             <Fact label="Late" value={day.lateMinutes ? mins(day.lateMinutes) : '—'} warn={!!day.lateMinutes} />
             <Fact label="Left early" value={day.earlyLeaveMinutes ? mins(day.earlyLeaveMinutes) : '—'} warn={!!day.earlyLeaveMinutes} />
             <Fact label="Overtime" value={day.overtimeMinutes ? `${mins(day.overtimeMinutes)} · ${otState}` : '—'} />
+            <Fact
+              label="Break"
+              value={day.breakMinutes ? `${mins(day.breakMinutes)}${day.overBreakMinutes ? ` · ${mins(day.overBreakMinutes)} over` : ''}` : '—'}
+              warn={!!day.overBreakMinutes}
+            />
           </dl>
 
           {!!day.overtimeMinutes && canEdit && !day.locked && (
@@ -289,7 +294,9 @@ export default function DayModal({
                         <img src={fileUrl(p.photo)} alt="Clock-in photo" className="h-10 w-10 rounded-md object-cover border border-gray-200" />
                       </button>
                     ) : null}
-                    <span className={`font-semibold ${p.kind === 'in' ? 'text-green-700' : 'text-blue-700'}`}>{p.kind === 'in' ? 'IN' : 'OUT'}</span>
+                    <span className={`font-semibold ${p.kind === 'in' ? 'text-green-700' : p.kind === 'out' ? 'text-blue-700' : 'text-amber-700'}`}>
+                      {p.kind === 'in' ? 'IN' : p.kind === 'out' ? 'OUT' : p.kind === 'break_start' ? 'BREAK' : 'BACK'}
+                    </span>
                     <span className="text-gray-900">{clock(p.at)}</span>
                     <span className="text-xs text-gray-500 truncate">
                       {p.source === 'device' ? 'Fingerprint (desktop app)' : p.source === 'manual' ? `By hand${p.by ? ` · ${p.by}` : ''}` : 'Web clock-in (old)'}
