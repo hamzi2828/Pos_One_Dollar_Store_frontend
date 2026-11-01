@@ -57,6 +57,8 @@ export default function CartItem({
   const maxStock = item.variant ? item.variant.stock : item.product.stock;
   const shelfCodes = (item.variant?.shelfCodes?.length ? item.variant.shelfCodes : item.product.shelfCodes) || [];
   const lowStock = line && typeof line.available === 'number' && line.available < item.quantity;
+  // Sold in sets (e.g. 2 tissues for one price): one sale = pps pieces handed over.
+  const pps = item.variant ? 1 : Math.max(1, Math.floor(Number(item.product.piecesPerSale) || 1));
 
   const handlePriceEdit = () => {
     const newPrice = parseFloat(editPrice);
@@ -124,6 +126,11 @@ export default function CartItem({
               </button>
             )}
           </div>
+          {pps > 1 && (
+            <p className="mt-1 inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+              1 sale = {pps} pieces · give {item.quantity * pps} pieces
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-1 mt-0.5">
             {(item.color || item.size) && (
               <span className="text-xs text-gray-500">{item.color && item.size ? `${item.color} / ${item.size}` : item.color || item.size}</span>
@@ -209,7 +216,7 @@ export default function CartItem({
                   <div className="flex items-center gap-1 justify-end">
                     <span className={`text-xs ${item.priceOverride ? 'text-blue-600 font-medium' : 'text-gray-500'}`}>
                       {symbol}
-                      {unitPrice.toFixed(2)} each{item.priceOverride ? ' (typed)' : ''}
+                      {unitPrice.toFixed(2)} {pps > 1 ? `per ${pps} pcs` : 'each'}{item.priceOverride ? ' (typed)' : ''}
                     </span>
                     {onUpdateUnitPrice && !disabled && (
                       <button

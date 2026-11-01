@@ -134,7 +134,7 @@ export default function CartPanel({
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
             Current Order
-            {!isEmpty && <span className="text-xs font-medium text-gray-500">({quote?.itemCount ?? cart.items.reduce((s, i) => s + i.quantity, 0)} pcs)</span>}
+            {!isEmpty && <span className="text-xs font-medium text-gray-500">({cart.items.reduce((s, i) => s + i.quantity * (i.variant ? 1 : Math.max(1, Math.floor(Number(i.product.piecesPerSale) || 1))), 0)} pcs)</span>}
           </h2>
           {!isEmpty && (
             <button onClick={onClearCart} disabled={busy} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed" title="Clear cart">
