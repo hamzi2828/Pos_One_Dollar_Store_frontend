@@ -12,6 +12,7 @@ import { Card } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNEntry } from '../../../_shared/types';
 import { printTags, type StickerSize } from './tags';
 import PrintLogModal from './PrintLogModal';
+import { billProgress } from './UnpackStep';
 import ProductForm from '@/app/(routes)/admin/products/components/ProductForm';
 import type { Product } from '@/app/(routes)/admin/products/components/AllProducts';
 import type { Category } from '@/app/(routes)/admin/products/components/CategoriesTab';
@@ -153,6 +154,7 @@ export default function EntriesList({
       {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} onClose={() => setLogOf(null)} />}
       {editing && (
         <EditEntryModal
+          grn={grn}
           grnId={grn._id}
           entry={editing}
           boxes={boxCount(editing.bill)}
@@ -169,12 +171,14 @@ export default function EntriesList({
 }
 
 function EditEntryModal({
+  grn,
   grnId,
   entry,
   boxes,
   onClose,
   onSaved,
 }: {
+  grn: GoodsReceipt;
   grnId: string;
   entry: GRNEntry;
   boxes: number;
@@ -197,6 +201,18 @@ function EditEntryModal({
   const piece = Number(cost) || 0;
   const c = Math.round(piece * perSale * 10000) / 10000;
   const unit = perSale > 1 ? 'sales' : 'pcs';
+
+  // Order totals after this edit: only good pieces count (good × cost), like the bill progress.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const delta = r2(Math.max(0, q - d) * c - (entry.stockQty || 0) * (Number(entry.costPrice) || 0));
+  const bills = billProgress(grn);
+  const myBill = bills.find((b) => b.bill === entry.bill);
+  const tripBill = grn.progress?.billTotal ?? bills.reduce((t, b) => t + b.billTotal, 0);
+  const tripEntered = grn.progress?.entered ?? bills.reduce((t, b) => t + b.entered, 0);
+  const totals = [
+    ...(myBill ? [{ label: `${myBill.vendorName}${myBill.billNo ? ` · bill ${myBill.billNo}` : ''}`, bill: myBill.billTotal, entered: r2(myBill.entered + delta) }] : []),
+    { label: 'Whole trip', bill: tripBill, entered: r2(tripEntered + delta) },
+  ];
 
   // The full product form (same as Products → Edit): name, barcodes, prices, category.
   useEffect(() => {
@@ -274,6 +290,24 @@ function EditEntryModal({
           New total: <strong>{formatRs(Math.round(q * c * 100) / 100)}</strong> · {Math.max(0, q - d)} good {unit}
           {perSale > 1 ? ` (${Math.max(0, q - d) * perSale} pieces)` : ''} go into the warehouse
         </p>
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+          {totals.map((t) => {
+            const left = r2(t.bill - t.entered);
+            return (
+              <div key={t.label} className="rounded-lg border border-honey-200 bg-white px-2.5 py-1.5 text-xs text-gray-700">
+                <p className="font-medium text-gray-900 truncate">{t.label}</p>
+                <p>
+                  Order total <strong>{formatRs(t.bill)}</strong> · entered after save <strong>{formatRs(t.entered)}</strong>
+                  {t.bill > 0 && (
+                    <span className={`ml-1 font-semibold ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-blue-600' : 'text-green-600'}`}>
+                      · {left > 0.5 ? `${formatRs(left)} left` : left < -0.5 ? `${formatRs(-left)} over` : 'all entered'}
+                    </span>
+                  )}
+                </p>
+              </div>
+            );
+          })}
+        </div>
         <p className="mt-1 text-[11px] text-gray-500">The old pieces are taken back out and the corrected entry is saved. Pieces already on a shelf or sold cannot be edited.</p>
         {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
       </section>
