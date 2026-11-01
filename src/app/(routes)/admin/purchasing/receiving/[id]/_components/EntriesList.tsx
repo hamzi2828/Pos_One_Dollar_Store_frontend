@@ -1,16 +1,21 @@
 'use client';
 
 // Goods entered on this trip (newest first): tags again, undo, edit.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ListChecks, Loader2, Pencil, Printer, Undo2 } from 'lucide-react';
-import { Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { Field, Modal, inputClass, primaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { isReceipt, purchasingApi } from '../../../_shared/purchasingApi';
 import { Card } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNEntry } from '../../../_shared/types';
 import { printTags, type StickerSize } from './tags';
+import ProductForm from '@/app/(routes)/admin/products/components/ProductForm';
+import type { Product } from '@/app/(routes)/admin/products/components/AllProducts';
+import type { Category } from '@/app/(routes)/admin/products/components/CategoriesTab';
+import { loadCreateTabData } from '@/app/(routes)/admin/products/services/productOptionsService';
+import { productService, type ProductUI } from '@/app/(routes)/admin/products/services/productService';
 
 export default function EntriesList({
   grn,
@@ -168,20 +173,43 @@ function EditEntryModal({
   const perSale = Math.max(1, entry.piecesPerSale || 1);
   const [qty, setQty] = useState(String(entry.qty));
   const [damaged, setDamaged] = useState(String(entry.damagedQty || 0));
-  const [cost, setCost] = useState(String(entry.costPrice));
+  // The entry keeps the cost of one sale; the box takes one piece's cost.
+  const [cost, setCost] = useState(String(Math.round(((Number(entry.costPrice) || 0) / perSale) * 10000) / 10000));
   const [boxNo, setBoxNo] = useState(String(entry.boxNo || ''));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<{ product: ProductUI; categories: Category[]; colorOptions: string[]; sizeOptions: string[] } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const q = Math.floor(Number(qty) || 0);
   const d = Math.floor(Number(damaged) || 0);
-  const c = Number(cost) || 0;
+  const piece = Number(cost) || 0;
+  const c = Math.round(piece * perSale * 10000) / 10000;
   const unit = perSale > 1 ? 'sales' : 'pcs';
+
+  // The full product form (same as Products → Edit): name, barcodes, prices, category.
+  useEffect(() => {
+    let alive = true;
+    Promise.all([productService.getProductById(entry.product), loadCreateTabData()])
+      .then(([product, opts]) => {
+        if (!alive) return;
+        setForm({
+          product,
+          categories: (opts.categories as unknown as Category[]).filter((x) => x.active),
+          colorOptions: opts.colorOptions,
+          sizeOptions: opts.sizeOptions,
+        });
+      })
+      .catch(() => alive && setFormError('Could not load the product. Close and try again.'));
+    return () => {
+      alive = false;
+    };
+  }, [entry.product]);
 
   const save = async () => {
     if (q < 1) return setError(`Enter how many ${unit}.`);
     if (d > q) return setError(`Damaged (${d}) cannot be more than ${q}.`);
-    if (!(c > 0)) return setError('Enter the cost price.');
+    if (!(piece > 0)) return setError('Enter the cost price.');
     setSaving(true);
     setError(null);
     try {
@@ -198,41 +226,70 @@ function EditEntryModal({
 
   return (
     <Modal
+      wide="xl"
       title={`Edit ${entry.productName}`}
       subtitle={`${entry.vendorName}${entry.code ? ` · #${entry.code}` : ''}`}
       icon={<Pencil className="h-5 w-5" />}
       onClose={onClose}
       busy={saving}
-      footer={
-        <>
-          <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
-            Cancel
-          </button>
-          <button type="button" onClick={save} disabled={saving} className={primaryBtn}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />} Save changes
-          </button>
-        </>
-      }
     >
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={perSale > 1 ? `Sales (of ${perSale} pcs)` : 'Pieces'} required>
-          <input type="number" min={1} inputMode="numeric" value={qty} onChange={(ev) => setQty(ev.target.value)} className={inputClass} autoFocus />
-        </Field>
-        <Field label="Damaged">
-          <input type="number" min={0} inputMode="numeric" value={damaged} onChange={(ev) => setDamaged(ev.target.value)} className={inputClass} />
-        </Field>
-        <Field label="Cost price (per piece)" required>
-          <MoneyInput value={cost} onValue={setCost} className={inputClass} />
-        </Field>
-        <Field label="Box/pack no." hint={boxes ? `1 to ${boxes}, empty = not said` : 'Empty = not said'}>
-          <input type="number" min={0} max={boxes || undefined} inputMode="numeric" value={boxNo} onChange={(ev) => setBoxNo(ev.target.value)} className={inputClass} />
-        </Field>
-      </div>
-      <p className="mt-3 text-xs text-gray-700">
-        New total: <strong>{formatRs(Math.round(q * c * 100) / 100)}</strong> · {Math.max(0, q - d)} good {unit} go into the warehouse
-      </p>
-      <p className="mt-1 text-[11px] text-gray-500">The old pieces are taken back out and the corrected entry is saved. Pieces already on a shelf or sold cannot be edited.</p>
-      {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+      <section className="rounded-xl border border-honey-300 bg-honey-50/60 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-gray-900">This entry (pieces received on this trip)</h4>
+          <button type="button" onClick={save} disabled={saving} className={primaryBtn}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />} Save entry
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Field label={perSale > 1 ? `Sales (of ${perSale} pcs)` : 'Pieces'} required>
+            <input type="number" min={1} inputMode="numeric" value={qty} onChange={(ev) => setQty(ev.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Damaged">
+            <input type="number" min={0} inputMode="numeric" value={damaged} onChange={(ev) => setDamaged(ev.target.value)} className={inputClass} />
+          </Field>
+          <Field label={perSale > 1 ? 'Cost price of one piece' : 'Cost price'} required>
+            <MoneyInput value={cost} onValue={setCost} className={inputClass} />
+          </Field>
+          <Field label="Box/pack no." hint={boxes ? `1 to ${boxes}, empty = not said` : 'Empty = not said'}>
+            <input type="number" min={0} max={boxes || undefined} inputMode="numeric" value={boxNo} onChange={(ev) => setBoxNo(ev.target.value)} className={inputClass} />
+          </Field>
+        </div>
+        {perSale > 1 && (
+          <p className="mt-2 rounded bg-white px-2 py-1 text-xs text-gray-700">
+            Cost of one sale ({perSale} pieces): {formatRs(piece, { decimals: 2 })} × {perSale} = <strong>{formatRs(c, { decimals: 2 })}</strong>
+          </p>
+        )}
+        <p className="mt-2 text-xs text-gray-700">
+          New total: <strong>{formatRs(Math.round(q * c * 100) / 100)}</strong> · {Math.max(0, q - d)} good {unit}
+          {perSale > 1 ? ` (${Math.max(0, q - d) * perSale} pieces)` : ''} go into the warehouse
+        </p>
+        <p className="mt-1 text-[11px] text-gray-500">The old pieces are taken back out and the corrected entry is saved. Pieces already on a shelf or sold cannot be edited.</p>
+        {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+      </section>
+
+      <section className="mt-5">
+        <h4 className="text-sm font-semibold text-gray-900">Product details (name, barcodes, prices, category)</h4>
+        <p className="mb-3 text-xs text-gray-500">These have their own Save button at the bottom. Saving the entry above does not save these.</p>
+        {formError ? (
+          <p className="py-10 text-center text-sm text-red-600">{formError}</p>
+        ) : !form ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-500">
+            <Loader2 className="h-5 w-5 animate-spin" /> Loading the product…
+          </div>
+        ) : (
+          <ProductForm
+            mode="edit"
+            initialData={form.product as unknown as Product}
+            categories={form.categories}
+            colorOptions={form.colorOptions}
+            sizeOptions={form.sizeOptions}
+            onCancel={onClose}
+            onSuccess={async () => {
+              await onSaved(undefined);
+            }}
+          />
+        )}
+      </section>
     </Modal>
   );
 }
