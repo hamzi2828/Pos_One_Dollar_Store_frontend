@@ -2,9 +2,10 @@
 
 // Purchase trip: Buy (vendor bills: amount, boxes, paid now; items optional)
 // -> Send to warehouse -> Receive goods (check boxes/packs, unpack & enter) -> Done.
-// After "Send to warehouse" the trip costs, builty and details lock, but vendor
-// bills can still be added (owner keeps buying for the same trip); new bills show
-// up in Receive Goods. Bills already being unpacked are locked by the backend (409).
+// After "Send to warehouse" the builty and details lock, but vendor bills and
+// trip costs can still be added / changed (owner keeps buying for the same trip);
+// new bills show up in Receive Goods. Bills already being unpacked are locked by
+// the backend (409). Goods already entered keep their cost when trip costs change.
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -608,7 +609,8 @@ function Workspace() {
             <ChargesCard
               po={po}
               meta={meta}
-              editable={editable}
+              editable={canBuy}
+              sent={sent}
               onChange={applyPO}
             />
             <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 px-4 py-1">

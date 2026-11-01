@@ -4,9 +4,9 @@
 import { useRef, useState } from 'react';
 import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
-import { AlertTriangle, Calculator, Lightbulb, Loader2, Plus, Trash2, Truck } from 'lucide-react';
+import { AlertTriangle, Calculator, Check, Lightbulb, Loader2, Pencil, Plus, Trash2, Truck, X } from 'lucide-react';
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
-import { inputClass, primaryBtn } from '@/components/admin/FormBits';
+import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { Card, PhotoPicker, PhotoStrip } from '../../_shared/ui';
 import type { AllocationMethod, ChargeType, Costing, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
@@ -17,7 +17,26 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 const MAX_COST_FILES = 5;
 const NO_FILES: File[] = [];
 
-export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrder; meta: POMeta | null; editable: boolean; onChange: (po: PurchaseOrder) => void }) {
+type CostEdit = { id: string; type: ChargeType; amount: string; note: string; builty: boolean };
+
+/**
+ * Trip costs: add, edit, remove. Stays open after "Send to warehouse" (until the
+ * trip is fully received), so costs that come with a late bill can be added.
+ */
+export function ChargesCard({
+  po,
+  meta,
+  editable,
+  sent = false,
+  onChange,
+}: {
+  po: PurchaseOrder;
+  meta: POMeta | null;
+  editable: boolean;
+  sent?: boolean;
+  onChange: (po: PurchaseOrder) => void;
+}) {
+  const [edit, setEdit] = useState<CostEdit | null>(null);
   const [type, setType] = useState<ChargeType>('car_rent');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -52,6 +71,19 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
     }
   };
 
+  const save = async () => {
+    if (!edit) return;
+    if (!(toNum(edit.amount) > 0)) return toast.error('Enter the amount');
+    const body = { amount: toNum(edit.amount), note: edit.note.trim(), ...(edit.builty ? {} : { type: edit.type }) };
+    const ok = await run(edit.id, () => purchasingApi.updateCharge(po._id, edit.id, body), 'Could not save the cost.');
+    if (ok) setEdit(null);
+  };
+
+  const remove = (id: string, what: string) => {
+    if (!window.confirm(`Remove ${what}?`)) return;
+    run(id, () => purchasingApi.removeCharge(po._id, id), 'Could not remove the cost.');
+  };
+
   return (
     <Card
       title={
@@ -61,7 +93,10 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
       }
       actions={<span className="text-sm font-semibold text-gray-900">{formatRs(po.totals.charges)}</span>}
     >
-      <p className="text-[11px] text-gray-500 mb-2">Added to the cost of the goods.</p>
+      <p className="text-[11px] text-gray-500 mb-2">
+        Added to the cost of the goods.
+        {sent && editable && ' Goods already entered in the warehouse keep their cost; a change counts for goods entered after it.'}
+      </p>
       {po.charges.length === 0 ? (
         <p className="text-xs text-gray-500 mb-2">No trip costs yet.</p>
       ) : (
@@ -70,6 +105,54 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
             const photos = c.photos || [];
             const ownFiles = editable && c.source === 'manual';
             const detail = [c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
+            if (edit && edit.id === c._id) {
+              return (
+                <li key={c._id} className="py-2 space-y-2">
+                  <div className="grid grid-cols-[1fr_7.5rem] gap-2">
+                    {edit.builty ? (
+                      <p className={`${inputClass} bg-gray-50 text-gray-600`}>{label(c.type)}</p>
+                    ) : (
+                      <SearchSelect
+                        value={edit.type}
+                        onChange={(e) => setEdit({ ...edit, type: e.target.value as ChargeType })}
+                        className={inputClass}
+                        aria-label="What for"
+                      >
+                        {(meta?.chargeTypes || []).map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </SearchSelect>
+                    )}
+                    <MoneyInput
+                      placeholder="Rs"
+                      aria-label="Amount (Rs)"
+                      value={edit.amount}
+                      onValue={(v) => setEdit({ ...edit, amount: v })}
+                      onKeyDown={(e) => e.key === 'Enter' && save()}
+                      className={inputClass}
+                    />
+                  </div>
+                  <input
+                    placeholder="Note (optional)"
+                    aria-label="Note"
+                    value={edit.note}
+                    onChange={(e) => setEdit({ ...edit, note: e.target.value })}
+                    onKeyDown={(e) => e.key === 'Enter' && save()}
+                    className={inputClass}
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={save} disabled={!!busy} className={`${primaryBtn} flex-1`}>
+                      {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
+                    </button>
+                    <button type="button" onClick={() => setEdit(null)} disabled={!!busy} className={secondaryBtn}>
+                      <X className="h-4 w-4" /> Cancel
+                    </button>
+                  </div>
+                </li>
+              );
+            }
             return (
               <li key={c._id} className="py-1.5 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
@@ -102,15 +185,30 @@ export function ChargesCard({ po, meta, editable, onChange }: { po: PurchaseOrde
                 )}
                 <span className="text-sm font-medium whitespace-nowrap">{formatRs(c.amount)}</span>
                 {editable && (
-                  <button
-                    type="button"
-                    onClick={() => run(c._id, () => purchasingApi.removeCharge(po._id, c._id), 'Could not remove the cost.')}
-                    disabled={!!busy}
-                    className="p-1.5 -mr-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
-                    aria-label="Remove cost"
-                  >
-                    {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', builty: c.source === 'builty' })
+                      }
+                      disabled={!!busy}
+                      className="p-1.5 text-gray-400 hover:text-honey-700 disabled:opacity-50"
+                      aria-label="Edit cost"
+                      title="Edit"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remove(c._id, `${label(c.type)} ${formatRs(c.amount)}`)}
+                      disabled={!!busy}
+                      className="p-1.5 -mr-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                      aria-label="Remove cost"
+                      title="Remove"
+                    >
+                      {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </>
                 )}
               </li>
             );
