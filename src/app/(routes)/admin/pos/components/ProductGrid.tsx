@@ -39,6 +39,11 @@ export default function ProductGrid({
     }
   }, [searchQuery]);
 
+  // Article = one barcode: a single product is 1, a variant product counts each variant.
+  const articlesOf = (list: POSProduct[]) =>
+    list.reduce((n, p) => n + (p.productType === 'variant' && p.variants?.length ? p.variants.length : 1), 0);
+  const totalArticles = useMemo(() => articlesOf(products), [products]);
+
   // Group products by category
   const categories = useMemo(() => {
     const map = new Map<string, POSProduct[]>();
@@ -48,7 +53,7 @@ export default function ProductGrid({
       map.get(cat)!.push(product);
     }
     return Array.from(map.entries())
-      .map(([name, items]) => ({ name, count: items.length, products: items }))
+      .map(([name, items]) => ({ name, count: items.length, articles: articlesOf(items), products: items }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [products]);
 
@@ -264,6 +269,7 @@ export default function ProductGrid({
         <LayoutGrid className="h-5 w-5 text-gray-500" />
         <h2 className="text-lg font-semibold text-gray-900">Categories</h2>
         <span className="text-sm text-gray-400">({categories.length})</span>
+        <span className="text-sm text-gray-600">· <strong className="text-gray-900">{totalArticles.toLocaleString()}</strong> article{totalArticles !== 1 ? 's' : ''}</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {/* All Products tile */}
@@ -275,7 +281,7 @@ export default function ProductGrid({
             <Package className="h-6 w-6 text-honey-400" />
           </div>
           <h3 className="font-semibold text-white text-sm">All Products</h3>
-          <p className="text-white/70 text-xs mt-1">{products.length} items</p>
+          <p className="text-white/70 text-xs mt-1">{products.length} items · {totalArticles.toLocaleString()} articles</p>
         </button>
 
         {/* Category tiles */}
@@ -308,7 +314,7 @@ export default function ProductGrid({
               <h3 className="font-semibold text-gray-900 text-sm group-hover:text-honey-700 transition-colors">
                 {cat.name}
               </h3>
-              <p className="text-gray-500 text-xs mt-1">{cat.count} item{cat.count !== 1 ? 's' : ''}</p>
+              <p className="text-gray-500 text-xs mt-1">{cat.count} item{cat.count !== 1 ? 's' : ''} · {cat.articles} article{cat.articles !== 1 ? 's' : ''}</p>
             </button>
           );
         })}
