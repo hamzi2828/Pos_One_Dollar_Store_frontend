@@ -50,12 +50,15 @@ function TripEnteredBar({ grn }: { grn: GoodsReceipt }) {
   if (!(billTotal > 0)) return null;
   const pct = Math.round((entered / billTotal) * 100);
   const left = billTotal - entered;
+  // Article = one barcode (product, or one variant of it) entered on this trip.
+  const articles = new Set((grn.entries || []).filter((e) => !e.undone).map((e) => `${e.product}:${e.variantId || ''}`)).size;
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-sm text-gray-700">
           Entered <span className="font-semibold text-gray-900 tabular-nums">{formatRs(entered)}</span> of{' '}
-          <span className="font-semibold text-gray-900 tabular-nums">{formatRs(billTotal)}</span> bought
+          <span className="font-semibold text-gray-900 tabular-nums">{formatRs(billTotal)}</span> bought ·{' '}
+          <span className="font-semibold text-gray-900 tabular-nums">{articles.toLocaleString()}</span> article{articles === 1 ? '' : 's'} added
         </p>
         <p className={`text-sm font-semibold tabular-nums ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-blue-600' : 'text-green-600'}`}>
           {pct}% · {left > 0.5 ? `${formatRs(left)} left` : left < -0.5 ? `${formatRs(-left)} over` : 'all entered'}

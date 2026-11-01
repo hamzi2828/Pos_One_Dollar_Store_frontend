@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { Package, CheckCircle, FileEdit, Layers, AlertTriangle } from "lucide-react";
+import { Package, Boxes, CheckCircle, FileEdit, Layers, AlertTriangle } from "lucide-react";
 import { Product } from "../AllProducts";
 
 interface ProductStatsProps {
@@ -8,10 +8,12 @@ interface ProductStatsProps {
   filteredCount: number;
 }
 
-export default function ProductStats({ products, filteredCount }: ProductStatsProps) {
+export default function ProductStats({ products }: ProductStatsProps) {
   const publishedCount = products.filter(p => p.status === 'published').length;
   const draftCount = products.filter(p => p.status === 'draft').length;
   const variantCount = products.filter(p => p.productType === 'variant').length;
+  // Article = one barcode: a single product is 1, a variant product counts each variant.
+  const totalArticles = products.reduce((sum, p) => sum + (p.productType === 'variant' && p.variants?.length ? p.variants.length : 1), 0);
   const outOfStockCount = products.filter(p => p.status === 'out_of_stock' || p.stock === 0).length;
 
   const stats = [
@@ -21,6 +23,13 @@ export default function ProductStats({ products, filteredCount }: ProductStatsPr
       icon: Package,
       bgColor: 'bg-blue-50',
       iconColor: 'text-blue-600',
+    },
+    {
+      name: 'Total Articles',
+      value: totalArticles.toLocaleString(),
+      icon: Boxes,
+      bgColor: 'bg-honey-50',
+      iconColor: 'text-honey-700',
     },
     {
       name: 'Published',
@@ -53,7 +62,7 @@ export default function ProductStats({ products, filteredCount }: ProductStatsPr
   ];
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4">
+    <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-4">
       {stats.map((stat) => {
         const Icon = stat.icon;
         return (
