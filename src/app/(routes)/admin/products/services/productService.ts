@@ -103,6 +103,8 @@ export interface ProductDTO {
 
 export interface ProductUI {
   id: string;
+  lastVendor?: string | null;
+  lastVendorName?: string;
   name: string;
   slug?: string;
   category: string;
@@ -191,6 +193,12 @@ function mapToUI(dto: ProductDTO): ProductUI {
     piecesPerBox: dto.piecesPerBox,
     piecesPerSale: dto.piecesPerSale,
     totalStock: dto.totalStock,
+    // Vendor last bought from (edit form shows it selected).
+    lastVendor: (() => {
+      const v = (dto as { lastVendor?: string | { _id?: string } | null }).lastVendor;
+      return v && typeof v === 'object' ? String(v._id || '') || null : v ? String(v) : null;
+    })(),
+    lastVendorName: (dto as { lastVendorName?: string }).lastVendorName || '',
   };
 }
 
