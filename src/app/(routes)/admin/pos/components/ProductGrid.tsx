@@ -39,9 +39,12 @@ export default function ProductGrid({
     }
   }, [searchQuery]);
 
-  // Article = one barcode: a single product is 1, a variant product counts each variant.
+  // Article = one piece in stock (one sticker): stock x pieces per sale, variants added up.
   const articlesOf = (list: POSProduct[]) =>
-    list.reduce((n, p) => n + (p.productType === 'variant' && p.variants?.length ? p.variants.length : 1), 0);
+    list.reduce((n, p) => {
+      const stock = p.productType === 'variant' && p.variants?.length ? p.variants.reduce((t, v) => t + Math.max(0, Number(v.stock) || 0), 0) : Math.max(0, Number(p.stock) || 0);
+      return n + stock * Math.max(1, p.piecesPerSale || 1);
+    }, 0);
   const totalArticles = useMemo(() => articlesOf(products), [products]);
 
   // Group products by category
@@ -314,7 +317,7 @@ export default function ProductGrid({
               <h3 className="font-semibold text-gray-900 text-sm group-hover:text-honey-700 transition-colors">
                 {cat.name}
               </h3>
-              <p className="text-gray-500 text-xs mt-1">{cat.count} item{cat.count !== 1 ? 's' : ''} · {cat.articles} article{cat.articles !== 1 ? 's' : ''}</p>
+              <p className="text-gray-500 text-xs mt-1">{cat.count} item{cat.count !== 1 ? 's' : ''} · {cat.articles.toLocaleString()} article{cat.articles !== 1 ? 's' : ''}</p>
             </button>
           );
         })}

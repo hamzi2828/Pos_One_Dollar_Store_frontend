@@ -12,8 +12,11 @@ export default function ProductStats({ products }: ProductStatsProps) {
   const publishedCount = products.filter(p => p.status === 'published').length;
   const draftCount = products.filter(p => p.status === 'draft').length;
   const variantCount = products.filter(p => p.productType === 'variant').length;
-  // Article = one barcode: a single product is 1, a variant product counts each variant.
-  const totalArticles = products.reduce((sum, p) => sum + (p.productType === 'variant' && p.variants?.length ? p.variants.length : 1), 0);
+  // Article = one piece in stock (one sticker): stock x pieces per sale, variants added up.
+  const totalArticles = products.reduce((sum, p) => {
+    const stock = p.productType === 'variant' && p.variants?.length ? p.variants.reduce((t, v) => t + Math.max(0, Number(v.stock) || 0), 0) : Math.max(0, Number(p.stock) || 0);
+    return sum + stock * Math.max(1, Number((p as { piecesPerSale?: number }).piecesPerSale) || 1);
+  }, 0);
   const outOfStockCount = products.filter(p => p.status === 'out_of_stock' || p.stock === 0).length;
 
   const stats = [

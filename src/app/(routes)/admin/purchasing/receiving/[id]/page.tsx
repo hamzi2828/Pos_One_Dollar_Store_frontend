@@ -50,8 +50,8 @@ function TripEnteredBar({ grn }: { grn: GoodsReceipt }) {
   if (!(billTotal > 0)) return null;
   const pct = Math.round((entered / billTotal) * 100);
   const left = billTotal - entered;
-  // Article = one barcode (product, or one variant of it) entered on this trip.
-  const articles = new Set((grn.entries || []).filter((e) => !e.undone).map((e) => `${e.product}:${e.variantId || ''}`)).size;
+  // Article = one piece (one sticker) that went into the warehouse on this trip.
+  const articles = (grn.entries || []).filter((e) => !e.undone).reduce((n, e) => n + (e.stockQty || 0) * Math.max(1, e.piecesPerSale || 1), 0);
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">

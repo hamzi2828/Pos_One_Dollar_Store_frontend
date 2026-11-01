@@ -257,7 +257,10 @@ export default function UnpackStep({
                   const on = p.bill === bill.bill;
                   const pBoxes = boxCountOf(grn, p.bill);
                   const pDone = doneBoxesOf(grn, p.bill).size;
-                  const pItems = (grn.entries || []).filter((e) => !e.undone && e.bill === p.bill).length;
+                  const pLive = (grn.entries || []).filter((e) => !e.undone && e.bill === p.bill);
+                  const pItems = pLive.length;
+                  // Articles = pieces (stickers) entered from this vendor.
+                  const pArticles = pLive.reduce((n, e) => n + (e.stockQty || 0) * Math.max(1, e.piecesPerSale || 1), 0);
                   const finished = vendorDone(p);
                   const pChecked = isChecked(p.bill);
                   return (
@@ -287,7 +290,7 @@ export default function UnpackStep({
                           <span className="block text-[11px] text-gray-500 truncate">
                             {!pChecked
                               ? `Not checked · ${boxOf(p.bill)?.expected ?? 0} boxes/packs expected`
-                              : `${finished ? 'Done' : pItems || pDone ? 'Unpacking' : 'Checked'} · ${pItems} item${pItems === 1 ? '' : 's'}${pBoxes > 0 ? ` · ${pDone}/${pBoxes} boxes/packs` : ''}`}
+                              : `${finished ? 'Done' : pItems || pDone ? 'Unpacking' : 'Checked'} · ${pItems} item${pItems === 1 ? '' : 's'}${pArticles ? ` · ${pArticles.toLocaleString()} articles` : ''}${pBoxes > 0 ? ` · ${pDone}/${pBoxes} boxes/packs` : ''}`}
                           </span>
                           <span className={`block text-[11px] font-medium tabular-nums ${amountTone(p.entered, p.billTotal)}`}>
                             {formatRs(p.entered)} / {formatRs(p.billTotal)}
