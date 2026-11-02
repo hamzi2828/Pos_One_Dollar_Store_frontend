@@ -41,12 +41,12 @@ export function saveTagSize(size: StickerSize) {
  * handler: the print window is opened before any await (popup blockers).
  * Returns true when the tags were sent to a window / the printer.
  */
-export async function printTags(t: { productId: string; variantId: string | null; copies: number }, size: StickerSize): Promise<boolean> {
+export async function printTags(t: { productId: string; variantId: string | null; copies: number; bill?: string | null }, size: StickerSize): Promise<boolean> {
   const copies = Math.max(1, Math.floor(t.copies || 1));
   const w = openPrintWindow();
   try {
     const { html } = await labelService.getStickersHtml(
-      [{ productId: t.productId, ...(t.variantId ? { variantId: t.variantId } : {}), type: 'unit', copies }],
+      [{ productId: t.productId, ...(t.variantId ? { variantId: t.variantId } : {}), ...(t.bill ? { bill: t.bill } : {}), type: 'unit', copies }],
       { size, showPrice: true, autoPrint: true },
     );
     if (w && !w.closed) {

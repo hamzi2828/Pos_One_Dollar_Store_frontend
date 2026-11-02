@@ -68,18 +68,18 @@ export default function EntriesList({
     return b ? b.received || b.expected || 0 : 0;
   };
 
-  // Owner, 2026-11-02: one product can sit on several entries (moved between vendors); the print log
-  // counts all its stickers, so tags / "left" use the product's pieces on ALL live entries of this receipt.
+  // Owner, 2026-11-02: the print log is kept per vendor. Tags / "left" use this product's pieces
+  // from this entry's vendor (all its live entries there).
   const productPieces = (e: GRNEntry) =>
     all
-      .filter((x) => x.product === e.product && (x.variantId || null) === (e.variantId || null))
+      .filter((x) => x.product === e.product && (x.variantId || null) === (e.variantId || null) && x.bill === e.bill)
       .reduce((n, x) => n + (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), 0);
 
   const tags = async (e: GRNEntry) => {
     if (lock.current) return;
     lock.current = true;
     setBusy(`tags-${e._id}`);
-    await printTags({ productId: e.product, variantId: e.variantId, copies: productPieces(e) }, tagSize);
+    await printTags({ productId: e.product, variantId: e.variantId, copies: productPieces(e), bill: e.bill }, tagSize);
     lock.current = false;
     setBusy(null);
   };
@@ -177,11 +177,7 @@ export default function EntriesList({
           ))}
         </ul>
       )}
-      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)}
-          parts={all
-            .filter((x) => x.product === logOf.product && (x.variantId || null) === (logOf.variantId || null))
-            .sort((a, b) => (a.entryNo || 0) - (b.entryNo || 0))
-            .map((x) => ({ key: x._id, label: `${x.vendorName || 'Vendor'} · #${x.entryNo}`, pieces: (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), current: x._id === logOf._id }))} onClose={() => setLogOf(null)} />}
+      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} bill={logOf.bill} vendorName={logOf.vendorName} onClose={() => setLogOf(null)} />}
       {editing && (
         <EditEntryModal
           grn={grn}

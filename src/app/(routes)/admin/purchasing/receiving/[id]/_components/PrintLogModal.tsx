@@ -12,7 +12,8 @@ interface PrintRow {
   id: string;
   count: number;
   total: number;
-  mode: 'sale' | 'piece' | 'custom';
+  mode: 'sale' | 'piece' | 'custom' | 'moved';
+  note?: string;
   piecesPerSale: number;
   via: 'printer' | 'browser';
   userName: string;
@@ -25,18 +26,20 @@ interface PrintLog {
 }
 
 const modeText = (r: PrintRow) =>
-  r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
+  r.mode === 'moved' ? r.note || 'Moved with the pieces' : r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
 
 export default function PrintLogModal({
   productId,
   variantId,
   name,
   need: needNow,
-  parts,
+  bill,
+  vendorName,
   onClose,
 }: {
-  /** The product's live entries on this receipt, oldest first (vendor + pieces). */
-  parts?: { key: string; label: string; pieces: number; current?: boolean }[];
+  /** Vendor bill: only the prints for this vendor (moved pieces take their prints with them). */
+  bill?: string | null;
+  vendorName?: string;
   productId: string;
   variantId?: string | null;
   name: string;
@@ -52,13 +55,13 @@ export default function PrintLogModal({
   useEffect(() => {
     let alive = true;
     storeApi
-      .get<PrintLog>('/label-prints', { productId, ...(variantId ? { variantId } : {}) })
+      .get<PrintLog>('/label-prints', { productId, ...(variantId ? { variantId } : {}), ...(bill ? { bill } : {}) })
       .then((r) => alive && setLog(r.data))
       .catch((e) => alive && setError(apiErrorMessage(e, 'Could not load the print log.')));
     return () => {
       alive = false;
     };
-  }, [productId, variantId, reload]);
+  }, [productId, variantId, bill, reload]);
 
   // Test / wrong print: leave it out of the count (kept in the database).
   const ignore = async (r: PrintRow) => {
@@ -76,7 +79,7 @@ export default function PrintLogModal({
   };
 
   return (
-    <Modal title="Sticker print log" subtitle={name} icon={<History className="h-5 w-5" />} onClose={onClose}>
+    <Modal title="Sticker print log" subtitle={vendorName ? `${name} · ${vendorName}` : name} icon={<History className="h-5 w-5" />} onClose={onClose}>
       {error ? (
         <p className="py-6 text-center text-sm text-red-600">{error}</p>
       ) : !log ? (
@@ -104,30 +107,6 @@ export default function PrintLogModal({
                 <div className="mt-1.5 h-2 rounded-full bg-white overflow-hidden">
                   <div className={`h-full rounded-full ${left > 0 ? 'bg-honey-500' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
                 </div>
-                {parts && parts.length > 1 && (
-                  <ul className="mt-2 space-y-0.5 border-t border-honey-200 pt-1.5 text-xs">
-                    {(() => {
-                      // Printed stickers go to the entries oldest first: moved pieces take their printed count with them.
-                      let pool = done;
-                      return parts.map((p) => {
-                        const got = Math.min(p.pieces, Math.max(0, pool));
-                        pool -= got;
-                        const rest = p.pieces - got;
-                        return (
-                          <li key={p.key} className={`flex justify-between gap-2 ${p.current ? 'font-semibold' : ''}`}>
-                            <span className="truncate">
-                              {p.label}
-                              {p.current ? ' (this entry)' : ''}
-                            </span>
-                            <span className={`whitespace-nowrap tabular-nums ${rest > 0 ? 'text-red-600' : 'text-green-700'}`}>
-                              {got.toLocaleString()} of {p.pieces.toLocaleString()} {rest > 0 ? `· ${rest.toLocaleString()} left` : '· done'}
-                            </span>
-                          </li>
-                        );
-                      });
-                    })()}
-                  </ul>
-                )}
               </div>
             );
           })()}
@@ -140,13 +119,13 @@ export default function PrintLogModal({
               <li key={r.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-gray-900">
-                    {r.count.toLocaleString()} of {r.total.toLocaleString()} printed
+                    {r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
                     <span className={`ml-2 text-xs font-medium ${left > 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {left > 0 ? `${left.toLocaleString()} left` : 'all done'}
                     </span>
                   </span>
                   <span className="block text-xs text-gray-600">
-                    {modeText(r)} · {r.via === 'printer' ? 'Label printer' : 'Print window'}
+                    {modeText(r)}{r.mode === 'moved' ? '' : r.via === 'printer' ? ' · Label printer' : ' · Print window'}
                   </span>
                 </span>
                 <span className="flex flex-col items-end gap-1 text-right text-[11px] text-gray-500">

@@ -1099,7 +1099,7 @@ function SavedCard({
     if (lock.current || !copies) return;
     lock.current = true;
     setPrinting(true);
-    await printTags({ productId: result.tags?.productId || e.product, variantId: result.tags?.variantId ?? e.variantId, copies }, tagSize);
+    await printTags({ productId: result.tags?.productId || e.product, variantId: result.tags?.variantId ?? e.variantId, copies, bill: e?.bill }, tagSize);
     lock.current = false;
     setPrinting(false);
   };

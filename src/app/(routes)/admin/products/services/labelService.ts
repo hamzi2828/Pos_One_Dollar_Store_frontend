@@ -65,6 +65,8 @@ export interface LabelPrintItem {
   type: StickerType;
   batchNo?: string;
   copies?: number;
+  /** Vendor bill (receiving) these stickers are for: the print log is kept per vendor. */
+  bill?: string;
 }
 
 export interface LabelPrintOptions {
