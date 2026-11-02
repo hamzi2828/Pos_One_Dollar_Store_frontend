@@ -9,11 +9,12 @@ const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/$/, 
 
 /** Sticker types the UI offers (`barcode` exists in the backend but is not shown). */
 export type StickerType = 'unit' | 'box' | 'full-box' | 'batch';
-export type StickerSize = '38x25' | '40x30' | '50x25' | '50x30' | '60x40' | 'a4';
+export type StickerSize = '25x13' | '38x25' | '40x30' | '50x25' | '50x30' | '60x40' | 'a4';
 
 export const STICKER_TYPES: StickerType[] = ['unit', 'box', 'full-box', 'batch'];
 
 export const STICKER_SIZES: { key: StickerSize; label: string }[] = [
+  { key: '25x13', label: '25.4 × 12.7 mm (1 × 0.5 inch, tiny roll)' },
   { key: '38x25', label: '38 × 25 mm (small roll)' },
   { key: '50x25', label: '50 × 25 mm (roll)' },
   { key: '50x30', label: '50 × 30 mm (roll)' },
