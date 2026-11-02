@@ -14,7 +14,7 @@ export type StickerSize = '25x13' | '38x25' | '40x30' | '50x25' | '50x30' | '60x
 export const STICKER_TYPES: StickerType[] = ['unit', 'box', 'full-box', 'batch'];
 
 export const STICKER_SIZES: { key: StickerSize; label: string }[] = [
-  { key: '25x13', label: '25.4 × 12.7 mm (1 × 0.5 inch, tiny roll)' },
+  { key: '25x13', label: '25 × 15 mm (tiny roll)' },
   { key: '38x25', label: '38 × 25 mm (small roll)' },
   { key: '50x25', label: '50 × 25 mm (roll)' },
   { key: '50x30', label: '50 × 30 mm (roll)' },
