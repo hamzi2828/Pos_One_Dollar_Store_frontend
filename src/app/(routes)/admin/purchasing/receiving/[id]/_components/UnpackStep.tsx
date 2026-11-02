@@ -34,6 +34,21 @@ const boxCountOf = (grn: GoodsReceipt, billId: string) => {
 /** Entered vs bill: less = red, more = blue, equal = green. */
 const amountTone = (entered: number, total: number) =>
   Math.round(entered) < Math.round(total) ? 'text-red-600' : Math.round(entered) > Math.round(total) ? 'text-blue-600' : 'text-green-600';
+/**
+ * Owner, 2026-11-02: "Rs 14,250 over · 62 articles" — how far the entered goods are from the bill,
+ * in rupees and in articles (pieces) at this vendor's cost per piece ("about" when the costs differ).
+ */
+const gapText = (grn: GoodsReceipt, billId: string, entered: number, total: number) => {
+  const gap = Math.round(entered) - Math.round(total);
+  if (!gap || !(total > 0) || !(entered > 0)) return '';
+  const live = (grn.entries || []).filter((e) => !e.undone && e.bill === billId);
+  const pieces = live.reduce((n, e) => n + (e.qty || 0) * Math.max(1, e.piecesPerSale || 1), 0);
+  const perPiece = live.map((e) => (e.costPrice || 0) / Math.max(1, e.piecesPerSale || 1));
+  const same = perPiece.length > 0 && perPiece.every((c) => Math.abs(c - perPiece[0]) < 0.01);
+  const cost = same ? perPiece[0] : pieces > 0 ? entered / pieces : 0;
+  const n = cost > 0 ? Math.round(Math.abs(gap) / cost) : 0;
+  return `${formatRs(Math.abs(gap))} ${gap > 0 ? 'over' : 'short'}${n ? ` · ${same ? '' : 'about '}${n.toLocaleString()} article${n === 1 ? '' : 's'}${same ? ` at ${formatRs(cost)}` : ''}` : ''}`;
+};
 const doneBoxesOf = (grn: GoodsReceipt, billId: string) => new Set((grn.boxesDone || []).filter((d) => d.bill === billId).map((d) => d.boxNo));
 /** First box of the bill not done yet (1 when all are done / no boxes). */
 const firstOpenBox = (grn: GoodsReceipt, billId: string) => {
@@ -308,6 +323,9 @@ export default function UnpackStep({
                           <span className={`block text-[11px] font-medium tabular-nums ${amountTone(p.entered, p.billTotal)}`}>
                             {formatRs(p.entered)} / {formatRs(p.billTotal)}
                           </span>
+                          {gapText(grn, p.bill, p.entered, p.billTotal) && (
+                            <span className={`block text-[11px] ${amountTone(p.entered, p.billTotal)}`}>{gapText(grn, p.bill, p.entered, p.billTotal)}</span>
+                          )}
                           <span className="mt-1 block h-1 rounded-full bg-gray-100 overflow-hidden">
                             <span className={`block h-full ${pct >= 100 ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${pct}%` }} />
                           </span>
@@ -388,6 +406,9 @@ export default function UnpackStep({
                     {formatRs(bill.entered)} / {formatRs(bill.billTotal)}
                   </span>
                 </div>
+                {gapText(grn, bill.bill, bill.entered, bill.billTotal) && (
+                  <p className={`mt-1 text-right text-[11px] font-semibold ${amountTone(bill.entered, bill.billTotal)}`}>{gapText(grn, bill.bill, bill.entered, bill.billTotal)}</p>
+                )}
                 {photosOpen && billPhotos.length > 0 && (
                   <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
                     <p className="mb-1 text-[11px] text-gray-500">Bill photos / PDFs from buying (tap to open full size)</p>
