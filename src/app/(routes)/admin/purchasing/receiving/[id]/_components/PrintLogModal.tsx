@@ -3,7 +3,8 @@
 // Sticker print history of one product: how many were printed, which way
 // (by sale / all pieces / typed number), on what, by whom and when.
 import { useEffect, useState } from 'react';
-import { History, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { EyeOff, History, Loader2 } from 'lucide-react';
 import { Modal } from '@/components/admin/FormBits';
 import { apiErrorMessage, formatDate, storeApi } from '@/lib/storeApi';
 
@@ -42,6 +43,8 @@ export default function PrintLogModal({
 }) {
   const [log, setLog] = useState<PrintLog | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -52,7 +55,22 @@ export default function PrintLogModal({
     return () => {
       alive = false;
     };
-  }, [productId, variantId]);
+  }, [productId, variantId, reload]);
+
+  // Test / wrong print: leave it out of the count (kept in the database).
+  const ignore = async (r: PrintRow) => {
+    if (busy) return;
+    setBusy(r.id);
+    try {
+      await storeApi.patch(`/label-prints/${r.id}`, { ignored: true });
+      toast.success(`${r.count} sticker${r.count === 1 ? '' : 's'} ignored`);
+      setReload((n) => n + 1);
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not ignore this print.'));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <Modal title="Sticker print log" subtitle={name} icon={<History className="h-5 w-5" />} onClose={onClose}>
@@ -104,10 +122,21 @@ export default function PrintLogModal({
                     {modeText(r)} · {r.via === 'printer' ? 'Label printer' : 'Print window'}
                   </span>
                 </span>
-                <span className="text-right text-[11px] text-gray-500">
-                  {r.userName || '—'}
-                  <br />
-                  {formatDate(r.at, true)}
+                <span className="flex flex-col items-end gap-1 text-right text-[11px] text-gray-500">
+                  <span>
+                    {r.userName || '—'}
+                    <br />
+                    {formatDate(r.at, true)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => ignore(r)}
+                    disabled={!!busy}
+                    title="Test or wrong print: don't count it"
+                    className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {busy === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <EyeOff className="h-3 w-3" />} Ignore
+                  </button>
                 </span>
               </li>
               );
