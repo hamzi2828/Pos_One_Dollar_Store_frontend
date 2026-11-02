@@ -47,7 +47,7 @@ const gapText = (grn: GoodsReceipt, billId: string, entered: number, total: numb
   const same = perPiece.length > 0 && perPiece.every((c) => Math.abs(c - perPiece[0]) < 0.01);
   const cost = same ? perPiece[0] : pieces > 0 ? entered / pieces : 0;
   const n = cost > 0 ? Math.round(Math.abs(gap) / cost) : 0;
-  return `${formatRs(Math.abs(gap))} ${gap > 0 ? 'over' : 'short'}${n ? ` · ${same ? '' : 'about '}${n.toLocaleString()} article${n === 1 ? '' : 's'}${same ? ` at ${formatRs(cost)}` : ''}` : ''}`;
+  return `${formatRs(Math.abs(gap))} ${gap > 0 ? 'over' : 'short'}${n ? ` · ${same ? '' : 'about '}${n.toLocaleString()} article${n === 1 ? '' : 's'}${same ? ` at ${formatRs(cost)}` : ''}` : ''} · total ${pieces.toLocaleString()} article${pieces === 1 ? '' : 's'}`;
 };
 const doneBoxesOf = (grn: GoodsReceipt, billId: string) => new Set((grn.boxesDone || []).filter((d) => d.bill === billId).map((d) => d.boxNo));
 /** First box of the bill not done yet (1 when all are done / no boxes). */
