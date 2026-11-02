@@ -572,7 +572,7 @@ export default function UnpackStep({
                 </div>
 
                 <div className="xl:col-span-2 space-y-4">
-                  <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
+                  <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onTagSize={(s) => { onTagSize(s); saveTagSize(s); }} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
                 </div>
               </div>
 

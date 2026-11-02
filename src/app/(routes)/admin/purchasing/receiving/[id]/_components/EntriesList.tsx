@@ -10,7 +10,7 @@ import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { isReceipt, purchasingApi } from '../../../_shared/purchasingApi';
 import { Card } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNEntry } from '../../../_shared/types';
-import { printTags, type StickerSize } from './tags';
+import { STICKER_SIZES, printTags, type StickerSize } from './tags';
 import PrintLogModal from './PrintLogModal';
 import { billProgress } from './UnpackStep';
 import ProductForm from '@/app/(routes)/admin/products/components/ProductForm';
@@ -23,6 +23,7 @@ export default function EntriesList({
   grn,
   canUndo,
   tagSize,
+  onTagSize,
   onChanged,
   onReload,
   billFilter,
@@ -30,6 +31,8 @@ export default function EntriesList({
   grn: GoodsReceipt;
   canUndo: boolean;
   tagSize: StickerSize;
+  /** Change the sticker size used by the Tags buttons. */
+  onTagSize?: (s: StickerSize) => void;
   onChanged: (g: GoodsReceipt) => void;
   onReload: () => Promise<void>;
   /** show only this vendor bill (null = all) */
@@ -83,6 +86,22 @@ export default function EntriesList({
       }
       actions={<span className="text-xs text-gray-500">{rows.length} entries</span>}
     >
+      {onTagSize && rows.length > 0 && (
+        <label className="mb-2 flex items-center gap-2 text-xs text-gray-600">
+          <Printer className="h-3.5 w-3.5 flex-shrink-0" /> Sticker size
+          <select
+            value={tagSize}
+            onChange={(ev) => onTagSize(ev.target.value as StickerSize)}
+            className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-900"
+          >
+            {STICKER_SIZES.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {rows.length === 0 ? (
         <p className="text-xs text-gray-500">Nothing entered yet.</p>
       ) : (
