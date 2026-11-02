@@ -68,11 +68,18 @@ export default function EntriesList({
     return b ? b.received || b.expected || 0 : 0;
   };
 
+  // Owner, 2026-11-02: one product can sit on several entries (moved between vendors); the print log
+  // counts all its stickers, so tags / "left" use the product's pieces on ALL live entries of this receipt.
+  const productPieces = (e: GRNEntry) =>
+    all
+      .filter((x) => x.product === e.product && (x.variantId || null) === (e.variantId || null))
+      .reduce((n, x) => n + (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), 0);
+
   const tags = async (e: GRNEntry) => {
     if (lock.current) return;
     lock.current = true;
     setBusy(`tags-${e._id}`);
-    await printTags({ productId: e.product, variantId: e.variantId, copies: e.stockQty * Math.max(1, e.piecesPerSale || 1) }, tagSize);
+    await printTags({ productId: e.product, variantId: e.variantId, copies: productPieces(e) }, tagSize);
     lock.current = false;
     setBusy(null);
   };
@@ -170,7 +177,7 @@ export default function EntriesList({
           ))}
         </ul>
       )}
-      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={(logOf.stockQty || 0) * Math.max(1, logOf.piecesPerSale || 1)} onClose={() => setLogOf(null)} />}
+      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} onClose={() => setLogOf(null)} />}
       {editing && (
         <EditEntryModal
           grn={grn}
