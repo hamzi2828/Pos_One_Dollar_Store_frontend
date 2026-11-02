@@ -94,6 +94,12 @@ export default function UnpackStep({
   };
   const progress = billProgress(grn);
   const [search, setSearch] = useState('');
+  // Owner, 2026-11-02: the vendor search also finds products entered from a vendor.
+  const productHits = (billOf: string) => {
+    const t = search.trim().toLowerCase();
+    if (!t) return [];
+    return (grn.entries || []).filter((e) => !e.undone && e.bill === billOf && `${e.productName || ''} ${e.code || ''}`.toLowerCase().includes(t));
+  };
   const [showDone, setShowDone] = useState(false);
   // Bill photos / PDFs uploaded while buying, opened from the vendor header (bill id).
   const [photosFor, setPhotosFor] = useState<string | null>(null);
@@ -227,7 +233,7 @@ export default function UnpackStep({
           </div>
           <div className="p-3">
             {progress.length > 6 && (
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a vendor..." className={`${inputClass} !py-1.5 mb-2`} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a vendor or product..." className={`${inputClass} !py-1.5 mb-2`} />
             )}
             <div className="mb-2 flex gap-0.5 rounded-md bg-gray-100 p-0.5 text-[11px] leading-4">
               {(
@@ -249,9 +255,9 @@ export default function UnpackStep({
             </div>
             <ul className="-mx-1 max-h-[60vh] overflow-y-auto space-y-0.5">
               {progress
-                .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+                .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()) || productHits(p.bill).length > 0)
                 .filter((p) => openFilter === 'all' || (openFilter === 'opened') === isOpened(p.bill))
-                .filter((p) => showDone || openFilter === 'opened' || p.bill === bill.bill || !vendorDone(p))
+                .filter((p) => showDone || !!search.trim() || openFilter === 'opened' || p.bill === bill.bill || !vendorDone(p))
                 .map((p) => {
                   const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
                   const on = p.bill === bill.bill;
@@ -262,6 +268,7 @@ export default function UnpackStep({
                   // Articles = pieces (stickers) entered from this vendor.
                   const pArticles = pLive.reduce((n, e) => n + (e.stockQty || 0) * Math.max(1, e.piecesPerSale || 1), 0);
                   const finished = vendorDone(p);
+                  const hits = productHits(p.bill);
                   const pChecked = isChecked(p.bill);
                   return (
                     <li key={p.bill}>
@@ -292,6 +299,12 @@ export default function UnpackStep({
                               ? `Not checked · ${boxOf(p.bill)?.expected ?? 0} boxes/packs expected`
                               : `${finished ? 'Done' : pItems || pDone ? 'Unpacking' : 'Checked'} · ${pItems} item${pItems === 1 ? '' : 's'}${pArticles ? ` · ${pArticles.toLocaleString()} articles` : ''}${pBoxes > 0 ? ` · ${pDone}/${pBoxes} boxes/packs` : ''}`}
                           </span>
+                          {hits.length > 0 && (
+                            <span className="block text-[11px] text-honey-800 truncate" title={hits.map((e) => e.productName).join(', ')}>
+                              Has: {hits.slice(0, 3).map((e) => `${e.productName} (${e.qty})`).join(', ')}
+                              {hits.length > 3 ? ` +${hits.length - 3} more` : ''}
+                            </span>
+                          )}
                           <span className={`block text-[11px] font-medium tabular-nums ${amountTone(p.entered, p.billTotal)}`}>
                             {formatRs(p.entered)} / {formatRs(p.billTotal)}
                           </span>
