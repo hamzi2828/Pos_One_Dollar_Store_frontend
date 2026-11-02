@@ -177,7 +177,11 @@ export default function EntriesList({
           ))}
         </ul>
       )}
-      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} onClose={() => setLogOf(null)} />}
+      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)}
+          parts={all
+            .filter((x) => x.product === logOf.product && (x.variantId || null) === (logOf.variantId || null))
+            .sort((a, b) => (a.entryNo || 0) - (b.entryNo || 0))
+            .map((x) => ({ key: x._id, label: `${x.vendorName || 'Vendor'} · #${x.entryNo}`, pieces: (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), current: x._id === logOf._id }))} onClose={() => setLogOf(null)} />}
       {editing && (
         <EditEntryModal
           grn={grn}

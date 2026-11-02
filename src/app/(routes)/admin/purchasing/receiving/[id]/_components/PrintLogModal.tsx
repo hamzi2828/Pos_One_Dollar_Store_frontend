@@ -32,8 +32,11 @@ export default function PrintLogModal({
   variantId,
   name,
   need: needNow,
+  parts,
   onClose,
 }: {
+  /** The product's live entries on this receipt, oldest first (vendor + pieces). */
+  parts?: { key: string; label: string; pieces: number; current?: boolean }[];
   productId: string;
   variantId?: string | null;
   name: string;
@@ -101,6 +104,30 @@ export default function PrintLogModal({
                 <div className="mt-1.5 h-2 rounded-full bg-white overflow-hidden">
                   <div className={`h-full rounded-full ${left > 0 ? 'bg-honey-500' : 'bg-green-500'}`} style={{ width: `${pct}%` }} />
                 </div>
+                {parts && parts.length > 1 && (
+                  <ul className="mt-2 space-y-0.5 border-t border-honey-200 pt-1.5 text-xs">
+                    {(() => {
+                      // Printed stickers go to the entries oldest first: moved pieces take their printed count with them.
+                      let pool = done;
+                      return parts.map((p) => {
+                        const got = Math.min(p.pieces, Math.max(0, pool));
+                        pool -= got;
+                        const rest = p.pieces - got;
+                        return (
+                          <li key={p.key} className={`flex justify-between gap-2 ${p.current ? 'font-semibold' : ''}`}>
+                            <span className="truncate">
+                              {p.label}
+                              {p.current ? ' (this entry)' : ''}
+                            </span>
+                            <span className={`whitespace-nowrap tabular-nums ${rest > 0 ? 'text-red-600' : 'text-green-700'}`}>
+                              {got.toLocaleString()} of {p.pieces.toLocaleString()} {rest > 0 ? `· ${rest.toLocaleString()} left` : '· done'}
+                            </span>
+                          </li>
+                        );
+                      });
+                    })()}
+                  </ul>
+                )}
               </div>
             );
           })()}
