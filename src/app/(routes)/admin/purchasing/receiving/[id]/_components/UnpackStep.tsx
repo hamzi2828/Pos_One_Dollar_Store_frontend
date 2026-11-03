@@ -122,7 +122,7 @@ export default function UnpackStep({
   // Owner, 2026-10-31: filter the vendor list by opened (unpacking started) / not opened.
   const [openFilter, setOpenFilter] = useState<'all' | 'not_opened' | 'opened'>('all');
   // Inside Opened: all of them, or only those entered over the bill.
-  const [openedSub, setOpenedSub] = useState<'all' | 'over'>('all');
+  const [openedSub, setOpenedSub] = useState<'all' | 'over' | 'short'>('all');
   // Correcting the count of a checked vendor (before its goods are entered).
   const [recount, setRecount] = useState(false);
   const [billId, setBillId] = useState<string>(
@@ -181,6 +181,7 @@ export default function UnpackStep({
   const itemsIn = (n: number) => liveEntries.filter((e) => (e.boxNo || 0) === n).length;
   /** Vendor finished: all its boxes/packs done, or goods worth the whole bill entered. */
   const isOver = (p: { entered: number; billTotal: number }) => p.billTotal > 0 && Math.round(p.entered) > Math.round(p.billTotal);
+  const isShort = (p: { entered: number; billTotal: number }) => p.billTotal > 0 && Math.round(p.entered) < Math.round(p.billTotal);
   const isOpened = (billId: string) =>
     (grn.entries || []).some((e) => !e.undone && e.bill === billId) || doneBoxesOf(grn, billId).size > 0;
   const vendorDone = (p: (typeof progress)[number]) => {
@@ -277,6 +278,7 @@ export default function UnpackStep({
                   [
                     ['all', 'All', progress.filter((p) => isOpened(p.bill)).length],
                     ['over', 'Over', progress.filter((p) => isOpened(p.bill) && isOver(p)).length],
+                    ['short', 'Short', progress.filter((p) => isOpened(p.bill) && isShort(p)).length],
                   ] as const
                 ).map(([key, label, n]) => (
                   <button
@@ -294,7 +296,7 @@ export default function UnpackStep({
               {progress
                 .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()) || productHits(p.bill).length > 0)
                 .filter((p) => openFilter === 'all' || (openFilter === 'opened') === isOpened(p.bill))
-                .filter((p) => openFilter !== 'opened' || openedSub === 'all' || isOver(p))
+                .filter((p) => openFilter !== 'opened' || openedSub === 'all' || (openedSub === 'over' ? isOver(p) : isShort(p)))
                 .filter((p) => showDone || !!search.trim() || openFilter === 'opened' || p.bill === bill.bill || !vendorDone(p))
                 .map((p) => {
                   const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
