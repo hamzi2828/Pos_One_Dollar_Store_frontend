@@ -400,7 +400,7 @@ function EditEntryModal({
                 <p>
                   Order total <strong>{formatRs(t.bill)}</strong> · entered after save <strong>{formatRs(t.entered)}</strong>
                   {t.bill > 0 && (
-                    <span className={`ml-1 font-semibold ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-blue-600' : 'text-green-600'}`}>
+                    <span className={`ml-1 font-semibold ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-orange-600' : 'text-green-600'}`}>
                       · {left > 0.5 ? `${formatRs(left)} left` : left < -0.5 ? `${formatRs(-left)} over` : 'all entered'}
                     </span>
                   )}

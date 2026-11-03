@@ -31,9 +31,9 @@ const boxCountOf = (grn: GoodsReceipt, billId: string) => {
   const b = (grn.boxes || []).find((x) => x.bill === billId);
   return b ? b.received || b.expected || 0 : 0;
 };
-/** Entered vs bill: less = red, more = blue, equal = green. */
+/** Entered vs bill: less = red, more = orange, equal = green. */
 const amountTone = (entered: number, total: number) =>
-  Math.round(entered) < Math.round(total) ? 'text-red-600' : Math.round(entered) > Math.round(total) ? 'text-blue-600' : 'text-green-600';
+  Math.round(entered) < Math.round(total) ? 'text-red-600' : Math.round(entered) > Math.round(total) ? 'text-orange-600' : 'text-green-600';
 /**
  * Owner, 2026-11-02: "Rs 14,250 over · 62 articles" — how far the entered goods are from the bill,
  * in rupees and in articles (pieces) at this vendor's cost per piece ("about" when the costs differ).

@@ -60,7 +60,7 @@ function TripEnteredBar({ grn }: { grn: GoodsReceipt }) {
           <span className="font-semibold text-gray-900 tabular-nums">{formatRs(billTotal)}</span> bought ·{' '}
           <span className="font-semibold text-gray-900 tabular-nums">{articles.toLocaleString()}</span> article{articles === 1 ? '' : 's'} added
         </p>
-        <p className={`text-sm font-semibold tabular-nums ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-blue-600' : 'text-green-600'}`}>
+        <p className={`text-sm font-semibold tabular-nums ${left > 0.5 ? 'text-red-600' : left < -0.5 ? 'text-orange-600' : 'text-green-600'}`}>
           {pct}% · {left > 0.5 ? `${formatRs(left)} left` : left < -0.5 ? `${formatRs(-left)} over` : 'all entered'}
         </p>
       </div>
