@@ -240,6 +240,22 @@ function EditEntryModal({
     { label: 'Whole trip', bill: tripBill, entered: r2(tripEntered + delta) },
   ];
 
+  // Product stock and cost after this edit (same math as the server: the old
+  // pieces go out, the new good pieces come in at cost + charges, averaged).
+  const fromEntry = (() => {
+    const p = form?.product as unknown as { stock?: number; costPrice?: number } | undefined;
+    if (!p || entry.variantId) return undefined;
+    const stock = Number(p.stock) || 0;
+    const avg = Number(p.costPrice) || 0;
+    const oldGood = entry.stockQty || 0;
+    const newGood = Math.max(0, q - d);
+    const rate = typeof grn.chargeRate === 'number' ? grn.chargeRate : Number(entry.costPrice) > 0 ? (Number(entry.landedUnitCost) || 0) / Number(entry.costPrice) - 1 : 0;
+    const landed = c * (1 + rate);
+    const rest = Math.max(0, stock - oldGood);
+    const cost = !newGood ? avg : rest > 0 && avg > 0 ? (rest * avg + newGood * landed) / (rest + newGood) : landed;
+    return { stock: rest + newGood, costPrice: Math.round(cost * 100) / 100 };
+  })();
+
   // The full product form (same as Products → Edit): name, barcodes, prices, category.
   useEffect(() => {
     let alive = true;
@@ -351,6 +367,7 @@ function EditEntryModal({
           <ProductForm
             mode="edit"
             initialData={form.product as unknown as Product}
+            fromEntry={fromEntry}
             categories={form.categories}
             colorOptions={form.colorOptions}
             sizeOptions={form.sizeOptions}

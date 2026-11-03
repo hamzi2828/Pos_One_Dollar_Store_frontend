@@ -74,6 +74,8 @@ interface ProductFormProps {
   onManageAttributes?: () => void;
   /** Receiving goods: stock comes from the delivery entry, so no stock is typed here (saved as 0). */
   noStock?: boolean;
+  /** Receiving → edit entry: stock and cost follow the entry above (live), saved only by "Save entry". */
+  fromEntry?: { stock: number; costPrice: number };
   /** Create: name to start with (e.g. what was searched). */
   defaultName?: string;
   /** Create: barcode already on the item (e.g. scanned in the search box). */
@@ -146,6 +148,7 @@ export default function ProductForm({
   onSuccess,
   onManageAttributes,
   noStock = false,
+  fromEntry,
   defaultName = "",
   defaultBarcode = "",
   defaultVendorId = "",
@@ -800,6 +803,11 @@ export default function ProductForm({
 
       // Receiving goods: the pieces go in with the delivery entry, never here.
       if (noStock) formData.set("stock", "0");
+      // Edit entry popup: stock and cost belong to the entry; never overwrite them from here.
+      if (fromEntry) {
+        formData.delete("stock");
+        formData.delete("costPrice");
+      }
 
       let saved: ProductUI;
       if (mode === "create") {
@@ -1220,13 +1228,14 @@ export default function ProductForm({
                       {/* Saved cost is per sale; for loose items sold N together the box takes one piece's cost. */}
                       <NumberMoneyInput
                         placeholder="0.00"
-                        disabled={packaging.soldAs === "box"}
-                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'text-gray-900'}`}
-                        value={packaging.soldAs === "box" || form.costPrice == null ? form.costPrice : roundCost(form.costPrice / pps)}
+                        disabled={packaging.soldAs === "box" || !!fromEntry}
+                        className={`block w-full rounded-lg border pl-7 pr-3 py-2 text-sm placeholder-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors ${errors.costPrice ? 'border-red-300' : 'border-gray-300'} ${packaging.soldAs === "box" ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : fromEntry ? 'bg-honey-50 text-gray-900 cursor-not-allowed' : 'text-gray-900'}`}
+                        value={fromEntry ? roundCost(fromEntry.costPrice / (packaging.soldAs === "box" ? 1 : pps)) : packaging.soldAs === "box" || form.costPrice == null ? form.costPrice : roundCost(form.costPrice / pps)}
                         onNumber={(n) => setField("costPrice", packaging.soldAs === "box" || n == null ? n : roundCost(n * pps))}
                       />
                     </div>
                     {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                    {fromEntry && <p className="mt-1 text-xs text-honey-800">Follows the entry above (saved with "Save entry")</p>}
                     {(() => {
                       // Receiving adds each piece's share of the shipping/charges to the vendor price.
                       const vendor = Number((initialData as { lastPurchasePrice?: number } | undefined)?.lastPurchasePrice);
@@ -1314,7 +1323,7 @@ export default function ProductForm({
                   </label>
                   {(() => {
                     // Box / batch mode: stock is calculated in "Packaging & Stock" below
-                    const stockLocked = isVariant || computedStock(packaging) !== null;
+                    const stockLocked = isVariant || computedStock(packaging) !== null || !!fromEntry;
                     return (
                       <>
                         <input
@@ -1327,12 +1336,13 @@ export default function ProductForm({
                               ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
                               : 'text-gray-900 focus:border-gray-900 focus:ring-1 focus:ring-gray-900'
                           }`}
-                          value={isVariant ? 0 : form.stock}
+                          value={isVariant ? 0 : fromEntry ? fromEntry.stock : form.stock}
                           onChange={(e) => setField("stock", Number(e.target.value))}
                         />
                         {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
                         {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
-                        {!isVariant && stockLocked && (
+                        {fromEntry && !isVariant && <p className="mt-1 text-xs text-honey-800">Follows the Pieces above (saved with "Save entry")</p>}
+                        {!isVariant && stockLocked && !fromEntry && (
                           <p className="mt-1 text-xs text-gray-500">
                             {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes/packs below"}
                           </p>
