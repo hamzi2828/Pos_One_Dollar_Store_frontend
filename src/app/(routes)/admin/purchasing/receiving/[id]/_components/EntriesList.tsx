@@ -3,7 +3,7 @@
 // Goods entered on this trip (newest first): tags again, undo, edit.
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { History, ListChecks, Loader2, Pencil, Printer, Undo2 } from 'lucide-react';
+import { History, ListChecks, Loader2, Pencil, Printer, ScanBarcode, Undo2 } from 'lucide-react';
 import { Field, Modal, inputClass, primaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { apiErrorMessage, formatDate, formatRs, storeApi } from '@/lib/storeApi';
@@ -76,7 +76,8 @@ export default function EntriesList({
       .reduce((n, x) => n + (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), 0);
 
   // Stickers printed per product + vendor bill (for the bar on each entry).
-  const [printed, setPrinted] = useState<Map<string, number> | null>(null);
+  // done = stickers printed + pieces with their own barcode; scanned = the own-barcode part.
+  const [printed, setPrinted] = useState<Map<string, { done: number; scanned: number }> | null>(null);
   const pkey = (p: string, v: string | null | undefined, b: string | null | undefined) => `${p}|${v || ''}|${b || ''}`;
   const productIds = [...new Set(rows.map((e) => e.product))].sort().join(',');
   const [tick, setTick] = useState(0);
@@ -84,12 +85,16 @@ export default function EntriesList({
     if (!productIds) return;
     let alive = true;
     storeApi
-      .get<{ productId: string; variantId: string | null; bill: string | null; printed: number }[]>('/label-prints/summary', { productIds })
+      .get<{ productId: string; variantId: string | null; bill: string | null; printed: number; scanned?: number }[]>('/label-prints/summary', { productIds })
       .then((res) => {
         const list = res?.data;
         if (!alive || !Array.isArray(list)) return;
-        const m = new Map<string, number>();
-        for (const r of list) m.set(pkey(r.productId, r.variantId, r.bill), (m.get(pkey(r.productId, r.variantId, r.bill)) || 0) + r.printed);
+        const m = new Map<string, { done: number; scanned: number }>();
+        for (const r of list) {
+          const k = pkey(r.productId, r.variantId, r.bill);
+          const was = m.get(k) || { done: 0, scanned: 0 };
+          m.set(k, { done: was.done + r.printed, scanned: was.scanned + (r.scanned || 0) });
+        }
         setPrinted(m);
       })
       .catch(() => {});
@@ -107,6 +112,24 @@ export default function EntriesList({
       document.removeEventListener('visibilitychange', again);
     };
   }, []);
+
+  // The pieces not printed yet already carry their own barcode: count them as done.
+  const restScanned = async (e: GRNEntry, left: number) => {
+    if (lock.current || left < 1) return;
+    if (!window.confirm(`${e.productName}: mark the ${left} pieces left as "own barcode" (scanned, no sticker needed)?`)) return;
+    lock.current = true;
+    setBusy(`scan-${e._id}`);
+    try {
+      await storeApi.post('/label-prints/scanned', { productId: e.product, variantId: e.variantId || null, bill: e.bill, count: left, total: productPieces(e) });
+      toast.success(`${left} pieces marked as own barcode`);
+      setTick((t) => t + 1);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not save.'));
+    } finally {
+      lock.current = false;
+      setBusy(null);
+    }
+  };
 
   const tags = async (e: GRNEntry) => {
     if (lock.current) return;
@@ -162,18 +185,39 @@ export default function EntriesList({
                   </p>
                   {printed && e.stockQty > 0 && (() => {
                     const need = productPieces(e);
-                    const done = Math.max(0, printed.get(pkey(e.product, e.variantId, e.bill)) || 0);
+                    const got = printed.get(pkey(e.product, e.variantId, e.bill)) || { done: 0, scanned: 0 };
+                    const done = Math.max(0, got.done);
+                    const scanned = Math.max(0, Math.min(done, got.scanned));
+                    const stickers = done - scanned;
                     const left = Math.max(0, need - done);
-                    const pct = need ? Math.min(100, Math.round((done / need) * 100)) : 0;
+                    const pctOf = (n: number) => (need ? Math.min(100, (n / need) * 100) : 0);
                     const full = done >= need;
+                    const parts = scanned > 0 ? `${stickers} printed + ${scanned} own barcode` : `${done} printed`;
                     return (
-                      <div className="mt-1 mb-0.5 max-w-[16rem]" title={`Stickers printed for ${e.vendorName}`}>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                          <div className={`h-full rounded-full ${full ? 'bg-green-500' : done ? 'bg-honey-500' : 'bg-gray-300'}`} style={{ width: `${pct}%` }} />
+                      <div className="mt-1 mb-0.5 max-w-[20rem]" title={`Stickers printed / own barcode for ${e.vendorName}`}>
+                        <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                          <div className={`h-full ${full ? 'bg-green-500' : stickers ? 'bg-honey-500' : 'bg-gray-300'}`} style={{ width: `${pctOf(stickers)}%` }} />
+                          {scanned > 0 && <div className="h-full bg-sky-500" style={{ width: `${Math.max(0, Math.min(pctOf(scanned), 100 - pctOf(stickers)))}%` }} />}
                         </div>
                         <p className={`mt-0.5 text-[11px] font-medium ${full ? 'text-green-700' : done ? 'text-honey-800' : 'text-gray-500'}`}>
-                          {full ? `All ${need} stickers printed${done > need ? ` (+${done - need} extra)` : ''}` : `${done} of ${need} printed · ${left} left`}
+                          {full
+                            ? scanned > 0
+                              ? `All ${need} done · ${parts}${done > need ? ` (+${done - need} extra)` : ''}`
+                              : `All ${need} stickers printed${done > need ? ` (+${done - need} extra)` : ''}`
+                            : `${parts} of ${need} · ${left} left`}
                         </p>
+                        {left > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => restScanned(e, left)}
+                            disabled={!!busy}
+                            className="mt-1 inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+                            title="These pieces already have their own barcode (scanned): no sticker needed"
+                          >
+                            {busy === `scan-${e._id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScanBarcode className="h-3 w-3" />}
+                            Rest {left} have own barcode
+                          </button>
+                        )}
                       </div>
                     );
                   })()}

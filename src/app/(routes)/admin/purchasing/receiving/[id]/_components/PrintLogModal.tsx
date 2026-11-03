@@ -12,7 +12,7 @@ interface PrintRow {
   id: string;
   count: number;
   total: number;
-  mode: 'sale' | 'piece' | 'custom' | 'moved';
+  mode: 'sale' | 'piece' | 'custom' | 'moved' | 'scanned';
   note?: string;
   piecesPerSale: number;
   via: 'printer' | 'browser';
@@ -21,12 +21,13 @@ interface PrintRow {
 }
 interface PrintLog {
   totalStickers: number;
+  totalScanned?: number;
   runs: number;
   prints: PrintRow[];
 }
 
 const modeText = (r: PrintRow) =>
-  r.mode === 'moved' ? r.note || 'Moved with the pieces' : r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
+  r.mode === 'scanned' ? 'Own barcode on the pack (scanned), no sticker needed' : r.mode === 'moved' ? r.note || 'Moved with the pieces' : r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
 
 export default function PrintLogModal({
   productId,
@@ -100,7 +101,7 @@ export default function PrintLogModal({
               <div className="mb-3 rounded-lg bg-honey-50 px-3 py-2 text-sm text-gray-800">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span>
-                    <strong>{done.toLocaleString()}</strong> of {need.toLocaleString()} printed · {log.runs} print{log.runs === 1 ? '' : 's'}
+                    <strong>{done.toLocaleString()}</strong> of {need.toLocaleString()} {log.totalScanned ? `done (${(done - log.totalScanned).toLocaleString()} printed + ${log.totalScanned.toLocaleString()} own barcode)` : 'printed'} · {log.runs} print{log.runs === 1 ? '' : 's'}
                   </span>
                   <strong className={left > 0 ? 'text-red-600' : 'text-green-600'}>{left > 0 ? `${left.toLocaleString()} left` : 'All printed'}</strong>
                 </div>
@@ -119,13 +120,13 @@ export default function PrintLogModal({
               <li key={r.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-gray-900">
-                    {r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
+                    {r.mode === 'scanned' ? `${r.count.toLocaleString()} own barcode` : r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
                     <span className={`ml-2 text-xs font-medium ${left > 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {left > 0 ? `${left.toLocaleString()} left` : 'all done'}
                     </span>
                   </span>
                   <span className="block text-xs text-gray-600">
-                    {modeText(r)}{r.mode === 'moved' ? '' : r.via === 'printer' ? ' · Label printer' : ' · Print window'}
+                    {modeText(r)}{r.mode === 'moved' || r.mode === 'scanned' ? '' : r.via === 'printer' ? ' · Label printer' : ' · Print window'}
                   </span>
                 </span>
                 <span className="flex flex-col items-end gap-1 text-right text-[11px] text-gray-500">
