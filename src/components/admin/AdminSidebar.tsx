@@ -60,7 +60,6 @@ import {
   PiggyBank,
   Monitor,
   Banknote,
-  PiggyBank,
   MessageCircle,
   Route,
   MonitorDown,
