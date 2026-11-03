@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import { Wallet } from 'lucide-react';
 import ReportsNav from '../components/ReportsNav';
+import FundsPanel from './FundsPanel';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard } from '@/components/admin/FormBits';
@@ -125,6 +126,8 @@ export default function SpendingReportPage() {
         actions={<ReportActions canExport={canExport} onPdf={exportPdf} onRefresh={r.reload} loading={r.loading} disabled={!d} />}
       />
       <ReportsNav />
+
+      <FundsPanel />
 
       <FilterBar>
         <SearchSelect value={key} onChange={(e) => setKey(e.target.value)} className={selectClass} aria-label="Period">
