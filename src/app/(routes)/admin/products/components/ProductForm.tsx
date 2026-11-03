@@ -1227,6 +1227,19 @@ export default function ProductForm({
                       />
                     </div>
                     {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
+                    {(() => {
+                      // Receiving adds each piece's share of the shipping/charges to the vendor price.
+                      const vendor = Number((initialData as { lastPurchasePrice?: number } | undefined)?.lastPurchasePrice);
+                      const cost = Number(form.costPrice);
+                      if (!(vendor > 0) || !(cost > 0) || Math.abs(cost - vendor) < 0.01 || packaging.soldAs === "box") return null;
+                      const extra = cost - vendor;
+                      return (
+                        <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                          Vendor price {currency.symbol}{roundCost(vendor).toLocaleString()} {extra > 0 ? "+" : "−"} {currency.symbol}
+                          {roundCost(Math.abs(extra)).toLocaleString()} {extra > 0 ? "shipping/charges" : "(average of older stock)"}
+                        </p>
+                      );
+                    })()}
                     {pps > 1 && packaging.soldAs !== "box" && (
                       <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-xs text-gray-700">
                         Cost of one sale ({pps} pieces):{" "}
