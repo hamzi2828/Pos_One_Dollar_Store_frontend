@@ -212,7 +212,6 @@ export default function VendorsPage() {
                   <tr>
                     <th className={`${thClass} w-10 text-right`}>Sr#</th>
                     <th className={thClass}>Vendor</th>
-                    <th className={`${thClass} hidden md:table-cell`}>Phone</th>
                     <th className={`${thClass} hidden lg:table-cell`}>City</th>
                     <th className={`${thClass} hidden xl:table-cell`}>Supplies</th>
                     <th className={`${thClass} text-right hidden sm:table-cell`} title="All bills (and other amounts we owe them)">Total</th>
@@ -234,11 +233,15 @@ export default function VendorsPage() {
                             {v.isConsignment && <Badge kind="consignment">Consignment</Badge>}
                             {!v.isActive && <Badge kind="inactive">Inactive</Badge>}
                           </span>
-                          <span className="block text-[11px] text-gray-500 md:hidden">{[v.phone, v.city].filter(Boolean).join(' · ')}</span>
-                          {v.contactPerson && <span className="hidden md:block text-[11px] text-gray-500">{v.contactPerson}</span>}
+                          {v.phone && <span className="block text-xs text-gray-700 tabular-nums">{v.phone}</span>}
+                          {(v.contactPerson || v.city) && (
+                            <span className="block text-[11px] text-gray-500">
+                              {v.contactPerson}
+                              {v.city && <span className="lg:hidden">{v.contactPerson ? ' · ' : ''}{v.city}</span>}
+                            </span>
+                          )}
                         </Link>
                       </td>
-                      <td className={`${tdClass} hidden md:table-cell whitespace-nowrap`}>{v.phone || <span className="text-gray-300">—</span>}</td>
                       <td className={`${tdClass} hidden lg:table-cell`}>{v.city || <span className="text-gray-300">—</span>}</td>
                       <td className={`${tdClass} hidden xl:table-cell text-xs text-gray-500 max-w-[220px] truncate`}>{(v.categories || []).join(', ') || '—'}</td>
                       <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden sm:table-cell`}>{formatRs(v.totalCredit || 0)}</td>
@@ -294,7 +297,6 @@ export default function VendorsPage() {
                     <tr>
                       <td className={tdClass} />
                       <td className={`${tdClass} font-semibold text-gray-900`}>Total ({rows.length} shown)</td>
-                      <td className={`${tdClass} hidden md:table-cell`} />
                       <td className={`${tdClass} hidden lg:table-cell`} />
                       <td className={`${tdClass} hidden xl:table-cell`} />
                       <td className={`${tdClass} text-right font-semibold tabular-nums hidden sm:table-cell`}>{formatRs(rows.reduce((t, v) => t + (v.totalCredit || 0), 0))}</td>
