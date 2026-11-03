@@ -242,7 +242,7 @@ export default function UnpackStep({
 
       {/* Same as step 1: checked vendors on the left, the picked vendor on the right. */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-4 items-start lg:items-stretch">
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm lg:flex lg:flex-col lg:min-h-[36rem]">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm lg:flex lg:flex-col lg:min-h-[18rem]">
           <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <PackageOpen className="h-4 w-4 text-honey-700" /> Vendors ({progress.length})
