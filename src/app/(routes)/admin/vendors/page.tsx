@@ -135,6 +135,13 @@ export default function VendorsPage() {
 
         <VendorsNav />
 
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-2 sm:mb-3">
+          <StatCard icon={<Truck className="h-4 w-4" />} label="Total (all bills)" value={summary ? formatRs(summary.totalBilled || 0) : '—'} hint="Everything we owe vendors" />
+          <StatCard tone="emerald" icon={<HandCoins className="h-4 w-4" />} label="Paid" value={summary ? formatRs(summary.totalPaid || 0) : '—'} hint="Payments only" />
+          <StatCard tone="blue" icon={<Edit2 className="h-4 w-4" />} label="Adjusted" value={summary ? formatRs(summary.totalAdjusted || 0) : '—'} hint="Adjustments, returns, discounts" />
+          <StatCard tone="rose" icon={<ArrowUpRight className="h-4 w-4" />} label="Left to pay" value={summary ? formatRs(summary.totalLeft || 0) : '—'} hint="Total − paid − adjusted" />
+        </div>
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4 sm:mb-6">
           <StatCard
             tone="rose"
@@ -203,19 +210,22 @@ export default function VendorsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className={`${thClass} w-10 text-right`}>Sr#</th>
                     <th className={thClass}>Vendor</th>
                     <th className={`${thClass} hidden md:table-cell`}>Phone</th>
                     <th className={`${thClass} hidden lg:table-cell`}>City</th>
                     <th className={`${thClass} hidden xl:table-cell`}>Supplies</th>
                     <th className={`${thClass} text-right hidden sm:table-cell`} title="All bills (and other amounts we owe them)">Total</th>
-                    <th className={`${thClass} text-right hidden sm:table-cell`} title="Payments (and returns / discounts)">Paid</th>
-                    <th className={`${thClass} text-right`}>Balance</th>
+                    <th className={`${thClass} text-right hidden sm:table-cell`} title="Payments only">Paid</th>
+                    <th className={`${thClass} text-right hidden md:table-cell`} title="Adjustments, returns, discounts">Adjusted</th>
+                    <th className={`${thClass} text-right`}>Left</th>
                     <th className={`${thClass} text-right`}></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {rows.map((v) => (
+                  {rows.map((v, i) => (
                     <tr key={v._id} className={`hover:bg-gray-50 ${v.isActive ? '' : 'opacity-60'}`}>
+                      <td className={`${tdClass} w-10 text-right text-xs text-gray-500 tabular-nums`}>{(page - 1) * limit + i + 1}</td>
                       <td className={tdClass}>
                         <Link href={`/admin/vendors/${v._id}`} className="group block min-w-0">
                           <span className="flex items-center gap-1.5 flex-wrap">
@@ -232,11 +242,15 @@ export default function VendorsPage() {
                       <td className={`${tdClass} hidden lg:table-cell`}>{v.city || <span className="text-gray-300">—</span>}</td>
                       <td className={`${tdClass} hidden xl:table-cell text-xs text-gray-500 max-w-[220px] truncate`}>{(v.categories || []).join(', ') || '—'}</td>
                       <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden sm:table-cell`}>{formatRs(v.totalCredit || 0)}</td>
-                      <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden sm:table-cell text-green-700`}>{formatRs(v.totalDebit || 0)}</td>
+                      <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden sm:table-cell text-green-700`}>{formatRs(v.totalPaid ?? v.totalDebit ?? 0)}</td>
+                      <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden md:table-cell text-blue-700`}>
+                        {v.totalAdjusted ? formatRs(v.totalAdjusted) : <span className="text-gray-300">—</span>}
+                      </td>
                       <td className={`${tdClass} text-right whitespace-nowrap`}>
                         <BalanceText amount={v.balance} />
                         <span className="block text-[10px] text-gray-400 sm:hidden tabular-nums">
-                          {formatRs(v.totalCredit || 0)} − {formatRs(v.totalDebit || 0)} paid
+                          {formatRs(v.totalCredit || 0)} · paid {formatRs(v.totalPaid ?? 0)}
+                          {v.totalAdjusted ? ` · adj ${formatRs(v.totalAdjusted)}` : ''}
                         </span>
                       </td>
                       <td className={`${tdClass} text-right whitespace-nowrap`}>
@@ -278,12 +292,14 @@ export default function VendorsPage() {
                 {rows.length > 1 && (
                   <tfoot className="bg-gray-50 border-t border-gray-200">
                     <tr>
+                      <td className={tdClass} />
                       <td className={`${tdClass} font-semibold text-gray-900`}>Total ({rows.length} shown)</td>
                       <td className={`${tdClass} hidden md:table-cell`} />
                       <td className={`${tdClass} hidden lg:table-cell`} />
                       <td className={`${tdClass} hidden xl:table-cell`} />
                       <td className={`${tdClass} text-right font-semibold tabular-nums hidden sm:table-cell`}>{formatRs(rows.reduce((t, v) => t + (v.totalCredit || 0), 0))}</td>
-                      <td className={`${tdClass} text-right font-semibold tabular-nums hidden sm:table-cell text-green-700`}>{formatRs(rows.reduce((t, v) => t + (v.totalDebit || 0), 0))}</td>
+                      <td className={`${tdClass} text-right font-semibold tabular-nums hidden sm:table-cell text-green-700`}>{formatRs(rows.reduce((t, v) => t + (v.totalPaid ?? v.totalDebit ?? 0), 0))}</td>
+                      <td className={`${tdClass} text-right font-semibold tabular-nums hidden md:table-cell text-blue-700`}>{formatRs(rows.reduce((t, v) => t + (v.totalAdjusted || 0), 0))}</td>
                       <td className={`${tdClass} text-right font-semibold whitespace-nowrap`}>
                         <BalanceText amount={rows.reduce((t, v) => t + (v.balance || 0), 0)} />
                       </td>

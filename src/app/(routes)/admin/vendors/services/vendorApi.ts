@@ -35,6 +35,10 @@ export interface Vendor {
   balance: number;
   totalCredit?: number;
   totalDebit?: number;
+  /** Payments only. */
+  totalPaid?: number;
+  /** Other reductions: adjustments, returns, discounts. */
+  totalAdjusted?: number;
   createdAt?: string;
 }
 
@@ -62,6 +66,10 @@ export interface VendorSummary {
   totalReceivable: number;
   payableCount: number;
   receivableCount: number;
+  totalBilled?: number;
+  totalPaid?: number;
+  totalAdjusted?: number;
+  totalLeft?: number;
 }
 
 export interface VendorPayload {
