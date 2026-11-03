@@ -506,8 +506,9 @@ export default function UnpackStep({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
-                <div className="xl:col-span-3 space-y-4">
+              {/* Owner, 2026-11-03: scan first, then the entries full width below (more room). */}
+              <div className="space-y-4">
+                <div className="space-y-4">
                   {canEnter ? (
                     <>
                       {saved ? (
@@ -605,7 +606,7 @@ export default function UnpackStep({
                   {lines.length > 0 && <Checklist lines={lines} grn={grn} disabled={!canEnter || !!unit} onPick={(u) => pick(u)} />}
                 </div>
 
-                <div className="xl:col-span-2 space-y-4">
+                <div className="space-y-4">
                   <EntriesList grn={grn} canUndo={canEnter} tagSize={tagSize} onTagSize={(s) => { onTagSize(s); saveTagSize(s); }} onChanged={onChanged} onReload={onReload} billFilter={bill.bill} />
                 </div>
               </div>

@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { History, ListChecks, Loader2, Pencil, Printer, Undo2 } from 'lucide-react';
 import { Field, Modal, inputClass, primaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
-import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
+import { apiErrorMessage, formatDate, formatRs, storeApi } from '@/lib/storeApi';
 import { isReceipt, purchasingApi } from '../../../_shared/purchasingApi';
 import { Card } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNEntry } from '../../../_shared/types';
@@ -75,6 +75,39 @@ export default function EntriesList({
       .filter((x) => x.product === e.product && (x.variantId || null) === (e.variantId || null) && x.bill === e.bill)
       .reduce((n, x) => n + (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), 0);
 
+  // Stickers printed per product + vendor bill (for the bar on each entry).
+  const [printed, setPrinted] = useState<Map<string, number> | null>(null);
+  const pkey = (p: string, v: string | null | undefined, b: string | null | undefined) => `${p}|${v || ''}|${b || ''}`;
+  const productIds = [...new Set(rows.map((e) => e.product))].sort().join(',');
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!productIds) return;
+    let alive = true;
+    storeApi
+      .get<{ productId: string; variantId: string | null; bill: string | null; printed: number }[]>('/label-prints/summary', { productIds })
+      .then((res) => {
+        const list = res?.data;
+        if (!alive || !Array.isArray(list)) return;
+        const m = new Map<string, number>();
+        for (const r of list) m.set(pkey(r.productId, r.variantId, r.bill), (m.get(pkey(r.productId, r.variantId, r.bill)) || 0) + r.printed);
+        setPrinted(m);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [productIds, tick]);
+  // Prints happen on the sticker page in another tab: refresh when coming back.
+  useEffect(() => {
+    const again = () => document.visibilityState === 'visible' && setTick((t) => t + 1);
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      window.removeEventListener('focus', again);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, []);
+
   const tags = async (e: GRNEntry) => {
     if (lock.current) return;
     lock.current = true;
@@ -127,12 +160,29 @@ export default function EntriesList({
                     <strong>{(e.piecesPerSale || 1) > 1 ? `${e.qty} sales of ${e.piecesPerSale}` : `${e.qty} pcs`}</strong> × {formatRs(e.costPrice, { decimals: 2 })} = {formatRs(e.value)}
                     {e.damagedQty > 0 && <span className="text-red-600"> · {e.damagedQty} damaged</span>}
                   </p>
+                  {printed && e.stockQty > 0 && (() => {
+                    const need = productPieces(e);
+                    const done = Math.max(0, printed.get(pkey(e.product, e.variantId, e.bill)) || 0);
+                    const left = Math.max(0, need - done);
+                    const pct = need ? Math.min(100, Math.round((done / need) * 100)) : 0;
+                    const full = done >= need;
+                    return (
+                      <div className="mt-1 mb-0.5 max-w-[16rem]" title={`Stickers printed for ${e.vendorName}`}>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                          <div className={`h-full rounded-full ${full ? 'bg-green-500' : done ? 'bg-honey-500' : 'bg-gray-300'}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className={`mt-0.5 text-[11px] font-medium ${full ? 'text-green-700' : done ? 'text-honey-800' : 'text-gray-500'}`}>
+                          {full ? `All ${need} stickers printed${done > need ? ` (+${done - need} extra)` : ''}` : `${done} of ${need} printed · ${left} left`}
+                        </p>
+                      </div>
+                    );
+                  })()}
                   <p className="text-[11px] text-gray-500">
                     {e.shelved > 0 ? `${e.shelved} on shelf` : 'In warehouse'}
                     {e.shelved > 0 && e.stockQty > e.shelved && `, ${e.stockQty - e.shelved} in warehouse`} · {e.createdByName || '—'} · {formatDate(e.createdAt, true)}
                   </p>
                 </div>
-                <div className="flex flex-col gap-1 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-end gap-1 flex-shrink-0">
                   {e.stockQty > 0 && (
                     <button
                       type="button"
@@ -177,7 +227,7 @@ export default function EntriesList({
           ))}
         </ul>
       )}
-      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} bill={logOf.bill} vendorName={logOf.vendorName} onClose={() => setLogOf(null)} />}
+      {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} bill={logOf.bill} vendorName={logOf.vendorName} onClose={() => { setLogOf(null); setTick((t) => t + 1); }} />}
       {editing && (
         <EditEntryModal
           grn={grn}
