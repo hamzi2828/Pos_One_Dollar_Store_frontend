@@ -2,6 +2,8 @@
 
 // Record a vendor payment (cash / bank / cheque / Easypaisa / JazzCash) with
 // optional receipt photos. Shows the vendor's current balance first.
+// "Clear the rest": when less than the balance is paid, the difference is
+// posted as a ledger adjustment (we owe the vendor less), so nothing is pending.
 
 import React, { useEffect, useRef, useState } from 'react';
 import { HandCoins, Loader2, Check, ImagePlus, X } from 'lucide-react';
@@ -37,6 +39,7 @@ export default function PaymentModal({
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clearRest, setClearRest] = useState(false);
   const lock = useRef(false);
 
   useEffect(() => {
@@ -48,7 +51,11 @@ export default function PaymentModal({
 
   const balance = vendor?.balance ?? 0;
   const value = Number(amount);
-  const after = Number.isFinite(value) ? balance - value : balance;
+  const left = Number.isFinite(value) ? Math.round((balance - value) * 100) / 100 : balance;
+  // The rest can be cleared only when something is paid and some balance is still left.
+  const canClear = !!vendor && Number.isFinite(value) && value > 0 && left > 0;
+  const clearing = clearRest && canClear;
+  const after = clearing ? 0 : left;
 
   const addPhotos = (list: FileList | null) => {
     if (!list) return;
@@ -75,6 +82,18 @@ export default function PaymentModal({
         notes: notes.trim(),
         photos,
       });
+      if (clearing) {
+        try {
+          await vendorApi.adjust(vendorId, {
+            direction: 'debit',
+            amount: left,
+            date,
+            reason: `Rest cleared with payment ${p.paymentNo || ''} (${formatRs(value)} paid of ${formatRs(balance)}). ${formatRs(left)} adjusted, nothing pending.`.replace('  ', ' '),
+          });
+        } catch (e) {
+          window.alert(`The payment was saved, but the ${formatRs(left)} adjustment was not: ${apiErrorMessage(e, 'error')}. Add it from the vendor page (Adjustment).`);
+        }
+      }
       onSaved(p);
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not record the payment.'));
@@ -127,7 +146,7 @@ export default function PaymentModal({
               <BalanceText amount={balance} className="text-sm" />
             </div>
             <div className="rounded-lg bg-gray-50 border border-gray-200 p-2.5">
-              <p className="text-gray-500">After this payment</p>
+              <p className="text-gray-500">After this payment{clearing ? ' + adjustment' : ''}</p>
               <BalanceText amount={after} className="text-sm" />
             </div>
           </div>
@@ -147,6 +166,15 @@ export default function PaymentModal({
             <input type="date" value={date} max={pkToday()} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </Field>
         </div>
+        {canClear && (
+          <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${clearRest ? 'border-honey-400 bg-honey-50' : 'border-gray-200 bg-white'}`}>
+            <input type="checkbox" className="mt-0.5 h-4 w-4" checked={clearRest} onChange={(e) => setClearRest(e.target.checked)} />
+            <span>
+              <span className="font-medium text-gray-900">Clear the rest {formatRs(left)} as an adjustment</span>
+              <span className="block text-xs text-gray-500">Nothing stays pending: the vendor balance becomes Rs 0 (e.g. a discount or round-off).</span>
+            </span>
+          </label>
+        )}
         <Field label="Paid by" required>
           <div className="flex flex-wrap gap-1.5">
             {PAYMENT_METHODS.map((m) => (
