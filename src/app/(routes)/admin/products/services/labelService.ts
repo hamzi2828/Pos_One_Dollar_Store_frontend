@@ -56,7 +56,7 @@ export interface LabelData {
   types: string[];
   sizes: { key: string; label: string; widthMm: number; heightMm: number; kind: 'thermal' | 'sheet'; perPage: number }[];
   defaultSize: string;
-  maxLabels: number;
+  maxLabels: number | null; // null = no limit
 }
 
 export interface LabelPrintItem {

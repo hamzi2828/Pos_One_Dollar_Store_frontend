@@ -135,7 +135,8 @@ const formatDate = (d: string | null) => {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 };
 
-const clampCopies = (n: number) => Math.max(1, Math.min(1000, Math.floor(n) || 1));
+// Owner, 2026-11-03: no upper limit on stickers.
+const clampCopies = (n: number) => Math.max(1, Math.floor(n) || 1);
 
 const PREVIEW_MAX = 40; // stickers rendered in the preview
 
@@ -264,7 +265,7 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
     [activeRows, productId, type, copiesFor]
   );
   const total = items.reduce((s, it) => s + (it.copies || 0), 0);
-  const tooMany = !!data && total > data.maxLabels;
+  const tooMany = !!data && typeof data.maxLabels === 'number' && data.maxLabels > 0 && total > data.maxLabels;
 
   // Fewer copies in the preview so it stays quick.
   const previewItems = useMemo(() => {
@@ -626,7 +627,6 @@ export default function StickerPrinter({ productId, searchParams }: Props) {
                         <input
                           type="number"
                           min={1}
-                          max={1000}
                           value={copiesFor(r)}
                           disabled={!enabled}
                           onChange={(e) =>
