@@ -20,6 +20,8 @@ export interface Expense {
   categories?: string[]; // Array of category names
   date: string;
   paymentMethod: PaymentMethod;
+  bank?: string | null;
+  bankName?: string;
   reference: string;
   notes: string;
   receipt: string | null;
@@ -35,6 +37,8 @@ export interface RawExpense {
   category?: string;
   date?: string | Date;
   paymentMethod?: string;
+  bank?: string | null;
+  bankName?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -50,6 +54,7 @@ export interface CreateExpenseData {
   categories?: string[]; // Multiple categories
   date?: string;
   paymentMethod?: PaymentMethod;
+  bankId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -61,6 +66,7 @@ export interface UpdateExpenseData {
   category?: ExpenseCategory;
   date?: string;
   paymentMethod?: PaymentMethod;
+  bankId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;

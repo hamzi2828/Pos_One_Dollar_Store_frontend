@@ -10,6 +10,7 @@ import type { CreateExpenseData, PaymentMethod, ExpenseCategoryItem } from '../t
 import { PAYMENT_METHODS } from '../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
+import BankSelect from '../components/BankSelect';
 
 export default function CreateExpensePage() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function CreateExpensePage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
+  const [bankId, setBankId] = useState('');
   const [notes, setNotes] = useState('');
 
   // Receipt file
@@ -222,6 +224,7 @@ export default function CreateExpensePage() {
         categories: selectedCategories,
         date: date || undefined,
         paymentMethod,
+        bankId: paymentMethod === 'Bank Transfer' ? bankId || undefined : undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
       };
@@ -514,6 +517,7 @@ export default function CreateExpensePage() {
                 ))}
               </SearchSelect>
             </div>
+            {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reference / Receipt Number

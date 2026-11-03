@@ -9,6 +9,7 @@ import { expenseService } from '../../service/expenseService';
 import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod } from '../../types';
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import BankSelect from '../../components/BankSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 
 export default function EditExpensePage() {
@@ -24,6 +25,7 @@ export default function EditExpensePage() {
   const [date, setDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
+  const [bankId, setBankId] = useState('');
   const [notes, setNotes] = useState('');
   const [isActive, setIsActive] = useState(true);
 
@@ -53,6 +55,7 @@ export default function EditExpensePage() {
         setDate(data.date ? new Date(data.date).toISOString().split('T')[0] : '');
         setPaymentMethod((data.paymentMethod as PaymentMethod) || 'Cash');
         setReference(data.reference || '');
+        setBankId(data.bank ? String(data.bank) : '');
         setNotes(data.notes || '');
         setIsActive(typeof data.isActive === 'boolean' ? data.isActive : true);
         setExistingReceipt(data.receipt || null);
@@ -131,6 +134,7 @@ export default function EditExpensePage() {
         category,
         date: date || undefined,
         paymentMethod,
+        bankId: paymentMethod === 'Bank Transfer' ? bankId : '',
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
         isActive,
@@ -283,6 +287,7 @@ export default function EditExpensePage() {
                 ))}
               </SearchSelect>
             </div>
+            {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reference / Receipt Number

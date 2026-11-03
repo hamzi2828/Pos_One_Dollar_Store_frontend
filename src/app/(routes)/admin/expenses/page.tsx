@@ -146,6 +146,7 @@ const ExpensesPage = () => {
         category: (e.category ?? 'Other') as ExpenseCategory,
         date: String(e.date ?? new Date().toISOString()),
         paymentMethod: (e.paymentMethod ?? 'Cash') as PaymentMethod,
+        bankName: e.bankName || '',
         reference: String(e.reference ?? ''),
         notes: String(e.notes ?? ''),
         receipt: e.receipt || null,
@@ -486,6 +487,7 @@ const ExpensesPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-600">{expense.paymentMethod}</span>
+                      {expense.bankName && <span className="block text-[11px] text-gray-500">{expense.bankName}</span>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(expense.date)}
