@@ -5,13 +5,14 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { Ban, Paperclip, HandCoins } from 'lucide-react';
+import { Ban, HandCoins, Pencil } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
-import { formatRs, formatDate, BACKEND_URL } from '@/lib/storeApi';
+import { formatRs, formatDate } from '@/lib/storeApi';
 import { vendorApi, type VendorPayment } from '../services/vendorApi';
 import { Badge, ReasonModal, tdClass, thClass } from './ui';
+import ReceiptThumbs from './ReceiptThumbs';
+import EditPaymentModal from './EditPaymentModal';
 
-const fileUrl = (u: string) => (/^https?:\/\//i.test(u) ? u : `${BACKEND_URL}${u}`);
 
 export default function PaymentsTable({
   rows,
@@ -24,6 +25,7 @@ export default function PaymentsTable({
 }) {
   const { can } = useAccess();
   const [voiding, setVoiding] = useState<VendorPayment | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
 
   if (!rows.length) {
     return (
@@ -70,22 +72,19 @@ export default function PaymentsTable({
                     <p className="text-[11px] text-gray-500 max-w-[220px] truncate">
                       {[p.bankName, p.reference, p.notes].filter(Boolean).join(' · ')}
                     </p>
-                    {p.attachments.length > 0 && (
-                      <span className="inline-flex flex-wrap gap-1 mt-0.5">
-                        {p.attachments.map((a, i) => (
-                          <a key={a} href={fileUrl(a)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-[11px] text-blue-600 hover:underline">
-                            <Paperclip className="h-3 w-3" /> Receipt {p.attachments.length > 1 ? i + 1 : ''}
-                          </a>
-                        ))}
-                      </span>
-                    )}
+                    <ReceiptThumbs urls={p.attachments} />
                     {voided && <p className="text-[11px] text-red-400">VOID: {p.voidReason}</p>}
                   </td>
                   <td className={`${tdClass} text-right whitespace-nowrap font-semibold tabular-nums ${voided ? 'line-through !text-gray-400' : 'text-gray-900'}`}>
                     {formatRs(p.amount)}
                   </td>
                   <td className={`${tdClass} hidden lg:table-cell text-xs text-gray-500`}>{p.createdByName || '—'}</td>
-                  <td className={`${tdClass} text-right`}>
+                  <td className={`${tdClass} text-right whitespace-nowrap`}>
+                    {!voided && !p.settlement && can('vendor_payments', 'edit') && (
+                      <button type="button" onClick={() => setEditing(p._id)} className="p-1.5 rounded-md text-gray-400 hover:text-honey-700 hover:bg-honey-50" title="Edit payment (changes are kept in its history)">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
                     {!voided && can('vendor_payments', 'delete') && (
                       <button type="button" onClick={() => setVoiding(p)} className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50" title="Void payment">
                         <Ban className="h-4 w-4" />
@@ -98,6 +97,17 @@ export default function PaymentsTable({
           </tbody>
         </table>
       </div>
+      {editing && (
+        <EditPaymentModal
+          paymentId={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(p) => {
+            toast.success(`Payment ${p.paymentNo} updated`);
+            setEditing(null);
+            onChanged();
+          }}
+        />
+      )}
       {voiding && (
         <ReasonModal
           title="Void payment"

@@ -192,6 +192,7 @@ export interface VendorPayment {
   voidedByName: string;
   createdByName: string;
   createdAt: string;
+  history?: { at: string; action: string; note?: string }[];
 }
 
 export interface PaymentSummary {
@@ -504,6 +505,26 @@ export const vendorApi = {
     if (body.notes) form.append('notes', body.notes);
     (body.photos || []).forEach((f) => form.append('attachments', f));
     return (await storeApi.upload<VendorPayment>('/vendor-payments', form)).data;
+  },
+  async getPayment(id: string) {
+    return (await storeApi.get<VendorPayment>(`/vendor-payments/${id}`)).data;
+  },
+  /** Change a payment; the server writes old -> new into its history. */
+  async updatePayment(
+    id: string,
+    body: { amount: number; method: PaymentMethod; bankId?: string; reference?: string; date?: string; notes?: string; reason?: string; removeAttachments?: string[]; photos?: File[] },
+  ) {
+    const form = new FormData();
+    form.append('amount', String(body.amount));
+    form.append('method', body.method);
+    form.append('bankId', body.bankId || '');
+    form.append('reference', body.reference || '');
+    if (body.date) form.append('date', body.date);
+    form.append('notes', body.notes || '');
+    if (body.reason) form.append('reason', body.reason);
+    if (body.removeAttachments && body.removeAttachments.length) form.append('removeAttachments', JSON.stringify(body.removeAttachments));
+    (body.photos || []).forEach((f) => form.append('attachments', f));
+    return (await storeApi.upload<VendorPayment>(`/vendor-payments/${id}`, form, 'put')).data;
   },
   async voidPayment(id: string, reason: string) {
     return (await storeApi.post<VendorPayment>(`/vendor-payments/${id}/void`, { reason })).data;

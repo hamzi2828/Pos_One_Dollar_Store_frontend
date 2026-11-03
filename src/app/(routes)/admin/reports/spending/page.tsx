@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import { Wallet } from 'lucide-react';
 import ReportsNav from '../components/ReportsNav';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard } from '@/components/admin/FormBits';
 import { PageHeader, FilterBar, StatCard, Card, EmptyState, ErrorState, LoadingBlock, ReportActions, useReport, buildPdf, formatRs, fmtDate, selectClass } from '../demand/_shared/reportKit';
@@ -126,13 +127,13 @@ export default function SpendingReportPage() {
       <ReportsNav />
 
       <FilterBar>
-        <select value={key} onChange={(e) => setKey(e.target.value)} className={selectClass} aria-label="Period">
+        <SearchSelect value={key} onChange={(e) => setKey(e.target.value)} className={selectClass} aria-label="Period">
           {list.map((p) => (
             <option key={p.key} value={p.key}>
               {p.label}
             </option>
           ))}
-        </select>
+        </SearchSelect>
         <span className="text-xs text-gray-500">
           {fmtDate(period.from)} – {fmtDate(to)}
           {to !== period.to ? ' (till today)' : ''}

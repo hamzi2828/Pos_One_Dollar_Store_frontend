@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Printer, Download, Loader2, Ban, Scale, FileText } from 'lucide-react';
+import { Printer, Download, Loader2, Ban, Scale, FileText, Pencil } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage } from '@/helper/access';
 import { formatRs, formatDate } from '@/lib/storeApi';
@@ -13,6 +13,8 @@ import { inputClass, secondaryBtn, LoadingCard } from '@/components/admin/FormBi
 import { vendorApi, pkToday, type Statement, type LedgerRow, type VendorDetail } from '../services/vendorApi';
 import { BalanceText, ErrorCard, ReasonModal, cardClass, tdClass, thClass, rangeLabel } from './ui';
 import AdjustmentModal from './AdjustmentModal';
+import EditPaymentModal from './EditPaymentModal';
+import ReceiptThumbs from './ReceiptThumbs';
 
 const TYPE_STYLE: Record<string, string> = {
   opening_balance: 'bg-gray-100 text-gray-700',
@@ -68,6 +70,7 @@ export default function LedgerTab({ vendor, onChanged }: { vendor: VendorDetail;
   const [exporting, setExporting] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [voiding, setVoiding] = useState<LedgerRow | null>(null);
+  const [editingPay, setEditingPay] = useState<string | null>(null);
   const exportLock = useRef(false);
 
   const load = useCallback(async () => {
@@ -232,11 +235,17 @@ export default function LedgerTab({ vendor, onChanged }: { vendor: VendorDetail;
                         </span>
                       )}
                       {r.isVoided && <span className="block text-[11px] text-red-400">VOID: {r.voidReason || '—'}</span>}
+                      <ReceiptThumbs urls={r.attachments} />
                     </td>
                     <td className={`${tdClass} text-right tabular-nums whitespace-nowrap ${r.isVoided ? '!text-gray-400 line-through' : 'text-emerald-700'}`}>{money(r.debit)}</td>
                     <td className={`${tdClass} text-right tabular-nums whitespace-nowrap ${r.isVoided ? '!text-gray-400 line-through' : 'text-rose-700'}`}>{money(r.credit)}</td>
                     <td className={`${tdClass} text-right whitespace-nowrap`}>{r.isVoided ? <span className="text-xs">—</span> : <BalanceText amount={r.balance} showLabel={false} />}</td>
-                    <td className={`${tdClass} text-right`}>
+                    <td className={`${tdClass} text-right whitespace-nowrap`}>
+                      {!r.isVoided && r.type === 'payment' && r.refType === 'VendorPayment' && r.refId && can('vendor_payments', 'edit') && (
+                        <button type="button" onClick={() => setEditingPay(r.refId)} className="p-1 rounded text-gray-400 hover:text-honey-700 hover:bg-honey-50" title="Edit this payment (changes are kept in its history)">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
                       {!r.isVoided && can('vendors', 'edit') && (r.type === 'adjustment' || r.type === 'opening_balance') && (
                         <button type="button" onClick={() => setVoiding(r)} className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50" title="Void this row">
                           <Ban className="h-4 w-4" />
@@ -272,6 +281,17 @@ export default function LedgerTab({ vendor, onChanged }: { vendor: VendorDetail;
           onSaved={() => {
             toast.success('Adjustment posted');
             setAdjusting(false);
+            afterChange();
+          }}
+        />
+      )}
+      {editingPay && (
+        <EditPaymentModal
+          paymentId={editingPay}
+          onClose={() => setEditingPay(null)}
+          onSaved={(p) => {
+            toast.success(`Payment ${p.paymentNo} updated`);
+            setEditingPay(null);
             afterChange();
           }}
         />
