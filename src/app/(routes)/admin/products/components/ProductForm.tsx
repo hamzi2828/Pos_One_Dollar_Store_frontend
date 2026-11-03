@@ -75,7 +75,7 @@ interface ProductFormProps {
   /** Receiving goods: stock comes from the delivery entry, so no stock is typed here (saved as 0). */
   noStock?: boolean;
   /** Receiving → edit entry: stock and cost follow the entry above (live), saved only by "Save entry". */
-  fromEntry?: { stock: number; costPrice: number };
+  fromEntry?: { stock: number; costPrice: number; stockNote?: string };
   /** Create: name to start with (e.g. what was searched). */
   defaultName?: string;
   /** Create: barcode already on the item (e.g. scanned in the search box). */
@@ -1341,7 +1341,7 @@ export default function ProductForm({
                         />
                         {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
                         {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
-                        {fromEntry && !isVariant && <p className="mt-1 text-xs text-honey-800">Follows the Pieces above (saved with "Save entry")</p>}
+                        {fromEntry && !isVariant && <p className="mt-1 text-xs text-honey-800">{fromEntry.stockNote || 'Follows the Pieces above (saved with "Save entry")'}</p>}
                         {!isVariant && stockLocked && !fromEntry && (
                           <p className="mt-1 text-xs text-gray-500">
                             {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes/packs below"}

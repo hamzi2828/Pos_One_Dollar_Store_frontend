@@ -253,7 +253,16 @@ function EditEntryModal({
     const landed = c * (1 + rate);
     const rest = Math.max(0, stock - oldGood);
     const cost = !newGood ? avg : rest > 0 && avg > 0 ? (rest * avg + newGood * landed) / (rest + newGood) : landed;
-    return { stock: rest + newGood, costPrice: Math.round(cost * 100) / 100 };
+    // Same product entered for other vendors on this trip: their pieces are in the stock too.
+    const others = (grn.entries || []).filter((x) => !x.undone && x._id !== entry._id && x.product === entry.product && !x.variantId);
+    const byVendor = new Map<string, number>();
+    for (const x of others) byVendor.set(x.vendorName, (byVendor.get(x.vendorName) || 0) + (x.stockQty || 0));
+    const otherPcs = others.reduce((t, x) => t + (x.stockQty || 0), 0);
+    const outside = rest - otherPcs; // sold, or stock from outside this trip
+    const parts = [`${newGood} this entry`, ...[...byVendor].map(([v, n]) => `${n} ${v}`)];
+    if (outside > 0) parts.push(`${outside} other stock`);
+    const stockNote = parts.length > 1 || outside < 0 ? `All vendors: ${parts.join(' + ')}${outside < 0 ? ` − ${-outside} sold / taken out` : ''}` : undefined;
+    return { stock: rest + newGood, costPrice: Math.round(cost * 100) / 100, stockNote };
   })();
 
   // The full product form (same as Products → Edit): name, barcodes, prices, category.
