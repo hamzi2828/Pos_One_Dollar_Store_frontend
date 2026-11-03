@@ -212,8 +212,6 @@ export default function VendorsPage() {
                   <tr>
                     <th className={`${thClass} w-10 text-right`}>Sr#</th>
                     <th className={thClass}>Vendor</th>
-                    <th className={`${thClass} hidden lg:table-cell`}>City</th>
-                    <th className={`${thClass} hidden xl:table-cell`}>Supplies</th>
                     <th className={`${thClass} text-right hidden sm:table-cell`} title="All bills (and other amounts we owe them)">Total</th>
                     <th className={`${thClass} text-right hidden sm:table-cell`} title="Payments only">Paid</th>
                     <th className={`${thClass} text-right hidden md:table-cell`} title="Adjustments, returns, discounts">Adjusted</th>
@@ -237,13 +235,11 @@ export default function VendorsPage() {
                           {(v.contactPerson || v.city) && (
                             <span className="block text-[11px] text-gray-500">
                               {v.contactPerson}
-                              {v.city && <span className="lg:hidden">{v.contactPerson ? ' · ' : ''}{v.city}</span>}
+                              {v.city && <span>{v.contactPerson ? ' · ' : ''}{v.city}</span>}
                             </span>
                           )}
                         </Link>
                       </td>
-                      <td className={`${tdClass} hidden lg:table-cell`}>{v.city || <span className="text-gray-300">—</span>}</td>
-                      <td className={`${tdClass} hidden xl:table-cell text-xs text-gray-500 max-w-[220px] truncate`}>{(v.categories || []).join(', ') || '—'}</td>
                       <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden sm:table-cell`}>{formatRs(v.totalCredit || 0)}</td>
                       <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden sm:table-cell text-green-700`}>{formatRs(v.totalPaid ?? v.totalDebit ?? 0)}</td>
                       <td className={`${tdClass} text-right whitespace-nowrap tabular-nums hidden md:table-cell text-blue-700`}>
@@ -297,8 +293,6 @@ export default function VendorsPage() {
                     <tr>
                       <td className={tdClass} />
                       <td className={`${tdClass} font-semibold text-gray-900`}>Total ({rows.length} shown)</td>
-                      <td className={`${tdClass} hidden lg:table-cell`} />
-                      <td className={`${tdClass} hidden xl:table-cell`} />
                       <td className={`${tdClass} text-right font-semibold tabular-nums hidden sm:table-cell`}>{formatRs(rows.reduce((t, v) => t + (v.totalCredit || 0), 0))}</td>
                       <td className={`${tdClass} text-right font-semibold tabular-nums hidden sm:table-cell text-green-700`}>{formatRs(rows.reduce((t, v) => t + (v.totalPaid ?? v.totalDebit ?? 0), 0))}</td>
                       <td className={`${tdClass} text-right font-semibold tabular-nums hidden md:table-cell text-blue-700`}>{formatRs(rows.reduce((t, v) => t + (v.totalAdjusted || 0), 0))}</td>
