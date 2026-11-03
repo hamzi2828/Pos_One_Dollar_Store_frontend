@@ -10,7 +10,7 @@ import { Monitor, Plus, Edit2, Trash2, Loader2, Clock, Users, AlertCircle, BellR
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { Modal, Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
-import { formatTime } from '@/components/store/TillStatusBar';
+import { formatTime, DenominationCounter, DEFAULT_DENOMINATIONS, countTotal } from '@/components/store/TillStatusBar';
 import MoneyInput from '@/components/ui/MoneyInput';
 
 interface Counter {
@@ -21,6 +21,8 @@ interface Counter {
   openCutoff: string;
   closeCutoff: string;
   defaultFloat: number;
+  floatFixed?: boolean;
+  floatDenominations?: Record<string, number>;
   assignedUsers: { _id: string; firstName?: string; lastName?: string; email?: string }[];
   notes: string;
   openSession: { _id: string; sessionNo: string; cashierName: string; openedAt: string } | null;
@@ -39,6 +41,8 @@ interface FormState {
   openCutoff: string;
   closeCutoff: string;
   defaultFloat: string;
+  floatFixed: boolean;
+  floatDenominations: Record<string, number>;
   assignedUsers: string[];
   notes: string;
 }
@@ -180,7 +184,7 @@ export default function CountersPage() {
                     Open by <strong>{c.openCutoff || '—'}</strong> · close by <strong>{c.closeCutoff || '—'}</strong>
                   </p>
                   <p className="flex items-center gap-1.5">
-                    <LockOpen className="h-3.5 w-3.5 text-gray-400" /> Usual float <strong>{formatRs(c.defaultFloat)}</strong>
+                    <LockOpen className="h-3.5 w-3.5 text-gray-400" /> {c.floatFixed ? 'Fixed float' : 'Usual float'} <strong>{formatRs(c.defaultFloat)}</strong>
                   </p>
                   <p className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5 text-gray-400" />
@@ -246,6 +250,8 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
     openCutoff: counter?.openCutoff || '',
     closeCutoff: counter?.closeCutoff || '',
     defaultFloat: counter ? String(counter.defaultFloat || 0) : '',
+    floatFixed: !!counter?.floatFixed,
+    floatDenominations: counter?.floatDenominations || {},
     assignedUsers: counter?.assignedUsers.map((u) => u._id) || [],
     notes: counter?.notes || '',
   });
@@ -279,6 +285,10 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
       setError('Give the counter a name, e.g. Counter 1.');
       return;
     }
+    if (form.floatFixed && countTotal(form.floatDenominations) <= 0) {
+      setError('Enter the notes of the fixed float.');
+      return;
+    }
     lockRef.current = true;
     setBusy(true);
     setError(null);
@@ -288,7 +298,9 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
       isActive: form.isActive,
       openCutoff: form.openCutoff,
       closeCutoff: form.closeCutoff,
-      defaultFloat: Number(form.defaultFloat) || 0,
+      defaultFloat: form.floatFixed ? countTotal(form.floatDenominations) : Number(form.defaultFloat) || 0,
+      floatFixed: form.floatFixed,
+      ...(form.floatFixed ? { floatDenominations: form.floatDenominations } : {}),
       assignedUsers: form.assignedUsers,
       notes: form.notes,
     };
@@ -341,15 +353,28 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
             <input type="time" value={form.closeCutoff} onChange={(e) => set('closeCutoff', e.target.value)} className={inputClass} disabled={busy} />
           </Field>
         </div>
-        <Field label="Usual opening float (Rs)" hint="Change money put in the drawer. Not part of sales.">
-          <MoneyInput
-            value={form.defaultFloat}
-            onValue={(v) => set('defaultFloat', v)}
-            className={inputClass}
-            placeholder="5000"
-            disabled={busy}
-          />
-        </Field>
+        <Toggle
+          checked={form.floatFixed}
+          onChange={(v) => set('floatFixed', v)}
+          label="Fixed till cash (opening float)"
+          hint="The till always opens with exactly these notes. The cashier does not count or change them."
+          disabled={busy}
+        />
+        {form.floatFixed ? (
+          <Field label={`Fixed float notes · ${formatRs(countTotal(form.floatDenominations))}`} hint="How many of each note / coin go in the drawer.">
+            <DenominationCounter denominations={DEFAULT_DENOMINATIONS} counts={form.floatDenominations} onChange={(c) => set('floatDenominations', c)} disabled={busy} />
+          </Field>
+        ) : (
+          <Field label="Usual opening float (Rs)" hint="Change money put in the drawer. Not part of sales.">
+            <MoneyInput
+              value={form.defaultFloat}
+              onValue={(v) => set('defaultFloat', v)}
+              className={inputClass}
+              placeholder="5000"
+              disabled={busy}
+            />
+          </Field>
+        )}
         <Field label="Only these cashiers may open it" hint="Leave all unticked to allow any cashier with Till permission.">
           {staffLoading ? (
             <p className="text-xs text-gray-500 flex items-center gap-1.5">

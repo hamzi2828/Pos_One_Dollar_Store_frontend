@@ -73,6 +73,8 @@ export interface TillCounterOption {
   name: string;
   code: string;
   defaultFloat: number;
+  floatFixed?: boolean;
+  floatDenominations?: Record<string, number>;
   openCutoff: string;
   closeCutoff: string;
   busy: boolean;
@@ -213,7 +215,10 @@ export function OpenTillModal({
   const lockRef = useRef(false);
 
   const counter = status.counters.find((c) => c._id === counterId) || null;
-  const total = countTotal(counts);
+  // Fixed float (set in Counters): the drawer always starts with these notes.
+  const fixedCounts = counter && counter.floatFixed && counter.floatDenominations && Object.keys(counter.floatDenominations).length ? counter.floatDenominations : null;
+  const fixed = !!fixedCounts;
+  const total = fixedCounts ? countTotal(fixedCounts) : countTotal(counts);
   const needsCounter = status.counters.length > 0;
   const denoms = status.denominations?.length ? status.denominations : DEFAULT_DENOMINATIONS;
 
@@ -227,7 +232,7 @@ export function OpenTillModal({
     setBusy(true);
     setError(null);
     try {
-      const res = await tillApi.open({ counterId: counterId || undefined, denominations: cleanCounts(counts), note: note.trim() || undefined });
+      const res = await tillApi.open({ counterId: counterId || undefined, denominations: cleanCounts(fixedCounts || counts), note: note.trim() || undefined });
       toast.success('Till opened');
       onOpened(res.data);
     } catch (e) {
@@ -276,7 +281,12 @@ export function OpenTillModal({
             )}
           </Field>
         )}
-        {counter && counter.defaultFloat > 0 && (
+        {fixed && counter && (
+          <div className="text-xs sm:text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            Fixed till cash for {counter.name}: <strong>{formatRs(total)}</strong>. Put these notes in the drawer; no need to count.
+          </div>
+        )}
+        {!fixed && counter && counter.defaultFloat > 0 && (
           <div className="flex items-center justify-between gap-2 text-xs sm:text-sm bg-honey-50 border border-honey-200 rounded-lg px-3 py-2">
             <span>
               Usual float for {counter.name}: <strong>{formatRs(counter.defaultFloat)}</strong>
@@ -291,7 +301,7 @@ export function OpenTillModal({
           </div>
         )}
         <HelpBox>The float is only for giving change. It is not counted as sales.</HelpBox>
-        <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={busy} />
+        <DenominationCounter denominations={denoms} counts={fixedCounts || counts} onChange={setCounts} disabled={busy || fixed} />
         <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. float from the safe" />
         </Field>
