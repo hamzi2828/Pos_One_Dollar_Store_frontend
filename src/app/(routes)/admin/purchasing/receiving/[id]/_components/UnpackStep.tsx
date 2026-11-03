@@ -241,15 +241,15 @@ export default function UnpackStep({
       {(sameReceiver || !grn.canVerify) && <SameReceiverNote />}
 
       {/* Same as step 1: checked vendors on the left, the picked vendor on the right. */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-4 items-start">
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] gap-4 items-start lg:items-stretch">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm lg:flex lg:flex-col lg:min-h-[36rem]">
           <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <PackageOpen className="h-4 w-4 text-honey-700" /> Vendors ({progress.length})
             </p>
             <span className="text-xs text-gray-500">{progress.filter((p) => isChecked(p.bill)).length} checked</span>
           </div>
-          <div className="p-3">
+          <div className="p-3 lg:flex lg:flex-1 lg:flex-col lg:min-h-0">
             {progress.length > 6 && (
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find a vendor or product..." className={`${inputClass} !py-1.5 mb-2`} />
             )}
@@ -290,7 +290,7 @@ export default function UnpackStep({
                 ))}
               </div>
             )}
-            <ul className="-mx-1 max-h-[60vh] overflow-y-auto space-y-0.5">
+            <ul className="-mx-1 max-h-[60vh] lg:max-h-none lg:h-0 lg:flex-1 overflow-y-auto space-y-0.5">
               {progress
                 .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()) || productHits(p.bill).length > 0)
                 .filter((p) => openFilter === 'all' || (openFilter === 'opened') === isOpened(p.bill))
