@@ -19,6 +19,7 @@ import {
   Target,
   Calculator,
   Route,
+  Banknote,
 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 
@@ -31,6 +32,7 @@ const TABS = [
   { href: '/admin/reports/trends', label: 'Sales Trends', icon: CalendarRange, perm: 'report_trends' },
   { href: '/admin/reports/footfall', label: 'Footfall', icon: Footprints, perm: 'report_footfall' },
   { href: '/admin/reports/category-performance', label: 'Category Performance', icon: Target, perm: 'report_category_performance' },
+  { href: '/admin/reports/spending', label: 'Spending', icon: Banknote, perm: 'report_expenses' },
   { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt, perm: 'report_expenses' },
   { href: '/admin/reports/receivables', label: 'Receivables', icon: AlertCircle, perm: 'report_receivables' },
   { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: 'report_cash_in_hand' },

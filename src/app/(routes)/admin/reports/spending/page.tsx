@@ -1,0 +1,247 @@
+'use client';
+
+// Spending report: bought from vendors, paid to them, trip costs and shop
+// expenses for one period. Owner, 2026-11-04: the system starts 25 Oct 2026;
+// the first period is 25 Oct - 30 Nov 2026, then every calendar month.
+
+import { useMemo, useState } from 'react';
+import { Wallet } from 'lucide-react';
+import ReportsNav from '../components/ReportsNav';
+import { useAccess } from '@/context/AccessContext';
+import { LoadingCard, NoAccessCard } from '@/components/admin/FormBits';
+import { PageHeader, FilterBar, StatCard, Card, EmptyState, ErrorState, LoadingBlock, ReportActions, useReport, buildPdf, formatRs, fmtDate, selectClass } from '../demand/_shared/reportKit';
+
+interface SpendingData {
+  range: { from: string; to: string; systemStart: string };
+  summary: { bought: number; opening: number; paid: number; adjusted: number; left: number; tripCosts: number; expenses: number; totalSpent: number; cashOut: number };
+  paidByMethod: Record<string, number>;
+  tripByType: Record<string, number>;
+  vendors: { vendorId: string; vendor: string; bought: number; opening: number; paid: number; adjusted: number; left: number }[];
+  payments: { date: string; vendor: string; refNo: string; method: string; amount: number }[];
+  tripCosts: { date: string; poNumber: string; type: string; note: string; paidTo: string; amount: number }[];
+  expensesByCategory: { category: string; total: number; count: number }[];
+}
+
+const SYSTEM_START = '2026-10-25';
+const FIRST_END = '2026-11-30';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const METHOD: Record<string, string> = { cash: 'Cash', bank: 'Bank', cheque: 'Cheque', easypaisa: 'Easypaisa', jazzcash: 'JazzCash', other: 'Other' };
+
+const pkToday = () => new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+const pad = (n: number) => String(n).padStart(2, '0');
+const lastDay = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m is 1-12
+
+interface Period {
+  key: string;
+  label: string;
+  from: string;
+  to: string;
+}
+
+/** 25 Oct - 30 Nov 2026, then each month up to today (newest first), plus "everything". */
+function periods(today: string): Period[] {
+  const list: Period[] = [{ key: 'first', label: '25 Oct – 30 Nov 2026 (first period)', from: SYSTEM_START, to: FIRST_END }];
+  let y = 2026;
+  let m = 12;
+  while (`${y}-${pad(m)}-01` <= today) {
+    list.push({ key: `${y}-${pad(m)}`, label: `${MONTHS[m - 1]} ${y}`, from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(lastDay(y, m))}` });
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  list.reverse();
+  list.unshift({ key: 'all', label: `Everything (25 Oct 2026 – today)`, from: SYSTEM_START, to: today });
+  return list;
+}
+
+export default function SpendingReportPage() {
+  const { can, loaded } = useAccess();
+  const canView = can('report_expenses', 'view');
+  const canExport = can('report_expenses', 'export');
+  const today = pkToday();
+  const list = useMemo(() => periods(today), [today]);
+  // Default: the period today falls in.
+  const current = list.find((p) => p.key !== 'all' && p.from <= today && today <= p.to) || list[0];
+  const [key, setKey] = useState(current.key);
+  const period = list.find((p) => p.key === key) || current;
+  // Never ask past today.
+  const to = period.to > today ? today : period.to;
+
+  const r = useReport<SpendingData>('/analytics/spending', { from: period.from, to }, canView);
+  const d = r.data;
+  const s = d?.summary;
+
+  const exportPdf = () => {
+    if (!d || !s) return;
+    buildPdf({
+      title: 'Spending Report',
+      subtitle: `${period.label} · ${fmtDate(period.from)} – ${fmtDate(to)}`,
+      summary: [
+        ['Bought from vendors', formatRs(s.bought)],
+        ['Paid to vendors', formatRs(s.paid)],
+        ['Adjusted', formatRs(s.adjusted)],
+        ['Left to pay', formatRs(s.left)],
+        ['Trip costs', formatRs(s.tripCosts)],
+        ['Shop expenses', formatRs(s.expenses)],
+        ['Total spent (goods + trip + expenses)', formatRs(s.totalSpent)],
+        ['Money out (paid + trip + expenses)', formatRs(s.cashOut)],
+      ],
+      tables: [
+        {
+          title: 'By vendor',
+          head: ['Vendor', 'Bought', 'Paid', 'Adjusted', 'Left'],
+          widths: [70, 28, 28, 24, 28],
+          rows: d.vendors.map((v) => [v.vendor, v.bought + v.opening, v.paid, v.adjusted, v.left]),
+        },
+        {
+          title: 'Trip costs',
+          head: ['Date', 'Trip', 'Type', 'Note', 'Amount'],
+          widths: [25, 30, 25, 70, 28],
+          rows: d.tripCosts.map((t) => [fmtDate(t.date), t.poNumber, t.type, t.note, t.amount]),
+        },
+        {
+          title: 'Payments',
+          head: ['Date', 'Vendor', 'No.', 'Method', 'Amount'],
+          widths: [25, 65, 30, 25, 28],
+          rows: d.payments.map((p) => [fmtDate(p.date), p.vendor, p.refNo, METHOD[p.method] || p.method, p.amount]),
+        },
+      ],
+      fileName: `spending-${period.from}-${to}`,
+    });
+  };
+
+  if (!loaded) return <LoadingCard text="Loading…" />;
+  if (!canView) return <NoAccessCard />;
+
+  return (
+    <div className="space-y-4 sm:space-y-5">
+      <PageHeader
+        icon={<Wallet className="h-6 w-6" />}
+        title="Spending Report"
+        subtitle="Bought from vendors, paid, trip costs and shop expenses. First period 25 Oct – 30 Nov 2026, then monthly."
+        actions={<ReportActions canExport={canExport} onPdf={exportPdf} onRefresh={r.reload} loading={r.loading} disabled={!d} />}
+      />
+      <ReportsNav />
+
+      <FilterBar>
+        <select value={key} onChange={(e) => setKey(e.target.value)} className={selectClass} aria-label="Period">
+          {list.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-gray-500">
+          {fmtDate(period.from)} – {fmtDate(to)}
+          {to !== period.to ? ' (till today)' : ''}
+        </span>
+      </FilterBar>
+
+      {r.error ? (
+        <ErrorState message={r.error} onRetry={r.reload} />
+      ) : !d || !s ? (
+        <LoadingBlock />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            <StatCard label="Bought from vendors" value={formatRs(s.bought)} hint={s.opening ? `+ ${formatRs(s.opening)} opening balances (not in totals)` : 'Vendor bills'} />
+            <StatCard tone="good" label="Paid to vendors" value={formatRs(s.paid)} hint={Object.entries(d.paidByMethod).map(([m, v]) => `${METHOD[m] || m} ${formatRs(v)}`).join(' · ') || '—'} />
+            <StatCard tone="info" label="Adjusted" value={formatRs(s.adjusted)} hint="Adjustments, returns, discounts" />
+            <StatCard tone="bad" label="Left to pay" value={formatRs(s.left)} hint="Bought − paid − adjusted" />
+            <StatCard tone="warn" label="Trip costs" value={formatRs(s.tripCosts)} hint={Object.entries(d.tripByType).map(([t, v]) => `${t} ${formatRs(v)}`).join(' · ') || '—'} />
+            <StatCard label="Shop expenses" value={formatRs(s.expenses)} hint="From Expenses" />
+            <StatCard label="Total spent" value={formatRs(s.totalSpent)} hint="Goods + trip costs + expenses" />
+            <StatCard tone="bad" label="Money out so far" value={formatRs(s.cashOut)} hint="Paid + trip costs + expenses" />
+          </div>
+
+          <Card title="By vendor" subtitle={`${d.vendors.length} vendors`} bodyClass="!p-0">
+            {d.vendors.length === 0 ? (
+              <EmptyState title="No vendor bills or payments in this period" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 text-right w-10">Sr#</th>
+                      <th className="px-3 py-2 text-left">Vendor</th>
+                      <th className="px-3 py-2 text-right">Bought</th>
+                      <th className="px-3 py-2 text-right">Paid</th>
+                      <th className="px-3 py-2 text-right hidden sm:table-cell">Adjusted</th>
+                      <th className="px-3 py-2 text-right">Left</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {d.vendors.map((v, i) => (
+                      <tr key={v.vendorId}>
+                        <td className="px-3 py-2 text-right text-xs text-gray-500">{i + 1}</td>
+                        <td className="px-3 py-2 text-gray-900">
+                          {v.vendor}
+                          {v.opening ? <span className="block text-[11px] text-amber-700">incl. {formatRs(v.opening)} opening balance</span> : null}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatRs(v.bought + v.opening)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-green-700">{formatRs(v.paid)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-blue-700 hidden sm:table-cell">{v.adjusted ? formatRs(v.adjusted) : '—'}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums font-medium ${v.left > 0 ? 'text-red-600' : 'text-green-700'}`}>{formatRs(v.left)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 font-semibold">
+                    <tr>
+                      <td />
+                      <td className="px-3 py-2">Total</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatRs(d.vendors.reduce((t, v) => t + v.bought + v.opening, 0))}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-green-700">{formatRs(d.vendors.reduce((t, v) => t + v.paid, 0))}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-blue-700 hidden sm:table-cell">{formatRs(d.vendors.reduce((t, v) => t + v.adjusted, 0))}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-red-600">{formatRs(d.vendors.reduce((t, v) => t + v.left, 0))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <Card title="Trip costs" subtitle={formatRs(s.tripCosts)} bodyClass="!p-0">
+              {d.tripCosts.length === 0 ? (
+                <EmptyState title="No trip costs in this period" />
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {d.tripCosts.map((t, i) => (
+                    <li key={i} className="flex items-start justify-between gap-3 px-4 py-2 text-sm">
+                      <span className="min-w-0">
+                        <span className="block text-gray-900 capitalize">{t.type}{t.note ? ` · ${t.note}` : ''}</span>
+                        <span className="block text-[11px] text-gray-500">{fmtDate(t.date)} · {t.poNumber}</span>
+                      </span>
+                      <span className="tabular-nums font-medium whitespace-nowrap">{formatRs(t.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+            <Card title="Payments to vendors" subtitle={formatRs(s.paid)} bodyClass="!p-0">
+              {d.payments.length === 0 ? (
+                <EmptyState title="No payments in this period" />
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {d.payments.map((p, i) => (
+                    <li key={i} className="flex items-start justify-between gap-3 px-4 py-2 text-sm">
+                      <span className="min-w-0">
+                        <span className="block text-gray-900">{p.vendor}</span>
+                        <span className="block text-[11px] text-gray-500">
+                          {fmtDate(p.date)} · {p.refNo} · {METHOD[p.method] || p.method}
+                        </span>
+                      </span>
+                      <span className="tabular-nums font-medium text-green-700 whitespace-nowrap">{formatRs(p.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
