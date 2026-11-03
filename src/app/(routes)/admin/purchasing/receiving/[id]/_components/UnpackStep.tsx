@@ -121,6 +121,8 @@ export default function UnpackStep({
   const [pdfBusy, setPdfBusy] = useState(false);
   // Owner, 2026-10-31: filter the vendor list by opened (unpacking started) / not opened.
   const [openFilter, setOpenFilter] = useState<'all' | 'not_opened' | 'opened'>('all');
+  // Inside Opened: all of them, or only those entered over the bill.
+  const [openedSub, setOpenedSub] = useState<'all' | 'over'>('all');
   // Correcting the count of a checked vendor (before its goods are entered).
   const [recount, setRecount] = useState(false);
   const [billId, setBillId] = useState<string>(
@@ -178,6 +180,7 @@ export default function UnpackStep({
   const liveEntries = (grn.entries || []).filter((e) => !e.undone && e.bill === bill.bill);
   const itemsIn = (n: number) => liveEntries.filter((e) => (e.boxNo || 0) === n).length;
   /** Vendor finished: all its boxes/packs done, or goods worth the whole bill entered. */
+  const isOver = (p: { entered: number; billTotal: number }) => p.billTotal > 0 && Math.round(p.entered) > Math.round(p.billTotal);
   const isOpened = (billId: string) =>
     (grn.entries || []).some((e) => !e.undone && e.bill === billId) || doneBoxesOf(grn, billId).size > 0;
   const vendorDone = (p: (typeof progress)[number]) => {
@@ -268,10 +271,30 @@ export default function UnpackStep({
                 </button>
               ))}
             </div>
+            {openFilter === 'opened' && (
+              <div className="mb-2 flex gap-0.5 rounded-md bg-honey-50 p-0.5 text-[11px] leading-4">
+                {(
+                  [
+                    ['all', 'All', progress.filter((p) => isOpened(p.bill)).length],
+                    ['over', 'Over', progress.filter((p) => isOpened(p.bill) && isOver(p)).length],
+                  ] as const
+                ).map(([key, label, n]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setOpenedSub(key)}
+                    className={`flex-1 whitespace-nowrap rounded px-1 py-0.5 font-medium ${openedSub === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                  >
+                    {label} <span className="text-gray-400">{n}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <ul className="-mx-1 max-h-[60vh] overflow-y-auto space-y-0.5">
               {progress
                 .filter((p) => !search.trim() || `${p.vendorName} ${p.billNo || ''}`.toLowerCase().includes(search.trim().toLowerCase()) || productHits(p.bill).length > 0)
                 .filter((p) => openFilter === 'all' || (openFilter === 'opened') === isOpened(p.bill))
+                .filter((p) => openFilter !== 'opened' || openedSub === 'all' || isOver(p))
                 .filter((p) => showDone || !!search.trim() || openFilter === 'opened' || p.bill === bill.bill || !vendorDone(p))
                 .map((p) => {
                   const pct = p.billTotal > 0 ? Math.min(100, Math.round((p.entered / p.billTotal) * 100)) : 0;
