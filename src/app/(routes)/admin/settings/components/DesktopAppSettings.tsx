@@ -15,7 +15,7 @@ const BUILT = '1 Nov 2026';
 const SIZE = '3.6 MB';
 const DRIVER_FILE = '/downloads/SecuGen-Fingerprint-Driver.zip';
 const DRIVER_SIZE = '45 MB';
-const PRINTER_FILE = '/downloads/Xprinter-Receipt-Driver.zip';
+const PRINTER_FILE = '/downloads/SpeedX-Receipt-Driver.zip';
 const PRINTER_SIZE = '8.1 MB';
 const LABEL_FILE = '/downloads/Xprinter-Label-Driver.zip';
 const LABEL_SIZE = '85 MB';
@@ -56,7 +56,7 @@ const STEPS: { title: string; text: string }[] = [
   },
   {
     title: 'Install the receipt printer driver',
-    text: 'Xprinter / SpeedX SP-210 / any 80mm receipt printer: download "Receipt printer driver" above, unzip, run Xprinter.receipt.driver…exe, choose an 80mm model (XP-80 / POS-80) and the printer USB port, then print a test page.',
+    text: 'SpeedX SP-210 (80mm receipt printer): download "Receipt printer driver" above, unzip, run the driver .exe inside, choose an 80mm model (XP-80 / POS-80) and the printer USB port, then print a test page.',
   },
   {
     title: 'Install the sticker (label) printer driver',
@@ -146,9 +146,9 @@ export default function DesktopAppSettings() {
           <Printer className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">Receipt printer driver (Xprinter 80mm)</p>
+          <p className="text-sm font-semibold text-gray-900">Receipt printer driver (SpeedX 80mm)</p>
           <p className="text-xs text-gray-600">
-            Xprinter receipt driver 2025.10.22 · ZIP · {PRINTER_SIZE} · Xprinter and SpeedX SP-210 / other 80mm thermal receipt printers.
+            SpeedX receipt driver · ZIP · {PRINTER_SIZE} · SpeedX SP-210 / other 80mm thermal receipt printers.
           </p>
         </div>
         <a
@@ -165,7 +165,7 @@ export default function DesktopAppSettings() {
           <Tag className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">Sticker printer driver (Xprinter label)</p>
+          <p className="text-sm font-semibold text-gray-900">Sticker printer driver (Xprinter)</p>
           <p className="text-xs text-gray-600">
             Xprinter label driver 11.5.0 · ZIP · {LABEL_SIZE} · XP-246B, XP-D281B and other Xprinter sticker / barcode printers.
           </p>
