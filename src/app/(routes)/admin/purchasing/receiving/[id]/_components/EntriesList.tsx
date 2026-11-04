@@ -114,14 +114,16 @@ export default function EntriesList({
   }, []);
 
   // The pieces not printed yet already carry their own barcode: count them as done.
-  const restScanned = async (e: GRNEntry, left: number) => {
-    if (lock.current || left < 1) return;
-    if (!window.confirm(`${e.productName}: mark the ${left} pieces left as "own barcode" (scanned, no sticker needed)?`)) return;
+  // "Rest N have own barcode": a small window picks all of them or a number.
+  const [ownFor, setOwnFor] = useState<{ e: GRNEntry; left: number } | null>(null);
+  const restScanned = async (e: GRNEntry, count: number) => {
+    if (lock.current || count < 1) return;
     lock.current = true;
     setBusy(`scan-${e._id}`);
     try {
-      await storeApi.post('/label-prints/scanned', { productId: e.product, variantId: e.variantId || null, bill: e.bill, count: left, total: productPieces(e) });
-      toast.success(`${left} pieces marked as own barcode`);
+      await storeApi.post('/label-prints/scanned', { productId: e.product, variantId: e.variantId || null, bill: e.bill, count, total: productPieces(e) });
+      toast.success(`${count} pieces marked as own barcode`);
+      setOwnFor(null);
       setTick((t) => t + 1);
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Could not save.'));
@@ -209,7 +211,7 @@ export default function EntriesList({
                         {left > 0 && (
                           <button
                             type="button"
-                            onClick={() => restScanned(e, left)}
+                            onClick={() => setOwnFor({ e, left })}
                             disabled={!!busy}
                             className="mt-1 inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-50"
                             title="These pieces already have their own barcode (scanned): no sticker needed"
@@ -271,6 +273,7 @@ export default function EntriesList({
           ))}
         </ul>
       )}
+      {ownFor && <OwnBarcodeModal entry={ownFor.e} left={ownFor.left} busy={!!busy} onClose={() => setOwnFor(null)} onApply={(n) => restScanned(ownFor.e, n)} />}
       {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} bill={logOf.bill} vendorName={logOf.vendorName} onClose={() => { setLogOf(null); setTick((t) => t + 1); }} />}
       {editing && (
         <EditEntryModal
@@ -546,6 +549,68 @@ function EditEntryModal({
           />
         )}
       </section>
+    </Modal>
+  );
+}
+
+/** Pieces that came with their own barcode: all of those left, or a number. */
+function OwnBarcodeModal({ entry, left, busy, onClose, onApply }: { entry: GRNEntry; left: number; busy: boolean; onClose: () => void; onApply: (n: number) => void }) {
+  const [mode, setMode] = useState<'all' | 'some'>('all');
+  const [num, setNum] = useState('');
+  const n = mode === 'all' ? left : Math.floor(Number(num) || 0);
+  const bad = mode === 'some' && (n < 1 || n > left);
+  return (
+    <Modal
+      title="Own barcode"
+      subtitle={`${entry.productName} · ${entry.vendorName}`}
+      icon={<ScanBarcode className="h-5 w-5" />}
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={busy} className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button type="button" onClick={() => !bad && onApply(n)} disabled={busy || bad} className={primaryBtn}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanBarcode className="h-4 w-4" />} Mark {n > 0 && !bad ? n : ''} as own barcode
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <p className="text-gray-600">
+          <strong>{left}</strong> piece{left === 1 ? '' : 's'} still need a sticker. Pieces that already carry their own barcode do not.
+        </p>
+        <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer ${mode === 'all' ? 'border-sky-400 bg-sky-50' : 'border-gray-200'}`}>
+          <input type="radio" checked={mode === 'all'} onChange={() => setMode('all')} />
+          <span>
+            <span className="font-medium text-gray-900">All {left} left</span>
+            <span className="block text-xs text-gray-500">Every piece left has its own barcode</span>
+          </span>
+        </label>
+        <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${mode === 'some' ? 'border-sky-400 bg-sky-50' : 'border-gray-200'}`}>
+          <input type="radio" className="mt-1" checked={mode === 'some'} onChange={() => setMode('some')} />
+          <span className="flex-1">
+            <span className="font-medium text-gray-900">A number of them</span>
+            <input
+              type="number"
+              min={1}
+              max={left}
+              inputMode="numeric"
+              value={num}
+              onFocus={() => setMode('some')}
+              onChange={(ev) => {
+                setMode('some');
+                setNum(ev.target.value);
+              }}
+              placeholder={`1 to ${left}`}
+              className={`${inputClass} mt-1`}
+            />
+            {bad && num !== '' && <span className="mt-1 block text-xs text-red-600">Enter 1 to {left}.</span>}
+            {mode === 'some' && !bad && n > 0 && <span className="mt-1 block text-xs text-gray-500">{left - n} will still need a sticker.</span>}
+          </span>
+        </label>
+      </div>
     </Modal>
   );
 }
