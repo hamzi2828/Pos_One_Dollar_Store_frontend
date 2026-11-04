@@ -51,6 +51,9 @@ interface Investment {
   amount: number;
   paidAmount: number;
   balance: number;
+  /** Paid later from the shop's money as expenses (not partner money). */
+  expensePaid?: number;
+  expenseLinks?: { expense: string; amount: number; date: string; title: string }[];
   /** Oldest first. */
   payments: Payment[];
   date: string;
@@ -615,9 +618,11 @@ function PaidLine({ row, onOpen }: { row: Investment; onOpen: () => void }) {
     <button type="button" onClick={onOpen} className="mt-0.5 text-xs text-gray-500 hover:underline sm:text-right" title="Payment history">
       {row.balance <= 0 ? (
         <span className="font-medium text-green-700">Paid in full{n > 1 ? ` · ${payments(n)}` : ''}</span>
-      ) : row.paidAmount > 0 ? (
+      ) : row.paidAmount > 0 || (row.expensePaid || 0) > 0 ? (
         <>
-          Paid {formatRs(row.paidAmount)} · <span className="font-semibold text-amber-700">Balance {formatRs(row.balance)}</span>
+          Paid {formatRs(row.paidAmount)}
+          {(row.expensePaid || 0) > 0 ? ` + ${formatRs(row.expensePaid || 0)} from expenses` : ''} ·{' '}
+          <span className="font-semibold text-amber-700">Balance {formatRs(row.balance)}</span>
         </>
       ) : (
         <span className="font-semibold text-amber-700">Not paid yet · Balance {formatRs(row.balance)}</span>
@@ -770,6 +775,24 @@ function PaymentsModal({
             <div className="h-1.5 rounded-full bg-green-600" style={{ width: `${pct}%` }} />
           </div>
         </div>
+
+        {(bill.expenseLinks || []).length > 0 && (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
+            <p className="font-medium text-sky-900">
+              Paid from expenses: {formatRs(bill.expensePaid || 0)} <span className="font-normal text-sky-800">(not added to the investment)</span>
+            </p>
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {(bill.expenseLinks || []).map((l) => (
+                <li key={l.expense} className="flex justify-between gap-2">
+                  <a href={`/admin/expenses/edit/${l.expense}`} className="text-sky-800 hover:underline truncate">
+                    {formatDate(l.date)} · {l.title || 'Expense'}
+                  </a>
+                  <span className="tabular-nums">{formatRs(l.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {bill.balance > 0 && canPay && (
           <form onSubmit={pay} className="rounded-lg border border-honey-200 p-3 space-y-3">

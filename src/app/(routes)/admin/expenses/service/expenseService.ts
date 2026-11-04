@@ -89,6 +89,7 @@ export const expenseService = {
       if (expenseData.date) formData.append('date', expenseData.date);
       if (expenseData.paymentMethod) formData.append('paymentMethod', expenseData.paymentMethod);
       if (expenseData.bankId) formData.append('bankId', expenseData.bankId);
+      if (expenseData.investmentId) formData.append('investmentId', expenseData.investmentId);
       if (expenseData.reference) formData.append('reference', expenseData.reference);
       if (expenseData.notes) formData.append('notes', expenseData.notes);
       if (receiptFile) formData.append('receipt', receiptFile);
@@ -115,6 +116,7 @@ export const expenseService = {
       if (expenseData.date !== undefined) formData.append('date', expenseData.date);
       if (expenseData.paymentMethod !== undefined) formData.append('paymentMethod', expenseData.paymentMethod);
       if (expenseData.bankId !== undefined) formData.append('bankId', expenseData.bankId);
+      if (expenseData.investmentId !== undefined) formData.append('investmentId', expenseData.investmentId);
       if (expenseData.reference !== undefined) formData.append('reference', expenseData.reference);
       if (expenseData.notes !== undefined) formData.append('notes', expenseData.notes);
       if (expenseData.isActive !== undefined) formData.append('isActive', String(expenseData.isActive));

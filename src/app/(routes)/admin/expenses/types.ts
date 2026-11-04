@@ -22,6 +22,8 @@ export interface Expense {
   paymentMethod: PaymentMethod;
   bank?: string | null;
   bankName?: string;
+  investment?: string | null;
+  investmentTitle?: string;
   reference: string;
   notes: string;
   receipt: string | null;
@@ -39,6 +41,8 @@ export interface RawExpense {
   paymentMethod?: string;
   bank?: string | null;
   bankName?: string;
+  investment?: string | null;
+  investmentTitle?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -55,6 +59,7 @@ export interface CreateExpenseData {
   date?: string;
   paymentMethod?: PaymentMethod;
   bankId?: string;
+  investmentId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -67,6 +72,7 @@ export interface UpdateExpenseData {
   date?: string;
   paymentMethod?: PaymentMethod;
   bankId?: string;
+  investmentId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;

@@ -10,6 +10,7 @@ import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod } fr
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import BankSelect from '../../components/BankSelect';
+import InvestmentBillSelect from '../../components/InvestmentBillSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 
 export default function EditExpensePage() {
@@ -26,6 +27,8 @@ export default function EditExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
   const [bankId, setBankId] = useState('');
+  const [investmentId, setInvestmentId] = useState('');
+  const [linked, setLinked] = useState<{ id: string; title: string; mine: number } | null>(null);
   const [notes, setNotes] = useState('');
   const [isActive, setIsActive] = useState(true);
 
@@ -56,6 +59,8 @@ export default function EditExpensePage() {
         setPaymentMethod((data.paymentMethod as PaymentMethod) || 'Cash');
         setReference(data.reference || '');
         setBankId(data.bank ? String(data.bank) : '');
+        setInvestmentId(data.investment ? String(data.investment) : '');
+        setLinked(data.investment ? { id: String(data.investment), title: data.investmentTitle || 'Investment bill', mine: Number(data.amount) || 0 } : null);
         setNotes(data.notes || '');
         setIsActive(typeof data.isActive === 'boolean' ? data.isActive : true);
         setExistingReceipt(data.receipt || null);
@@ -135,6 +140,7 @@ export default function EditExpensePage() {
         date: date || undefined,
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId : '',
+        investmentId,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
         isActive,
@@ -288,6 +294,14 @@ export default function EditExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
+            <div className="md:col-span-2">
+              <InvestmentBillSelect value={investmentId} current={linked} disabled={loading} onChange={(id) => setInvestmentId(id)} />
+              {linked && (
+                <Link href="/admin/investments" className="mt-1 inline-block text-xs font-medium text-honey-800 hover:underline">
+                  Open investments → {linked.title}
+                </Link>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reference / Receipt Number

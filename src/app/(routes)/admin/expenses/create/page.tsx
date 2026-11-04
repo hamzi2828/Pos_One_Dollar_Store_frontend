@@ -11,6 +11,7 @@ import { PAYMENT_METHODS } from '../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 import BankSelect from '../components/BankSelect';
+import InvestmentBillSelect from '../components/InvestmentBillSelect';
 
 export default function CreateExpensePage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function CreateExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
   const [bankId, setBankId] = useState('');
+  const [investmentId, setInvestmentId] = useState('');
   const [notes, setNotes] = useState('');
 
   // Receipt file
@@ -225,6 +227,7 @@ export default function CreateExpensePage() {
         date: date || undefined,
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId || undefined : undefined,
+        investmentId: investmentId || undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
       };
@@ -518,6 +521,19 @@ export default function CreateExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
+            <div className="md:col-span-2">
+              <InvestmentBillSelect
+                value={investmentId}
+                disabled={loading}
+                onChange={(id, bill) => {
+                  setInvestmentId(id);
+                  if (bill) {
+                    if (!amount) setAmount(String(bill.balance));
+                    if (!title.trim()) setTitle(`Remaining payment: ${bill.title}`);
+                  }
+                }}
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reference / Receipt Number
