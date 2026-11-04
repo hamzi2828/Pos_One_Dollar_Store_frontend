@@ -120,7 +120,7 @@ export default function PrintLogModal({
               <li key={r.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-gray-900">
-                    {r.mode === 'scanned' ? `${r.count.toLocaleString()} own barcode` : r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
+                    {r.mode === 'scanned' ? (r.count ? `${r.count.toLocaleString()} own barcode` : 'Pieces per barcode updated') : r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
                     <span className={`ml-2 text-xs font-medium ${left > 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {left > 0 ? `${left.toLocaleString()} left` : 'all done'}
                     </span>

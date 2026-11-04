@@ -317,10 +317,32 @@ function EditEntryModal({
   const [formError, setFormError] = useState<string | null>(null);
   // Pieces per scanned barcode (owner, 2026-11-04): their total is the entry's Pieces.
   const [codeQty, setCodeQty] = useState<Record<string, number>>({});
+  // What was saved last time (from the print log), to show it again and to know what changed.
+  const [savedCodes, setSavedCodes] = useState('{}');
   const codeTotal = Object.values(codeQty).reduce((t, n) => t + (n || 0), 0);
+  const codesDirty = JSON.stringify(codeQty) !== savedCodes;
   useEffect(() => {
     if (codeTotal > 0) setQty(String(codeTotal));
   }, [codeTotal]);
+  useEffect(() => {
+    let alive = true;
+    storeApi
+      .get<{ prints: { mode: string; codes?: Record<string, number> | null }[] }>('/label-prints', {
+        productId: entry.product,
+        ...(entry.variantId ? { variantId: entry.variantId } : {}),
+        bill: entry.bill,
+      })
+      .then((r) => {
+        const last = (r?.data?.prints || []).find((x) => x.mode === 'scanned' && x.codes && Object.keys(x.codes).length);
+        if (!alive || !last || !last.codes) return;
+        setCodeQty(last.codes);
+        setSavedCodes(JSON.stringify(last.codes));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [entry.product, entry.variantId, entry.bill]);
 
   const q = Math.floor(Number(qty) || 0);
   const d = Math.floor(Number(damaged) || 0);
@@ -400,15 +422,18 @@ function EditEntryModal({
             .filter((r) => r.bill === entry.bill && (r.variantId || null) === (entry.variantId || null))
             .reduce((t, r) => t + (r.scanned || 0), 0);
           const add = codeTotal * perSale - already;
-          if (add > 0) {
+          // New pieces to count, or only a new split per barcode (count 0) to remember.
+          if (add > 0 || codesDirty) {
             await storeApi.post('/label-prints/scanned', {
               productId: entry.product,
               variantId: entry.variantId || null,
               bill: entry.bill,
-              count: add,
+              count: Math.max(0, add),
               total: q * perSale,
+              codes: codeQty,
               note: `Own barcode: ${Object.entries(codeQty).map(([k, n]) => `${k} × ${n}`).join(', ')}`,
             });
+            setSavedCodes(JSON.stringify(codeQty));
           }
         } catch {
           toast.error('Entry saved, but the own-barcode pieces were not marked. Use "Rest … have own barcode".');
@@ -514,7 +539,9 @@ function EditEntryModal({
             sizeOptions={form.sizeOptions}
             onCancel={onClose}
             onSuccess={async () => {
-              await onSaved(undefined);
+              // The product's Save also keeps the pieces typed per barcode (they belong to the entry).
+              if (codesDirty && codeTotal > 0) await save();
+              else await onSaved(undefined);
             }}
           />
         )}
