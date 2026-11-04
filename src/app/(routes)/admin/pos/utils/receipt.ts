@@ -8,7 +8,15 @@ const esc = (v: unknown) =>
 export const orderItemName = (item: POSOrder['items'][number]) =>
   (typeof item.product === 'object' && item.product?.name) || 'Product';
 
-const paymentLabel = (m: string) => (m === 'bank_transfer' ? 'Bank Transfer' : m.charAt(0).toUpperCase() + m.slice(1));
+// Printed on every slip (same as the website's "Visit us" section).
+const SHOP = {
+  address: 'Nishat Center, Allama Iqbal Road',
+  city: 'Mirpur, Azad Kashmir',
+  phone: '0314 7000513',
+  email: 'dollarandco1@gmail.com',
+};
+
+const paymentLabel =(m: string) => (m === 'bank_transfer' ? 'Bank Transfer' : m.charAt(0).toUpperCase() + m.slice(1));
 
 export function buildReceiptHtml(order: POSOrder, storeName: string, symbol: string): string {
   const money = (n: number | undefined) => `${symbol}${(Number(n) || 0).toFixed(2)}`;
@@ -17,17 +25,23 @@ export function buildReceiptHtml(order: POSOrder, storeName: string, symbol: str
   const time = when.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const discounts = (order.appliedDiscounts || []).filter((d) => d.amount > 0);
 
-  const items = order.items
-    .map((item) => {
-      const variant = item.size || item.color ? `<div class="muted">${esc([item.color, item.size].filter(Boolean).join(' / '))}</div>` : '';
-      const right = item.isGift
-        ? `<span>FREE — gift</span>`
-        : `<span>${money(item.quantity * item.price)}</span>`;
-      const left = item.isGift ? `${item.quantity} x gift` : `${item.quantity} x ${money(item.price)}`;
-      const reason = item.isGift && item.giftReason ? `<div class="muted">Gift: ${esc(item.giftReason)}</div>` : '';
-      return `<div class="item"><div class="item-name">${esc(orderItemName(item))}</div>${variant}<div class="item-details"><span>${left}</span>${right}</div>${reason}</div>`;
-    })
-    .join('');
+  // Owner, 2026-11-04: no product names on the slip, only "items x price = sum"
+  // (one line per price). Names and barcodes are still saved on the order.
+  const byPrice = new Map<number, number>();
+  let giftQty = 0;
+  for (const item of order.items) {
+    const qty = Number(item.quantity) || 0;
+    if (item.isGift) giftQty += qty;
+    else byPrice.set(Number(item.price) || 0, (byPrice.get(Number(item.price) || 0) || 0) + qty);
+  }
+  const paidQty = [...byPrice.values()].reduce((s, q) => s + q, 0);
+  const items =
+    [...byPrice.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([price, qty]) => `<div class="row"><span>${qty} x ${money(price)}</span><span>${money(qty * price)}</span></div>`)
+      .join('') +
+    (giftQty > 0 ? `<div class="row"><span>${giftQty} x gift</span><span>FREE</span></div>` : '') +
+    `<div class="row muted-row"><span>Total items:</span><span>${paidQty + giftQty}</span></div>`;
 
   const discountRows = discounts.length
     ? discounts.map((d) => `<div class="row"><span>${esc(d.name)}</span><span>-${money(d.amount)}</span></div>`).join('')
@@ -58,8 +72,12 @@ html,body{width:72mm}body{font-family:'Courier New',monospace;font-size:11px;pad
 .item{margin:4px 0}.item-name{font-weight:bold}.item-details{display:flex;justify-content:space-between;padding-left:8px}
 .muted{font-size:10px;color:#555;padding-left:8px}.grand{font-size:13px;font-weight:bold;border-top:1px solid #000;padding-top:4px;margin-top:4px}
 .footer{text-align:center;margin-top:10px;padding-top:8px}
+.contact{font-size:10px;margin-top:4px;line-height:1.35}.muted-row{font-size:10px;color:#333;margin-top:4px}
+.support{font-size:10px;margin-top:8px;padding-top:6px;border-top:1px dashed #000;line-height:1.4}
 </style></head><body>
-<div class="header"><div class="store-name">${esc(storeName)}</div><div style="font-size:10px;margin-top:4px">${esc(order.orderNumber)}</div></div>
+<div class="header"><div class="store-name">${esc(storeName)}</div>
+<div class="contact">${esc(SHOP.address)}<br>${esc(SHOP.city)}</div>
+<div style="font-size:10px;margin-top:6px">${esc(order.orderNumber)}</div></div>
 <div class="block">
 <div class="row"><span>Date:</span><span>${date} ${time}</span></div>
 ${order.customer ? `<div class="row"><span>Customer:</span><span>${esc(`${order.customer.firstName} ${order.customer.lastName || ''}`)}</span></div>` : order.customerInfo?.name ? `<div class="row"><span>Customer:</span><span>${esc(order.customerInfo.name)}</span></div>` : ''}
@@ -78,7 +96,8 @@ ${order.changeGiven ? `<div class="row"><span>Change:</span><span>${money(order.
 ${pending}
 </div>
 ${offlineNote}
-<div class="footer"><div>Thank you!</div><div>Please come again</div></div>
+<div class="footer"><div>Thank you!</div><div>Please come again</div>
+<div class="support"><div style="font-weight:bold">Customer support</div><div>WhatsApp: ${esc(SHOP.phone)}</div><div>${esc(SHOP.email)}</div></div></div>
 </body></html>`;
 }
 
