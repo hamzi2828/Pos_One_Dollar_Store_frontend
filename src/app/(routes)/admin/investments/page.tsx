@@ -670,11 +670,17 @@ function PaymentsModal({
   const num = Number(amount);
   const valid = num > 0 && num <= bill.balance;
   const after = round2(bill.balance - (valid ? num : 0));
-  const pct = bill.amount > 0 ? Math.min(100, (bill.paidAmount / bill.amount) * 100) : 0;
+  const byExpenses = bill.expensePaid || 0;
+  const pct = bill.amount > 0 ? Math.min(100, ((bill.paidAmount + byExpenses) / bill.amount) * 100) : 0;
 
-  // Balance after each payment (payments come oldest first).
+  // Balance after each payment, oldest first: partner payments and expenses that paid the bill.
+  type HistoryRow = Payment & { fromExpense?: string };
+  const rows: HistoryRow[] = [
+    ...bill.payments,
+    ...(bill.expenseLinks || []).map((l) => ({ _id: `exp-${l.expense}`, amount: l.amount, date: l.date, note: l.title, fromExpense: l.expense })),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   let left = bill.amount;
-  const history = bill.payments.map((p) => {
+  const history = rows.map((p) => {
     left = round2(left - p.amount);
     return { ...p, after: left };
   });
@@ -768,7 +774,7 @@ function PaymentsModal({
         <div>
           <div className="grid grid-cols-3 gap-2">
             <MoneyTile label="Bill total" value={formatRs(bill.amount)} />
-            <MoneyTile label="Paid" value={formatRs(bill.paidAmount)} tone="green" />
+            <MoneyTile label={byExpenses ? `Paid (${formatRs(bill.paidAmount)} + ${formatRs(byExpenses)} expenses)` : 'Paid'} value={formatRs(bill.paidAmount + byExpenses)} tone="green" />
             {bill.balance > 0 ? <MoneyTile label="Balance" value={formatRs(bill.balance)} tone="due" /> : <MoneyTile label="Balance" value="Paid in full" tone="green" />}
           </div>
           <div className="mt-2 h-1.5 w-full rounded-full" style={{ backgroundColor: TRACK }}>
@@ -866,6 +872,23 @@ function PaymentsModal({
                         Save
                       </button>
                     </div>
+                  </li>
+                ) : p.fromExpense ? (
+                  <li key={p._id} className="flex items-center gap-2 bg-sky-50/60 px-3 py-2.5">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-sky-100 text-[11px] font-semibold text-sky-700">{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-500">
+                        <span className="font-semibold text-gray-900 tabular-nums">{formatRs(p.amount)}</span> paid on {formatDate(p.date)}
+                        <span className="ml-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800">From expense</span>
+                      </p>
+                      <p className="truncate text-[11px] text-gray-500">
+                        {p.after > 0 ? <>Balance after: <span className="text-amber-700">{formatRs(p.after)}</span></> : <span className="text-green-700">Paid in full</span>}
+                        {p.note ? ` · ${p.note}` : ''} · not added to the investment
+                      </p>
+                    </div>
+                    <a href={`/admin/expenses/edit/${p.fromExpense}`} className="rounded p-1.5 text-sky-600 hover:bg-sky-100" title="Open the expense (change it there)">
+                      <Edit2 className="h-4 w-4" />
+                    </a>
                   </li>
                 ) : (
                   <li key={p._id} className="flex items-center gap-2 px-3 py-2.5">
