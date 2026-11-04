@@ -1,6 +1,7 @@
 // 72 mm thermal receipt for a POS order (printed through a hidden iframe).
 // Shows applied discounts (rules + manual) and gift lines as "FREE — gift".
 import { POSOrder } from '../types';
+import { openCashDrawer } from './cashDrawer';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -118,6 +119,8 @@ export function printReceipt(order: POSOrder, storeName: string, symbol: string)
   doc.open();
   doc.write(buildReceiptHtml(order, storeName, symbol));
   doc.close();
+  // Owner, 2026-11-04: the cash drawer opens with every receipt print.
+  void openCashDrawer();
   setTimeout(() => {
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
