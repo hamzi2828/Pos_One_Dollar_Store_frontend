@@ -393,8 +393,8 @@ export default function InvestmentsPage() {
                         </span>
                       </div>
                       <div className="mt-1 flex items-baseline justify-between gap-2">
-                        <span className="text-lg font-semibold tabular-nums text-white">{formatRs(p.invested)}</span>
-                        <span className="text-sm font-semibold tabular-nums" style={{ color: partnerColor(i) }}>{p.share}%</span>
+                        <span className="text-sm font-medium tabular-nums text-gray-300">{formatRs(p.invested)}</span>
+                        <span className="text-3xl font-bold leading-none tabular-nums" style={{ color: partnerColor(i) }}>{p.share}%</span>
                       </div>
                       <p className="mt-0.5 text-[11px] text-gray-400">
                         {bills(p.bills)}
