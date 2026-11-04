@@ -315,6 +315,12 @@ function EditEntryModal({
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<{ product: ProductUI; categories: Category[]; colorOptions: string[]; sizeOptions: string[] } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // Pieces per scanned barcode (owner, 2026-11-04): their total is the entry's Pieces.
+  const [codeQty, setCodeQty] = useState<Record<string, number>>({});
+  const codeTotal = Object.values(codeQty).reduce((t, n) => t + (n || 0), 0);
+  useEffect(() => {
+    if (codeTotal > 0) setQty(String(codeTotal));
+  }, [codeTotal]);
 
   const q = Math.floor(Number(qty) || 0);
   const d = Math.floor(Number(damaged) || 0);
@@ -386,6 +392,28 @@ function EditEntryModal({
     setError(null);
     try {
       const res = await purchasingApi.grnEditEntry(grnId, entry._id, { qty: q, damagedQty: d, costPrice: c, boxNo: Math.floor(Number(boxNo) || 0) });
+      // Pieces typed per barcode carry their own barcode: count them as done (no sticker).
+      if (codeTotal > 0) {
+        try {
+          const sum = await storeApi.get<{ productId: string; variantId: string | null; bill: string | null; scanned?: number }[]>('/label-prints/summary', { productIds: entry.product });
+          const already = (sum?.data || [])
+            .filter((r) => r.bill === entry.bill && (r.variantId || null) === (entry.variantId || null))
+            .reduce((t, r) => t + (r.scanned || 0), 0);
+          const add = codeTotal * perSale - already;
+          if (add > 0) {
+            await storeApi.post('/label-prints/scanned', {
+              productId: entry.product,
+              variantId: entry.variantId || null,
+              bill: entry.bill,
+              count: add,
+              total: q * perSale,
+              note: `Own barcode: ${Object.entries(codeQty).map(([k, n]) => `${k} × ${n}`).join(', ')}`,
+            });
+          }
+        } catch {
+          toast.error('Entry saved, but the own-barcode pieces were not marked. Use "Rest … have own barcode".');
+        }
+      }
       const note = (res?.warnings || []).join(' ');
       if (note) toast(note);
       else toast.success('Entry updated');
@@ -414,7 +442,16 @@ function EditEntryModal({
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Field label={perSale > 1 ? `Sales (of ${perSale} pcs)` : 'Pieces'} required>
-            <input type="number" min={1} inputMode="numeric" value={qty} onChange={(ev) => setQty(ev.target.value)} className={inputClass} />
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={qty}
+              onChange={(ev) => setQty(ev.target.value)}
+              disabled={codeTotal > 0}
+              className={`${inputClass} ${codeTotal > 0 ? 'bg-sky-50' : ''}`}
+            />
+            {codeTotal > 0 && <span className="mt-0.5 block text-[11px] text-sky-800">Total of the barcodes below</span>}
           </Field>
           <Field label="Damaged">
             <input type="number" min={0} inputMode="numeric" value={damaged} onChange={(ev) => setDamaged(ev.target.value)} className={inputClass} />
@@ -471,6 +508,7 @@ function EditEntryModal({
             mode="edit"
             initialData={form.product as unknown as Product}
             fromEntry={fromEntry}
+            barcodeQty={{ values: codeQty, onChange: setCodeQty, unit: perSale > 1 ? 'Sales' : 'Pieces' }}
             categories={form.categories}
             colorOptions={form.colorOptions}
             sizeOptions={form.sizeOptions}

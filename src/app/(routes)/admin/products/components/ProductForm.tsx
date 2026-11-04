@@ -76,6 +76,11 @@ interface ProductFormProps {
   noStock?: boolean;
   /** Receiving → edit entry: stock and cost follow the entry above (live), saved only by "Save entry". */
   fromEntry?: { stock: number; costPrice: number; stockNote?: string };
+  /**
+   * Receiving → edit entry: how many pieces came with each scanned barcode.
+   * The total goes into the entry's Pieces (owner, 2026-11-04).
+   */
+  barcodeQty?: { values: Record<string, number>; onChange: (next: Record<string, number>) => void; unit?: string };
   /** Create: name to start with (e.g. what was searched). */
   defaultName?: string;
   /** Create: barcode already on the item (e.g. scanned in the search box). */
@@ -149,6 +154,7 @@ export default function ProductForm({
   onManageAttributes,
   noStock = false,
   fromEntry,
+  barcodeQty,
   defaultName = "",
   defaultBarcode = "",
   defaultVendorId = "",
@@ -1414,6 +1420,51 @@ export default function ProductForm({
                         <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>
                       ) : (
                         <p className="mt-1 text-xs text-gray-500">{itemCodes.length ? `${itemCodes.length} barcode${itemCodes.length === 1 ? "" : "s"}: any of them sells this product. No new sticker needed.` : mode === "edit" ? "Empty = sold by our sticker. Scan to add a barcode." : "Empty = we print a sticker."}</p>
+                      )}
+                      {barcodeQty && itemCodes.length > 0 && (
+                        <div className="mt-2 overflow-hidden rounded-lg border border-sky-200">
+                          <table className="min-w-full text-xs">
+                            <thead className="bg-sky-50 text-sky-900">
+                              <tr>
+                                <th className="px-2 py-1.5 text-left font-medium">Barcode</th>
+                                <th className="px-2 py-1.5 text-right font-medium w-28">{barcodeQty.unit || "Pieces"} on this trip</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-sky-100">
+                              {itemCodes.map((code) => (
+                                <tr key={code}>
+                                  <td className="px-2 py-1 font-mono text-gray-800">{code}</td>
+                                  <td className="px-2 py-1 text-right">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      inputMode="numeric"
+                                      value={barcodeQty.values[code] ? String(barcodeQty.values[code]) : ""}
+                                      placeholder="0"
+                                      onChange={(e) => {
+                                        const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                                        const next = { ...barcodeQty.values };
+                                        if (n) next[code] = n;
+                                        else delete next[code];
+                                        barcodeQty.onChange(next);
+                                      }}
+                                      className="w-24 rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-sky-50">
+                              <tr>
+                                <td className="px-2 py-1.5 text-sky-900">Total (goes into Pieces above)</td>
+                                <td className="px-2 py-1.5 text-right font-semibold text-sky-900">
+                                  {itemCodes.reduce((t, c) => t + (barcodeQty.values[c] || 0), 0)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                          <p className="bg-white px-2 py-1 text-[11px] text-gray-500">Optional. Leave empty and use &quot;Rest … have own barcode&quot; on the entry instead.</p>
+                        </div>
                       )}
                     </div>
                   )}
