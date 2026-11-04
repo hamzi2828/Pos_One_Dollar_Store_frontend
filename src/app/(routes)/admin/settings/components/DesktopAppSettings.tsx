@@ -6,7 +6,7 @@
 // The installer lives in public/downloads; rebuild it with pos_desktop\build.cmd /installer
 // and copy installer\Output\DollarCoPos-Setup.exe there (then update VERSION / BUILT / SIZE).
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Download, Fingerprint, MonitorDown, Printer, RefreshCw, ShoppingCart, Tag } from 'lucide-react';
+import { CheckCircle2, Download, Fingerprint, MonitorDown, Printer, RefreshCw, ScanBarcode, ShoppingCart, Tag } from 'lucide-react';
 import { storeApi } from '@/lib/storeApi';
 
 const FILE = '/downloads/DollarCoPos-Setup.exe';
@@ -61,6 +61,10 @@ const STEPS: { title: string; text: string }[] = [
   {
     title: 'Install the sticker (label) printer driver',
     text: 'Xprinter XP-246B / XP-D281B / other Xprinter label printers: download "Sticker printer driver" above, unzip, run ExpressDelivery_11.5.0.exe, pick your printer model and its USB port.',
+  },
+  {
+    title: 'Plug in the barcode scanner',
+    text: 'SpeedX SP-8600 / any USB barcode scanner: no driver needed. Plug it into a USB port and wait about 10 seconds while Windows sets it up. Test: open Notepad and scan a sticker; the number should appear and go to a new line.',
   },
   { title: 'Run DollarCoPos-Setup.exe', text: 'Click through. Windows may say "Windows protected your PC": click More info → Run anyway.' },
   { title: 'Stop the PC sleeping', text: 'Settings → System → Power → Sleep when plugged in: Never.' },
@@ -177,6 +181,22 @@ export default function DesktopAppSettings() {
         >
           <Download className="h-4 w-4" /> Download driver (ZIP)
         </a>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
+          <ScanBarcode className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900">Barcode scanner (SpeedX)</p>
+          <p className="text-xs text-gray-600">
+            SpeedX SP-8600 and other USB scanners work like a keyboard: no driver to install. Plug it in, wait for Windows, then scan.
+            Not typing anything? Try another USB port on the PC itself (not a hub).
+          </p>
+        </div>
+        <span className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm font-medium text-green-800">
+          <CheckCircle2 className="h-4 w-4" /> No driver needed
+        </span>
       </div>
 
       <div>
