@@ -23,6 +23,9 @@ export function pickReceiptPrinter(printers: string[], labelPrinter: string): st
   const others = printers.filter((p) => p !== labelPrinter);
   const named = others.find((p) => RECEIPT_PRINTER.test(p));
   if (named) return named;
+  // A PC with no sticker printer: the desktop app then calls the receipt
+  // printer (e.g. "Xprinter XP-80") its label printer. Its name still says receipt.
+  if (labelPrinter && RECEIPT_PRINTER.test(labelPrinter) && printers.includes(labelPrinter)) return labelPrinter;
   const real = others.filter((p) => !NOT_A_PRINTER.test(p));
   return real.length === 1 ? real[0] : null;
 }
