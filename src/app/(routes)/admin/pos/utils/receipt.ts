@@ -1,6 +1,7 @@
 // 72 mm thermal receipt for a POS order (printed through a hidden iframe).
 // Shows applied discounts (rules + manual) and gift lines as "FREE — gift".
 import { POSOrder } from '../types';
+import toast from 'react-hot-toast';
 import { openCashDrawer } from './cashDrawer';
 
 const esc = (v: unknown) =>
@@ -120,7 +121,9 @@ export function printReceipt(order: POSOrder, storeName: string, symbol: string)
   doc.write(buildReceiptHtml(order, storeName, symbol));
   doc.close();
   // Owner, 2026-11-04: the cash drawer opens with every receipt print.
-  void openCashDrawer();
+  void openCashDrawer().then((problem) => {
+    if (problem) toast.error(problem, { duration: 8000, id: 'cash-drawer' });
+  });
   setTimeout(() => {
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();

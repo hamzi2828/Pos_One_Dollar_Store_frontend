@@ -28,6 +28,8 @@ try {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The deploy this build belongs to (compared with /build-id by the POS).
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || "dev" },
   output: "standalone",
   images: {
     remotePatterns,

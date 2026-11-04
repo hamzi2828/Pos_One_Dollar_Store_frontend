@@ -154,6 +154,34 @@ export default function POSPage() {
   const [showCustomerSelector, setShowCustomerSelector] = useState(false);
   const [showVariantSelector, setShowVariantSelector] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const paymentOpenRef = useRef(false);
+  paymentOpenRef.current = showPaymentModal;
+
+  // A counter window can stay open for days: when a new version is live,
+  // reload by itself between sales (empty cart, no payment open).
+  useEffect(() => {
+    const mine = process.env.NEXT_PUBLIC_BUILD_ID;
+    if (!mine || mine === 'dev') return;
+    let stopped = false;
+    const check = async () => {
+      try {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        const r = await fetch('/build-id', { cache: 'no-store' });
+        const live = (await r.json())?.id;
+        if (stopped || !live || live === 'dev' || live === mine) return;
+        if (cartRef.current.items.length === 0 && !paymentOpenRef.current) window.location.reload();
+      } catch {
+        // offline or server busy: try again next time
+      }
+    };
+    const timer = setInterval(check, 60_000);
+    window.addEventListener('focus', check);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
 
   // ---------- server-priced cart
   const { quote, error: quoteError, loading: quoteLoading, ready: quoteReady, acceptQuote } = useCartQuote(
