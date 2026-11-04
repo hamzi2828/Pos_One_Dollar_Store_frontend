@@ -10,7 +10,7 @@ import type { Category } from "./CategoriesTab";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
-import { ChevronDown, Hash, Loader2, Sparkles } from "lucide-react";
+import { ChevronDown, Hash, Loader2, Sparkles, X } from "lucide-react";
 import { apiErrorMessage } from "@/lib/storeApi";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import SoldByBarcodeCard from "./SoldByBarcodeCard";
@@ -256,6 +256,20 @@ export default function ProductForm({
     setPackaging((prev) => (prev.barcodes.some((b) => b.code === code) ? prev : { ...prev, barcodes: [...prev.barcodes, { code, qty: 1 }] }));
   const removeItemCode = (code: string) =>
     setPackaging((prev) => ({ ...prev, barcodes: prev.barcodes.filter((b) => b.label === "full-box" || b.code !== code) }));
+  // Barcode + pieces cards (edit entry): the qty box of each code, and the one just scanned.
+  const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [hotCode, setHotCode] = useState("");
+  useEffect(() => {
+    if (!hotCode) return;
+    const el = qtyRefs.current[hotCode];
+    if (el) {
+      el.focus();
+      el.select();
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    const t = setTimeout(() => setHotCode(""), 2500);
+    return () => clearTimeout(t);
+  }, [hotCode, itemCodes.length]);
   // Errors from the backend for a code (409 duplicate / 400 invalid short code)
   const [codeErrors, setCodeErrors] = useState<Record<string, string>>({});
   // Variant rows with the "options & barcodes" row open (key = color|size)
@@ -1404,7 +1418,7 @@ export default function ProductForm({
 
               {/* SKU (made automatically; the short code behind it is printed on the sticker) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
-                  {(noStock || mode === "edit") && !isVariant && (
+                  {(noStock || mode === "edit") && !isVariant && !barcodeQty && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Barcodes on the item <span className="font-normal text-gray-500">(if printed)</span>
@@ -1420,51 +1434,6 @@ export default function ProductForm({
                         <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>
                       ) : (
                         <p className="mt-1 text-xs text-gray-500">{itemCodes.length ? `${itemCodes.length} barcode${itemCodes.length === 1 ? "" : "s"}: any of them sells this product. No new sticker needed.` : mode === "edit" ? "Empty = sold by our sticker. Scan to add a barcode." : "Empty = we print a sticker."}</p>
-                      )}
-                      {barcodeQty && itemCodes.length > 0 && (
-                        <div className="mt-2 overflow-hidden rounded-lg border border-sky-200">
-                          <table className="min-w-full text-xs">
-                            <thead className="bg-sky-50 text-sky-900">
-                              <tr>
-                                <th className="px-2 py-1.5 text-left font-medium">Barcode</th>
-                                <th className="px-2 py-1.5 text-right font-medium w-28">{barcodeQty.unit || "Pieces"} on this trip</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-sky-100">
-                              {itemCodes.map((code) => (
-                                <tr key={code}>
-                                  <td className="px-2 py-1 font-mono text-gray-800">{code}</td>
-                                  <td className="px-2 py-1 text-right">
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      inputMode="numeric"
-                                      value={barcodeQty.values[code] ? String(barcodeQty.values[code]) : ""}
-                                      placeholder="0"
-                                      onChange={(e) => {
-                                        const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
-                                        const next = { ...barcodeQty.values };
-                                        if (n) next[code] = n;
-                                        else delete next[code];
-                                        barcodeQty.onChange(next);
-                                      }}
-                                      className="w-24 rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                                    />
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot className="bg-sky-50">
-                              <tr>
-                                <td className="px-2 py-1.5 text-sky-900">Total (goes into Pieces above)</td>
-                                <td className="px-2 py-1.5 text-right font-semibold text-sky-900">
-                                  {itemCodes.reduce((t, c) => t + (barcodeQty.values[c] || 0), 0)}
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                          <p className="bg-white px-2 py-1 text-[11px] text-gray-500">Optional. Leave empty and use &quot;Rest … have own barcode&quot; on the entry instead.</p>
-                        </div>
                       )}
                     </div>
                   )}
@@ -1483,6 +1452,107 @@ export default function ProductForm({
                     />
                   </div>
                   )}
+                  {(noStock || mode === "edit") && !isVariant && barcodeQty && (() => {
+                    const unit = (barcodeQty.unit || "Pieces").toLowerCase();
+                    const total = itemCodes.reduce((t, c) => t + (barcodeQty.values[c] || 0), 0);
+                    const empty = itemCodes.filter((c) => !barcodeQty.values[c]).length;
+                    const setQ = (code: string, n: number) => {
+                      const next = { ...barcodeQty.values };
+                      if (n > 0) next[code] = n;
+                      else delete next[code];
+                      barcodeQty.onChange(next);
+                    };
+                    return (
+                      <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-sky-200 bg-sky-50/50 p-3 sm:p-4">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">Barcodes on the item</p>
+                            <p className="text-xs text-gray-600">Scan a barcode, then type how many {unit} have it. Scan it again to jump to it.</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <span className="rounded-full bg-white px-2.5 py-1 font-medium text-gray-700 ring-1 ring-gray-200">
+                              {itemCodes.length} barcode{itemCodes.length === 1 ? "" : "s"}
+                            </span>
+                            <span className="rounded-full bg-sky-600 px-2.5 py-1 font-semibold text-white">
+                              {total.toLocaleString()} {unit}
+                            </span>
+                            {empty > 0 && (
+                              <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-800">
+                                {empty} without {unit}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <BarcodeChipsInput
+                          codes={itemCodes}
+                          onAdd={(code) => {
+                            addItemCode(code);
+                            setHotCode(code);
+                          }}
+                          onRemove={removeItemCode}
+                          onExisting={(code) => setHotCode(itemCodes.find((c) => c.toUpperCase() === code.toUpperCase()) || code)}
+                          hideChips
+                          placeholder="Scan or type a barcode, then Enter"
+                        />
+                        {codeErrors.barcodes && <p className="mt-1 text-xs text-red-600">{codeErrors.barcodes}</p>}
+                        {itemCodes.length > 0 ? (
+                          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {itemCodes.map((code, i) => {
+                              const v = barcodeQty.values[code] || 0;
+                              return (
+                                <div
+                                  key={code}
+                                  className={`flex items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 transition-shadow ${
+                                    hotCode === code ? "border-sky-500 ring-2 ring-sky-300" : v ? "border-gray-200" : "border-amber-300"
+                                  }`}
+                                >
+                                  <span className="w-5 flex-shrink-0 text-right text-[11px] text-gray-400">{i + 1}</span>
+                                  <span className="min-w-0 flex-1 truncate font-mono text-sm text-gray-800" title={code}>
+                                    {code}
+                                  </span>
+                                  <input
+                                    ref={(el) => {
+                                      qtyRefs.current[code] = el;
+                                    }}
+                                    type="number"
+                                    min={0}
+                                    inputMode="numeric"
+                                    value={v ? String(v) : ""}
+                                    placeholder="0"
+                                    onChange={(e) => setQ(code, Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") e.preventDefault();
+                                    }}
+                                    aria-label={`${barcodeQty.unit || "Pieces"} with ${code}`}
+                                    className="w-16 rounded-md border border-gray-300 px-2 py-1 text-right text-sm font-semibold focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setQ(code, 0);
+                                      removeItemCode(code);
+                                    }}
+                                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                                    aria-label={`Remove ${code}`}
+                                    title="Remove this barcode"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-gray-500">No barcode yet: the pieces are sold by our sticker.</p>
+                        )}
+                        {itemCodes.length > 0 && (
+                          <p className="mt-2 text-[11px] text-gray-500">
+                            Total {total.toLocaleString()} {unit} goes into Pieces above. Any of these barcodes sells this product, no sticker needed.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
               </div>
 
               {/* Packaging & Stock: boxes, batches, barcodes, short code (single products) */}

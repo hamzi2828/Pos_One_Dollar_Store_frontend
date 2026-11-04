@@ -15,6 +15,10 @@ interface BarcodeChipsInputProps {
   placeholder?: string;
   error?: string;
   compact?: boolean;
+  // Only the scan box (the codes are shown elsewhere, e.g. the barcode + pieces cards).
+  hideChips?: boolean;
+  // A code already in the list was scanned again.
+  onExisting?: (code: string) => void;
 }
 
 /**
@@ -31,6 +35,8 @@ export default function BarcodeChipsInput({
   placeholder = "Scan or type a barcode, then press Enter",
   error,
   compact = false,
+  hideChips = false,
+  onExisting,
 }: BarcodeChipsInputProps) {
   const [text, setText] = useState("");
   const [checking, setChecking] = useState(false);
@@ -43,6 +49,11 @@ export default function BarcodeChipsInput({
     const code = normalizeCode(text);
     if (!code) return;
     if (codes.map(normalizeCode).includes(code)) {
+      if (onExisting) {
+        onExisting(code);
+        setText("");
+        return;
+      }
       setMessage(`"${code}" is already in the list`);
       setText("");
       return;
@@ -79,7 +90,7 @@ export default function BarcodeChipsInput({
           shownError ? "border-red-300" : "border-gray-300"
         }`}
       >
-        {codes.map((code) => (
+        {!hideChips && codes.map((code) => (
           <span
             key={code}
             className="inline-flex items-center gap-1 rounded-md bg-gray-100 border border-gray-200 px-2 py-0.5 text-xs font-mono text-gray-800"
@@ -99,7 +110,7 @@ export default function BarcodeChipsInput({
         <input
           type="text"
           value={text}
-          placeholder={codes.length ? "Add another..." : placeholder}
+          placeholder={codes.length && !hideChips ? "Add another..." : placeholder}
           onChange={(e) => {
             setText(e.target.value);
             if (message) setMessage("");
@@ -108,7 +119,7 @@ export default function BarcodeChipsInput({
             if (e.key === "Enter" || e.key === ",") {
               e.preventDefault();
               void tryAdd();
-            } else if (e.key === "Backspace" && !text && codes.length) {
+            } else if (e.key === "Backspace" && !text && codes.length && !hideChips) {
               onRemove(codes[codes.length - 1]);
             }
           }}
