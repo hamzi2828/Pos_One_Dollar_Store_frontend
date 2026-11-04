@@ -113,9 +113,10 @@ export default function PrintLogModal({
           })()}
           <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
             {log.prints.map((r, i) => {
-              // Printed so far up to this print (list is newest first).
+              // Printed so far up to this print (list is newest first), checked against that
+              // print's own "of N" (the pieces at that time), not the entry's pieces now.
               const upTo = log.prints.slice(i).reduce((t, x) => t + x.count, 0) + (log.totalStickers - log.prints.reduce((t, x) => t + x.count, 0));
-              const left = Math.max(0, (needNow && needNow > 0 ? needNow : r.total) - upTo);
+              const left = Math.max(0, (r.total > 0 ? r.total : needNow || 0) - upTo);
               return (
               <li key={r.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="min-w-0">
