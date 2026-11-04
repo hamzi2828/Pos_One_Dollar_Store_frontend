@@ -6,7 +6,7 @@
 // The installer lives in public/downloads; rebuild it with pos_desktop\build.cmd /installer
 // and copy installer\Output\DollarCoPos-Setup.exe there (then update VERSION / BUILT / SIZE).
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Download, Fingerprint, MonitorDown, Printer, RefreshCw, ShoppingCart } from 'lucide-react';
+import { CheckCircle2, Download, Fingerprint, MonitorDown, Printer, RefreshCw, ShoppingCart, Tag } from 'lucide-react';
 import { storeApi } from '@/lib/storeApi';
 
 const FILE = '/downloads/DollarCoPos-Setup.exe';
@@ -17,6 +17,8 @@ const DRIVER_FILE = '/downloads/SecuGen-Fingerprint-Driver.zip';
 const DRIVER_SIZE = '45 MB';
 const PRINTER_FILE = '/downloads/Xprinter-Receipt-Driver.zip';
 const PRINTER_SIZE = '8.1 MB';
+const LABEL_FILE = '/downloads/Xprinter-Label-Driver.zip';
+const LABEL_SIZE = '85 MB';
 
 interface DeviceRow {
   id: string;
@@ -55,6 +57,10 @@ const STEPS: { title: string; text: string }[] = [
   {
     title: 'Install the receipt printer driver',
     text: 'Xprinter / SpeedX SP-210 / any 80mm receipt printer: download "Receipt printer driver" above, unzip, run Xprinter.receipt.driver…exe, choose an 80mm model (XP-80 / POS-80) and the printer USB port, then print a test page.',
+  },
+  {
+    title: 'Install the sticker (label) printer driver',
+    text: 'Xprinter XP-246B / XP-D281B / other Xprinter label printers: download "Sticker printer driver" above, unzip, run ExpressDelivery_11.5.0.exe, pick your printer model and its USB port.',
   },
   { title: 'Run DollarCoPos-Setup.exe', text: 'Click through. Windows may say "Windows protected your PC": click More info → Run anyway.' },
   { title: 'Stop the PC sleeping', text: 'Settings → System → Power → Sleep when plugged in: Never.' },
@@ -147,6 +153,25 @@ export default function DesktopAppSettings() {
         </div>
         <a
           href={PRINTER_FILE}
+          download
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+        >
+          <Download className="h-4 w-4" /> Download driver (ZIP)
+        </a>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
+          <Tag className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900">Sticker printer driver (Xprinter label)</p>
+          <p className="text-xs text-gray-600">
+            Xprinter label driver 11.5.0 · ZIP · {LABEL_SIZE} · XP-246B, XP-D281B and other Xprinter sticker / barcode printers.
+          </p>
+        </div>
+        <a
+          href={LABEL_FILE}
           download
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
         >
