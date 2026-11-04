@@ -324,9 +324,28 @@ function EditEntryModal({
   const [savedCodes, setSavedCodes] = useState('{}');
   const codeTotal = Object.values(codeQty).reduce((t, n) => t + (n || 0), 0);
   const codesDirty = JSON.stringify(codeQty) !== savedCodes;
+  // Stickers printed for this entry (not own barcode, not ignored), in sales. Owner, 2026-11-04:
+  // Pieces = the barcodes below + the printed stickers.
+  const [stickerSales, setStickerSales] = useState(0);
   useEffect(() => {
-    if (codeTotal > 0) setQty(String(codeTotal));
-  }, [codeTotal]);
+    let alive = true;
+    storeApi
+      .get<{ productId: string; variantId: string | null; bill: string | null; printed: number; scanned?: number }[]>('/label-prints/summary', { productIds: entry.product })
+      .then((r) => {
+        if (!alive) return;
+        const pcs = (r?.data || [])
+          .filter((x) => x.bill === entry.bill && (x.variantId || null) === (entry.variantId || null))
+          .reduce((t, x) => t + Math.max(0, (x.printed || 0) - (x.scanned || 0)), 0);
+        setStickerSales(Math.floor(pcs / perSale));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [entry.product, entry.variantId, entry.bill, perSale]);
+  useEffect(() => {
+    if (codeTotal > 0) setQty(String(codeTotal + stickerSales));
+  }, [codeTotal, stickerSales]);
   useEffect(() => {
     let alive = true;
     storeApi
@@ -479,7 +498,11 @@ function EditEntryModal({
               disabled={codeTotal > 0}
               className={`${inputClass} ${codeTotal > 0 ? 'bg-sky-50' : ''}`}
             />
-            {codeTotal > 0 && <span className="mt-0.5 block text-[11px] text-sky-800">Total of the barcodes below</span>}
+            {codeTotal > 0 && (
+              <span className="mt-0.5 block text-[11px] text-sky-800">
+                {stickerSales > 0 ? `${codeTotal} own barcode + ${stickerSales} stickers printed` : 'Total of the barcodes below'}
+              </span>
+            )}
           </Field>
           <Field label="Damaged">
             <input type="number" min={0} inputMode="numeric" value={damaged} onChange={(ev) => setDamaged(ev.target.value)} className={inputClass} />
