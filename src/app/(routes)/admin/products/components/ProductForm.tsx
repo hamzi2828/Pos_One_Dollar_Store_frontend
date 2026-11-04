@@ -1236,8 +1236,8 @@ export default function ProductForm({
 
             {/* Pricing Section */}
             <div className="border-t border-gray-200 pt-3 sm:pt-4 md:pt-6">
-              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2 sm:mb-3 md:mb-4">Pricing & Stock</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <h4 className="text-xs sm:text-sm font-medium text-gray-900 mb-2">Pricing & Stock</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {!isVariant && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1255,7 +1255,7 @@ export default function ProductForm({
                       />
                     </div>
                     {errors.costPrice && <p className="mt-1 text-sm text-red-600">{errors.costPrice}</p>}
-                    {fromEntry && <p className="mt-1 text-xs text-honey-800">Follows the entry above (saved with "Save entry")</p>}
+                    {fromEntry && <p className="mt-1 text-xs text-honey-800">From the entry above</p>}
                     {(() => {
                       // Receiving adds each piece's share of the shipping/charges to the vendor price.
                       const vendor = Number((initialData as { lastPurchasePrice?: number } | undefined)?.lastPurchasePrice);
@@ -1361,7 +1361,7 @@ export default function ProductForm({
                         />
                         {errors.stock && <p className="mt-1 text-sm text-red-600">{errors.stock}</p>}
                         {isVariant && <p className="mt-1 text-xs text-gray-500">Auto-calculated from variants</p>}
-                        {fromEntry && !isVariant && <p className="mt-1 text-xs text-honey-800">{fromEntry.stockNote || 'Follows the Pieces above (saved with "Save entry")'}</p>}
+                        {fromEntry && !isVariant && <p className="mt-1 text-xs text-honey-800">{fromEntry.stockNote || 'From Pieces above'}</p>}
                         {!isVariant && stockLocked && !fromEntry && (
                           <p className="mt-1 text-xs text-gray-500">
                             {packaging.trackBatches ? "Total of this item's saved batches" : "Calculated from boxes/packs below"}
@@ -1409,7 +1409,7 @@ export default function ProductForm({
                     {errors.piecesPerSale ? (
                       <p className="mt-1 text-sm text-red-600">{errors.piecesPerSale}</p>
                     ) : (
-                      <p className="mt-1 text-xs text-gray-500">{pps > 1 ? `Sold ${pps} together: one scan sells ${pps} pieces` : "1 = one by one. 2 = two sold together"}</p>
+                      <p className="mt-1 text-xs text-gray-500">{pps > 1 ? `Sold ${pps} together: one scan sells ${pps} pieces` : "1 = one by one, 2 = in twos"}</p>
                     )}
                   </div>
                 )}
@@ -1417,9 +1417,9 @@ export default function ProductForm({
               </div>
 
               {/* SKU (made automatically; the short code behind it is printed on the sticker) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-3 sm:mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-3">
                   {(noStock || mode === "edit") && !isVariant && !barcodeQty && (
-                    <div>
+                    <div className="sm:col-span-3 lg:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Barcodes on the item <span className="font-normal text-gray-500">(if printed)</span>
                       </label>
@@ -1437,7 +1437,7 @@ export default function ProductForm({
                       )}
                     </div>
                   )}
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
                     <VendorPicker value={vendorId || null} onChange={(id) => setVendorId(id || "")} placeholder="Search vendor…" />
                   </div>
@@ -1463,7 +1463,7 @@ export default function ProductForm({
                       barcodeQty.onChange(next);
                     };
                     return (
-                      <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-sky-200 bg-sky-50/50 p-3 sm:p-4">
+                      <div className="col-span-full rounded-xl border border-sky-200 bg-sky-50/50 p-3">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <p className="text-sm font-semibold text-gray-900">Barcodes on the item</p>
