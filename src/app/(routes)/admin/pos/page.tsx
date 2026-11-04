@@ -819,6 +819,8 @@ export default function POSPage() {
       resetSale();
       setShowPaymentModal(false);
       setMobileView('products');
+      // Owner, 2026-11-04: every sale prints its bill (and opens the drawer), online too.
+      printReceipt(order, storeName, symbol);
       setTimeout(() => searchRef.current?.focus(), 50);
     } catch (error) {
       console.error('Order creation failed:', error);
