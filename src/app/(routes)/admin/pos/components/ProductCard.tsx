@@ -23,7 +23,6 @@ export default function ProductCard({ product, onSelect, currency = 'PKR' }: Pro
     <button
       onClick={() => onSelect(product)}
       className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 hover:border-honey-500 text-left w-full"
-      disabled={product.stock === 0}
     >
       <div className="aspect-square bg-gray-100 rounded-md mb-2 overflow-hidden relative">
         {thumbnail ? (

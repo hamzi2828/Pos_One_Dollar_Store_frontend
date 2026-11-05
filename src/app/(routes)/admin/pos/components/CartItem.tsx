@@ -74,11 +74,8 @@ export default function CartItem({
   const setQty = (n: number) => {
     if (!Number.isFinite(n) || n < 1) return setQtyText(String(item.quantity));
     const q = Math.floor(n);
-    if (q > maxStock) {
-      toast.error(`Only ${maxStock} in stock`);
-      setQtyText(String(item.quantity));
-      return;
-    }
+    // Out of stock still sells (owner, 2026-11-05): warn only.
+    if (!item.isManual && q > maxStock) toast(`Only ${Math.max(0, maxStock)} in stock – sold anyway`, { icon: '⚠️', id: 'pos-stock' });
     onUpdateQuantity(item.id, q);
   };
 
@@ -252,7 +249,7 @@ export default function CartItem({
               )}
             </div>
           )}
-          {lowStock && <p className="mt-1 text-xs text-red-600">Only {line?.available} in stock</p>}
+          {lowStock && <p className="mt-1 text-xs text-amber-700">Only {line?.available} in stock – the rest is sold as out of stock</p>}
 
           {askGift && (
             <div className="mt-2 p-2 rounded-lg border border-pink-200 bg-pink-50 space-y-1.5">

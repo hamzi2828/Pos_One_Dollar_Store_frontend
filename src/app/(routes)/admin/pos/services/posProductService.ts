@@ -66,7 +66,7 @@ export interface ScanMatch {
 }
 
 export type ScanResult =
-  | { ok: true; product: POSProduct; match: ScanMatch }
+  | { ok: true; product: POSProduct; match: ScanMatch; stockWarning?: string }
   | { ok: false; status: number; message: string; product?: POSProduct; match?: ScanMatch };
 
 /**
@@ -91,7 +91,7 @@ export async function getProductByBarcode(barcode: string, signal?: AbortSignal)
   });
 
   const body = await res.json().catch(() => ({}));
-  if (res.ok && body.data) return { ok: true, product: body.data, match: body.match };
+  if (res.ok && body.data) return { ok: true, product: body.data, match: body.match, stockWarning: body.stockWarning };
   return {
     ok: false,
     status: res.status,

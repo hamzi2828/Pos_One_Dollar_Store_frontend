@@ -23,7 +23,7 @@ import PaymentModal from './components/PaymentModal';
 import HeldOrders from './components/HeldOrders';
 import PendingPaymentsTab from './components/PendingPaymentsTab';
 import LastSaleBar from './components/LastSaleBar';
-import { getPOSProducts, getProductByBarcode } from './services/posProductService';
+import { getPOSProducts, getProductByBarcode, type ScanResult } from './services/posProductService';
 import { createPOSOrder, POSApiError } from './services/posOrderService';
 import { createOrFindCustomer } from './services/posCustomerService';
 import { holdCart, getHeldCarts, retrieveHeldCart, clearHeldCart } from './services/posCartService';
@@ -380,14 +380,15 @@ export default function POSPage() {
       // stay 2 lines so "sold by barcode" counts are right; the same code again adds qty.
       const batchId = opts.batchNo ? `${baseId}@${opts.batchNo}` : baseId;
       const itemId = scannedCode ? `${batchId}#${scannedCode}` : batchId;
-      // Offline: stock in the saved list may be old; the sale is allowed (server warns STOCK_SHORT).
-      const max = offlineModeRef.current ? 0 : Number(variant ? variant.stock : product.stock) || 0;
+      // Owner, 2026-11-05: out of stock still sells; the server saves the shortage
+      // on the bill. Only a warning here. (max = 0 means no limit below.)
+      const max = 0;
+      const stock = Number(variant ? variant.stock : product.stock) || 0;
       // Stock is shared by every line of this unit (other codes, gift line).
       const sameUnit = (i: CartItem) => i.product._id === product._id && (i.variantId || '') === (variant?.variantId || '');
       const inCart = cartRef.current.items.filter(sameUnit).reduce((s, i) => s + i.quantity, 0);
-      if (max > 0 && inCart + qty > max) {
-        toast.error(inCart >= max ? `No more ${product.name} in stock` : `Only ${max} of ${product.name} in stock`);
-        if (inCart >= max) return false;
+      if (!offlineModeRef.current && inCart + qty > stock) {
+        toast(stock <= 0 ? `${product.name} is out of stock – sold anyway` : `Only ${stock} of ${product.name} in stock – sold anyway`, { icon: '⚠️', id: 'pos-stock' });
       }
       const price = salePrice(variant || product);
       setCart((prev) => {
@@ -469,7 +470,9 @@ export default function POSPage() {
     scanLock.current = true;
     setScanning(true);
     try {
-      const r = await lookupCode(code);
+      const found: ScanResult = await lookupCode(code);
+      // Out of stock still sells: a "no stock" reply that carries the product counts as found.
+      const r = !found.ok && found.product && found.match ? { ok: true as const, product: found.product, match: found.match } : found;
       if (r.ok) {
         const { product, match } = r;
         if (product.productType === 'variant' && !match.variantId) {
@@ -481,7 +484,9 @@ export default function POSPage() {
         const variant = match.variantId ? product.variants?.find((v) => v.variantId === match.variantId) : undefined;
         const added = addToCart(product, variant, { qty: match.qty || 1, scannedCode: match.code, batchNo: match.batchNo || undefined });
         if (added && !variant && match.qty <= 1 && noteSet(product)) return true;
-        if (added) {
+        if (added && found.ok && found.stockWarning) {
+          toast(found.stockWarning, { icon: '⚠️', id: 'pos-stock' });
+        } else if (added) {
           const shelf = match.shelfCodes?.[0] ? ` · ${match.shelfCodes[0]}` : '';
           toast.success(`${product.name}${match.qty > 1 ? ` × ${match.qty}` : ''}${shelf}`, { duration: 1200, id: 'pos-scan' });
         }

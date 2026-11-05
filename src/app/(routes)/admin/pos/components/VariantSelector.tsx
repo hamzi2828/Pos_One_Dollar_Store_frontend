@@ -44,7 +44,7 @@ export default function VariantSelector({
     if (!selectedColor) return sizes;
     if (!product || !product.variants) return [];
     return product.variants
-      ?.filter(v => v.color === selectedColor && v.stock > 0)
+      ?.filter(v => v.color === selectedColor)
       .map(v => v.size) || [];
   }, [selectedColor, product, sizes]);
 
@@ -53,7 +53,7 @@ export default function VariantSelector({
     if (!selectedSize) return colors;
     if (!product || !product.variants) return [];
     return product.variants
-      ?.filter(v => v.size === selectedSize && v.stock > 0)
+      ?.filter(v => v.size === selectedSize)
       .map(v => v.color) || [];
   }, [selectedSize, product, colors]);
 
@@ -70,7 +70,7 @@ export default function VariantSelector({
   if (!isOpen || !product || product.productType !== 'variant') return null;
 
   const handleAddToCart = () => {
-    if (selectedVariant && selectedVariant.stock > 0) {
+    if (selectedVariant) {
       onSelect(selectedVariant);
       onClose();
       // Reset selections
@@ -211,9 +211,9 @@ export default function VariantSelector({
           {/* Add to Cart Button */}
           <button
             onClick={handleAddToCart}
-            disabled={!selectedVariant || selectedVariant.stock === 0}
+            disabled={!selectedVariant}
             className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-              selectedVariant && selectedVariant.stock > 0
+              selectedVariant
                 ? 'bg-honey-500 text-gray-900 hover:bg-honey-600'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
@@ -221,7 +221,7 @@ export default function VariantSelector({
             {!selectedColor || !selectedSize
               ? 'Please select color and size'
               : selectedVariant?.stock === 0
-              ? 'Out of Stock'
+              ? 'Out of stock – add anyway'
               : 'Add to Cart'}
           </button>
         </div>
