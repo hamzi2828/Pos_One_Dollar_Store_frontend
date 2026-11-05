@@ -28,6 +28,9 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 
 const CURRENCY = 'PKR';
 
+/** Profit as % of the sale ("25.3%"); '' when there is no sale. */
+const pct = (profit: number, total: number) => (total > 0 ? `${((profit / total) * 100).toFixed(1)}%` : '');
+
 export default function SalesReportPage() {
   const symbol = getCurrencySymbol(CURRENCY);
   const [filter, setFilter] = useState<DateFilter>('month');
@@ -107,7 +110,7 @@ export default function SalesReportPage() {
       ['POS Orders', `${s.posOrders} · ${fmt(s.posSales)}`],
       ['Total Sales', fmt(s.totalSales)],
       ['Total Cost', fmt(s.totalCost)],
-      ['Total Profit', fmt(s.totalProfit)],
+      ['Total Profit', `${fmt(s.totalProfit)} (${pct(s.totalProfit, s.totalSales) || '0%'})`],
       ['Paid', fmt(s.totalPaid)],
       ['Pending', fmt(s.totalPending)],
       ['Cash', fmt(s.cashSales)],
@@ -152,7 +155,7 @@ export default function SalesReportPage() {
         o.paymentStatus,
         o.costPrice > 0 ? fmt(o.costPrice) : '—',
         fmt(o.total),
-        o.costPrice > 0 ? fmt(o.profit) : '—',
+        o.costPrice > 0 ? `${fmt(o.profit)} ${pct(o.profit, o.total)}` : '—',
       ];
       row.forEach((v, i) => {
         doc.text(String(v), x, y);
@@ -241,7 +244,7 @@ export default function SalesReportPage() {
             <Stat label="Total Cost" value={fmt(data.summary.totalCost)} />
             <Stat
               label="Total Profit"
-              value={fmt(data.summary.totalProfit)}
+              value={`${fmt(data.summary.totalProfit)}${pct(data.summary.totalProfit, data.summary.totalSales) ? ` · ${pct(data.summary.totalProfit, data.summary.totalSales)}` : ''}`}
               accent={data.summary.totalProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}
             />
             <Stat label="Paid" value={fmt(data.summary.totalPaid)} />
@@ -263,7 +266,7 @@ export default function SalesReportPage() {
                     <th className="px-3 py-2 text-left">Status</th>
                     <th className="px-3 py-2 text-right">Cost Price</th>
                     <th className="px-3 py-2 text-right">Total</th>
-                    <th className="px-3 py-2 text-right">Profit</th>
+                    <th className="px-3 py-2 text-right">Profit · %</th>
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -300,7 +303,14 @@ export default function SalesReportPage() {
                           </td>
                           <td className="px-3 py-2 text-right font-semibold">{fmt(o.total)}</td>
                           <td className={`px-3 py-2 text-right font-semibold ${profitPositive ? 'text-emerald-700' : 'text-red-600'}`}>
-                            {o.costPrice > 0 ? fmt(o.profit) : <span className="text-gray-400">—</span>}
+                            {o.costPrice > 0 ? (
+                              <>
+                                {fmt(o.profit)}
+                                <span className="ml-1.5 text-xs font-medium opacity-80">{pct(o.profit, o.total)}</span>
+                              </>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-right">
                             <Link
