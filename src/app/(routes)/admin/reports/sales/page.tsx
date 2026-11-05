@@ -31,6 +31,10 @@ const CURRENCY = 'PKR';
 /** Profit as % of the sale ("25.3%"); '' when there is no sale. */
 const pct = (profit: number, total: number) => (total > 0 ? `${((profit / total) * 100).toFixed(1)}%` : '');
 
+/** Pieces on a bill (server itemCount; older API: sum of item quantities). */
+const itemsOf = (o: { itemCount?: number; items?: unknown[] }) =>
+  o.itemCount ?? (o.items || []).reduce<number>((n, it) => n + (Number((it as { quantity?: number })?.quantity) || 0), 0);
+
 export default function SalesReportPage() {
   const symbol = getCurrencySymbol(CURRENCY);
   const [filter, setFilter] = useState<DateFilter>('month');
@@ -130,8 +134,8 @@ export default function SalesReportPage() {
     y += 5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const header = ['Src', 'Order #', 'Date', 'Customer', 'Method', 'Status', 'Cost', 'Total', 'Profit'];
-    const widths = [12, 24, 20, 36, 18, 18, 20, 22, 22];
+    const header = ['Order #', 'Date', 'Customer', 'Method', 'Status', 'Items', 'Cost', 'Total', 'Profit'];
+    const widths = [30, 20, 32, 16, 16, 12, 20, 20, 26];
     let x = margin;
     doc.setFillColor(243, 244, 246);
     doc.rect(margin, y - 4, pw - 2 * margin, 6, 'F');
@@ -153,6 +157,7 @@ export default function SalesReportPage() {
         name.substring(0, 20),
         String(o.paymentMethod),
         o.paymentStatus,
+        String(itemsOf(o)),
         o.costPrice > 0 ? fmt(o.costPrice) : '—',
         fmt(o.total),
         o.costPrice > 0 ? `${fmt(o.profit)} ${pct(o.profit, o.total)}` : '—',
@@ -264,6 +269,7 @@ export default function SalesReportPage() {
                     <th className="px-3 py-2 text-left">Customer</th>
                     <th className="px-3 py-2 text-left">Method</th>
                     <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-right">Items</th>
                     <th className="px-3 py-2 text-right">Cost Price</th>
                     <th className="px-3 py-2 text-right">Total</th>
                     <th className="px-3 py-2 text-right">Profit · %</th>
@@ -273,7 +279,7 @@ export default function SalesReportPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
+                      <td colSpan={10} className="px-3 py-8 text-center text-gray-400">
                         No sales match these filters
                       </td>
                     </tr>
@@ -298,6 +304,7 @@ export default function SalesReportPage() {
                             {String(methodLabel).replace('_', ' ')}
                           </td>
                           <td className="px-3 py-2 capitalize">{o.paymentStatus}</td>
+                          <td className="px-3 py-2 text-right">{itemsOf(o)}</td>
                           <td className="px-3 py-2 text-right text-gray-600">
                             {o.costPrice > 0 ? fmt(o.costPrice) : <span className="text-gray-400">—</span>}
                           </td>

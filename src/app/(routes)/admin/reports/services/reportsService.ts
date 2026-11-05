@@ -70,6 +70,8 @@ export interface SalesSummaryReport {
     pendingAmount: number;
     costPrice: number;
     profit: number;
+    /** Pieces on the bill (sum of quantities). */
+    itemCount?: number;
     paymentMethod: string;
     rawPaymentMethod?: string;
     paymentStatus: string;
