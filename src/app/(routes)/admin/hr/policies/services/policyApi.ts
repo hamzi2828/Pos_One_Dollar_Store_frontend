@@ -21,6 +21,7 @@ export interface PolicyRules {
     dayDivisor: DayDivisor;
     fixedDays: number;
     absentCutDays: number;
+    hoursPerDay?: number;
     halfDayCut: number;
     paidWeeklyOff: boolean;
     paidHolidays: boolean;
@@ -144,7 +145,7 @@ export function exampleLines(p: PolicyRules, salary: number): string[] {
   const monthDays = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
   const divisor = pay.dayDivisor === 'month_days' ? monthDays : pay.dayDivisor === 'working_days' ? EXAMPLE_WORKING_DAYS : Number(pay.fixedDays) || 30;
   const day = salary / divisor;
-  const hour = day / EXAMPLE_DAY_HOURS;
+  const hour = day / (Number(pay.hoursPerDay) > 0 ? Number(pay.hoursPerDay) : EXAMPLE_DAY_HOURS);
   const lr = p.attendance.lateRule;
   const out: string[] = [];
   out.push(`1 day = ${rs(day)} (salary ÷ ${divisor}${pay.dayDivisor === 'month_days' ? ', this month' : pay.dayDivisor === 'working_days' ? ' working days, e.g.' : ''})`);

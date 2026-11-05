@@ -296,6 +296,7 @@ export default function PolicyEditor({
           <div className="grid grid-cols-2 gap-3">
             {num('pay.absentCutDays', 'Cut per absent day', { suffix: 'days', step: 0.5, hint: '1 = one day of pay.' })}
             {num('pay.halfDayCut', 'Cut per half day', { suffix: 'of a day', step: 0.25, hint: '0.5 = half a day of pay.' })}
+            {num('pay.hoursPerDay', 'Hours in a day', { suffix: 'hours', step: 0.5, hint: 'Hourly rate = day pay ÷ these hours (overtime). 0 = shift hours.' })}
           </div>
           {tog('pay.paidWeeklyOff', 'Weekly off is paid', 'Monthly staff are paid for their weekly off (daily-wage staff never are).')}
           {tog('pay.paidHolidays', 'Holidays are paid')}
