@@ -54,9 +54,8 @@ export default function AddCustomerModal({
     setError(null);
 
     if (!firstName.trim()) return setError('First name is required');
-    if (!email.trim()) return setError('Email is required');
-    if (!EMAIL_RE.test(email.trim())) return setError('Enter a valid email address');
-    if (!phone.trim()) return setError('Phone is required');
+    // Only the name is required; email and phone are optional.
+    if (email.trim() && !EMAIL_RE.test(email.trim())) return setError('Enter a valid email address');
     if (customerType === 'online' && !source) {
       return setError('Please select a source for online customer');
     }
@@ -77,7 +76,7 @@ export default function AddCustomerModal({
         _id: created._id,
         firstName: created.firstName,
         lastName: created.lastName || '',
-        email: created.email || email.trim(),
+        email: created.email && !created.email.endsWith('@customer.dollarandco.local') ? created.email : email.trim(),
         phone: created.phone || phone.trim(),
         customerType,
         source: customerType === 'online' ? source : undefined,
@@ -204,7 +203,7 @@ export default function AddCustomerModal({
               <div className="md:col-span-2">
                 <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                   <Mail className="h-3.5 w-3.5 text-gray-400" />
-                  Email <span className="text-red-500">*</span>
+                  Email <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
                 <input
                   type="email"
@@ -217,7 +216,7 @@ export default function AddCustomerModal({
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone <span className="text-red-500">*</span>
+                  Phone <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
                 <input
                   type="tel"
