@@ -62,6 +62,8 @@ export interface CartItem {
    *  empty for lines added by name search / click). One line per code. */
   scannedCode?: string;
   batchNo?: string;
+  /** Manual item: typed name + price, not in the catalog (no stock). product is a stand-in. */
+  isManual?: boolean;
 }
 
 // Tax type for POS
@@ -127,8 +129,10 @@ export interface QuoteLine {
   lineTotal: number;
   isGift: boolean;
   giftReason?: string;
-  available?: number;
+  /** null for manual items (no stock). */
+  available?: number | null;
   costPrice?: number;
+  isManual?: boolean;
 }
 
 /** POST /api/pos/quote — the exact numbers the sale will use. */
@@ -229,6 +233,12 @@ export interface POSOrderItem {
   scannedCode?: string;
   batchNo?: string;
   category?: string;
+  /** Request line: manual item (sent with name + price, no product). */
+  manual?: boolean;
+  /** Saved order line: manual item (product is null). */
+  isManual?: boolean;
+  /** Name of a manual item. */
+  name?: string;
 }
 
 export interface CustomerInfo {

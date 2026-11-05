@@ -1,6 +1,7 @@
 // POS Cart Service (Hold/Retrieve carts via API)
 import { getAuthHeader } from "@/helper/helper";
 import { HeldCart, POSCart } from "../types";
+import { manualProduct } from "../utils/cartPayload";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -21,6 +22,7 @@ interface ApiHeldItem {
   giftReason?: string;
   priceOverride?: boolean;
   scannedCode?: string;
+  isManual?: boolean;
 }
 
 interface ApiHeldOrder {
@@ -57,7 +59,8 @@ function transformToHeldCart(apiOrder: ApiHeldOrder): HeldCart {
     cart: {
       items: apiOrder.items.map((item): HeldCart['cart']['items'][number] => ({
         id: item._id || item.product || Date.now().toString(),
-        product: {
+        // Manual item: stand-in product (typed name + price, no stock).
+        product: item.isManual ? manualProduct(item._id || Date.now().toString(), item.productName || 'Item', item.unitPrice) : {
           _id: item.product || '',
           name: item.productName || '',
           thumbnailUrl: item.productThumbnail,
@@ -79,6 +82,7 @@ function transformToHeldCart(apiOrder: ApiHeldOrder): HeldCart {
         giftReason: item.giftReason,
         priceOverride: !!item.priceOverride,
         scannedCode: item.scannedCode || undefined,
+        isManual: !!item.isManual,
       })),
       subtotal: apiOrder.subtotal,
       tax: apiOrder.tax,

@@ -30,10 +30,11 @@ import { holdCart, getHeldCarts, retrieveHeldCart, clearHeldCart } from './servi
 import { useCartQuote } from './hooks/useCartQuote';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
 import { playScanError } from './utils/scanSound';
-import { cartToOrderItems, giftLineId, paidLineId } from './utils/cartPayload';
+import { cartToOrderItems, giftLineId, manualProduct, paidLineId } from './utils/cartPayload';
+import type { ManualItemInput } from './components/ManualItemModal';
 import { getCurrencySymbol } from './utils/currency';
 import { HeldCart } from './types';
-import { Archive, Filter, AlertCircle, ShoppingCart, LayoutGrid } from 'lucide-react';
+import { Archive, Filter, AlertCircle, ShoppingCart, LayoutGrid, RefreshCw } from 'lucide-react';
 import { decodeJwt, getAuthHeader, getAuthToken, type UserPayload } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import OfflineBadge from './offline/OfflineBadge';
@@ -356,6 +357,18 @@ export default function POSPage() {
 
   const isSearching = loading || trimmedQuery !== (loadedQuery ?? '');
 
+  // Reload button (the desktop app has no browser reload). Empty cart: reload the
+  // whole page (new products, prices, app updates). Items in the cart: keep them
+  // and only fetch the product list again.
+  const reloadPos = () => {
+    if (cartRef.current.items.length === 0 && !paymentOpenRef.current) {
+      window.location.reload();
+      return;
+    }
+    loadProducts(trimmedQuery);
+    toast.success('Products refreshed');
+  };
+
   // ---------- cart actions
   /** Add pieces of a unit. Returns false when nothing could be added (no stock). */
   const addToCart = useCallback(
@@ -567,6 +580,34 @@ export default function POSPage() {
 
   const removeItem = (itemId: string) => {
     setCart((prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }));
+  };
+
+  // Manual item: typed name + price, not in the catalog, no stock (one line per add).
+  const addManualItem = ({ name, price, quantity }: ManualItemInput) => {
+    const id = uuid();
+    const newItem: CartItem = {
+      id: `manual-${id}`,
+      product: manualProduct(id, name, price),
+      quantity,
+      unitPrice: price,
+      originalPrice: price,
+      discount: 0,
+      subtotal: price * quantity,
+      isManual: true,
+    };
+    setCart((prev) => ({ ...prev, items: [...prev.items, newItem] }));
+  };
+
+  // Price of a manual item is what the cashier types (not a price override).
+  const updateManualPrice = (itemId: string, newPrice: number) => {
+    setCart((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.id === itemId
+          ? { ...item, product: { ...item.product, price: newPrice }, unitPrice: newPrice, originalPrice: newPrice, subtotal: newPrice * item.quantity }
+          : item
+      ),
+    }));
   };
 
   const resetSale = () => {
@@ -907,7 +948,17 @@ export default function POSPage() {
           <TillStatusBar onStatusChange={setTill} />
 
           <div className="flex items-center justify-between gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Point of Sale</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Point of Sale</h1>
+              <button
+                type="button"
+                onClick={reloadPos}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-100"
+                title="Reload: shows new products and prices (no need to close the app)"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Reload
+              </button>
+            </div>
             <div className="flex items-center gap-2 min-w-0">
               <OfflineBadge status={offline} symbol={symbol} />
               <div className="text-xs sm:text-sm text-gray-500 truncate">{storeName}</div>
@@ -1012,6 +1063,8 @@ export default function POSPage() {
           selectedTaxIds={selectedTaxIds}
           onTaxSelectionChange={setSelectedTaxIds}
           onApplyDiscount={(discount) => setCart((prev) => ({ ...prev, manualDiscount: discount }))}
+          onAddManualItem={addManualItem}
+          onUpdateManualPrice={updateManualPrice}
         />
       </div>
 

@@ -6,7 +6,8 @@
 import { useState } from 'react';
 import { CartItem as CartItemType, CartQuote, ManualDiscount, POSCart, POSCustomer, POSTax } from '../types';
 import CartItem from './CartItem';
-import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Percent, X, Loader2, Sparkles, Gift, AlertCircle, Lock } from 'lucide-react';
+import ManualItemModal, { type ManualItemInput } from './ManualItemModal';
+import { ShoppingCart, Trash2, Archive, ChevronDown, Check, Receipt, Percent, X, Loader2, Sparkles, Gift, AlertCircle, Lock, PenLine } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 import type { QuoteError } from '../hooks/useCartQuote';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -43,6 +44,10 @@ interface CartPanelProps {
   blockedReason?: string | null;
   /** Why "Hold Order" is off (e.g. needs internet). */
   holdDisabledReason?: string | null;
+  /** Add a manual item (typed name + price, not in the catalog). */
+  onAddManualItem?: (input: ManualItemInput) => void;
+  /** Price edit of a manual item (anyone who sells may change it). */
+  onUpdateManualPrice?: (itemId: string, newPrice: number) => void;
 }
 
 export default function CartPanel({
@@ -71,6 +76,8 @@ export default function CartPanel({
   paying = false,
   blockedReason = null,
   holdDisabledReason = null,
+  onAddManualItem,
+  onUpdateManualPrice,
 }: CartPanelProps) {
   const busy = holding || paying;
   const symbol = getCurrencySymbol(currency);
@@ -78,6 +85,7 @@ export default function CartPanel({
   const isEmpty = cart.items.length === 0;
   const [showTaxDropdown, setShowTaxDropdown] = useState(false);
   const [showDiscountInput, setShowDiscountInput] = useState(false);
+  const [showManualItem, setShowManualItem] = useState(false);
   const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [discountValue, setDiscountValue] = useState('');
   const [discountReason, setDiscountReason] = useState('');
@@ -148,7 +156,22 @@ export default function CartPanel({
           <div className="text-sm font-medium text-gray-900">{customer ? `${customer.firstName} ${customer.lastName}` : 'Walk-in Customer (Guest)'}</div>
           {customer?.phone && <div className="text-xs text-gray-500 mt-0.5">{customer.phone}</div>}
         </button>
+        {onAddManualItem && (
+          <button
+            type="button"
+            onClick={() => setShowManualItem(true)}
+            disabled={busy}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-700 hover:border-honey-500 hover:bg-honey-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Sell something that is not in the product list (type its name and price)"
+          >
+            <PenLine className="h-4 w-4" /> Add manual item
+          </button>
+        )}
       </div>
+
+      {onAddManualItem && (
+        <ManualItemModal isOpen={showManualItem} onClose={() => setShowManualItem(false)} onAdd={onAddManualItem} currency={symbol} />
+      )}
 
       {/* Cart Items */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-2">
@@ -167,10 +190,16 @@ export default function CartPanel({
                 line={lineFor(index)}
                 onUpdateQuantity={onUpdateQuantity}
                 onRemove={onRemoveItem}
-                onUpdateUnitPrice={item.isGift ? undefined : onUpdateUnitPrice}
-                canGoBelowList={canGoBelowList}
-                onToggleGift={onToggleGift}
-                onShowInsight={onShowInsight}
+                onUpdateUnitPrice={
+                  item.isManual
+                    ? onUpdateManualPrice && ((id, price) => onUpdateManualPrice(id, price))
+                    : item.isGift
+                    ? undefined
+                    : onUpdateUnitPrice
+                }
+                canGoBelowList={item.isManual || canGoBelowList}
+                onToggleGift={item.isManual ? undefined : onToggleGift}
+                onShowInsight={item.isManual ? undefined : onShowInsight}
                 currency={currency}
                 disabled={busy}
               />

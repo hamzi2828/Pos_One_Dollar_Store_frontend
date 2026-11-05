@@ -139,6 +139,8 @@ export interface OfflineLineInput {
   isGift?: boolean;
   giftReason?: string;
   available?: number;
+  /** Manual item (typed name + price): never a gift, no stock. */
+  isManual?: boolean;
 }
 
 export interface OfflinePermissions {
@@ -193,6 +195,7 @@ export function computeOfflineBill(input: OfflineBillInput): CartQuote {
         priceOverride = true;
       }
     }
+    if (l.isManual && l.isGift) throw new OfflinePricingError(`${name} is a manual item and cannot be a gift`, 'MANUAL_GIFT_NOT_ALLOWED');
     const isGift = !!l.isGift;
     let giftReason: string | undefined;
     if (isGift) {
@@ -213,7 +216,8 @@ export function computeOfflineBill(input: OfflineBillInput): CartQuote {
       lineTotal: round2(price * quantity),
       isGift,
       giftReason,
-      available: l.available,
+      available: l.isManual ? null : l.available,
+      ...(l.isManual ? { isManual: true } : {}),
     };
   });
 

@@ -3,12 +3,13 @@
 import { POSOrder } from '../types';
 import toast from 'react-hot-toast';
 import { openCashDrawer } from './cashDrawer';
+import qrcode from 'qrcode-generator';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
 export const orderItemName = (item: POSOrder['items'][number]) =>
-  (typeof item.product === 'object' && item.product?.name) || 'Product';
+  (typeof item.product === 'object' && item.product?.name) || item.name || 'Product';
 
 // Printed on every slip (same as the website's "Visit us" section).
 const SHOP = {
@@ -17,6 +18,20 @@ const SHOP = {
   phone: '0314 7000513',
   email: 'dollarandco1@gmail.com',
 };
+
+// Google review link printed as a QR code at the top and bottom of every slip.
+// Empty = no QR. Get it from Google Business Profile > "Ask for reviews".
+export const GOOGLE_REVIEW_URL = '';
+
+/** QR code as an inline SVG (crisp on the thermal printer). */
+function reviewQr(sizeMm: number): string {
+  if (!GOOGLE_REVIEW_URL) return '';
+  const qr = qrcode(0, 'M');
+  qr.addData(GOOGLE_REVIEW_URL);
+  qr.make();
+  const svg = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  return `<div class="qr" style="width:${sizeMm}mm;height:${sizeMm}mm">${svg}</div>`;
+}
 
 const paymentLabel =(m: string) => (m === 'bank_transfer' ? 'Bank Transfer' : m.charAt(0).toUpperCase() + m.slice(1));
 
@@ -75,11 +90,13 @@ html,body{width:72mm}body{font-family:'Courier New',monospace;font-size:11px;pad
 .muted{font-size:10px;color:#555;padding-left:8px}.grand{font-size:13px;font-weight:bold;border-top:1px solid #000;padding-top:4px;margin-top:4px}
 .footer{text-align:center;margin-top:10px;padding-top:8px}
 .contact{font-size:10px;margin-top:4px;line-height:1.35}.muted-row{font-size:10px;color:#333;margin-top:4px}
+.review{text-align:center;font-size:10px;margin-top:6px}.qr{margin:0 auto 3px}.qr svg{width:100%;height:100%;display:block}
 .support{font-size:10px;margin-top:8px;padding-top:6px;border-top:1px dashed #000;line-height:1.4}
 </style></head><body>
 <div class="header"><div class="store-name">${esc(storeName)}</div>
 <div class="contact">${esc(SHOP.address)}<br>${esc(SHOP.city)}</div>
-<div style="font-size:10px;margin-top:6px">${esc(order.orderNumber)}</div></div>
+<div style="font-size:10px;margin-top:6px">${esc(order.orderNumber)}</div>
+${GOOGLE_REVIEW_URL ? `<div class="review">${reviewQr(22)}<div>Scan to review us on Google</div></div>` : ''}</div>
 <div class="block">
 <div class="row"><span>Date:</span><span>${date} ${time}</span></div>
 ${order.customer ? `<div class="row"><span>Customer:</span><span>${esc(`${order.customer.firstName} ${order.customer.lastName || ''}`)}</span></div>` : order.customerInfo?.name ? `<div class="row"><span>Customer:</span><span>${esc(order.customerInfo.name)}</span></div>` : ''}
@@ -99,6 +116,7 @@ ${pending}
 </div>
 ${offlineNote}
 <div class="footer"><div>Thank you!</div><div>Please come again</div>
+${GOOGLE_REVIEW_URL ? `<div class="review" style="margin-top:8px">${reviewQr(32)}<div style="font-weight:bold">Happy with us? Scan &amp; give a Google review</div></div>` : ''}
 <div class="support"><div style="font-weight:bold">Customer support</div><div>WhatsApp: ${esc(SHOP.phone)}</div><div>${esc(SHOP.email)}</div></div></div>
 </body></html>`;
 }

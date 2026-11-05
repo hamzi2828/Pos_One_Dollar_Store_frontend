@@ -24,6 +24,10 @@ export function priceCartOffline(
   const limits = snap?.limits || {};
   return computeOfflineBill({
     lines: items.map((item) => {
+      // Manual item: sold at the typed price, no stock (the server does the same).
+      if (item.isManual) {
+        return { product: '', name: item.product.name, quantity: item.quantity, unit: { price: item.unitPrice }, isManual: true };
+      }
       const unit = catalogUnit(item.product._id, item.variantId);
       // Not in the catalogue (e.g. added online just now): use the price the cart got from the server.
       const fallbackUnit = item.variant
@@ -123,7 +127,8 @@ export async function saveOfflineSale(input: OfflineSaleInput): Promise<POSOrder
     items: quote.lines.map((l, i) => {
       const item = input.items[i];
       return {
-        product: { _id: l.product || '', name: item?.product.name || l.name },
+        product: item?.isManual ? undefined : { _id: l.product || '', name: item?.product.name || l.name },
+        ...(item?.isManual ? { isManual: true, name: item.product.name } : {}),
         variantId: l.variantId,
         sku: item?.variant?.sku || item?.product.sku || '',
         quantity: l.quantity,

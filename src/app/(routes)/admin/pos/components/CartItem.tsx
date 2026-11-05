@@ -100,7 +100,9 @@ export default function CartItem({
       <div className="flex items-start gap-3">
         {/* Product Image */}
         <div className="w-12 h-12 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
-          {thumbnail ? (
+          {item.isManual ? (
+            <div className="w-full h-full flex items-center justify-center bg-honey-100 text-honey-900 text-[10px] font-semibold">Manual</div>
+          ) : thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thumbnail} alt={item.product.name} className="w-full h-full object-cover" />
           ) : (
