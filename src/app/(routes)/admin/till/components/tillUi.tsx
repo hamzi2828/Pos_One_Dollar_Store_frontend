@@ -4,7 +4,7 @@
 // status badge, variance colours and the session detail (expected vs counted,
 // bills, verify / dispute). Only rendered for `till_verify` users.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, Clock, Receipt } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
@@ -41,6 +41,40 @@ export interface TillDetail extends TillSession {
   nonCash: { card: number; bank_transfer: number };
   liveExpected: TillExpected | null;
   verifiedBy?: { firstName?: string; lastName?: string } | string | null;
+  discounts?: { _id: string; orderNumber: string; createdAt: string; subtotal: number; discount: number; total: number; reason: string }[];
+  expenses?: { _id: string; title: string; amount: number; paymentMethod: string; createdAt: string; shopUse: boolean }[];
+}
+
+/** Modal, or a plain full page (opened in its own tab from the cash closing report). */
+function PageShell({
+  title,
+  subtitle,
+  icon,
+  footer,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: ReactNode;
+  footer?: ReactNode;
+  children: ReactNode;
+  onClose?: () => void;
+  busy?: boolean;
+  wide?: boolean | 'xl';
+}) {
+  return (
+    <div className="mx-auto max-w-7xl space-y-4 p-3 sm:p-6">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-honey-100 text-honey-800">{icon}</span>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+          {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">{children}</div>
+      {footer && <div className="flex flex-wrap justify-end gap-2">{footer}</div>}
+    </div>
+  );
 }
 
 const STATUS_STYLE: Record<TillSessionStatus, { label: string; cls: string }> = {
@@ -101,7 +135,7 @@ function CountTable({ count }: { count: CashCount | null }) {
 }
 
 /** Session detail for verifiers: expected vs counted, bills, verify / dispute. */
-export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged?: () => void }) {
+export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: { id: string; onClose: () => void; onChanged?: () => void; asPage?: boolean }) {
   const { can, access } = useAccess();
   const canEdit = can('till_verify', 'edit');
   const [data, setData] = useState<TillDetail | null>(null);
@@ -157,10 +191,11 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
   const isOpen = data?.status === 'open';
   const own = !!data && !!access?.user?.id && String(data.cashier) === String(access.user.id) && !access.isSuperAdmin;
   const canReview = canEdit && !!data && (data.status === 'closed' || data.status === 'disputed') && !own;
+  const Shell = asPage ? PageShell : Modal;
 
   return (
     <>
-      <Modal
+      <Shell
         title={data ? `${data.sessionNo}` : 'Till session'}
         subtitle={data ? `${data.counterName || 'No counter'} · ${data.cashierName}` : undefined}
         icon={<Receipt className="h-5 w-5" />}
@@ -328,6 +363,89 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
               </div>
             )}
 
+            {/* Discounts and expenses */}
+            {(() => {
+              const disc = data.discounts || [];
+              const exp = data.expenses || [];
+              const discTotal = disc.reduce((t, d) => t + d.discount, 0);
+              const money = exp.filter((x) => !x.shopUse);
+              const cashExp = money.filter((x) => /cash/i.test(x.paymentMethod));
+              const otherExp = money.filter((x) => !/cash/i.test(x.paymentMethod));
+              const shopUse = exp.filter((x) => x.shopUse);
+              const sumOf = (l: typeof exp) => l.reduce((t, x) => t + x.amount, 0);
+              return (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <div className="mb-2 flex items-baseline justify-between">
+                      <p className="text-xs font-semibold uppercase text-gray-500">
+                        Discounts given ({disc.length} {disc.length === 1 ? 'bill' : 'bills'})
+                      </p>
+                      <p className="text-lg font-bold tabular-nums text-rose-700">{formatRs(discTotal)}</p>
+                    </div>
+                    {disc.length === 0 ? (
+                      <p className="text-sm text-gray-500">No discounts.</p>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <thead className="text-gray-500">
+                          <tr>
+                            <th className="py-1 text-left font-medium">Bill</th>
+                            <th className="py-1 text-right font-medium">Price</th>
+                            <th className="py-1 text-right font-medium">Discount</th>
+                            <th className="py-1 text-right font-medium">Paid</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {disc.map((d) => (
+                            <tr key={d._id}>
+                              <td className="py-1.5 pr-2">
+                                <span className="font-medium text-gray-800">{d.orderNumber}</span>
+                                <span className="block text-[10px] text-gray-500">
+                                  {formatTime(d.createdAt)}
+                                  {d.reason ? ` · ${d.reason}` : ''}
+                                </span>
+                              </td>
+                              <td className="py-1.5 text-right tabular-nums text-gray-600">{formatRs(d.subtotal)}</td>
+                              <td className="py-1.5 text-right tabular-nums font-semibold text-rose-700">−{formatRs(d.discount)}</td>
+                              <td className="py-1.5 text-right tabular-nums">{formatRs(d.total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <div className="mb-2 flex items-baseline justify-between">
+                      <p className="text-xs font-semibold uppercase text-gray-500">Expenses while open ({exp.length})</p>
+                      <p className="text-lg font-bold tabular-nums text-gray-900">{formatRs(sumOf(money))}</p>
+                    </div>
+                    {exp.length === 0 ? (
+                      <p className="text-sm text-gray-500">No expenses.</p>
+                    ) : (
+                      <>
+                        <ul className="divide-y divide-gray-100 text-xs">
+                          {exp.map((x) => (
+                            <li key={x._id} className="flex items-start justify-between gap-2 py-1.5">
+                              <span>
+                                <span className="font-medium text-gray-800">{x.title}</span>
+                                <span className="block text-[10px] text-gray-500">
+                                  {formatTime(x.createdAt)} · {x.shopUse ? 'shop use (own stock, no money)' : x.paymentMethod || '—'}
+                                </span>
+                              </span>
+                              <span className={`tabular-nums font-semibold ${x.shopUse ? 'text-gray-400' : 'text-gray-900'}`}>{formatRs(x.amount)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="mt-2 text-[11px] text-gray-500">
+                          Cash {formatRs(sumOf(cashExp))} · other {formatRs(sumOf(otherExp))}
+                          {shopUse.length ? ` · shop use ${formatRs(sumOf(shopUse))} (not money)` : ''}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Bills */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Bills in this till ({data.bills.length})</p>
@@ -414,7 +532,7 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
             <ErrorBox message={actionError} />
           </div>
         ) : null}
-      </Modal>
+      </Shell>
 
       {closing && data && (
         <CloseTillModal

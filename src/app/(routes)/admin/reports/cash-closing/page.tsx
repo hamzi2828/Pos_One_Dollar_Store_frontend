@@ -284,7 +284,7 @@ export default function CashClosingReportPage() {
                 {rows.map((r) => (
                   <tr
                     key={r._id}
-                    onClick={canOpenDetail ? () => setDetailId(r._id) : undefined}
+                    onClick={canOpenDetail ? () => window.open(`/admin/till/${r._id}`, '_blank', 'noopener') : undefined}
                     className={canOpenDetail ? 'cursor-pointer hover:bg-gray-50' : ''}
                   >
                     <td className="px-4 py-2 whitespace-nowrap">
