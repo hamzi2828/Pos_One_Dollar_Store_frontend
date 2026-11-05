@@ -245,7 +245,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
               const floatAmt = data.openingFloat?.total ?? e?.float ?? 0;
               const drawer = data.drawerCount ?? (data.dayCash ? null : data.closingCount);
               const drawerDiff = drawer ? Math.round((drawer.total - floatAmt) * 100) / 100 : null;
-              const sysCash = e ? Math.round((e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) * 100) / 100 : null;
+              const sysCash = e ? Math.round((e.cashSales + e.cashReceivedOnCredit - e.cashRefunds - (e.expenses || 0)) * 100) / 100 : null;
               const sysCard = data.nonCash?.card ?? e?.card ?? 0;
               const sysBank = data.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0;
               const rows: { label: string; entered: number | null; system: number | null }[] = [
@@ -332,9 +332,12 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                         </p>
                       ) : null;
                     })()}
-                    {e && (e.cashReceivedOnCredit > 0 || e.cashRefunds > 0) && (
+                    {e && (e.cashReceivedOnCredit > 0 || e.cashRefunds > 0 || (e.expenses || 0) > 0) && (
                       <p className="mt-1 text-[11px] text-gray-500">
-                        System cash = sales {formatRs(e.cashSales)} + credit received {formatRs(e.cashReceivedOnCredit)} − refunds {formatRs(e.cashRefunds)}
+                        Cash should be = cash sales {formatRs(e.cashSales)}
+                        {e.cashReceivedOnCredit > 0 ? ` + credit received ${formatRs(e.cashReceivedOnCredit)}` : ''}
+                        {e.cashRefunds > 0 ? ` − refunds ${formatRs(e.cashRefunds)}` : ''}
+                        {(e.expenses || 0) > 0 ? ` − expenses of the day ${formatRs(e.expenses || 0)}` : ''}
                       </p>
                     )}
                     {!isOpen && sum('system') === 0 && !anyEntered && (
@@ -415,7 +418,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                   </div>
                   <div className="rounded-lg border border-gray-200 p-3">
                     <div className="mb-2 flex items-baseline justify-between">
-                      <p className="text-xs font-semibold uppercase text-gray-500">Expenses while open ({exp.length})</p>
+                      <p className="text-xs font-semibold uppercase text-gray-500">Expenses of the day ({exp.length}) · taken off the cash</p>
                       <p className="text-lg font-bold tabular-nums text-gray-900">{formatRs(sumOf(money))}</p>
                     </div>
                     {exp.length === 0 ? (

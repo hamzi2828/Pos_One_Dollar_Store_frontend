@@ -41,6 +41,8 @@ export interface TillExpected {
   cashSales: number;
   cashReceivedOnCredit: number;
   cashRefunds: number;
+  /** Expenses dated the till's day, taken off the expected cash. */
+  expenses?: number;
   expectedCash: number;
   billCount: number;
   card?: number;
