@@ -166,7 +166,7 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
         icon={<Receipt className="h-5 w-5" />}
         onClose={onClose}
         busy={!!busy}
-        wide
+        wide="xl"
         footer={
           canReview ? (
             <>
