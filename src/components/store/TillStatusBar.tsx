@@ -43,6 +43,8 @@ export interface TillExpected {
   cashRefunds: number;
   expectedCash: number;
   billCount: number;
+  card?: number;
+  bankTransfer?: number;
 }
 
 export interface TillSession {
@@ -62,6 +64,8 @@ export interface TillSession {
   drawerCount?: CashCount | null;
   dayCash?: CashCount | null;
   dayCashAt?: string | null;
+  cardTotal?: number | null;
+  bankTransferTotal?: number | null;
   closeNote?: string;
   lateClose?: boolean;
   verifiedAt?: string | null;
@@ -104,9 +108,15 @@ export const tillApi = {
   my: () => storeApi.get<MyTill>('/till-sessions/my'),
   open: (body: { counterId?: string; denominations: Record<string, number>; note?: string }) =>
     storeApi.post<TillSession>('/till-sessions/open', body),
-  close: (id: string, body: { denominations: Record<string, number>; note?: string; dayCashTotal?: number }) =>
+  close: (
+    id: string,
+    body: { denominations: Record<string, number>; note?: string; dayCashTotal?: number; cardTotal?: number; bankTransferTotal?: number },
+  ) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/close`, body),
-  dayCash: (id: string, body: { denominations?: Record<string, number>; amount?: number; note?: string }) =>
+  dayCash: (
+    id: string,
+    body: { denominations?: Record<string, number>; amount?: number; cardTotal?: number; bankTransferTotal?: number; note?: string },
+  ) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/day-cash`, body),
 };
 
@@ -342,6 +352,8 @@ export function CloseTillModal({
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
   const [dayCash, setDayCash] = useState('');
+  const [card, setCard] = useState('');
+  const [bank, setBank] = useState('');
   const tillCash = countTotal(counts);
   const day = Math.max(0, Number(dayCash) || 0);
   const total = tillCash + day;
@@ -349,12 +361,25 @@ export function CloseTillModal({
 
   const submit = async () => {
     if (lockRef.current) return;
-    if (!window.confirm(`Till cash ${formatRs(tillCash)} + day's cash ${formatRs(day)} = ${formatRs(total)}.\n\nClose the till? You cannot change the till cash after closing.`)) return;
+    const cardN = Math.max(0, Number(card) || 0);
+    const bankN = Math.max(0, Number(bank) || 0);
+    if (
+      !window.confirm(
+        `Cash: till ${formatRs(tillCash)} + day ${formatRs(day)} = ${formatRs(total)}\nPOS machine: ${formatRs(cardN)}\nBank transfer: ${formatRs(bankN)}\n\nClose the till? You cannot change the till cash after closing.`,
+      )
+    )
+      return;
     lockRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      const res = await tillApi.close(session._id, { denominations: cleanCounts(counts), dayCashTotal: day || undefined, note: note.trim() || undefined });
+      const res = await tillApi.close(session._id, {
+        denominations: cleanCounts(counts),
+        dayCashTotal: day || undefined,
+        cardTotal: card === '' ? undefined : cardN,
+        bankTransferTotal: bank === '' ? undefined : bankN,
+        note: note.trim() || undefined,
+      });
       toast.success('Till closed. The admin will verify the cash.');
       onClosed(res.data);
     } catch (e) {
@@ -404,6 +429,18 @@ export function CloseTillModal({
             <strong className="tabular-nums text-gray-900">= {formatRs(total)}</strong>
           </div>
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
+            <p className="mb-1 text-sm font-semibold text-gray-900">3. POS machine (card)</p>
+            <p className="mb-2 text-xs text-gray-600">Total on the card machine&apos;s day slip.</p>
+            <MoneyInput value={card} onValue={setCard} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+          </div>
+          <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+            <p className="mb-1 text-sm font-semibold text-gray-900">4. Bank transfer</p>
+            <p className="mb-2 text-xs text-gray-600">Total received by bank transfer today.</p>
+            <MoneyInput value={bank} onValue={setBank} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+          </div>
+        </div>
         <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. Rs 500 paid to the delivery boy" />
         </Field>
@@ -433,22 +470,29 @@ export function DayCashModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
+  const [card, setCard] = useState(session.cardTotal != null ? String(session.cardTotal) : '');
+  const [bank, setBank] = useState(session.bankTransferTotal != null ? String(session.bankTransferTotal) : '');
   const total = Math.max(0, Number(amount) || 0);
   void denominations;
   const drawer = session.drawerCount?.total ?? session.closingCount?.total ?? 0;
 
   const submit = async () => {
     if (lockRef.current) return;
-    if (total <= 0) {
-      setError("Write the total cash of the day.");
+    if (total <= 0 && card === '' && bank === '') {
+      setError('Write the total cash of the day.');
       return;
     }
-    if (!window.confirm(`Add ${formatRs(total)} as the day's cash?`)) return;
+    if (!window.confirm(`Day's cash ${formatRs(total)}\nPOS machine ${formatRs(Number(card) || 0)}\nBank transfer ${formatRs(Number(bank) || 0)}\n\nSave?`)) return;
     lockRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      const res = await tillApi.dayCash(session._id, { amount: total, note: note.trim() || undefined });
+      const res = await tillApi.dayCash(session._id, {
+        amount: total || undefined,
+        cardTotal: card === '' ? undefined : Math.max(0, Number(card) || 0),
+        bankTransferTotal: bank === '' ? undefined : Math.max(0, Number(bank) || 0),
+        note: note.trim() || undefined,
+      });
       toast.success("Day's cash added. The admin will verify it.");
       onSaved(res.data);
     } catch (e) {
@@ -472,9 +516,9 @@ export function DayCashModal({
           <button type="button" onClick={onClose} disabled={busy} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={busy || total <= 0} className={primaryBtn}>
+          <button type="button" onClick={submit} disabled={busy || (total <= 0 && card === '' && bank === '')} className={primaryBtn}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-            Add day&apos;s cash · {formatRs(total)}
+            Save · {formatRs(total)}
           </button>
         </>
       }
@@ -491,6 +535,14 @@ export function DayCashModal({
             Till {formatRs(drawer)} + day {formatRs(total)}
           </span>
           <span className="text-lg font-bold tabular-nums">= {formatRs(drawer + total)}</span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="POS machine (card) total">
+            <MoneyInput value={card} onValue={setCard} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+          </Field>
+          <Field label="Bank transfer total">
+            <MoneyInput value={bank} onValue={setBank} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+          </Field>
         </div>
         <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. Given to the owner" />

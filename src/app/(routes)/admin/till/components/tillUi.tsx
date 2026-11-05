@@ -239,6 +239,31 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
                         Drawer {formatRs(data.drawerCount?.total ?? 0)} + day&apos;s cash {formatRs(data.dayCash.total)}
                       </p>
                     )}
+                    {(data.cardTotal != null || data.bankTransferTotal != null || data.expected?.card || data.expected?.bankTransfer) && (
+                      <div className="mt-2 space-y-1 rounded-md bg-gray-50 p-2 text-xs">
+                        {[
+                          ['POS machine', data.cardTotal, data.expected?.card],
+                          ['Bank transfer', data.bankTransferTotal, data.expected?.bankTransfer],
+                        ].map(([label, entered, system]) => {
+                          const e = entered as number | null | undefined;
+                          const sys = (system as number | undefined) ?? null;
+                          const diff = e != null && sys != null ? Math.round((e - sys) * 100) / 100 : null;
+                          return (
+                            <p key={label as string} className="flex flex-wrap justify-between gap-x-2">
+                              <span className="text-gray-600">{label as string}</span>
+                              <span className="tabular-nums">
+                                entered {e != null ? formatRs(e) : '—'} · system {sys != null ? formatRs(sys) : '—'}
+                                {diff != null && Math.abs(diff) >= 1 && (
+                                  <strong className={diff < 0 ? 'ml-1 text-red-600' : 'ml-1 text-amber-700'}>
+                                    ({diff < 0 ? 'short' : 'over'} {formatRs(Math.abs(diff))})
+                                  </strong>
+                                )}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    )}
                     <div className="mt-2">
                       <CountTable count={data.closingCount} />
                     </div>
