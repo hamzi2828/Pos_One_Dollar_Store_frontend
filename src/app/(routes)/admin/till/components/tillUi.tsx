@@ -234,6 +234,11 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
                   <>
                     <p className="text-2xl font-bold text-gray-900 tabular-nums">{formatRs(data.closingCount.total)}</p>
                     <p className={`text-sm font-semibold mt-0.5 ${varianceClass(data.variance)}`}>{varianceLabel(data.variance)}</p>
+                    {data.dayCash && (
+                      <p className="mt-1 text-xs text-gray-600">
+                        Drawer {formatRs(data.drawerCount?.total ?? 0)} + day&apos;s cash {formatRs(data.dayCash.total)}
+                      </p>
+                    )}
                     <div className="mt-2">
                       <CountTable count={data.closingCount} />
                     </div>

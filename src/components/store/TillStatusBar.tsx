@@ -58,6 +58,9 @@ export interface TillSession {
   lateOpen?: boolean;
   closedAt?: string | null;
   closingCount: CashCount | null;
+  drawerCount?: CashCount | null;
+  dayCash?: CashCount | null;
+  dayCashAt?: string | null;
   closeNote?: string;
   lateClose?: boolean;
   verifiedAt?: string | null;
@@ -88,6 +91,8 @@ export interface MyTill {
   open: boolean;
   openElsewhere: boolean;
   session: TillSession | null;
+  /** Last closed (not verified) till of this cashier: the day's cash can still be added. */
+  lastClosed?: TillSession | null;
   denominations: number[];
   counters: TillCounterOption[];
   canOpen: boolean;
@@ -100,6 +105,8 @@ export const tillApi = {
     storeApi.post<TillSession>('/till-sessions/open', body),
   close: (id: string, body: { denominations: Record<string, number>; note?: string }) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/close`, body),
+  dayCash: (id: string, body: { denominations: Record<string, number>; note?: string }) =>
+    storeApi.post<TillSession>(`/till-sessions/${id}/day-cash`, body),
 };
 
 export const DEFAULT_DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
@@ -390,6 +397,88 @@ export function CloseTillModal({
 }
 
 /* ------------------------------------------------------------------ */
+/* Day's cash (after closing): the sales cash taken out of the drawer  */
+/* ------------------------------------------------------------------ */
+
+export function DayCashModal({
+  session,
+  denominations,
+  onClose,
+  onSaved,
+}: {
+  session: TillSession;
+  denominations?: number[];
+  onClose: () => void;
+  onSaved: (session: TillSession) => void;
+}) {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lockRef = useRef(false);
+  const total = countTotal(counts);
+  const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
+  const drawer = session.drawerCount?.total ?? session.closingCount?.total ?? 0;
+
+  const submit = async () => {
+    if (lockRef.current) return;
+    if (total <= 0) {
+      setError("Enter the day's cash note by note.");
+      return;
+    }
+    if (!window.confirm(`Add ${formatRs(total)} as the day's cash?`)) return;
+    lockRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await tillApi.dayCash(session._id, { denominations: cleanCounts(counts), note: note.trim() || undefined });
+      toast.success("Day's cash added. The admin will verify it.");
+      onSaved(res.data);
+    } catch (e) {
+      setError(apiErrorMessage(e, "Could not add the day's cash."));
+    } finally {
+      lockRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Day's cash"
+      subtitle={`${session.sessionNo}${session.counterName ? ` · ${session.counterName}` : ''} · closed ${formatTime(session.closedAt)}`}
+      icon={<Banknote className="h-5 w-5" />}
+      onClose={onClose}
+      busy={busy}
+      wide
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={busy} className={secondaryBtn}>
+            Cancel
+          </button>
+          <button type="button" onClick={submit} disabled={busy || total <= 0} className={primaryBtn}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+            Add day&apos;s cash · {formatRs(total)}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <HelpBox>
+          Count the <strong>sales cash of the day</strong> that you took out of the drawer (handed over), note by note. It is added to
+          the {formatRs(drawer)} you counted in the drawer when closing.
+          {session.dayCash ? ` You already added ${formatRs(session.dayCash.total)}; this will replace it.` : ''}
+        </HelpBox>
+        <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={busy} />
+        <Field label="Note (optional)">
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. Given to the owner" />
+        </Field>
+        <ErrorBox message={error} />
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* POS strip                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -399,7 +488,7 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
   const [data, setData] = useState<MyTill | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<'open' | 'close' | null>(null);
+  const [modal, setModal] = useState<'open' | 'close' | 'daycash' | null>(null);
   const callbackRef = useRef(onStatusChange);
   const lastLoadRef = useRef(0);
 
@@ -516,8 +605,19 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
                 ? 'Till closed — open your till to start selling.'
                 : 'No till open.'}
           </span>
+          {data.lastClosed && data.canClose && !data.openElsewhere && (
+            <button
+              type="button"
+              onClick={() => setModal('daycash')}
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-800 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex-shrink-0"
+              title={`${data.lastClosed.sessionNo}: add the sales cash of the day`}
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              {data.lastClosed.dayCash ? `Day's cash ${formatRs(data.lastClosed.dayCash.total)} · change` : "Add day's cash"}
+            </button>
+          )}
           {data.canOpen && !data.openElsewhere ? (
-            <button type="button" onClick={() => setModal('open')} className={`${primaryBtn} ml-auto !px-3 !py-1 !text-xs flex-shrink-0`}>
+            <button type="button" onClick={() => setModal('open')} className={`${primaryBtn} ${data.lastClosed && data.canClose ? '' : 'ml-auto'} !px-3 !py-1 !text-xs flex-shrink-0`}>
               <LockOpen className="h-3.5 w-3.5" /> Open till
             </button>
           ) : (
@@ -542,6 +642,18 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
           denominations={data.denominations}
           onClose={() => setModal(null)}
           onClosed={() => {
+            // Next: the day's cash taken out of the drawer.
+            setModal('daycash');
+            load();
+          }}
+        />
+      )}
+      {modal === 'daycash' && data.lastClosed && (
+        <DayCashModal
+          session={data.lastClosed}
+          denominations={data.denominations}
+          onClose={() => setModal(null)}
+          onSaved={() => {
             setModal(null);
             load();
           }}
