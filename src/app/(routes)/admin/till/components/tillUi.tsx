@@ -250,34 +250,53 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
                   {/* Sales */}
                   <div className="rounded-lg border border-gray-200 p-3 lg:col-span-3">
                     <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{isOpen ? 'Sales so far' : 'Sales of the day'}</p>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="text-[11px] uppercase text-gray-500">
-                          <tr>
-                            <th className="py-1 text-left font-medium"></th>
-                            <th className="py-1 text-right font-medium">Cashier</th>
-                            <th className="py-1 text-right font-medium">System</th>
-                            <th className="py-1 text-right font-medium">Difference</th>
+                    {/* One clear answer first */}
+                    {anyEntered && (() => {
+                      const d = Math.round((sum('entered') - sum('system')) * 100) / 100;
+                      const ok = Math.abs(d) < 1;
+                      return (
+                        <div className={`mb-3 rounded-lg px-3 py-2.5 ${ok ? 'bg-green-50 ring-1 ring-green-200' : d < 0 ? 'bg-red-50 ring-1 ring-red-200' : 'bg-amber-50 ring-1 ring-amber-200'}`}>
+                          <p className={`text-xl font-bold tabular-nums ${ok ? 'text-green-700' : d < 0 ? 'text-red-700' : 'text-amber-800'}`}>
+                            {ok ? 'All sales match' : `${d < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(d))}`}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            Cashier gave {formatRs(sum('entered'))} · sales were {formatRs(sum('system'))}
+                          </p>
+                        </div>
+                      );
+                    })()}
+                    <table className="w-full text-sm">
+                      <thead className="text-[11px] text-gray-500">
+                        <tr>
+                          <th className="py-1 text-left font-medium"></th>
+                          <th className="py-1 text-right font-medium">Cashier gave</th>
+                          <th className="py-1 text-right font-medium">Sales were</th>
+                          <th className="py-1 text-right font-medium"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {rows.map((r) => (
+                          <tr key={r.label}>
+                            <td className="py-1.5 pr-2 text-gray-700">{r.label}</td>
+                            <td className="py-1.5 text-right tabular-nums">{r.entered != null ? formatRs(r.entered) : '—'}</td>
+                            <td className="py-1.5 text-right tabular-nums text-gray-600">{r.system != null ? formatRs(r.system) : '—'}</td>
+                            <td className="py-1.5 pl-2 text-right text-xs tabular-nums">{diffCell(r.entered, r.system)}</td>
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {rows.map((r) => (
-                            <tr key={r.label}>
-                              <td className="py-1.5 pr-2 text-gray-700">{r.label}</td>
-                              <td className="py-1.5 text-right tabular-nums">{r.entered != null ? formatRs(r.entered) : '—'}</td>
-                              <td className="py-1.5 text-right tabular-nums text-gray-600">{r.system != null ? formatRs(r.system) : '—'}</td>
-                              <td className="py-1.5 text-right tabular-nums">{diffCell(r.entered, r.system)}</td>
-                            </tr>
-                          ))}
-                          <tr className="border-t-2 border-gray-200 font-semibold">
-                            <td className="py-1.5 pr-2">Total sales</td>
-                            <td className="py-1.5 text-right tabular-nums">{anyEntered ? formatRs(sum('entered')) : '—'}</td>
-                            <td className="py-1.5 text-right tabular-nums">{formatRs(sum('system'))}</td>
-                            <td className="py-1.5 text-right tabular-nums">{anyEntered ? diffCell(sum('entered'), sum('system')) : <span className="text-gray-400">—</span>}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                        ))}
+                      </tbody>
+                    </table>
+                    {(() => {
+                      // Cash short and card/bank over by about the same: payments saved under the wrong method.
+                      const cashD = rows[0].entered != null && rows[0].system != null ? rows[0].entered - rows[0].system : 0;
+                      const otherD = rows.slice(1).reduce((t, r) => t + (r.entered != null && r.system != null ? r.entered - r.system : 0), 0);
+                      const mixed = Math.abs(cashD) >= 100 && Math.abs(otherD) >= 100 && Math.sign(cashD) !== Math.sign(otherD) && Math.abs(cashD + otherD) < 0.5 * Math.max(Math.abs(cashD), Math.abs(otherD));
+                      return mixed ? (
+                        <p className="mt-2 rounded-md bg-sky-50 px-2 py-1.5 text-xs text-sky-800">
+                          Cash is {cashD < 0 ? 'short' : 'over'} and card / bank is {otherD > 0 ? 'over' : 'short'} by about the same. Some bills were probably saved with the wrong payment
+                          type (e.g. card sale saved as cash).
+                        </p>
+                      ) : null;
+                    })()}
                     {e && (e.cashReceivedOnCredit > 0 || e.cashRefunds > 0) && (
                       <p className="mt-1 text-[11px] text-gray-500">
                         System cash = sales {formatRs(e.cashSales)} + credit received {formatRs(e.cashReceivedOnCredit)} − refunds {formatRs(e.cashRefunds)}
@@ -288,9 +307,6 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
                     )}
                     {!isOpen && data.closingCount && !data.dayCash && sum('system') > 0 && (
                       <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The cashier has not entered the day&apos;s cash yet.</p>
-                    )}
-                    {!isOpen && data.variance != null && (
-                      <p className={`mt-2 text-sm font-semibold ${varianceClass(data.variance)}`}>Cash result (till + cash): {varianceLabel(data.variance)}</p>
                     )}
                   </div>
                 </div>
