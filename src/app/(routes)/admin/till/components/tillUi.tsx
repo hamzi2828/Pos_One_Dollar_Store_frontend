@@ -283,7 +283,10 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
                         System cash = sales {formatRs(e.cashSales)} + credit received {formatRs(e.cashReceivedOnCredit)} − refunds {formatRs(e.cashRefunds)}
                       </p>
                     )}
-                    {!isOpen && data.closingCount && !data.dayCash && (
+                    {!isOpen && sum('system') === 0 && !anyEntered && (
+                      <p className="mt-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs text-gray-600">No sales on this till.</p>
+                    )}
+                    {!isOpen && data.closingCount && !data.dayCash && sum('system') > 0 && (
                       <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The cashier has not entered the day&apos;s cash yet.</p>
                     )}
                     {!isOpen && data.variance != null && (
