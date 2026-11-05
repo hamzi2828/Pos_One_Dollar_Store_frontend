@@ -114,7 +114,10 @@ export function summaryParts(p: PolicyRules): string[] {
   else parts.push('lates only noted (no cut)');
   const divisor = pay.dayDivisor === 'month_days' ? 'days in the month' : pay.dayDivisor === 'working_days' ? 'working days' : String(pay.fixedDays || 30);
   parts.push(Number(pay.absentCutDays) > 0 ? `absent cuts ${days(pay.absentCutDays)} (salary ÷ ${divisor})` : `absent not cut (day = salary ÷ ${divisor})`);
-  if (ot.enabled) parts.push(`overtime ×${Number(ot.rate) || 0}${ot.needsApproval ? ' after approval' : ''}${Number(ot.minMinutes) ? ` (min ${ot.minMinutes} min)` : ''}`);
+  if (ot.enabled)
+    parts.push(
+      `overtime per hour = salary ÷ ${divisor} ÷ ${Number(pay.hoursPerDay) > 0 ? `${pay.hoursPerDay} h` : 'shift hours'} × ${Number(ot.rate) || 0}${ot.needsApproval ? ', after approval' : ''}${Number(ot.minMinutes) ? ` (min ${ot.minMinutes} min)` : ''}`
+    );
   else parts.push('no overtime pay');
   const paid = Number(lv.paidPerMonth) || 0;
   const sick = Number(lv.sickPerMonth) || 0;
