@@ -70,6 +70,28 @@ export default function FundsPanel() {
   };
 
   const t = d?.totals;
+  // Day by day (Pakistan time): start, in, out and the ending balance of each day.
+  const days = (() => {
+    if (!d?.baseline) return [];
+    const key = (at: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(at));
+    const rows: { day: string; start: number; inn: number; out: number; end: number }[] = [];
+    let bal = d.baseline.amount;
+    for (const m of [...d.movements].reverse()) {
+      const k = key(m.at);
+      let r = rows[rows.length - 1];
+      if (!r || r.day !== k) {
+        r = { day: k, start: bal, inn: 0, out: 0, end: bal };
+        rows.push(r);
+      }
+      if (m.amount >= 0) r.inn += m.amount;
+      else r.out -= m.amount;
+      bal = m.balance;
+      r.end = bal;
+    }
+    return rows.reverse();
+  })();
+  const dayLabel = (k: string) =>
+    new Date(`${k}T12:00:00+05:00`).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Karachi' });
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
@@ -117,6 +139,35 @@ export default function FundsPanel() {
             <Box label="− Expenses" value={formatRs(t.expenses)} tone="text-gray-700" />
             <Box label="= Money left now" value={formatRs(d.left || 0)} tone={(d.left || 0) < 0 ? 'text-red-600' : 'text-gray-900'} strong />
           </div>
+          {days.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Day</th>
+                    <th className="px-3 py-2 text-right">Start of day</th>
+                    <th className="px-3 py-2 text-right">+ In</th>
+                    <th className="px-3 py-2 text-right">− Out</th>
+                    <th className="px-3 py-2 text-right">Ending balance</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {days.map((r, i) => (
+                    <tr key={r.day} className={i === 0 ? 'bg-honey-50/40' : ''}>
+                      <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-800">
+                        {dayLabel(r.day)}
+                        {i === 0 && <span className="ml-1.5 text-[10px] font-normal text-gray-500">(so far)</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-gray-600">{formatRs(r.start)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-emerald-700">{r.inn ? `+${formatRs(r.inn)}` : '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-rose-700">{r.out ? `−${formatRs(r.out)}` : '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap font-bold text-gray-900">{formatRs(r.end)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           {d.movements.length === 0 ? (
             <p className="text-xs text-gray-500">Nothing in or out since {formatDate(d.baseline.at, true)}.</p>
           ) : (
