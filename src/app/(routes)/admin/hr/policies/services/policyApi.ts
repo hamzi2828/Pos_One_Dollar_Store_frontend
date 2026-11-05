@@ -26,7 +26,7 @@ export interface PolicyRules {
     paidWeeklyOff: boolean;
     paidHolidays: boolean;
   };
-  overtime: { enabled: boolean; rate: number; minMinutes: number; maxMinutesPerDay: number; needsApproval: boolean };
+  overtime: { enabled: boolean; rate: number; minMinutes: number; maxMinutesPerDay: number; needsApproval: boolean; doubleAfterHours?: number; doubleRate?: number };
   leave: { paidPerMonth: number; sickPerMonth: number };
   tillShortage: { deduct: boolean; needsApproval: boolean; maxPerMonth: number };
 }
@@ -118,7 +118,8 @@ export function summaryParts(p: PolicyRules): string[] {
     parts.push(
       `overtime per hour = salary ÷ ${divisor} ÷ ${Number(pay.hoursPerDay) > 0 ? `${pay.hoursPerDay} h` : 'shift hours'} × ${Number(ot.rate) || 0}${ot.needsApproval ? ', after approval' : ''}${Number(ot.minMinutes) ? ` (min ${ot.minMinutes} min)` : ''}`
     );
-  else parts.push('no overtime pay');
+  if (ot.enabled && Number(ot.doubleAfterHours) > 0) parts.push(`after ${ot.doubleAfterHours} h in a day: overtime × ${Number(ot.doubleRate) || 0}`);
+  if (!ot.enabled) parts.push('no overtime pay');
   const paid = Number(lv.paidPerMonth) || 0;
   const sick = Number(lv.sickPerMonth) || 0;
   parts.push(paid || sick ? `${paid} paid + ${sick} sick leave a month` : 'no paid leave');

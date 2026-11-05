@@ -309,6 +309,8 @@ export default function PolicyEditor({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {num('overtime.rate', 'Rate', { suffix: '× hourly', step: 0.25, hint: '1 = normal hourly rate, 1.5 = time and a half.' })}
                 {num('overtime.minMinutes', 'Ignore less than', { suffix: 'min' })}
+                {num('overtime.doubleAfterHours', 'Higher rate after', { suffix: 'h a day', step: 0.5, hint: 'Hours worked past this in one day get the higher rate. 0 = off.' })}
+                {num('overtime.doubleRate', 'Higher rate', { suffix: '× hourly', step: 0.25, hint: '2 = double.' })}
                 {num('overtime.maxMinutesPerDay', 'Most per day', { suffix: 'min', hint: '0 = no limit.' })}
               </div>
               {tog('overtime.needsApproval', 'A manager approves overtime first', 'Unapproved overtime is not paid.')}
