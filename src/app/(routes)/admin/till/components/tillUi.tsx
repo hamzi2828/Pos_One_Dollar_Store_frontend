@@ -205,75 +205,94 @@ export function SessionDetailModal({ id, onClose, onChanged }: { id: string; onC
               {data.lateClose && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Late close</span>}
             </div>
 
-            {/* Expected vs counted */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-gray-200 p-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">{isOpen ? 'Expected so far' : 'Expected cash'}</p>
-                {e ? (
-                  <dl className="text-sm space-y-1">
-                    <Row label="Opening float" value={formatRs(e.float)} />
-                    <Row label="+ Cash sales" value={formatRs(e.cashSales)} />
-                    <Row label="+ Cash received on credit" value={formatRs(e.cashReceivedOnCredit)} />
-                    <Row label="− Cash refunds" value={formatRs(e.cashRefunds)} />
-                    <div className="border-t border-gray-200 pt-1 mt-1">
-                      <Row label="= Expected in drawer" value={formatRs(e.expectedCash)} strong />
-                    </div>
-                    {(data.nonCash.card > 0 || data.nonCash.bank_transfer > 0) && (
-                      <p className="text-[11px] text-gray-500 pt-1">
-                        Not in the drawer: card {formatRs(data.nonCash.card)}, bank {formatRs(data.nonCash.bank_transfer)}
+            {/* Till (float) and sales, kept apart */}
+            {(() => {
+              const floatAmt = data.openingFloat?.total ?? e?.float ?? 0;
+              const drawer = data.drawerCount ?? (data.dayCash ? null : data.closingCount);
+              const drawerDiff = drawer ? Math.round((drawer.total - floatAmt) * 100) / 100 : null;
+              const sysCash = e ? Math.round((e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) * 100) / 100 : null;
+              const sysCard = data.nonCash?.card ?? e?.card ?? 0;
+              const sysBank = data.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0;
+              const rows: { label: string; entered: number | null; system: number | null }[] = [
+                { label: 'Cash', entered: data.dayCash ? data.dayCash.total : null, system: sysCash },
+                { label: 'POS machine (card)', entered: data.cardTotal ?? null, system: sysCard },
+                { label: 'Bank transfer', entered: data.bankTransferTotal ?? null, system: sysBank },
+              ];
+              const sum = (k: 'entered' | 'system') => rows.reduce((t, r) => t + (r[k] || 0), 0);
+              const anyEntered = rows.some((r) => r.entered != null);
+              const diffCell = (entered: number | null, system: number | null) => {
+                if (entered == null || system == null) return <span className="text-gray-400">—</span>;
+                const d = Math.round((entered - system) * 100) / 100;
+                if (Math.abs(d) < 1) return <span className="font-semibold text-green-600">OK</span>;
+                return <span className={`font-semibold ${d < 0 ? 'text-red-600' : 'text-amber-700'}`}>{d < 0 ? 'Short' : 'Over'} {formatRs(Math.abs(d))}</span>;
+              };
+              return (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+                  {/* Till */}
+                  <div className="rounded-lg border border-gray-200 p-3 lg:col-span-2">
+                    <p className="mb-2 text-xs font-semibold uppercase text-gray-500">Till (change money)</p>
+                    <dl className="space-y-1 text-sm">
+                      <Row label="Opening float" value={formatRs(floatAmt)} />
+                      <Row label="Left in the drawer" value={drawer ? formatRs(drawer.total) : isOpen ? 'Open' : '—'} strong />
+                    </dl>
+                    {drawerDiff != null && (
+                      <p className={`mt-1 text-sm font-semibold ${Math.abs(drawerDiff) < 1 ? 'text-green-600' : drawerDiff < 0 ? 'text-red-600' : 'text-amber-700'}`}>
+                        {Math.abs(drawerDiff) < 1 ? 'Float is complete' : `${drawerDiff < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(drawerDiff))}`}
                       </p>
                     )}
-                  </dl>
-                ) : (
-                  <p className="text-sm text-gray-500">—</p>
-                )}
-              </div>
-              <div className="rounded-lg border border-gray-200 p-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Counted by cashier</p>
-                {data.closingCount ? (
-                  <>
-                    <p className="text-2xl font-bold text-gray-900 tabular-nums">{formatRs(data.closingCount.total)}</p>
-                    <p className={`text-sm font-semibold mt-0.5 ${varianceClass(data.variance)}`}>{varianceLabel(data.variance)}</p>
-                    {data.dayCash && (
-                      <p className="mt-1 text-xs text-gray-600">
-                        Drawer {formatRs(data.drawerCount?.total ?? 0)} + day&apos;s cash {formatRs(data.dayCash.total)}
-                      </p>
-                    )}
-                    {(data.cardTotal != null || data.bankTransferTotal != null || data.expected?.card || data.expected?.bankTransfer) && (
-                      <div className="mt-2 space-y-1 rounded-md bg-gray-50 p-2 text-xs">
-                        {[
-                          ['POS machine', data.cardTotal, data.expected?.card],
-                          ['Bank transfer', data.bankTransferTotal, data.expected?.bankTransfer],
-                        ].map(([label, entered, system]) => {
-                          const e = entered as number | null | undefined;
-                          const sys = (system as number | undefined) ?? null;
-                          const diff = e != null && sys != null ? Math.round((e - sys) * 100) / 100 : null;
-                          return (
-                            <p key={label as string} className="flex flex-wrap justify-between gap-x-2">
-                              <span className="text-gray-600">{label as string}</span>
-                              <span className="tabular-nums">
-                                entered {e != null ? formatRs(e) : '—'} · system {sys != null ? formatRs(sys) : '—'}
-                                {diff != null && Math.abs(diff) >= 1 && (
-                                  <strong className={diff < 0 ? 'ml-1 text-red-600' : 'ml-1 text-amber-700'}>
-                                    ({diff < 0 ? 'short' : 'over'} {formatRs(Math.abs(diff))})
-                                  </strong>
-                                )}
-                              </span>
-                            </p>
-                          );
-                        })}
+                    {drawer && (
+                      <div className="mt-2">
+                        <CountTable count={drawer} />
                       </div>
                     )}
-                    <div className="mt-2">
-                      <CountTable count={data.closingCount} />
+                  </div>
+
+                  {/* Sales */}
+                  <div className="rounded-lg border border-gray-200 p-3 lg:col-span-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{isOpen ? 'Sales so far' : 'Sales of the day'}</p>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="text-[11px] uppercase text-gray-500">
+                          <tr>
+                            <th className="py-1 text-left font-medium"></th>
+                            <th className="py-1 text-right font-medium">Cashier</th>
+                            <th className="py-1 text-right font-medium">System</th>
+                            <th className="py-1 text-right font-medium">Difference</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {rows.map((r) => (
+                            <tr key={r.label}>
+                              <td className="py-1.5 pr-2 text-gray-700">{r.label}</td>
+                              <td className="py-1.5 text-right tabular-nums">{r.entered != null ? formatRs(r.entered) : '—'}</td>
+                              <td className="py-1.5 text-right tabular-nums text-gray-600">{r.system != null ? formatRs(r.system) : '—'}</td>
+                              <td className="py-1.5 text-right tabular-nums">{diffCell(r.entered, r.system)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t-2 border-gray-200 font-semibold">
+                            <td className="py-1.5 pr-2">Total sales</td>
+                            <td className="py-1.5 text-right tabular-nums">{anyEntered ? formatRs(sum('entered')) : '—'}</td>
+                            <td className="py-1.5 text-right tabular-nums">{formatRs(sum('system'))}</td>
+                            <td className="py-1.5 text-right tabular-nums">{anyEntered ? diffCell(sum('entered'), sum('system')) : <span className="text-gray-400">—</span>}</td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-500">Not closed yet.</p>
-                )}
-                <p className="text-[11px] text-gray-500 mt-2">Opening float: {formatRs(data.openingFloat?.total)}</p>
-              </div>
-            </div>
+                    {e && (e.cashReceivedOnCredit > 0 || e.cashRefunds > 0) && (
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        System cash = sales {formatRs(e.cashSales)} + credit received {formatRs(e.cashReceivedOnCredit)} − refunds {formatRs(e.cashRefunds)}
+                      </p>
+                    )}
+                    {!isOpen && data.closingCount && !data.dayCash && (
+                      <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The cashier has not entered the day&apos;s cash yet.</p>
+                    )}
+                    {!isOpen && data.variance != null && (
+                      <p className={`mt-2 text-sm font-semibold ${varianceClass(data.variance)}`}>Cash result (till + cash): {varianceLabel(data.variance)}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {data.liveExpected && !isOpen && (
               <div className="flex items-start gap-2 p-3 text-xs bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
