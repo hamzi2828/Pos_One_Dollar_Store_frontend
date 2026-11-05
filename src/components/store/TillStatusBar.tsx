@@ -20,6 +20,7 @@ import { Banknote, Loader2, Lock, LockOpen, RefreshCw, AlertTriangle, Coins } fr
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, HelpBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import MoneyInput from '@/components/ui/MoneyInput';
 
 export interface TillStatus {
   open: boolean;
@@ -103,9 +104,9 @@ export const tillApi = {
   my: () => storeApi.get<MyTill>('/till-sessions/my'),
   open: (body: { counterId?: string; denominations: Record<string, number>; note?: string }) =>
     storeApi.post<TillSession>('/till-sessions/open', body),
-  close: (id: string, body: { denominations: Record<string, number>; note?: string }) =>
+  close: (id: string, body: { denominations: Record<string, number>; note?: string; dayCashTotal?: number }) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/close`, body),
-  dayCash: (id: string, body: { denominations: Record<string, number>; note?: string }) =>
+  dayCash: (id: string, body: { denominations?: Record<string, number>; amount?: number; note?: string }) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/day-cash`, body),
 };
 
@@ -340,17 +341,20 @@ export function CloseTillModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
-  const total = countTotal(counts);
+  const [dayCash, setDayCash] = useState('');
+  const tillCash = countTotal(counts);
+  const day = Math.max(0, Number(dayCash) || 0);
+  const total = tillCash + day;
   const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
 
   const submit = async () => {
     if (lockRef.current) return;
-    if (!window.confirm(`Submit a cash count of ${formatRs(total)}?\n\nYou cannot change it after closing.`)) return;
+    if (!window.confirm(`Till cash ${formatRs(tillCash)} + day's cash ${formatRs(day)} = ${formatRs(total)}.\n\nClose the till? You cannot change the till cash after closing.`)) return;
     lockRef.current = true;
     setBusy(true);
     setError(null);
     try {
-      const res = await tillApi.close(session._id, { denominations: cleanCounts(counts), note: note.trim() || undefined });
+      const res = await tillApi.close(session._id, { denominations: cleanCounts(counts), dayCashTotal: day || undefined, note: note.trim() || undefined });
       toast.success('Till closed. The admin will verify the cash.');
       onClosed(res.data);
     } catch (e) {
@@ -382,11 +386,24 @@ export function CloseTillModal({
       }
     >
       <div className="space-y-4">
-        <HelpBox>
-          Count <strong>all</strong> the cash in the drawer, including the opening float, and enter it note by note. The
-          admin checks your count against the system.
-        </HelpBox>
-        <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={busy} />
+        <div>
+          <p className="mb-1.5 text-sm font-semibold text-gray-900">1. Till cash</p>
+          <HelpBox>Count the cash left in the drawer (with the float), note by note.</HelpBox>
+          <div className="mt-2">
+            <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={busy} />
+          </div>
+        </div>
+        <div className="rounded-lg border border-honey-300 bg-honey-50/60 p-3">
+          <p className="mb-1 text-sm font-semibold text-gray-900">2. Total cash of the day</p>
+          <p className="mb-2 text-xs text-gray-600">The sales cash you took out of the drawer (handed over). Write the total amount.</p>
+          <MoneyInput value={dayCash} onValue={setDayCash} disabled={busy} className={`${inputClass} text-right text-lg font-semibold tabular-nums`} placeholder="e.g. 738150" />
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-gray-200">
+            <span className="text-gray-600">
+              Till {formatRs(tillCash)} + day {formatRs(day)}
+            </span>
+            <strong className="tabular-nums text-gray-900">= {formatRs(total)}</strong>
+          </div>
+        </div>
         <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. Rs 500 paid to the delivery boy" />
         </Field>
@@ -411,19 +428,19 @@ export function DayCashModal({
   onClose: () => void;
   onSaved: (session: TillSession) => void;
 }) {
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [amount, setAmount] = useState(session.dayCash ? String(session.dayCash.total) : '');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
-  const total = countTotal(counts);
-  const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
+  const total = Math.max(0, Number(amount) || 0);
+  void denominations;
   const drawer = session.drawerCount?.total ?? session.closingCount?.total ?? 0;
 
   const submit = async () => {
     if (lockRef.current) return;
     if (total <= 0) {
-      setError("Enter the day's cash note by note.");
+      setError("Write the total cash of the day.");
       return;
     }
     if (!window.confirm(`Add ${formatRs(total)} as the day's cash?`)) return;
@@ -431,7 +448,7 @@ export function DayCashModal({
     setBusy(true);
     setError(null);
     try {
-      const res = await tillApi.dayCash(session._id, { denominations: cleanCounts(counts), note: note.trim() || undefined });
+      const res = await tillApi.dayCash(session._id, { amount: total, note: note.trim() || undefined });
       toast.success("Day's cash added. The admin will verify it.");
       onSaved(res.data);
     } catch (e) {
@@ -464,11 +481,17 @@ export function DayCashModal({
     >
       <div className="space-y-4">
         <HelpBox>
-          Count the <strong>sales cash of the day</strong> that you took out of the drawer (handed over), note by note. It is added to
-          the {formatRs(drawer)} you counted in the drawer when closing.
+          Write the <strong>total sales cash of the day</strong> that you took out of the drawer (handed over). It is added to the{' '}
+          {formatRs(drawer)} till cash you counted when closing.
           {session.dayCash ? ` You already added ${formatRs(session.dayCash.total)}; this will replace it.` : ''}
         </HelpBox>
-        <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={busy} />
+        <MoneyInput value={amount} onValue={setAmount} disabled={busy} autoFocus className={`${inputClass} text-right text-lg font-semibold tabular-nums`} placeholder="e.g. 738150" />
+        <div className="flex items-center justify-between rounded-lg bg-gray-900 px-4 py-2.5 text-white">
+          <span className="text-sm">
+            Till {formatRs(drawer)} + day {formatRs(total)}
+          </span>
+          <span className="text-lg font-bold tabular-nums">= {formatRs(drawer + total)}</span>
+        </div>
         <Field label="Note (optional)">
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. Given to the owner" />
         </Field>
@@ -641,9 +664,9 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
           session={s}
           denominations={data.denominations}
           onClose={() => setModal(null)}
-          onClosed={() => {
-            // Next: the day's cash taken out of the drawer.
-            setModal('daycash');
+          onClosed={(closed) => {
+            // No day's cash written: ask for it next.
+            setModal(closed.dayCash ? null : 'daycash');
             load();
           }}
         />
