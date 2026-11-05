@@ -404,8 +404,15 @@ export default function CartPanel({
                 </>
               ) : (
                 <>
-                  Process Payment
-                  {quoteReady && quote ? ` · ${money(quote.total)}` : ''}
+                  <span className="flex flex-col items-center leading-tight">
+                    <span>
+                      Process Payment
+                      {quoteReady && quote ? ` · ${money(quote.total)}` : ''}
+                    </span>
+                    <span className="text-xs font-medium opacity-80">
+                      {cart.items.reduce((n, i) => n + i.quantity, 0)} {cart.items.reduce((n, i) => n + i.quantity, 0) === 1 ? 'product' : 'products'}
+                    </span>
+                  </span>
                   <kbd className="hidden sm:inline text-[10px] font-normal opacity-70 border border-white/40 rounded px-1">F9</kbd>
                 </>
               )}
