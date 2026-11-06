@@ -486,37 +486,6 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
               );
             })()}
 
-            {/* Result of the day: cashier gave vs sales were (cash after expenses + POS + bank) */}
-            {(() => {
-              const ex = data.expected || data.liveExpected || null;
-              const sys =
-                (ex ? ex.cashSales + ex.cashReceivedOnCredit - ex.cashRefunds - (ex.expenses || 0) : 0) +
-                (data.nonCash?.card ?? ex?.card ?? 0) +
-                (data.nonCash?.bank_transfer ?? ex?.bankTransfer ?? 0);
-              if (!data.dayCash && data.cardTotal == null && data.bankTransferTotal == null) return null;
-              // Cash left in the drawer above the float is sales cash too.
-              const drawerTotal = data.drawerCount?.total ?? data.closingCount?.total ?? 0;
-              const extra = Math.round((drawerTotal - (data.openingFloat?.total || 0)) * 100) / 100;
-              const gave = (data.dayCash?.total || 0) + extra + (data.cardTotal || 0) + (data.bankTransferTotal || 0);
-              const d = Math.round((gave - sys) * 100) / 100;
-              const ok = Math.abs(d) < 1;
-              return (
-                <div className={`rounded-lg px-4 py-3 ${ok ? 'bg-green-50 ring-1 ring-green-200' : d < 0 ? 'bg-red-50 ring-1 ring-red-200' : 'bg-amber-50 ring-1 ring-amber-200'}`}>
-                  <p className={`text-2xl font-bold tabular-nums ${ok ? 'text-green-700' : d < 0 ? 'text-red-700' : 'text-amber-800'}`}>
-                    {ok ? 'All sales match' : `${d < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(d))}`}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Cashier gave {formatRs(gave)} · sales were {formatRs(Math.round(sys * 100) / 100)}
-                  </p>
-                  {Math.abs(extra) >= 1 && (
-                    <p className="text-[11px] text-gray-500">
-                      Includes {formatRs(Math.abs(extra))} {extra > 0 ? 'extra' : 'missing'} in the drawer (counted {formatRs(drawerTotal)}, float {formatRs(data.openingFloat?.total || 0)})
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
-
             {/* Bills */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Bills in this till ({data.bills.length})</p>
