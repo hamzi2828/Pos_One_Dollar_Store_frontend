@@ -250,7 +250,7 @@ export default function ProductGrid({
           <span>({categories.length})</span>
           <span>· {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} shown · {totalArticles.toLocaleString()} articles in stock</span>
         </div>
-        <div className="flex flex-wrap gap-1.5 max-h-[4.6rem] overflow-y-auto">
+        <div className="flex flex-wrap gap-1.5 max-h-[5.25rem] overflow-y-auto pr-1">
           <button type="button" onClick={() => setSelectedCategory('__all__')} className={chip(selectedCategory === '__all__')}>
             <Package className="h-3 w-3" /> All <span className="opacity-60">{products.length}</span>
           </button>
