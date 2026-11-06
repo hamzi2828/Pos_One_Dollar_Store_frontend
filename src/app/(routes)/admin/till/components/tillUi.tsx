@@ -304,6 +304,14 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-gray-300 font-bold">
+                          <td className="py-2 pr-2 text-gray-900">Total</td>
+                          <td className="py-2 text-right tabular-nums text-gray-900">{anyEntered ? formatRs(sum('entered')) : '—'}</td>
+                          <td className="py-2 text-right tabular-nums text-gray-900">{formatRs(sum('system'))}</td>
+                          <td className="py-2 pl-2 text-right text-xs tabular-nums">{anyEntered ? diffCell(sum('entered'), sum('system')) : <span className="text-gray-400">—</span>}</td>
+                        </tr>
+                      </tfoot>
                     </table>
                     {(() => {
                       // Cash short and card/bank over by about the same: payments saved under the wrong method.
