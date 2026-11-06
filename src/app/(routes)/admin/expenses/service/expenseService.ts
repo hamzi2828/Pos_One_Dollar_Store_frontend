@@ -100,6 +100,10 @@ export const expenseService = {
       if (expenseData.paymentMethod) formData.append('paymentMethod', expenseData.paymentMethod);
       if (expenseData.bankId) formData.append('bankId', expenseData.bankId);
       if (expenseData.investmentId) formData.append('investmentId', expenseData.investmentId);
+      if (expenseData.fromPersonal) {
+        formData.append('fromPersonal', 'true');
+        if (expenseData.lenderId) formData.append('lenderId', expenseData.lenderId);
+      }
       if (expenseData.reference) formData.append('reference', expenseData.reference);
       if (expenseData.notes) formData.append('notes', expenseData.notes);
       if (receiptFile) formData.append('receipt', receiptFile);

@@ -11,6 +11,7 @@ import { BACKEND_URL, apiErrorMessage, formatDate, formatRs, storeApi } from '@/
 import { ErrorBox, Field, Modal, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
+import { YesNo } from '@/components/finance/LoanPersonPicker';
 
 type LenderType = 'person' | 'vendor' | 'customer' | 'employee' | 'other';
 interface Repayment {
@@ -35,6 +36,8 @@ interface Loan {
   dueDate?: string | null;
   notes?: string;
   attachments?: string[];
+  expense?: string | null;
+  expenseTitle?: string;
   repayments: Repayment[];
   paid: number;
   left: number;
@@ -172,6 +175,7 @@ export default function LoansPage() {
                 <td className="px-4 py-2">
                   <span className="font-medium text-gray-900">{r.lenderName}</span>
                   <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold ${TYPE_STYLE[r.lenderType]}`}>{TYPE_LABEL[r.lenderType]}</span>
+                  {r.expenseTitle && <span className="block truncate text-xs font-medium text-violet-700 max-w-xs">Expense: {r.expenseTitle}</span>}
                   {r.notes && <span className="block truncate text-xs text-gray-500 max-w-xs">{r.notes}</span>}
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-600">
@@ -317,6 +321,18 @@ function AddLoanModal({ onClose, onSaved }: { onClose: () => void; onSaved: (l: 
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Spent on a shop expense?" yes -> an expense is added too.
+  const [asExpense, setAsExpense] = useState(false);
+  const [exTitle, setExTitle] = useState('');
+  const [exCategory, setExCategory] = useState('');
+  const [exCats, setExCats] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!asExpense || exCats) return;
+    storeApi
+      .get<{ name: string }[]>('/expenses/categories')
+      .then((r) => setExCats((r.data || []).map((c) => c.name).filter(Boolean)))
+      .catch(() => setExCats([]));
+  }, [asExpense, exCats]);
 
   useEffect(() => {
     storeApi
@@ -352,13 +368,29 @@ function AddLoanModal({ onClose, onSaved }: { onClose: () => void; onSaved: (l: 
     setError(null);
     if (!personId) return setError('Pick who gave the loan (or add them with +)');
     if (!(Number(amount) > 0)) return setError('Enter the loan amount');
+    if (asExpense && !exTitle.trim()) return setError('Write what the expense was for');
+    if (asExpense && !exCategory) return setError('Pick the expense category');
     setBusy(true);
     try {
       const r = await storeApi.upload<Loan>(
         '/loans',
-        formOf({ lenderType: 'person', lender: personId, amount: Number(amount), date, method, dueDate: dueDate || undefined, notes: notes.trim() || undefined }, files),
+        formOf(
+          {
+            lenderType: 'person',
+            lender: personId,
+            amount: Number(amount),
+            date,
+            method,
+            dueDate: dueDate || undefined,
+            notes: notes.trim() || undefined,
+            asExpense: asExpense ? 'true' : undefined,
+            expenseTitle: asExpense ? exTitle.trim() : undefined,
+            expenseCategory: asExpense ? exCategory : undefined,
+          },
+          files,
+        ),
       );
-      toast.success('Loan added');
+      toast.success(asExpense ? 'Loan and expense added' : 'Loan added');
       onSaved(r.data);
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not save the loan.'));
@@ -449,6 +481,29 @@ function AddLoanModal({ onClose, onSaved }: { onClose: () => void; onSaved: (l: 
               <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} className={inputClass} placeholder="e.g. For the Lahore stock trip" />
             </Field>
           </div>
+        </div>
+        <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Spent on a shop expense from personal money?</p>
+              <p className="text-xs text-gray-600">Yes = this money paid a shop expense. The expense is added too, so both match.</p>
+            </div>
+            <YesNo value={asExpense} onChange={setAsExpense} disabled={busy} />
+          </div>
+          {asExpense && (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input value={exTitle} onChange={(e) => setExTitle(e.target.value)} maxLength={200} className={inputClass} placeholder="Expense for… (e.g. Electricity bill) *" />
+              <SearchSelect value={exCategory} onChange={(e) => setExCategory(e.target.value)} className={inputClass} disabled={!exCats}>
+                <option value="">{exCats ? 'Expense category…' : 'Loading…'}</option>
+                {(exCats || []).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </SearchSelect>
+              <p className="text-xs text-violet-800 sm:col-span-2">Expense of Rs {Number(amount) || 0} on {date}. Not taken from the till cash.</p>
+            </div>
+          )}
         </div>
         <Field label="Transaction slip (optional)" hint="Photo or PDF of the transfer slip / receipt. Up to 5.">
           <SlipPicker files={files} onFiles={setFiles} disabled={busy} />
@@ -553,6 +608,11 @@ function LoanModal({ loan, onClose, onChanged }: { loan: Loan; onClose: () => vo
           <Card label="Paid back" value={formatRs(loan.paid)} tone="text-green-700" />
           <Card label="Left" value={formatRs(loan.left)} tone={loan.left > 0 ? 'text-red-600' : 'text-gray-900'} strong />
         </div>
+        {loan.expenseTitle && (
+          <a href="/admin/expenses" className="block rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-800 hover:underline">
+            Paid the shop expense: <strong>{loan.expenseTitle}</strong> (personal money)
+          </a>
+        )}
         {(loan.notes || loan.dueDate) && (
           <p className="text-sm text-gray-600">
             {loan.notes}

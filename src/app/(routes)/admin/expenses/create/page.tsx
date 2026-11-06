@@ -12,6 +12,7 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 import BankSelect from '../components/BankSelect';
 import InvestmentBillSelect from '../components/InvestmentBillSelect';
+import LoanPersonPicker, { YesNo } from '@/components/finance/LoanPersonPicker';
 
 export default function CreateExpensePage() {
   const router = useRouter();
@@ -41,6 +42,9 @@ export default function CreateExpensePage() {
   const [reference, setReference] = useState('');
   const [bankId, setBankId] = useState('');
   const [investmentId, setInvestmentId] = useState('');
+  const [fromPersonal, setFromPersonal] = useState(false);
+  const [lenderId, setLenderId] = useState('');
+  const [lenderName, setLenderName] = useState('');
   const [notes, setNotes] = useState('');
 
   // Receipt file
@@ -217,6 +221,11 @@ export default function CreateExpensePage() {
       return;
     }
 
+    if (fromPersonal && !lenderId) {
+      setError('Pick whose personal money paid this expense');
+      return;
+    }
+
     submitLockRef.current = true;
     setLoading(true);
     try {
@@ -228,6 +237,8 @@ export default function CreateExpensePage() {
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId || undefined : undefined,
         investmentId: investmentId || undefined,
+        fromPersonal: fromPersonal || undefined,
+        lenderId: fromPersonal ? lenderId : undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
       };
@@ -521,6 +532,30 @@ export default function CreateExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
+            <div className="md:col-span-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Paid from personal money?</p>
+                  <p className="text-xs text-gray-600">Yes = someone paid from their own pocket. A loan from them is added too, so both match.</p>
+                </div>
+                <YesNo value={fromPersonal} onChange={setFromPersonal} disabled={loading} />
+              </div>
+              {fromPersonal && (
+                <div className="mt-3 space-y-1.5">
+                  <LoanPersonPicker
+                    value={lenderId}
+                    disabled={loading}
+                    onChange={(id, name) => {
+                      setLenderId(id);
+                      setLenderName(name);
+                    }}
+                  />
+                  <p className="text-xs text-violet-800">
+                    {lenderName ? `A loan of Rs ${Number(amount) || 0} from ${lenderName} will be added in Finance → Loans.` : 'Pick whose money it was.'} Not taken from the till cash.
+                  </p>
+                </div>
+              )}
+            </div>
             <div className="md:col-span-2">
               <InvestmentBillSelect
                 value={investmentId}

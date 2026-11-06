@@ -24,6 +24,9 @@ export interface Expense {
   bankName?: string;
   investment?: string | null;
   investmentTitle?: string;
+  /** Paid from personal money: linked loan. */
+  fromPersonal?: boolean;
+  loanNo?: string;
   reference: string;
   notes: string;
   receipt: string | null;
@@ -52,6 +55,8 @@ export interface RawExpense {
   bankName?: string;
   investment?: string | null;
   investmentTitle?: string;
+  fromPersonal?: boolean;
+  loanNo?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -69,6 +74,9 @@ export interface CreateExpenseData {
   paymentMethod?: PaymentMethod;
   bankId?: string;
   investmentId?: string;
+  /** Paid from personal money -> a loan from lenderId is added too. */
+  fromPersonal?: boolean;
+  lenderId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
