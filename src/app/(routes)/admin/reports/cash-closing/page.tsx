@@ -35,6 +35,34 @@ interface Summary {
   lateClose?: number;
 }
 
+type ReportRow = TillSession & { discountTotal?: number; discountBills?: number };
+
+/** Cashier vs system per till: cash (after the day's expenses), POS machine, bank; overall over / short. */
+function figures(r: ReportRow) {
+  const e = r.expected;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const sysCash = e ? r2(e.cashSales + e.cashReceivedOnCredit - e.cashRefunds - (e.expenses || 0)) : null;
+  const sysCard = e?.card ?? null;
+  const sysBank = e?.bankTransfer ?? null;
+  const cash = r.dayCash ? r.dayCash.total : null;
+  const card = r.cardTotal ?? null;
+  const bank = r.bankTransferTotal ?? null;
+  // Over / short: the cash result (till + cash) + card and bank differences.
+  let over: number | null = r.variance ?? null;
+  if (over != null && card != null && sysCard != null) over += card - sysCard;
+  if (over != null && bank != null && sysBank != null) over += bank - sysBank;
+  return { cash, sysCash, card, sysCard, bank, sysBank, expenses: e?.expenses || 0, discounts: r.discountTotal || 0, over: over == null ? null : r2(over) };
+}
+
+function Pair({ got, should }: { got: number | null; should: number | null }) {
+  return (
+    <>
+      <span className="block font-medium text-gray-900">{got != null ? formatRs(got) : '—'}</span>
+      {should != null && <span className="block text-[10px] text-gray-500">sales {formatRs(should)}</span>}
+    </>
+  );
+}
+
 interface CashierRow {
   _id: string;
   cashierName: string;
@@ -64,7 +92,7 @@ export default function CashClosingReportPage() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
-  const [rows, setRows] = useState<TillSession[]>([]);
+  const [rows, setRows] = useState<ReportRow[]>([]);
   const [meta, setMeta] = useState<ReportMeta | null>(null);
   const [counters, setCounters] = useState<{ _id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +121,7 @@ export default function CashClosingReportPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await storeApi.get<TillSession[]>('/till-sessions/report', { from, to, counter, status, search: query, page, limit: 50 });
+      const res = await storeApi.get<ReportRow[]>('/till-sessions/report', { from, to, counter, status, search: query, page, limit: 50 });
       if (id !== reqRef.current) return;
       setRows(res.data || []);
       setMeta((res.meta as ReportMeta) || null);
@@ -273,10 +301,12 @@ export default function CashClosingReportPage() {
                   <th className="px-4 py-2 text-left font-semibold">Till</th>
                   <th className="px-4 py-2 text-left font-semibold">Cashier</th>
                   <th className="px-4 py-2 text-left font-semibold">Opened → closed</th>
-                  <th className="px-4 py-2 text-right font-semibold">Float</th>
-                  <th className="px-4 py-2 text-right font-semibold">Expected</th>
-                  <th className="px-4 py-2 text-right font-semibold">Counted</th>
-                  <th className="px-4 py-2 text-right font-semibold">Variance</th>
+                  <th className="px-4 py-2 text-right font-semibold">Cash</th>
+                  <th className="px-4 py-2 text-right font-semibold">POS</th>
+                  <th className="px-4 py-2 text-right font-semibold">Bank</th>
+                  <th className="px-4 py-2 text-right font-semibold">Expenses</th>
+                  <th className="px-4 py-2 text-right font-semibold">Discounts</th>
+                  <th className="px-4 py-2 text-right font-semibold">Over / short</th>
                   <th className="px-4 py-2 text-left font-semibold">Status</th>
                 </tr>
               </thead>
@@ -296,16 +326,62 @@ export default function CashClosingReportPage() {
                       {formatDate(r.openedAt, true)}
                       {r.closedAt ? ` → ${formatTime(r.closedAt)}` : ''}
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums">{formatRs(r.openingFloat?.total)}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{r.expected ? formatRs(r.expected.expectedCash) : '—'}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{r.closingCount ? formatRs(r.closingCount.total) : '—'}</td>
-                    <td className={`px-4 py-2 text-right font-semibold whitespace-nowrap ${varianceClass(r.variance)}`}>{varianceLabel(r.variance)}</td>
+                    {(() => {
+                      const f = figures(r);
+                      return (
+                        <>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap">
+                            <Pair got={f.cash} should={f.sysCash} />
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap">
+                            <Pair got={f.card} should={f.sysCard} />
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap">
+                            <Pair got={f.bank} should={f.sysBank} />
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap text-gray-700">{f.expenses ? formatRs(f.expenses) : '—'}</td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap text-rose-700">
+                            {f.discounts ? formatRs(f.discounts) : '—'}
+                            {r.discountBills ? <span className="block text-[10px] text-gray-500">{r.discountBills} bills</span> : null}
+                          </td>
+                          <td className={`px-4 py-2 text-right font-semibold whitespace-nowrap ${varianceClass(f.over)}`}>{varianceLabel(f.over)}</td>
+                        </>
+                      );
+                    })()}
                     <td className="px-4 py-2">
                       <StatusBadge status={r.status} />
                     </td>
                   </tr>
                 ))}
               </tbody>
+              {rows.length > 1 &&
+                (() => {
+                  const all = rows.map(figures);
+                  const add = (k: 'cash' | 'sysCash' | 'card' | 'sysCard' | 'bank' | 'sysBank' | 'expenses' | 'discounts' | 'over') =>
+                    all.reduce((t, f) => t + ((f[k] as number | null) || 0), 0);
+                  return (
+                    <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+                      <tr>
+                        <td className="px-4 py-2" colSpan={3}>
+                          Total ({rows.length} tills)
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          <Pair got={add('cash')} should={add('sysCash')} />
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          <Pair got={add('card')} should={add('sysCard')} />
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          <Pair got={add('bank')} should={add('sysBank')} />
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">{formatRs(add('expenses'))}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-rose-700">{formatRs(add('discounts'))}</td>
+                        <td className={`px-4 py-2 text-right whitespace-nowrap ${varianceClass(add('over'))}`}>{varianceLabel(add('over'))}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  );
+                })()}
             </table>
             {meta && meta.pages > 1 && (
               <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-600">
