@@ -7,7 +7,7 @@ import { History, ListChecks, Loader2, Pencil, Printer, ScanBarcode, Undo2 } fro
 import { Field, Modal, inputClass, primaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { apiErrorMessage, formatDate, formatRs, storeApi } from '@/lib/storeApi';
-import { isReceipt, purchasingApi } from '../../../_shared/purchasingApi';
+import { apiErrorCode, isReceipt, purchasingApi } from '../../../_shared/purchasingApi';
 import { Card } from '../../../_shared/ui';
 import type { GoodsReceipt, GRNEntry } from '../../../_shared/types';
 import { STICKER_SIZES, printTags, type StickerSize } from './tags';
@@ -45,6 +45,35 @@ export default function EntriesList({
   const all = [...(grn.entries || [])].filter((e) => !e.undone).sort((a, b) => (b.entryNo || 0) - (a.entryNo || 0));
   const rows = billFilter ? all.filter((e) => e.bill === billFilter) : all;
 
+  // Pieces gone (sold / taken out) block the undo: offer to add them back to stock
+  // (a "Found stock" adjustment) and undo in one click.
+  const [addFor, setAddFor] = useState<{ e: GRNEntry; gone: number; msg: string } | null>(null);
+  const addAndUndo = async () => {
+    if (!addFor || lock.current) return;
+    const { e, gone } = addFor;
+    lock.current = true;
+    setBusy(`undo-${e._id}`);
+    try {
+      await storeApi.post('/stock-adjustments', {
+        reason: 'found',
+        notes: `Added back to undo GRN ${grn.grnNumber} entry ${e.entryNo ?? ''} (${e.productName})`,
+        lines: [{ productId: e.product, variantId: e.variantId || null, diff: gone }],
+        apply: true,
+        requestId: `grn-undo-${grn._id}-${e._id}`,
+      });
+      const res = await purchasingApi.grnUndoEntry(grn._id, e._id);
+      if (isReceipt(res?.grn)) onChanged(res.grn);
+      else await onReload();
+      setAddFor(null);
+      toast.success(`${gone} pcs added to stock and entry undone`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not add the stock.'), { duration: 7000 });
+    } finally {
+      lock.current = false;
+      setBusy(null);
+    }
+  };
+
   const undo = async (e: GRNEntry) => {
     if (lock.current) return;
     if (!window.confirm(`Undo "${e.productName}" (${e.qty} pcs)? The pieces are taken back out of the warehouse.`)) return;
@@ -56,7 +85,10 @@ export default function EntriesList({
       else await onReload();
       toast.success('Entry undone');
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not undo this entry.'), { duration: 7000 });
+      const msg = apiErrorMessage(err, 'Could not undo this entry.');
+      const gone = Number((/^(\d+) of these pieces are no longer in the shop/.exec(msg) || [])[1] || 0);
+      if (apiErrorCode(err) === 'NOT_IN_WAREHOUSE' && gone > 0) setAddFor({ e, gone, msg });
+      else toast.error(msg, { duration: 7000 });
     } finally {
       lock.current = false;
       setBusy(null);
@@ -274,6 +306,30 @@ export default function EntriesList({
         </ul>
       )}
       {ownFor && <OwnBarcodeModal entry={ownFor.e} left={ownFor.left} busy={!!busy} onClose={() => setOwnFor(null)} onApply={(n) => restScanned(ownFor.e, n)} />}
+      {addFor && (
+        <Modal
+          title="Cannot undo yet"
+          subtitle={addFor.e.productName}
+          icon={<Undo2 className="w-5 h-5" />}
+          onClose={() => !busy && setAddFor(null)}
+          busy={!!busy}
+          footer={
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-4 py-2 rounded-lg border text-sm" disabled={!!busy} onClick={() => setAddFor(null)}>
+                Cancel
+              </button>
+              <button type="button" className={primaryBtn} disabled={!!busy} onClick={addAndUndo}>
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Add {addFor.gone} pcs to stock &amp; undo
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm text-gray-700">{addFor.msg}</p>
+          <p className="text-sm text-gray-500 mt-2">
+            The button adds {addFor.gone} pcs back to stock (a &quot;Found stock&quot; adjustment, shown in Stock Adjustments) and then undoes this entry.
+          </p>
+        </Modal>
+      )}
       {logOf && <PrintLogModal productId={logOf.product} variantId={logOf.variantId} name={logOf.productName} need={productPieces(logOf)} bill={logOf.bill} vendorName={logOf.vendorName} onClose={() => { setLogOf(null); setTick((t) => t + 1); }} />}
       {editing && (
         <EditEntryModal
