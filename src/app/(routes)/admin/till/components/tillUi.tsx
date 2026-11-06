@@ -110,6 +110,7 @@ const personName = (p: unknown): string => {
 };
 
 const ACTION_LABEL: Record<string, string> = {
+  report_saved: 'Report saved (not submitted)',
   open: 'Opened',
   close: 'Closed (blind count)',
   close_by_admin: 'Closed by admin',

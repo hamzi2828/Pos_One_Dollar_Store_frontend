@@ -68,6 +68,16 @@ export interface TillSession {
   dayCashAt?: string | null;
   cardTotal?: number | null;
   bankTransferTotal?: number | null;
+  /** Till report saved but not submitted (till still open). */
+  draft?: {
+    denominations: Record<string, number>;
+    drawerTotal: number;
+    dayCashTotal: number;
+    cardTotal: number | null;
+    bankTransferTotal: number | null;
+    note: string;
+    savedAt: string | null;
+  } | null;
   closeNote?: string;
   lateClose?: boolean;
   verifiedAt?: string | null;
@@ -120,6 +130,10 @@ export const tillApi = {
     body: { denominations?: Record<string, number>; amount?: number; cardTotal?: number; bankTransferTotal?: number; note?: string },
   ) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/day-cash`, body),
+  draft: (
+    id: string,
+    body: { denominations: Record<string, number>; dayCashTotal?: number; cardTotal?: number; bankTransferTotal?: number; note?: string },
+  ) => storeApi.post<TillSession>(`/till-sessions/${id}/draft`, body),
 };
 
 export const DEFAULT_DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
@@ -340,26 +354,56 @@ export function CloseTillModal({
   denominations,
   onClose,
   onClosed,
-  title = 'Close till',
+  title = 'Till report',
+  onSaved,
 }: {
-  session: Pick<TillSession, '_id' | 'sessionNo' | 'counterName' | 'cashierName' | 'openedAt'>;
+  session: Pick<TillSession, '_id' | 'sessionNo' | 'counterName' | 'cashierName' | 'openedAt' | 'draft'>;
   denominations?: number[];
   onClose: () => void;
   onClosed: (session: TillSession) => void;
+  /** Saved without submitting (till stays open). */
+  onSaved?: (session: TillSession) => void;
   title?: string;
 }) {
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
+  const d = session.draft || null;
+  const [counts, setCounts] = useState<Record<string, number>>(() => ({ ...(d?.denominations || {}) }));
+  const [note, setNote] = useState(d?.note || '');
+  const [busy, setBusy] = useState<'save' | 'submit' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
-  const [dayCash, setDayCash] = useState('');
-  const [card, setCard] = useState('');
-  const [bank, setBank] = useState('');
+  const [dayCash, setDayCash] = useState(d && d.dayCashTotal ? String(d.dayCashTotal) : '');
+  const [card, setCard] = useState(d && d.cardTotal != null ? String(d.cardTotal) : '');
+  const [bank, setBank] = useState(d && d.bankTransferTotal != null ? String(d.bankTransferTotal) : '');
   const tillCash = countTotal(counts);
   const day = Math.max(0, Number(dayCash) || 0);
   const total = tillCash + day;
   const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
+
+  const body = () => ({
+    denominations: cleanCounts(counts),
+    dayCashTotal: day || undefined,
+    cardTotal: card === '' ? undefined : Math.max(0, Number(card) || 0),
+    bankTransferTotal: bank === '' ? undefined : Math.max(0, Number(bank) || 0),
+    note: note.trim() || undefined,
+  });
+
+  // Save without submitting: the till stays open and sales keep going into it.
+  const save = async () => {
+    if (lockRef.current) return;
+    lockRef.current = true;
+    setBusy('save');
+    setError(null);
+    try {
+      const res = await tillApi.draft(session._id, body());
+      toast.success('Report saved (not submitted). You can still change it.');
+      onSaved?.(res.data);
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not save the report.'));
+    } finally {
+      lockRef.current = false;
+      setBusy(null);
+    }
+  };
 
   const submit = async () => {
     if (lockRef.current) return;
@@ -367,47 +411,49 @@ export function CloseTillModal({
     const bankN = Math.max(0, Number(bank) || 0);
     if (
       !window.confirm(
-        `Cash: till ${formatRs(tillCash)} + day ${formatRs(day)} = ${formatRs(total)}\nPOS machine: ${formatRs(cardN)}\nBank transfer: ${formatRs(bankN)}\n\nClose the till? You cannot change the till cash after closing.`,
+        `Cash: till ${formatRs(tillCash)} + day ${formatRs(day)} = ${formatRs(total)}\nPOS machine: ${formatRs(cardN)}\nBank transfer: ${formatRs(bankN)}\n\nSubmit the report and close the till? After this you cannot change it, and new sales go to the next till.`,
       )
     )
       return;
     lockRef.current = true;
-    setBusy(true);
+    setBusy('submit');
     setError(null);
     try {
-      const res = await tillApi.close(session._id, {
-        denominations: cleanCounts(counts),
-        dayCashTotal: day || undefined,
-        cardTotal: card === '' ? undefined : cardN,
-        bankTransferTotal: bank === '' ? undefined : bankN,
-        note: note.trim() || undefined,
-      });
-      toast.success('Till closed. The admin will verify the cash.');
+      const res = await tillApi.close(session._id, body());
+      toast.success('Report submitted. The admin will check it.');
       onClosed(res.data);
     } catch (e) {
-      setError(apiErrorMessage(e, 'Could not close the till.'));
+      setError(apiErrorMessage(e, 'Could not submit the report.'));
     } finally {
       lockRef.current = false;
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   return (
     <Modal
       title={title}
-      subtitle={`${session.sessionNo}${session.counterName ? ` · ${session.counterName}` : ''} · open since ${formatTime(session.openedAt)}`}
+      subtitle={`${session.sessionNo}${session.counterName ? ` · ${session.counterName}` : ''} · open since ${formatTime(session.openedAt)}${
+        d?.savedAt ? ` · saved ${formatTime(d.savedAt)}, not submitted` : ''
+      }`}
       icon={<Lock className="h-5 w-5" />}
       onClose={onClose}
-      busy={busy}
+      busy={!!busy}
       wide
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={busy} className={secondaryBtn}>
+          <button type="button" onClick={onClose} disabled={!!busy} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={busy} className={primaryBtn}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-            Close till · {formatRs(total)}
+          {onSaved && (
+            <button type="button" onClick={save} disabled={!!busy} className={secondaryBtn}>
+              {busy === 'save' && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save (not submitted)
+            </button>
+          )}
+          <button type="button" onClick={submit} disabled={!!busy} className={primaryBtn}>
+            {busy === 'submit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+            Submit report · {formatRs(total)}
           </button>
         </>
       }
@@ -417,13 +463,13 @@ export function CloseTillModal({
           <p className="mb-1.5 text-sm font-semibold text-gray-900">1. Till cash</p>
           <HelpBox>Count the cash left in the drawer (with the float), note by note.</HelpBox>
           <div className="mt-2">
-            <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={busy} />
+            <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={!!busy} />
           </div>
         </div>
         <div className="rounded-lg border border-honey-300 bg-honey-50/60 p-3">
           <p className="mb-1 text-sm font-semibold text-gray-900">2. Total cash of the day</p>
           <p className="mb-2 text-xs text-gray-600">The sales cash you took out of the drawer (handed over). Write the total amount.</p>
-          <MoneyInput value={dayCash} onValue={setDayCash} disabled={busy} className={`${inputClass} text-right text-lg font-semibold tabular-nums`} placeholder="e.g. 738150" />
+          <MoneyInput value={dayCash} onValue={setDayCash} disabled={!!busy} className={`${inputClass} text-right text-lg font-semibold tabular-nums`} placeholder="e.g. 738150" />
           <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-gray-200">
             <span className="text-gray-600">
               Till {formatRs(tillCash)} + day {formatRs(day)}
@@ -435,16 +481,16 @@ export function CloseTillModal({
           <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
             <p className="mb-1 text-sm font-semibold text-gray-900">3. POS machine (card)</p>
             <p className="mb-2 text-xs text-gray-600">Total on the card machine&apos;s day slip.</p>
-            <MoneyInput value={card} onValue={setCard} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <MoneyInput value={card} onValue={setCard} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
           </div>
           <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
             <p className="mb-1 text-sm font-semibold text-gray-900">4. Bank transfer</p>
             <p className="mb-2 text-xs text-gray-600">Total received by bank transfer today.</p>
-            <MoneyInput value={bank} onValue={setBank} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <MoneyInput value={bank} onValue={setBank} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
           </div>
         </div>
         <Field label="Note (optional)">
-          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={busy} className={inputClass} placeholder="e.g. Rs 500 paid to the delivery boy" />
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={!!busy} className={inputClass} placeholder="e.g. Rs 500 paid to the delivery boy" />
         </Field>
         <ErrorBox message={error} />
       </div>
@@ -657,14 +703,17 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
             <strong>Till open</strong>
             {s.counterName ? ` · ${s.counterName}` : ''} · since {formatTime(s.openedAt)}
             {s.lateOpen ? <span className="ml-1 text-amber-700">(late)</span> : null}
+            {s.draft?.savedAt ? <span className="ml-1 font-medium text-amber-700">· report saved {formatTime(s.draft.savedAt)}, not submitted</span> : null}
           </span>
           {data.canClose && (
             <button
               type="button"
               onClick={() => setModal('close')}
-              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex-shrink-0"
+              className={`ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md flex-shrink-0 ${
+                s.draft ? 'bg-honey-500 text-gray-900 hover:bg-honey-600' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+              }`}
             >
-              <Lock className="h-3.5 w-3.5" /> Close till
+              <Lock className="h-3.5 w-3.5" /> {s.draft ? 'Edit / submit report' : 'Till report'}
             </button>
           )}
         </div>
@@ -718,6 +767,10 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
           session={s}
           denominations={data.denominations}
           onClose={() => setModal(null)}
+          onSaved={() => {
+            setModal(null);
+            load();
+          }}
           onClosed={(closed) => {
             // No day's cash written: ask for it next.
             setModal(closed.dayCash ? null : 'daycash');
