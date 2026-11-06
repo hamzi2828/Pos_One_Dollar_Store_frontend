@@ -37,7 +37,7 @@ const itemsOf = (o: { itemCount?: number; items?: unknown[] }) =>
 
 export default function SalesReportPage() {
   const symbol = getCurrencySymbol(CURRENCY);
-  const [filter, setFilter] = useState<DateFilter>('month');
+  const [filter, setFilter] = useState<DateFilter>('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [data, setData] = useState<SalesSummaryReport | null>(null);
