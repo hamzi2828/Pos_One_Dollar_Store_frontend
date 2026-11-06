@@ -262,7 +262,44 @@ export interface PayrollDeduction {
   link: string;
 }
 
-export type DeductionSummary = Record<'pending' | 'approved' | 'applied' | 'waived', { count: number; amount: number }>;
+export type DeductionSummary = Record<'pending' | 'approved' | 'applied' | 'waived' | 'listed', { count: number; amount: number }>;
+
+/** Count and sum for one shop day (PKT), from the list's meta.byDay. */
+export interface DayTotal {
+  day: string;
+  count: number;
+  amount: number;
+}
+
+/** A tip given to an employee. Saved as an expense ("Staff Tips"), never cut from salary. */
+export interface StaffTip {
+  _id: string;
+  tipNo: string;
+  employee: string;
+  employeeName: string;
+  employeeCode: string;
+  amount: number;
+  date: string;
+  day: string;
+  method: PayMethod;
+  methodLabel: string;
+  note: string;
+  expense: string | null;
+  createdAt: string;
+}
+
+export interface TipListMeta extends PageMeta {
+  summary: { count: number; amount: number; employees: number };
+  byDay: DayTotal[];
+  byEmployee: { employee: string; name: string; code: string; count: number; amount: number }[];
+  category: string;
+}
+
+/** Optional date range of the lists (PKT days, inclusive). */
+export type DayRangeParams = {
+  from?: string;
+  to?: string;
+};
 
 export const payrollApi = {
   runs: (params: { status?: string; page?: number; limit?: number } = {}) => storeApi.get<PayrollRunSummary[]>('/payroll/runs', params),
@@ -279,18 +316,22 @@ export const payrollApi = {
   payslip: (id: string, lineId: string) => storeApi.get<Payslip>(`/payroll/runs/${id}/lines/${lineId}/payslip`),
   staff: (search: string) => storeApi.get<StaffOption[]>('/payroll/employees', { search, limit: 30 }),
 
-  advances: (params: { status?: string; employee?: string; search?: string; page?: number; limit?: number }) =>
+  advances: (params: DayRangeParams & { status?: string; employee?: string; search?: string; page?: number; limit?: number }) =>
     storeApi.get<SalaryAdvance[]>('/salary-advances', params),
   giveAdvance: (body: { employeeId: string; amount: number; installments: number; date: string; method: PayMethod; reference: string; note: string }) =>
     storeApi.post<SalaryAdvance>('/salary-advances', body),
   cancelAdvance: (id: string, reason: string) => storeApi.post<SalaryAdvance>(`/salary-advances/${id}/cancel`, { reason }),
 
-  deductions: (params: { status?: string; type?: string; employee?: string; page?: number; limit?: number }) =>
+  deductions: (params: DayRangeParams & { status?: string; type?: string; employee?: string; page?: number; limit?: number }) =>
     storeApi.get<PayrollDeduction[]>('/payroll-deductions', params),
   addDeduction: (body: { employeeId: string; type: 'damage' | 'other'; amount: number; date: string; note: string; approveNow: boolean }) =>
     storeApi.post<PayrollDeduction>('/payroll-deductions', body),
   approveDeduction: (id: string, amount?: number) => storeApi.post<PayrollDeduction>(`/payroll-deductions/${id}/approve`, amount ? { amount } : {}),
   waiveDeduction: (id: string, note: string) => storeApi.post<PayrollDeduction>(`/payroll-deductions/${id}/waive`, { note }),
+
+  tips: (params: DayRangeParams & { employee?: string; search?: string; page?: number; limit?: number }) => storeApi.get<StaffTip[]>('/staff-tips', params),
+  addTips: (body: { date: string; method: PayMethod; note: string; tips: { employeeId: string; amount: number }[] }) => storeApi.post<StaffTip[]>('/staff-tips', body),
+  deleteTip: (id: string, reason: string) => storeApi.del<StaffTip>(`/staff-tips/${id}`, { reason }),
 };
 
 /** Download the payroll register CSV (sends the login token). */
@@ -312,6 +353,13 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** Today in shop time (Asia/Karachi, UTC+5) as YYYY-MM-DD. */
 export const todayPKT = () => new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+
+/** Shop day (PKT) of a date as YYYY-MM-DD. */
+export const dayKeyPKT = (value: string | Date) => new Date(new Date(value).getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+
+/** "Thu, 05 Nov 2026" for a YYYY-MM-DD day. */
+export const dayLabel = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 export const monthLabel = (key: string) => {
   const [y, m] = key.split('-').map(Number);

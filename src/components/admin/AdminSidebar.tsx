@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
@@ -100,6 +100,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   // (opening a section closes the others). The section of the current page
   // stays highlighted while closed, so you always see where you are.
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const router = useRouter();
 
   // Forget the old "remember each section" setting.
   useEffect(() => {
@@ -243,7 +244,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Shifts & Roster', path: '/admin/hr/roster', icon: <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'shifts' },
     { name: 'Attendance', path: '/admin/hr/attendance', icon: <Clock3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'attendance' },
     { name: 'Payroll', path: '/admin/hr/payroll', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
-    { name: 'Advances & Deductions', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
+    { name: 'Advances, Deductions & Tips', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
     { name: 'HR Policies', path: '/admin/hr/policies', icon: <ScrollText className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'hr_policies' },
     { name: 'Category Staff', path: '/admin/hr/category-staff', icon: <UsersRound className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'category_assignments' },
   ];
@@ -438,7 +439,15 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
                     ) : (
                       <button
                         type="button"
-                        onClick={() => toggleSection(section.label)}
+                        onClick={() => {
+                          // Reports: open the Reports home (cards) and keep the menu open.
+                          if (section.label === 'Reports') {
+                            setOpenSection('Reports');
+                            router.push('/admin/reports');
+                            return;
+                          }
+                          toggleSection(section.label);
+                        }}
                         className={`relative w-full flex items-center gap-2 sm:gap-2.5 pl-2.5 sm:pl-3 pr-2 sm:pr-2.5 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.04em] rounded-lg transition-all duration-200 group overflow-hidden ${
                           isSectionCollapsed
                             ? `${sectionHasActive ? 'text-charcoal bg-honey-50/60 border border-honey-200' : 'text-gray-500 bg-gray-50/70 border border-gray-100 hover:bg-white hover:border-honey-200 hover:text-charcoal hover:shadow-sm'}`
