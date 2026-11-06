@@ -2,13 +2,27 @@
 
 // Small display pieces shared by the employee list, profile and form pages.
 import React from 'react';
-import { ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Fingerprint, User } from 'lucide-react';
 import { STATUS_LABEL, STATUS_STYLE, fileUrl, type EmployeeStatus } from '../services/employeeApi';
 
 export function StatusBadge({ status }: { status: EmployeeStatus }) {
   return (
     <span className={`inline-flex px-2 py-0.5 text-[11px] font-medium rounded-full whitespace-nowrap ${STATUS_STYLE[status] || STATUS_STYLE.active}`}>
       {STATUS_LABEL[status] || status}
+    </span>
+  );
+}
+
+/** Is the employee's fingerprint saved on the attendance PC? */
+export function FingerprintBadge({ count }: { count?: number }) {
+  const n = count || 0;
+  return n > 0 ? (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full whitespace-nowrap bg-green-50 text-green-700" title={`${n} finger${n === 1 ? '' : 's'} saved`}>
+      <Fingerprint className="h-3 w-3" /> Enrolled · {n} finger{n === 1 ? '' : 's'}
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full whitespace-nowrap bg-amber-50 text-amber-700" title="No fingerprint saved yet">
+      <Fingerprint className="h-3 w-3" /> No fingerprint
     </span>
   );
 }

@@ -96,6 +96,8 @@ export interface Employee {
   /** true when salary / bank / CNIC were removed (view-only user). */
   sensitiveHidden: boolean;
   linkedLoginStillActive?: boolean;
+  /** Fingers saved for the attendance PC (list endpoint only). */
+  fingerprints?: number;
   createdAt?: string;
 }
 

@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
-import { Avatar, Pager, StatusBadge } from './components/EmployeeBits';
+import { Avatar, FingerprintBadge, Pager, StatusBadge } from './components/EmployeeBits';
 import {
   EMPLOYMENT_LABEL,
   STATUS_LABEL,
@@ -254,6 +254,7 @@ export default function EmployeesPage() {
                       <th className="text-left font-medium px-4 py-2.5">Designation</th>
                       <th className="text-left font-medium px-4 py-2.5">Joined</th>
                       {showSalary && <th className="text-right font-medium px-4 py-2.5">Salary</th>}
+                      <th className="text-left font-medium px-4 py-2.5">Fingerprint</th>
                       <th className="text-left font-medium px-4 py-2.5">Status</th>
                     </tr>
                   </thead>
@@ -279,6 +280,9 @@ export default function EmployeesPage() {
                         </td>
                         <td className="px-4 py-2.5 text-gray-700 whitespace-nowrap">{formatDate(e.joiningDate || e.hireDate)}</td>
                         {showSalary && <td className="px-4 py-2.5 text-right tabular-nums text-gray-900">{formatRs(e.salary)}</td>}
+                        <td className="px-4 py-2.5">
+                          <FingerprintBadge count={e.fingerprints} />
+                        </td>
                         <td className="px-4 py-2.5">
                           <StatusBadge status={e.status} />
                         </td>
@@ -306,6 +310,9 @@ export default function EmployeesPage() {
                           <Phone className="h-3 w-3" /> {e.phone}
                         </p>
                       )}
+                      <div className="mt-1">
+                        <FingerprintBadge count={e.fingerprints} />
+                      </div>
                     </div>
                   </Link>
                 ))}
