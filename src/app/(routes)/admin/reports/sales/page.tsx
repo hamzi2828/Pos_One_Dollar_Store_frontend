@@ -259,6 +259,21 @@ export default function SalesReportPage() {
             <Stat label="Items Sold" value={data.summary.itemsSold.toString()} />
           </div>
 
+          {/* How the sales were paid */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Cash', value: data.summary.cashSales, cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+              { label: 'Card (POS machine)', value: data.summary.cardSales, cls: 'border-sky-200 bg-sky-50 text-sky-800' },
+              { label: 'Bank transfer', value: data.summary.bankSales, cls: 'border-violet-200 bg-violet-50 text-violet-800' },
+            ].map((m) => (
+              <div key={m.label} className={`rounded-lg border p-3 ${m.cls}`}>
+                <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">{m.label}</div>
+                <div className="mt-0.5 text-lg font-bold tabular-nums">{fmt(m.value)}</div>
+                <div className="text-[11px] opacity-75">{pct(m.value, data.summary.totalSales) || '0%'} of sales</div>
+              </div>
+            ))}
+          </div>
+
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
 
             <div className="overflow-x-auto">
