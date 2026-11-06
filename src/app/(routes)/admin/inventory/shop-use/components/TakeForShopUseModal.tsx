@@ -4,7 +4,8 @@
 // posted to expenses (average landed cost). The server recomputes everything.
 
 import { useRef, useState } from 'react';
-import { Minus, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import { Minus, PenLine, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
 import { ErrorBox, Field, HelpBox, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
@@ -16,8 +17,30 @@ interface Line {
   qty: number;
 }
 
+/** Item not in the product list: just a name (no stock is taken). */
+interface ManualLine {
+  name: string;
+  qty: number;
+  cost: number; // per piece, optional
+}
+
 export default function TakeForShopUseModal({ onClose, onSaved }: { onClose: () => void; onSaved: (rec: ShopUseRecord) => void }) {
   const [lines, setLines] = useState<Line[]>([]);
+  const [manual, setManual] = useState<ManualLine[]>([]);
+  const [mOpen, setMOpen] = useState(false);
+  const [mName, setMName] = useState('');
+  const [mQty, setMQty] = useState('1');
+  const [mCost, setMCost] = useState('');
+  const addManual = () => {
+    const name = mName.trim();
+    const qty = Math.max(1, Math.floor(Number(mQty) || 1));
+    if (!name) return setError('Write the name of the item');
+    setError(null);
+    setManual((m) => [...m, { name, qty, cost: Math.max(0, Number(mCost) || 0) }]);
+    setMName('');
+    setMQty('1');
+    setMCost('');
+  };
   const [purpose, setPurpose] = useState('');
   const [takenByName, setTakenByName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,19 +58,22 @@ export default function TakeForShopUseModal({ onClose, onSaved }: { onClose: () 
   };
   const setQty = (i: number, qty: number) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, qty: Math.max(1, Math.floor(qty) || 1) } : l)));
 
-  const total = lines.reduce((s, l) => s + l.qty * (l.unit.costPrice || 0), 0);
+  const total = lines.reduce((s, l) => s + l.qty * (l.unit.costPrice || 0), 0) + manual.reduce((s, m) => s + m.qty * m.cost, 0);
   const overStock = lines.find((l) => l.qty > l.unit.available);
 
   const submit = async () => {
     if (saving) return;
-    if (!lines.length) return setError('Scan at least one item');
+    if (!lines.length && !manual.length) return setError('Scan an item or add a manual item');
     if (!purpose.trim()) return setError('Write what the items are for');
     if (overStock) return setError(`Only ${overStock.unit.available} of ${unitTitle(overStock.unit)} in stock`);
     setSaving(true);
     setError(null);
     try {
       const res = await storeApi.post<ShopUseRecord>('/shop-use', {
-        lines: lines.map((l) => ({ productId: l.unit.productId, variantId: l.unit.variantId, qty: l.qty })),
+        lines: [
+          ...lines.map((l) => ({ productId: l.unit.productId, variantId: l.unit.variantId, qty: l.qty })),
+          ...manual.map((m) => ({ manual: true, name: m.name, qty: m.qty, unitCost: m.cost })),
+        ],
         purpose: purpose.trim(),
         takenByName: takenByName.trim(),
         requestId: requestId.current,
@@ -74,8 +100,8 @@ export default function TakeForShopUseModal({ onClose, onSaved }: { onClose: () 
           <button type="button" onClick={onClose} disabled={saving} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={saving || !lines.length || !!overStock} className={primaryBtn}>
-            {saving ? 'Saving…' : `Take ${lines.reduce((s, l) => s + l.qty, 0)} pcs · ${formatRs(total, { decimals: 2 })}`}
+          <button type="button" onClick={submit} disabled={saving || (!lines.length && !manual.length) || !!overStock} className={primaryBtn}>
+            {saving ? 'Saving…' : `Take ${lines.reduce((s, l) => s + l.qty, 0) + manual.reduce((s, m) => s + m.qty, 0)} pcs · ${formatRs(total, { decimals: 2 })}`}
           </button>
         </>
       }
@@ -114,6 +140,51 @@ export default function TakeForShopUseModal({ onClose, onSaved }: { onClose: () 
               );
             })}
           </div>
+        )}
+
+        {/* Manual items: just a name, not in the product list, no stock taken */}
+        {manual.length > 0 && (
+          <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+            {manual.map((m, i) => (
+              <div key={`${m.name}-${i}`} className="flex items-center gap-2 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-gray-900 truncate">{m.name}</div>
+                  <div className="text-[11px] text-gray-500">Manual item · no stock taken</div>
+                </div>
+                <div className="text-sm text-gray-700">× {m.qty}</div>
+                <div className="w-24 text-right text-sm font-semibold text-gray-900">{m.cost ? formatRs(m.qty * m.cost) : '—'}</div>
+                <button type="button" onClick={() => setManual((ms) => ms.filter((_, j) => j !== i))} className="p-1.5 text-gray-400 hover:text-red-600" aria-label="Remove">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {mOpen ? (
+          <div className="rounded-lg border border-honey-300 bg-honey-50/60 p-3">
+            <p className="text-sm font-semibold text-gray-900">Add manual item</p>
+            <p className="mb-2 text-xs text-gray-600">Not in the product list. Just write the name; no stock is taken.</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-6">
+              <input
+                value={mName}
+                onChange={(e) => setMName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addManual())}
+                maxLength={120}
+                autoFocus
+                placeholder="Item name *"
+                className={`${inputClass} sm:col-span-3`}
+              />
+              <input type="number" min={1} inputMode="numeric" value={mQty} onChange={(e) => setMQty(e.target.value)} placeholder="Qty" className={inputClass} aria-label="Quantity" />
+              <MoneyInput value={mCost} onValue={setMCost} placeholder="Cost (optional)" className={inputClass} />
+              <button type="button" onClick={addManual} disabled={!mName.trim()} className={primaryBtn}>
+                Add
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setMOpen(true)} className="inline-flex items-center gap-1.5 text-sm font-medium text-honey-800 hover:underline">
+            <PenLine className="h-4 w-4" /> Add manual item (not in the product list)
+          </button>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
