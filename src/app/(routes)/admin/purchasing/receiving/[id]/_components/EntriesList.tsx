@@ -597,7 +597,7 @@ function EditEntryModal({
             );
           })}
         </div>
-        <p className="mt-1 text-[11px] text-gray-500">The old pieces are taken back out and the corrected entry is saved. Pieces already on a shelf or sold cannot be edited.</p>
+        <p className="mt-1 text-[11px] text-gray-500">Change the qty up (+) or down (-) and save. Sold pieces are kept as sold, so the good qty cannot go below what is already sold. Pieces on a shelf must go back to the warehouse first.</p>
         {error && <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
       </section>
 
