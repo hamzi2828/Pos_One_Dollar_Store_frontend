@@ -311,7 +311,12 @@ export default function SalesReportPage() {
                       const viewHref = `/admin/pos/invoice/${o._id}`;
                       return (
                         <tr key={`${o.source}-${o._id}`} className="hover:bg-gray-50">
-                          <td className="px-3 py-2 font-medium">{o.orderNumber}</td>
+                          <td className="px-3 py-2 font-medium">
+                            {o.orderNumber}
+                            <span className="block text-[11px] font-normal text-gray-500">
+                              {new Date(o.createdAt).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Karachi' })}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
                             {new Date(o.createdAt).toLocaleDateString()}
                           </td>
