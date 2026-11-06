@@ -155,12 +155,13 @@ export default function LoansPage() {
               <th className="px-4 py-2 text-right font-semibold">Paid back</th>
               <th className="px-4 py-2 text-right font-semibold">Left</th>
               <th className="px-4 py-2 text-left font-semibold">Status</th>
+              <th className="px-4 py-2 text-left font-semibold">Slip</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                   No loans yet.
                 </td>
               </tr>
@@ -184,6 +185,9 @@ export default function LoansPage() {
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === 'paid' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
                     {r.status === 'paid' ? 'Paid back' : 'Open'}
                   </span>
+                </td>
+                <td className="px-4 py-2">
+                  {r.attachments && r.attachments.length ? <Slips urls={r.attachments.slice(0, 2)} size="sm" /> : <span className="text-xs text-gray-300">—</span>}
                 </td>
               </tr>
             ))}
@@ -224,22 +228,41 @@ interface Person {
 
 const slipUrl = (u: string) => (/^https?:\/\//.test(u) ? u : `${BACKEND_URL}${u}`);
 
-function Slips({ urls }: { urls?: string[] }) {
+const isImg = (u: string) => /\.(jpe?g|png|gif|webp|bmp|heic|avif)(\?|#|$)/i.test(u) || /^data:image\//.test(u);
+
+/** Slips: photos show as pictures (click to open full size); PDFs as a link. */
+function Slips({ urls, size = 'md' }: { urls?: string[]; size?: 'sm' | 'md' }) {
   if (!urls || !urls.length) return null;
+  const box = size === 'sm' ? 'h-10 w-10' : 'h-24 w-24';
   return (
-    <span className="mt-1 flex flex-wrap gap-1.5">
-      {urls.map((u, i) => (
-        <a
-          key={u + i}
-          href={slipUrl(u)}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-sky-700 hover:bg-sky-50"
-        >
-          <Paperclip className="h-3 w-3" /> Slip {urls.length > 1 ? i + 1 : ''}
-        </a>
-      ))}
+    <span className="mt-1 flex flex-wrap gap-2">
+      {urls.map((u, i) =>
+        isImg(u) ? (
+          <a
+            key={u + i}
+            href={slipUrl(u)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="Open slip"
+            className={`${box} block overflow-hidden rounded-lg border border-gray-200 bg-gray-50 hover:ring-2 hover:ring-sky-300`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={slipUrl(u)} alt={`Slip ${i + 1}`} loading="lazy" className="h-full w-full object-cover" />
+          </a>
+        ) : (
+          <a
+            key={u + i}
+            href={slipUrl(u)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 self-start rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-sky-700 hover:bg-sky-50"
+          >
+            <Paperclip className="h-3 w-3" /> Slip {urls.length > 1 ? i + 1 : ''}
+          </a>
+        ),
+      )}
     </span>
   );
 }
