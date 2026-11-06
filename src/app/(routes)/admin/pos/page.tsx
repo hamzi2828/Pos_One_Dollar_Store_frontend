@@ -1041,7 +1041,7 @@ export default function POSPage() {
       </div>
 
       {/* Right Panel - Cart */}
-      <div className={`w-full lg:w-96 flex-shrink-0 min-h-0 flex-1 lg:flex-none pb-16 lg:pb-0 ${mobileView === 'products' ? 'hidden lg:block' : 'block'}`}>
+      <div className={`w-full lg:w-[440px] xl:w-[520px] flex-shrink-0 min-h-0 flex-1 lg:flex-none pb-16 lg:pb-0 ${mobileView === 'products' ? 'hidden lg:block' : 'block'}`}>
         <CartPanel
           cart={cart}
           quote={quote}

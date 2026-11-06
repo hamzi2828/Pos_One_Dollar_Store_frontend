@@ -29,6 +29,7 @@ export default function ProductGrid({
 }: ProductGridProps) {
   const shownQuery = resultsQuery ?? searchQuery;
   const [selectedCategory, setSelectedCategory] = useState<string>('__all__');
+  const [view, setView] = useState<'categories' | 'products' | null>(null);
 
   const symbol = getCurrencySymbol(currency);
 
@@ -236,38 +237,62 @@ export default function ProductGrid({
     return <ProductsTable productsList={products} />;
   }
 
-  // Category chips (compact) + products of the picked category
-  const chip = (active: boolean) =>
-    `shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+  // Nothing shown until asked: two buttons open the categories or all products.
+  const btn = (active: boolean) =>
+    `inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
       active ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-honey-500 hover:text-honey-800'
     }`;
+  const chip = (active: boolean) =>
+    `inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+      active ? 'border-honey-600 bg-honey-100 text-honey-900' : 'border-gray-200 bg-white text-gray-700 hover:border-honey-500'
+    }`;
+  const pickedCat = selectedCategory !== '__all__' ? selectedCategory : null;
   return (
     <div>
-      <div className="sticky top-0 z-[5] -mx-1 mb-2 bg-gray-50/95 px-1 pb-2 pt-1 backdrop-blur">
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-gray-500">
-          <LayoutGrid className="h-3.5 w-3.5" />
-          <span className="font-semibold text-gray-700">Categories</span>
-          <span>({categories.length})</span>
-          <span>· {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} shown · {totalArticles.toLocaleString()} articles in stock</span>
-        </div>
-        <div className="flex flex-wrap gap-1.5 max-h-[5.25rem] overflow-y-auto pr-1">
-          <button type="button" onClick={() => setSelectedCategory('__all__')} className={chip(selectedCategory === '__all__')}>
-            <Package className="h-3 w-3" /> All <span className="opacity-60">{products.length}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => { setView(view === 'categories' ? null : 'categories'); setSelectedCategory('__all__'); }} className={btn(view === 'categories')}>
+          <LayoutGrid className="h-4 w-4" /> Categories <span className="opacity-60">{categories.length}</span>
+        </button>
+        <button type="button" onClick={() => { setView(view === 'products' ? null : 'products'); setSelectedCategory('__all__'); }} className={btn(view === 'products')} title={`${totalArticles.toLocaleString()} articles in stock`}>
+          <Package className="h-4 w-4" /> All products <span className="opacity-60">{products.length}</span>
+        </button>
+        {view && (
+          <button type="button" onClick={() => setView(null)} className="text-xs font-medium text-gray-500 hover:text-gray-800 hover:underline">
+            Hide
           </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.name}
-              type="button"
-              onClick={() => setSelectedCategory(cat.name)}
-              className={chip(selectedCategory === cat.name)}
-              title={`${cat.count} item${cat.count !== 1 ? 's' : ''} · ${cat.articles.toLocaleString()} articles`}
-            >
-              {cat.name} <span className="opacity-60">{cat.count}</span>
-            </button>
-          ))}
-        </div>
+        )}
       </div>
-      <ProductsTable productsList={filteredProducts} />
+
+      {!view && <p className="mt-6 text-center text-sm text-gray-400">Scan a barcode or search above. Open Categories or All products only if you need to look.</p>}
+
+      {view === 'categories' && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map((cat) => (
+              <button
+                key={cat.name}
+                type="button"
+                onClick={() => setSelectedCategory(pickedCat === cat.name ? '__all__' : cat.name)}
+                className={chip(pickedCat === cat.name)}
+                title={`${cat.count} item${cat.count !== 1 ? 's' : ''} · ${cat.articles.toLocaleString()} articles`}
+              >
+                {cat.name} <span className="opacity-60">{cat.count}</span>
+              </button>
+            ))}
+          </div>
+          {pickedCat && (
+            <div className="mt-3">
+              <ProductsTable productsList={filteredProducts} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {view === 'products' && (
+        <div className="mt-3">
+          <ProductsTable productsList={products} />
+        </div>
+      )}
     </div>
   );
   }
