@@ -46,6 +46,7 @@ export default function CashInHandPage() {
   const [customEnd, setCustomEnd] = useState(searchParams.get('endDate') || '');
   const [storeName, setStoreName] = useState<string>('DOLLAR & Co');
   const [report, setReport] = useState<CashInHandReport | null>(null);
+  const loans = report?.loanSummary ?? { received: 0, cashIn: 0, bankIn: 0, paidBack: 0, cashOut: 0, bankOut: 0 };
 
   // Load store name once for PDF header.
   useEffect(() => {
@@ -491,12 +492,24 @@ export default function CashInHandPage() {
                   footer={`${report.paymentsReceived.count} payment${report.paymentsReceived.count === 1 ? '' : 's'}`}
                   symbol={symbol}
                 />
+                <MoneyCard
+                  tone="green"
+                  title="Loans Received"
+                  total={loans.received}
+                  sign="+"
+                  rows={[
+                    ['Cash', loans.cashIn],
+                    ['Bank', loans.bankIn],
+                  ]}
+                  footer="Paid from personal money is not counted"
+                  symbol={symbol}
+                />
               </div>
             </Section>
 
             {/* Outflows */}
             <Section label="Outflows">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <MoneyCard
                   tone="red"
                   title="Expenses"
@@ -516,6 +529,18 @@ export default function CashInHandPage() {
                   rows={[
                     ['Cash', report.vendorSummary.cashPaid],
                     ['Bank', report.vendorSummary.bankPaid],
+                  ]}
+                  footer={`${report.vendorSummary.payments ?? 0} payment${report.vendorSummary.payments === 1 ? '' : 's'}${report.vendorSummary.tripCosts ? ` · incl. trip costs ${fmt(report.vendorSummary.tripCosts)}` : ''}`}
+                  symbol={symbol}
+                />
+                <MoneyCard
+                  tone="red"
+                  title="Loans Paid Back"
+                  total={loans.paidBack}
+                  sign="-"
+                  rows={[
+                    ['Cash', loans.cashOut],
+                    ['Bank', loans.bankOut],
                   ]}
                   symbol={symbol}
                 />
@@ -552,6 +577,8 @@ export default function CashInHandPage() {
                     ['Expenses', `-${fmt(report.expenseSummary.cashExpenses)}`, 'text-red-600'],
                     ['Vendor', `-${fmt(report.vendorSummary.cashPaid)}`, 'text-purple-600'],
                     ['Salary', `-${fmt(report.salarySummary.cashPaid)}`, 'text-indigo-600'],
+                    ['Loans in', `+${fmt(loans.cashIn)}`, 'text-teal-700'],
+                    ['Loans paid', `-${fmt(loans.cashOut)}`, 'text-red-600'],
                   ]}
                   symbol={symbol}
                 />
@@ -570,6 +597,8 @@ export default function CashInHandPage() {
                     ['Expenses', `-${fmt(report.expenseSummary.bankExpenses)}`, 'text-red-600'],
                     ['Vendor', `-${fmt(report.vendorSummary.bankPaid)}`, 'text-purple-600'],
                     ['Salary', `-${fmt(report.salarySummary.bankPaid)}`, 'text-indigo-600'],
+                    ['Loans in', `+${fmt(loans.bankIn)}`, 'text-teal-700'],
+                    ['Loans paid', `-${fmt(loans.bankOut)}`, 'text-red-600'],
                   ]}
                   symbol={symbol}
                 />

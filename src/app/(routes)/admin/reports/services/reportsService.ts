@@ -27,7 +27,12 @@ export interface CashInHandReport {
     totalPaid: number;
     cashPaid: number;
     bankPaid: number;
+    payments?: number;
+    /** Trip costs (cash), included in totalPaid / cashPaid. */
+    tripCosts?: number;
   };
+  /** Loans borrowed (in) and paid back (out). Personal-money loans are left out. */
+  loanSummary?: { received: number; cashIn: number; bankIn: number; paidBack: number; cashOut: number; bankOut: number };
   salarySummary: {
     totalPaid: number;
     cashPaid: number;
