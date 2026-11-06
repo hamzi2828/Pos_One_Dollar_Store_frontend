@@ -3,7 +3,7 @@
 // Loans the company has taken and has to give back (owner 2026-11-06).
 // Lender: a vendor, customer or employee (one dropdown), or any other person.
 // Paid back in parts; "Left" is what we still owe.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { HandCoins, Loader2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
@@ -13,13 +13,6 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 
 type LenderType = 'vendor' | 'customer' | 'employee' | 'other';
-interface Lender {
-  type: LenderType;
-  _id: string;
-  name: string;
-  phone?: string;
-  extra?: string;
-}
 interface Repayment {
   _id: string;
   amount: number;
@@ -221,10 +214,7 @@ function Card({ label, value, hint, tone = 'text-gray-900', strong }: { label: s
 }
 
 function AddLoanModal({ onClose, onSaved }: { onClose: () => void; onSaved: (l: Loan) => void }) {
-  const [lenders, setLenders] = useState<Lender[] | null>(null);
-  const [pick, setPick] = useState(''); // "vendor:id" | "other"
-  const [otherName, setOtherName] = useState('');
-  const [otherPhone, setOtherPhone] = useState('');
+  const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(today());
   const [method, setMethod] = useState('Cash');
@@ -233,32 +223,16 @@ function AddLoanModal({ onClose, onSaved }: { onClose: () => void; onSaved: (l: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    storeApi
-      .get<Lender[]>('/loans/lenders')
-      .then((r) => setLenders(r.data || []))
-      .catch(() => setLenders([]));
-  }, []);
-
-  const groups = useMemo(() => {
-    const by = (t: LenderType) => (lenders || []).filter((l) => l.type === t);
-    return { vendor: by('vendor'), customer: by('customer'), employee: by('employee') };
-  }, [lenders]);
-
   const save = async () => {
     if (busy) return;
     setError(null);
-    const [type, id] = pick === 'other' ? ['other', ''] : pick.split(':');
-    if (!type) return setError('Pick who gave the loan');
-    if (type === 'other' && !otherName.trim()) return setError('Write the name of the person');
+    if (!name.trim()) return setError('Write who gave the loan');
     if (!(Number(amount) > 0)) return setError('Enter the loan amount');
     setBusy(true);
     try {
       const r = await storeApi.post<Loan>('/loans', {
-        lenderType: type,
-        lender: id || undefined,
-        lenderName: type === 'other' ? otherName.trim() : undefined,
-        lenderPhone: type === 'other' ? otherPhone.trim() : undefined,
+        lenderType: 'other',
+        lenderName: name.trim(),
         amount: Number(amount),
         date,
         method,
@@ -294,52 +268,9 @@ function AddLoanModal({ onClose, onSaved }: { onClose: () => void; onSaved: (l: 
       }
     >
       <div className="space-y-4">
-        <Field label="Loan from" required hint="Vendors, customers and employees are all in this list. Pick Other for anyone else.">
-          <SearchSelect value={pick} onChange={(e) => setPick(e.target.value)} className={inputClass}>
-            <option value="">{lenders ? 'Pick a person…' : 'Loading…'}</option>
-            <option value="other">Other (type a name)</option>
-            {groups.vendor.length > 0 && (
-              <optgroup label="Vendors">
-                {groups.vendor.map((l) => (
-                  <option key={l._id} value={`vendor:${l._id}`}>
-                    {l.name}
-                    {l.phone ? ` · ${l.phone}` : ''}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {groups.customer.length > 0 && (
-              <optgroup label="Customers">
-                {groups.customer.map((l) => (
-                  <option key={l._id} value={`customer:${l._id}`}>
-                    {l.name}
-                    {l.phone ? ` · ${l.phone}` : ''}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {groups.employee.length > 0 && (
-              <optgroup label="Employees">
-                {groups.employee.map((l) => (
-                  <option key={l._id} value={`employee:${l._id}`}>
-                    {l.name}
-                    {l.extra ? ` · ${l.extra}` : ''}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </SearchSelect>
+        <Field label="Loan from" required>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus className={inputClass} placeholder="Name of the person" />
         </Field>
-        {pick === 'other' && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Name" required>
-              <input value={otherName} onChange={(e) => setOtherName(e.target.value)} maxLength={120} className={inputClass} placeholder="e.g. Rashid (uncle)" />
-            </Field>
-            <Field label="Phone">
-              <input value={otherPhone} onChange={(e) => setOtherPhone(e.target.value)} maxLength={30} className={inputClass} placeholder="03xx…" />
-            </Field>
-          </div>
-        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Amount" required>
             <MoneyInput value={amount} onValue={setAmount} className={`${inputClass} text-right font-semibold`} placeholder="0" />
