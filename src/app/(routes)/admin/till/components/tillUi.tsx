@@ -285,21 +285,6 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                   {/* Sales */}
                   <div className="rounded-lg border border-gray-200 p-3 lg:col-span-3">
                     <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{isOpen ? 'Sales so far' : 'Sales of the day'}</p>
-                    {/* One clear answer first */}
-                    {anyEntered && (() => {
-                      const d = Math.round((sum('entered') - sum('system')) * 100) / 100;
-                      const ok = Math.abs(d) < 1;
-                      return (
-                        <div className={`mb-3 rounded-lg px-3 py-2.5 ${ok ? 'bg-green-50 ring-1 ring-green-200' : d < 0 ? 'bg-red-50 ring-1 ring-red-200' : 'bg-amber-50 ring-1 ring-amber-200'}`}>
-                          <p className={`text-xl font-bold tabular-nums ${ok ? 'text-green-700' : d < 0 ? 'text-red-700' : 'text-amber-800'}`}>
-                            {ok ? 'All sales match' : `${d < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(d))}`}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            Cashier gave {formatRs(sum('entered'))} · sales were {formatRs(sum('system'))}
-                          </p>
-                        </div>
-                      );
-                    })()}
                     <table className="w-full text-sm">
                       <thead className="text-[11px] text-gray-500">
                         <tr>
@@ -445,6 +430,29 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                       </>
                     )}
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* Result of the day: cashier gave vs sales were (cash after expenses + POS + bank) */}
+            {(() => {
+              const ex = data.expected || data.liveExpected || null;
+              const sys =
+                (ex ? ex.cashSales + ex.cashReceivedOnCredit - ex.cashRefunds - (ex.expenses || 0) : 0) +
+                (data.nonCash?.card ?? ex?.card ?? 0) +
+                (data.nonCash?.bank_transfer ?? ex?.bankTransfer ?? 0);
+              const gave = (data.dayCash?.total || 0) + (data.cardTotal || 0) + (data.bankTransferTotal || 0);
+              if (!data.dayCash && data.cardTotal == null && data.bankTransferTotal == null) return null;
+              const d = Math.round((gave - sys) * 100) / 100;
+              const ok = Math.abs(d) < 1;
+              return (
+                <div className={`rounded-lg px-4 py-3 ${ok ? 'bg-green-50 ring-1 ring-green-200' : d < 0 ? 'bg-red-50 ring-1 ring-red-200' : 'bg-amber-50 ring-1 ring-amber-200'}`}>
+                  <p className={`text-2xl font-bold tabular-nums ${ok ? 'text-green-700' : d < 0 ? 'text-red-700' : 'text-amber-800'}`}>
+                    {ok ? 'All sales match' : `${d < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(d))}`}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Cashier gave {formatRs(gave)} · sales were {formatRs(Math.round(sys * 100) / 100)}
+                  </p>
                 </div>
               );
             })()}
