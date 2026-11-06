@@ -220,6 +220,7 @@ export default function SalesReportPage() {
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
         >
           <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
           <option value="week">This Week</option>
           <option value="month">This Month</option>
           <option value="custom">Custom</option>

@@ -81,6 +81,7 @@ export default function CostAnalysisPage() {
         <Calendar className="h-4 w-4 text-gray-500" />
         <SearchSelect value={filter} onChange={(e) => setFilter(e.target.value as DateFilter)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
           <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
           <option value="week">This Week</option>
           <option value="month">This Month</option>
           <option value="custom">Custom</option>

@@ -348,7 +348,7 @@ export function fetchSalaryReport(
 }
 
 // Shared date-range helpers — build local YYYY-MM-DD strings.
-export type DateFilter = 'today' | 'week' | 'month' | 'custom';
+export type DateFilter = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
 export function formatDateLocal(date: Date): string {
   const y = date.getFullYear();
@@ -366,6 +366,10 @@ export function rangeFromFilter(
   if (filter === 'today') {
     const s = formatDateLocal(now);
     return { start: s, end: s, label: 'Today' };
+  }
+  if (filter === 'yesterday') {
+    const y = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+    return { start: y, end: y, label: 'Yesterday' };
   }
   if (filter === 'week') {
     const day = now.getDay();
