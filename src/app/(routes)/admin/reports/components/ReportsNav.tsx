@@ -1,10 +1,8 @@
-// Tab bar shared across every report page. Each tab shows only when the
-// user's role has that report's permission (same keys as the sidebar).
+// Reports: one list used by the Reports home (cards) and by each report's
+// "All reports" back link. A report shows only when the role has its permission.
 'use client';
 
-import { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import {
   Wallet,
   TrendingUp,
@@ -20,60 +18,44 @@ import {
   Calculator,
   Route,
   PiggyBank,
+  ArrowLeft,
+  type LucideIcon,
 } from 'lucide-react';
-import { useAccess } from '@/context/AccessContext';
 
-const TABS = [
-  { href: '/admin/reports/sales', label: 'Sales Reports', icon: TrendingUp, perm: 'report_sales' },
-  { href: '/admin/reports/cost-analysis', label: 'Cost Analysis', icon: LineChart, perm: 'report_cost_analysis' },
-  { href: '/admin/reports/stock', label: 'Stock', icon: Boxes, perm: 'report_stock' },
-  { href: '/admin/reports/demand', label: 'Demand List', icon: TrendingDown, perm: 'report_demand' },
-  { href: '/admin/reports/slow-moving', label: 'Slow Moving', icon: Hourglass, perm: 'report_slow_moving' },
-  { href: '/admin/reports/trends', label: 'Sales Trends', icon: CalendarRange, perm: 'report_trends' },
-  { href: '/admin/reports/footfall', label: 'Footfall', icon: Footprints, perm: 'report_footfall' },
-  { href: '/admin/reports/category-performance', label: 'Category Performance', icon: Target, perm: 'report_category_performance' },
-  { href: '/admin/reports/spending', label: 'Spending', icon: PiggyBank, perm: 'report_expenses' },
-  { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt, perm: 'report_expenses' },
-  { href: '/admin/reports/receivables', label: 'Receivables', icon: AlertCircle, perm: 'report_receivables' },
-  { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: 'report_cash_in_hand' },
-  { href: '/admin/reports/cash-closing', label: 'Cash Closing', icon: Calculator, perm: 'report_cash_closing' },
-  { href: '/admin/reports/stock-timeline', label: 'Stock Timeline', icon: Route, perm: 'report_stock_movement' },
+export interface ReportLink {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  perm: string;
+  about: string;
+  group: 'Sales' | 'Stock' | 'Money';
+}
+
+export const REPORTS: ReportLink[] = [
+  { href: '/admin/reports/sales', label: 'Sales Reports', icon: TrendingUp, perm: 'report_sales', about: 'Every bill: total, cost, profit by day, week or month.', group: 'Sales' },
+  { href: '/admin/reports/trends', label: 'Sales Trends', icon: CalendarRange, perm: 'report_trends', about: 'Sales day by day and how they change.', group: 'Sales' },
+  { href: '/admin/reports/footfall', label: 'Footfall', icon: Footprints, perm: 'report_footfall', about: 'Busy hours and days, bills and buyers.', group: 'Sales' },
+  { href: '/admin/reports/category-performance', label: 'Category Performance', icon: Target, perm: 'report_category_performance', about: 'Which categories sell and earn the most.', group: 'Sales' },
+  { href: '/admin/reports/cost-analysis', label: 'Cost Analysis', icon: LineChart, perm: 'report_cost_analysis', about: 'Cost, profit and margin of what was sold.', group: 'Sales' },
+  { href: '/admin/reports/stock', label: 'Stock', icon: Boxes, perm: 'report_stock', about: 'Stock on hand and its value.', group: 'Stock' },
+  { href: '/admin/reports/demand', label: 'Demand List', icon: TrendingDown, perm: 'report_demand', about: 'Items running low that need ordering.', group: 'Stock' },
+  { href: '/admin/reports/slow-moving', label: 'Slow Moving', icon: Hourglass, perm: 'report_slow_moving', about: 'Items that are not selling.', group: 'Stock' },
+  { href: '/admin/reports/stock-timeline', label: 'Stock Timeline', icon: Route, perm: 'report_stock_movement', about: 'Every move of one item: in, sold, moved, damaged.', group: 'Stock' },
+  { href: '/admin/reports/cash-closing', label: 'Cash Closing', icon: Calculator, perm: 'report_cash_closing', about: 'Each till: cash, POS, bank, expenses, over / short.', group: 'Money' },
+  { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: 'report_cash_in_hand', about: 'Cash taken in and paid out.', group: 'Money' },
+  { href: '/admin/reports/spending', label: 'Spending', icon: PiggyBank, perm: 'report_expenses', about: 'Bought, paid to vendors, money left (cash + bank).', group: 'Money' },
+  { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt, perm: 'report_expenses', about: 'Shop expenses by day, week or month.', group: 'Money' },
+  { href: '/admin/reports/receivables', label: 'Receivables', icon: AlertCircle, perm: 'report_receivables', about: 'Money customers still owe.', group: 'Money' },
 ];
 
+/** Shown at the top of every report: back to the Reports home. */
 export default function ReportsNav() {
-  const pathname = usePathname();
-  const { can } = useAccess();
-  const activeRef = useRef<HTMLAnchorElement>(null);
-  const tabs = TABS.filter((t) => can(t.perm, 'view'));
-
-  // Keep the current tab visible when the bar scrolls sideways (phones).
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [pathname]);
-
-  if (!tabs.length) return null;
   return (
-    <nav aria-label="Reports" className="bg-white rounded-lg border border-gray-200 p-1 overflow-x-auto">
-      <div className="flex items-center gap-1 min-w-max">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = pathname === t.href || pathname?.startsWith(`${t.href}/`);
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              ref={isActive ? activeRef : undefined}
-              aria-current={isActive ? 'page' : undefined}
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                isActive ? 'bg-honey-500 text-gray-900' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {t.label}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    <Link
+      href="/admin/reports"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+    >
+      <ArrowLeft className="h-4 w-4" /> All reports
+    </Link>
   );
 }
