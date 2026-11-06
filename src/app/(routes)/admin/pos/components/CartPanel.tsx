@@ -137,9 +137,9 @@ export default function CartPanel({
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
       {/* Header */}
-      <div className="p-3 sm:p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+      <div className="px-3 py-2 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-1.5">
+          <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
             Current Order
             {!isEmpty && <span className="text-xs font-medium text-gray-500">({cart.items.reduce((s, i) => s + i.quantity * (i.variant ? 1 : Math.max(1, Math.floor(Number(i.product.piecesPerSale) || 1))), 0)} pcs)</span>}
@@ -151,22 +151,26 @@ export default function CartPanel({
           )}
         </div>
 
-        <button onClick={onSelectCustomer} className="w-full text-left px-3 py-2 border border-gray-300 rounded-lg hover:border-honey-500 transition-colors">
-          <div className="text-xs text-gray-500 mb-0.5">Customer</div>
-          <div className="text-sm font-medium text-gray-900">{customer ? `${customer.firstName} ${customer.lastName}` : 'Walk-in Customer (Guest)'}</div>
-          {customer?.phone && <div className="text-xs text-gray-500 mt-0.5">{customer.phone}</div>}
-        </button>
-        {onAddManualItem && (
-          <button
-            type="button"
-            onClick={() => setShowManualItem(true)}
-            disabled={busy}
-            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-700 hover:border-honey-500 hover:bg-honey-50 disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Sell something that is not in the product list (type its name and price)"
-          >
-            <PenLine className="h-4 w-4" /> Add manual item
+        <div className="flex gap-1.5">
+          <button onClick={onSelectCustomer} className="min-w-0 flex-1 text-left px-2.5 py-1 border border-gray-300 rounded-lg hover:border-honey-500 transition-colors">
+            <div className="text-[10px] leading-tight text-gray-500">Customer</div>
+            <div className="truncate text-sm font-medium leading-tight text-gray-900">
+              {customer ? `${customer.firstName} ${customer.lastName}` : 'Walk-in (Guest)'}
+              {customer?.phone && <span className="ml-1 text-xs font-normal text-gray-500">{customer.phone}</span>}
+            </div>
           </button>
-        )}
+          {onAddManualItem && (
+            <button
+              type="button"
+              onClick={() => setShowManualItem(true)}
+              disabled={busy}
+              className="shrink-0 flex items-center gap-1 px-2.5 border border-dashed border-gray-300 rounded-lg text-xs text-gray-700 hover:border-honey-500 hover:bg-honey-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Sell something that is not in the product list (type its name and price)"
+            >
+              <PenLine className="h-3.5 w-3.5" /> Manual item
+            </button>
+          )}
+        </div>
       </div>
 
       {onAddManualItem && (
@@ -174,7 +178,7 @@ export default function CartPanel({
       )}
 
       {/* Cart Items */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-2">
+      <div className="flex-1 overflow-y-auto px-3 py-1">
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400">
             <ShoppingCart className="h-16 w-16 mb-4" />

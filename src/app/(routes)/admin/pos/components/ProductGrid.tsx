@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { POSProduct } from '../types';
-import { LayoutGrid, ChevronLeft, Package, Plus, ShoppingCart, Loader2, Info, MapPin } from 'lucide-react';
+import { LayoutGrid, Package, Plus, ShoppingCart, Loader2, Info, MapPin } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface ProductGridProps {
@@ -28,14 +28,14 @@ export default function ProductGrid({
   onShowInsight,
 }: ProductGridProps) {
   const shownQuery = resultsQuery ?? searchQuery;
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('__all__');
 
   const symbol = getCurrencySymbol(currency);
 
   // Reset to categories view when search query changes
   useEffect(() => {
     if (searchQuery) {
-      setSelectedCategory(null);
+      setSelectedCategory('__all__');
     }
   }, [searchQuery]);
 
@@ -62,9 +62,7 @@ export default function ProductGrid({
 
   const filteredProducts = selectedCategory === '__all__'
     ? products
-    : selectedCategory
-      ? products.filter(p => (p.category || 'Uncategorized') === selectedCategory)
-      : [];
+    : products.filter(p => (p.category || 'Uncategorized') === selectedCategory);
 
   // Product Row Component
   const ProductRow = ({ product }: { product: POSProduct }) => {
@@ -78,18 +76,18 @@ export default function ProductGrid({
         className="hover:bg-gray-50 cursor-pointer transition-colors"
         onClick={() => onSelectProduct(product)}
       >
-        <td className="px-3 py-2">
-          <div className="flex items-center gap-3">
+        <td className="px-3 py-1.5">
+          <div className="flex items-center gap-2">
             {product.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={product.thumbnailUrl}
                 alt={product.name}
-                className="w-10 h-10 rounded-lg object-cover bg-gray-100"
+                className="w-8 h-8 rounded object-cover bg-gray-100"
               />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                <Package className="h-5 w-5 text-gray-400" />
+              <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center">
+                <Package className="h-4 w-4 text-gray-400" />
               </div>
             )}
             <div className="min-w-0">
@@ -150,7 +148,7 @@ export default function ProductGrid({
               e.stopPropagation();
               onSelectProduct(product);
             }}
-            className="p-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors"
+            className="p-1.5 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors"
             aria-label="Add to cart"
           >
             <Plus className="h-4 w-4" />
@@ -238,90 +236,38 @@ export default function ProductGrid({
     return <ProductsTable productsList={products} />;
   }
 
-  // Category products view
-  if (selectedCategory) {
-    return (
-      <div>
-        {/* Back button + category header */}
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </button>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {selectedCategory === '__all__' ? 'All Products' : selectedCategory}
-            </h2>
-            <p className="text-xs text-gray-500">{filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-
-        {/* Products table */}
-        <ProductsTable productsList={filteredProducts} />
-      </div>
-    );
-  }
-
-  // Categories view
+  // Category chips (compact) + products of the picked category
+  const chip = (active: boolean) =>
+    `shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+      active ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-honey-500 hover:text-honey-800'
+    }`;
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
-        <LayoutGrid className="h-5 w-5 text-gray-500" />
-        <h2 className="text-lg font-semibold text-gray-900">Categories</h2>
-        <span className="text-sm text-gray-400">({categories.length})</span>
-        <span className="text-sm text-gray-600">· <strong className="text-gray-900">{totalArticles.toLocaleString()}</strong> article{totalArticles !== 1 ? 's' : ''}</span>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        {/* All Products tile */}
-        <button
-          onClick={() => setSelectedCategory('__all__')}
-          className="bg-gray-950 rounded-xl p-4 text-left hover:shadow-lg transition-all duration-200 hover:scale-[1.02] group"
-        >
-          <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-3">
-            <Package className="h-6 w-6 text-honey-400" />
-          </div>
-          <h3 className="font-semibold text-white text-sm">All Products</h3>
-          <p className="text-white/70 text-xs mt-1">{products.length} items · {totalArticles.toLocaleString()} articles</p>
-        </button>
-
-        {/* Category tiles */}
-        {categories.map((cat) => {
-          // Get first product thumbnail for the category
-          const firstProduct = cat.products.find(p => p.thumbnailUrl);
-          const thumbnail = firstProduct?.thumbnailUrl;
-
-          return (
+      <div className="sticky top-0 z-[5] -mx-1 mb-2 bg-gray-50/95 px-1 pb-2 pt-1 backdrop-blur">
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-gray-500">
+          <LayoutGrid className="h-3.5 w-3.5" />
+          <span className="font-semibold text-gray-700">Categories</span>
+          <span>({categories.length})</span>
+          <span>· {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} shown · {totalArticles.toLocaleString()} articles in stock</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5 max-h-[4.6rem] overflow-y-auto">
+          <button type="button" onClick={() => setSelectedCategory('__all__')} className={chip(selectedCategory === '__all__')}>
+            <Package className="h-3 w-3" /> All <span className="opacity-60">{products.length}</span>
+          </button>
+          {categories.map((cat) => (
             <button
               key={cat.name}
+              type="button"
               onClick={() => setSelectedCategory(cat.name)}
-              className="bg-white border border-gray-200 rounded-xl p-4 text-left hover:shadow-lg transition-all duration-200 hover:border-honey-500 hover:scale-[1.02] group relative overflow-hidden"
+              className={chip(selectedCategory === cat.name)}
+              title={`${cat.count} item${cat.count !== 1 ? 's' : ''} · ${cat.articles.toLocaleString()} articles`}
             >
-              {/* Category thumbnail */}
-              {thumbnail ? (
-                <div className="w-12 h-12 rounded-lg mb-3 overflow-hidden bg-gray-100 flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={thumbnail}
-                    alt={cat.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-3">
-                  <LayoutGrid className="h-6 w-6 text-gray-400 group-hover:text-honey-700 transition-colors" />
-                </div>
-              )}
-              <h3 className="font-semibold text-gray-900 text-sm group-hover:text-honey-700 transition-colors">
-                {cat.name}
-              </h3>
-              <p className="text-gray-500 text-xs mt-1">{cat.count} item{cat.count !== 1 ? 's' : ''} · {cat.articles.toLocaleString()} article{cat.articles !== 1 ? 's' : ''}</p>
+              {cat.name} <span className="opacity-60">{cat.count}</span>
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
+      <ProductsTable productsList={filteredProducts} />
     </div>
   );
   }

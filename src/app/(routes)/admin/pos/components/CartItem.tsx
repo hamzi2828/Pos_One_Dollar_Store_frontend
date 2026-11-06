@@ -93,149 +93,141 @@ export default function CartItem({
   const thumbnail = item.color ? getColorThumbnail(item.product, item.color) : getProductThumbnail(item.product);
 
   return (
-    <div className={`py-3 border-b border-gray-200 ${item.isGift ? 'bg-pink-50/40 -mx-2 px-2 rounded' : ''}`}>
-      <div className="flex items-start gap-3">
-        {/* Product Image */}
-        <div className="w-12 h-12 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
+    <div className={`py-1.5 border-b border-gray-100 ${item.isGift ? 'bg-pink-50/40 -mx-2 px-2 rounded' : ''}`}>
+      <div className="flex items-center gap-2">
+        {/* Small picture */}
+        <div className="w-8 h-8 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
           {item.isManual ? (
-            <div className="w-full h-full flex items-center justify-center bg-honey-100 text-honey-900 text-[10px] font-semibold">Manual</div>
+            <div className="w-full h-full flex items-center justify-center bg-honey-100 text-honey-900 text-[8px] font-semibold">Manual</div>
           ) : thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={thumbnail} alt={item.product.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400 text-[10px]">No image</div>
-          )}
+          ) : null}
         </div>
 
-        {/* Product Details */}
+        {/* Name + unit price */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-1">
-            <h4 className="text-sm font-medium text-gray-900 truncate flex-1" title={item.product.name}>
+          <div className="flex items-center gap-1">
+            <h4 className="text-[13px] leading-tight font-medium text-gray-900 truncate" title={item.product.name}>
               {item.product.name}
             </h4>
             {onShowInsight && (
-              <button
-                type="button"
-                onClick={() => onShowInsight(item)}
-                className="p-0.5 text-gray-400 hover:text-blue-600"
-                title="Product history: prices, vendors, stock"
-                aria-label="Product history"
-              >
-                <Info className="h-4 w-4" />
+              <button type="button" onClick={() => onShowInsight(item)} className="shrink-0 text-gray-300 hover:text-blue-600" title="Product history: prices, vendors, stock" aria-label="Product history">
+                <Info className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-          {pps > 1 && (
-            <p className="mt-1 inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
-              1 sale = {pps} pieces · give {item.quantity * pps} pieces
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-1 mt-0.5">
-            {(item.color || item.size) && (
-              <span className="text-xs text-gray-500">{item.color && item.size ? `${item.color} / ${item.size}` : item.color || item.size}</span>
+          <div className="flex items-center gap-1 text-[11px] leading-tight text-gray-500">
+            {isEditingPrice ? (
+              <span className="flex items-center gap-1">
+                {symbol}
+                <MoneyInput
+                  value={editPrice}
+                  onValue={setEditPrice}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handlePriceEdit();
+                    if (e.key === 'Escape') {
+                      setEditPrice(unitPrice.toString());
+                      setIsEditingPrice(false);
+                    }
+                  }}
+                  className="w-16 text-xs border rounded px-1 py-0 text-right"
+                  autoFocus
+                />
+                <button type="button" onClick={handlePriceEdit} className="text-green-600 hover:text-green-700" aria-label="Save price">
+                  <Check className="h-3 w-3" />
+                </button>
+              </span>
+            ) : (
+              !item.isGift && (
+                <>
+                  <span className={item.priceOverride ? 'text-blue-600 font-medium' : ''}>
+                    {symbol}
+                    {unitPrice.toFixed(0)} {pps > 1 ? `/${pps} pcs` : 'each'}
+                    {item.priceOverride ? ' (typed)' : ''}
+                  </span>
+                  {onUpdateUnitPrice && !disabled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPrice(unitPrice.toString());
+                        setIsEditingPrice(true);
+                      }}
+                      className="text-gray-300 hover:text-blue-600"
+                      title={canGoBelowList ? 'Edit price' : 'Edit price (can only increase)'}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </>
+              )
             )}
-            {shelfCodes.slice(0, 2).map((code) => (
-              <span key={code} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">
+            {(item.color || item.size) && <span className="truncate">· {item.color && item.size ? `${item.color} / ${item.size}` : item.color || item.size}</span>}
+            {shelfCodes.slice(0, 1).map((code) => (
+              <span key={code} className="inline-flex items-center gap-0.5 rounded bg-blue-50 px-1 text-[10px] font-semibold text-blue-700">
                 <MapPin className="h-2.5 w-2.5" />
                 {code}
               </span>
             ))}
-            {item.batchNo && <span className="text-[10px] text-gray-400">Batch {item.batchNo}</span>}
           </div>
+          {pps > 1 && <p className="text-[10px] font-semibold text-amber-800">1 sale = {pps} pcs · give {item.quantity * pps}</p>}
+        </div>
 
-          <div className="flex items-center justify-between mt-2">
-            {/* Quantity: buttons or type it */}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => item.quantity > 1 && onUpdateQuantity(item.id, item.quantity - 1)}
-                className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center disabled:opacity-40"
-                disabled={disabled || item.quantity <= 1}
-                aria-label="One less"
-              >
-                <Minus className="h-3 w-3" />
-              </button>
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={qtyText}
-                disabled={disabled}
-                onChange={(e) => setQtyText(e.target.value)}
-                onBlur={() => setQty(Number(qtyText))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                }}
-                className="w-11 h-7 text-sm font-medium text-center border border-gray-200 rounded [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
-                aria-label="Quantity"
-              />
-              <button
-                type="button"
-                onClick={() => setQty(item.quantity + 1)}
-                className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center disabled:opacity-40"
-                disabled={disabled}
-                aria-label="One more"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
+        {/* Qty */}
+        <div className="flex items-center shrink-0">
+          <button
+            type="button"
+            onClick={() => item.quantity > 1 && onUpdateQuantity(item.id, item.quantity - 1)}
+            className="w-6 h-6 rounded-l bg-gray-100 hover:bg-gray-200 flex items-center justify-center disabled:opacity-40"
+            disabled={disabled || item.quantity <= 1}
+            aria-label="One less"
+          >
+            <Minus className="h-3 w-3" />
+          </button>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={qtyText}
+            disabled={disabled}
+            onChange={(e) => setQtyText(e.target.value)}
+            onBlur={() => setQty(Number(qtyText))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            className="w-9 h-6 text-xs font-semibold text-center border-y border-gray-200 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+            aria-label="Quantity"
+          />
+          <button
+            type="button"
+            onClick={() => setQty(item.quantity + 1)}
+            className="w-6 h-6 rounded-r bg-gray-100 hover:bg-gray-200 flex items-center justify-center disabled:opacity-40"
+            disabled={disabled}
+            aria-label="One more"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </div>
 
-            {/* Price */}
-            <div className="text-right">
-              {item.isGift ? (
-                <div className="text-sm font-semibold text-pink-700">FREE — gift</div>
-              ) : (
-                <div className="text-sm font-semibold text-gray-900">
-                  {symbol}
-                  {lineTotal.toFixed(2)}
-                </div>
-              )}
-              {isEditingPrice ? (
-                <div className="flex items-center gap-1 justify-end mt-1">
-                  <span className="text-xs text-gray-500">{symbol}</span>
-                  <MoneyInput
-                    value={editPrice}
-                    onValue={setEditPrice}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handlePriceEdit();
-                      if (e.key === 'Escape') {
-                        setEditPrice(unitPrice.toString());
-                        setIsEditingPrice(false);
-                      }
-                    }}
-                    className="w-16 text-xs border rounded px-1 py-0.5 text-right"
-                    autoFocus
-                  />
-                  <button type="button" onClick={handlePriceEdit} className="text-green-600 hover:text-green-700" aria-label="Save price">
-                    <Check className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                !item.isGift && (
-                  <div className="flex items-center gap-1 justify-end">
-                    <span className={`text-xs ${item.priceOverride ? 'text-blue-600 font-medium' : 'text-gray-500'}`}>
-                      {symbol}
-                      {unitPrice.toFixed(2)} {pps > 1 ? `per ${pps} pcs` : 'each'}{item.priceOverride ? ' (typed)' : ''}
-                    </span>
-                    {onUpdateUnitPrice && !disabled && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditPrice(unitPrice.toString());
-                          setIsEditingPrice(true);
-                        }}
-                        className="text-gray-400 hover:text-blue-600"
-                        title={canGoBelowList ? 'Edit price' : 'Edit price (can only increase)'}
-                      >
-                        <Edit2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                )
-              )}
-            </div>
-          </div>
+        {/* Line total */}
+        <div className="w-[4.5rem] shrink-0 text-right text-[13px] font-semibold tabular-nums">
+          {item.isGift ? <span className="text-pink-700">FREE</span> : <span className="text-gray-900">{symbol}{lineTotal.toFixed(0)}</span>}
+        </div>
 
+        {/* Gift / remove */}
+        <div className="flex shrink-0 items-center">
+          {onToggleGift && !item.isGift && !askGift && (
+            <button type="button" onClick={() => setAskGift(true)} disabled={disabled} className="p-0.5 text-gray-300 hover:text-pink-600 disabled:opacity-40" title="Give this line free as a gift" aria-label="Make gift">
+              <Gift className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button type="button" onClick={() => onRemove(item.id)} disabled={disabled} className="p-0.5 text-gray-400 hover:text-red-500 disabled:opacity-40" aria-label="Remove line">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="pl-10">
           {item.isGift && (
             <div className="mt-1 flex items-center justify-between gap-2 text-xs text-pink-700">
               <span className="truncate">
@@ -282,25 +274,6 @@ export default function CartItem({
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex flex-col items-center gap-1">
-          <button type="button" onClick={() => onRemove(item.id)} disabled={disabled} className="text-gray-400 hover:text-red-500 p-1 disabled:opacity-40" aria-label="Remove line">
-            <X className="h-4 w-4" />
-          </button>
-          {onToggleGift && !item.isGift && !askGift && (
-            <button
-              type="button"
-              onClick={() => setAskGift(true)}
-              disabled={disabled}
-              className="text-gray-400 hover:text-pink-600 p-1 disabled:opacity-40"
-              title="Give this line free as a gift"
-              aria-label="Make gift"
-            >
-              <Gift className="h-4 w-4" />
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );
