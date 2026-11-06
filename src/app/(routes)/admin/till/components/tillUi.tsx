@@ -441,8 +441,11 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                 (ex ? ex.cashSales + ex.cashReceivedOnCredit - ex.cashRefunds - (ex.expenses || 0) : 0) +
                 (data.nonCash?.card ?? ex?.card ?? 0) +
                 (data.nonCash?.bank_transfer ?? ex?.bankTransfer ?? 0);
-              const gave = (data.dayCash?.total || 0) + (data.cardTotal || 0) + (data.bankTransferTotal || 0);
               if (!data.dayCash && data.cardTotal == null && data.bankTransferTotal == null) return null;
+              // Cash left in the drawer above the float is sales cash too.
+              const drawerTotal = data.drawerCount?.total ?? data.closingCount?.total ?? 0;
+              const extra = Math.round((drawerTotal - (data.openingFloat?.total || 0)) * 100) / 100;
+              const gave = (data.dayCash?.total || 0) + extra + (data.cardTotal || 0) + (data.bankTransferTotal || 0);
               const d = Math.round((gave - sys) * 100) / 100;
               const ok = Math.abs(d) < 1;
               return (
@@ -453,6 +456,11 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                   <p className="text-sm text-gray-600">
                     Cashier gave {formatRs(gave)} · sales were {formatRs(Math.round(sys * 100) / 100)}
                   </p>
+                  {Math.abs(extra) >= 1 && (
+                    <p className="text-[11px] text-gray-500">
+                      Includes {formatRs(Math.abs(extra))} {extra > 0 ? 'extra' : 'missing'} in the drawer (counted {formatRs(drawerTotal)}, float {formatRs(data.openingFloat?.total || 0)})
+                    </p>
+                  )}
                 </div>
               );
             })()}
