@@ -50,6 +50,16 @@ export const expenseService = {
     }
   },
 
+  // + / − adjustment of the amount (the amount itself is not edited).
+  async adjustExpense(expenseId: string, amount: number, note: string) {
+    const response = await axios.post(
+      `${API_BASE_URL}/expenses/${expenseId}/adjust`,
+      { amount, note },
+      { headers: { 'Content-Type': 'application/json', ...getAuthHeader() } },
+    );
+    return response.data?.data ?? response.data;
+  },
+
   // Get expense summary
   async getExpenseSummary(startDate?: string, endDate?: string) {
     try {

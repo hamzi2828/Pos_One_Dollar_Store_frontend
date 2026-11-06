@@ -32,10 +32,19 @@ export interface Expense {
   updatedAt: string;
 }
 
+export interface ExpenseAdjustment {
+  amount: number; // + more spent, − less
+  note: string;
+  byName?: string;
+  at: string;
+}
+
 export interface RawExpense {
   _id: string | number;
   title?: string;
   amount?: number;
+  originalAmount?: number | null;
+  adjustments?: ExpenseAdjustment[];
   category?: string;
   date?: string | Date;
   paymentMethod?: string;

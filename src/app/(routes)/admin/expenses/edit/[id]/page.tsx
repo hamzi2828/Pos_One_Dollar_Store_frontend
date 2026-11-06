@@ -11,7 +11,8 @@ import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import BankSelect from '../../components/BankSelect';
 import InvestmentBillSelect from '../../components/InvestmentBillSelect';
-import MoneyInput from '@/components/ui/MoneyInput';
+import ExpenseAdjustments from '../../components/ExpenseAdjustments';
+import type { ExpenseAdjustment } from '../../types';
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function EditExpensePage() {
   // Expense Info
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [originalAmount, setOriginalAmount] = useState<number | null>(null);
+  const [adjustments, setAdjustments] = useState<ExpenseAdjustment[]>([]);
   const [category, setCategory] = useState<ExpenseCategory>('Other');
   const [date, setDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
@@ -54,6 +57,8 @@ export default function EditExpensePage() {
 
         setTitle(data.title || '');
         setAmount(String(data.amount ?? ''));
+        setOriginalAmount(data.originalAmount ?? null);
+        setAdjustments(data.adjustments || []);
         setCategory((data.category as ExpenseCategory) || 'Other');
         setDate(data.date ? new Date(data.date).toISOString().split('T')[0] : '');
         setPaymentMethod((data.paymentMethod as PaymentMethod) || 'Cash');
@@ -210,16 +215,19 @@ export default function EditExpensePage() {
                 disabled={loading}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Amount <span className="text-red-500">*</span>
-              </label>
-              <MoneyInput
-                value={amount}
-                onValue={setAmount}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
-                placeholder="0.00"
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+              <ExpenseAdjustments
+                expenseId={expenseId}
+                amount={Number(amount) || 0}
+                originalAmount={originalAmount}
+                adjustments={adjustments}
                 disabled={loading}
+                onChanged={(next) => {
+                  setAmount(String(next.amount));
+                  setOriginalAmount(next.originalAmount);
+                  setAdjustments(next.adjustments);
+                }}
               />
             </div>
             <div>
