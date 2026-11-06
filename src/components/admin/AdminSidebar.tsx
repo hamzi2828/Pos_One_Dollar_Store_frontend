@@ -234,6 +234,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'expenses' },
     { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
     { name: 'Investment', path: '/admin/investments', icon: <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'investments' },
+    { name: 'Loans', path: '/admin/loans', icon: <HandCoins className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'loans' },
   ];
 
   // HR — employees (full details, contract letter) and who looks after which category.

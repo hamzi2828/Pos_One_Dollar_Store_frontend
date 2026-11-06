@@ -23,8 +23,10 @@ const KIND: Record<string, string> = {
   vendor_payment: 'bg-rose-50 text-rose-700',
   trip_cost: 'bg-amber-50 text-amber-700',
   expense: 'bg-gray-100 text-gray-700',
+  loan_in: 'bg-sky-50 text-sky-700',
+  loan_out: 'bg-violet-50 text-violet-700',
 };
-const KIND_LABEL: Record<string, string> = { sales: 'Sales', refund: 'Refund', vendor_payment: 'Vendor paid', trip_cost: 'Trip cost', expense: 'Expense' };
+const KIND_LABEL: Record<string, string> = { sales: 'Sales', refund: 'Refund', vendor_payment: 'Vendor paid', trip_cost: 'Trip cost', expense: 'Expense', loan_in: 'Loan taken', loan_out: 'Loan paid back' };
 
 export default function FundsPanel() {
   const { isSuperAdmin } = useAccess();
