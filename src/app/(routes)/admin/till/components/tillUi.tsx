@@ -245,15 +245,25 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
               const floatAmt = data.openingFloat?.total ?? e?.float ?? 0;
               const drawer = data.drawerCount ?? (data.dayCash ? null : data.closingCount);
               const drawerDiff = drawer ? Math.round((drawer.total - floatAmt) * 100) / 100 : null;
-              const sysCash = e ? Math.round((e.cashSales + e.cashReceivedOnCredit - e.cashRefunds - (e.expenses || 0)) * 100) / 100 : null;
+              // Sales as billed (discounts already off). The day's expenses come out of the cash.
+              const expensesAmt = e?.expenses || 0;
+              const discountAmt = (data.discounts || []).reduce((t, d) => t + d.discount, 0);
+              const sysCash = e ? Math.round((e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) * 100) / 100 : null;
               const sysCard = data.nonCash?.card ?? e?.card ?? 0;
               const sysBank = data.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0;
-              const rows: { label: string; entered: number | null; system: number | null }[] = [
-                { label: 'Cash', entered: data.dayCash ? data.dayCash.total : null, system: sysCash },
+              const rows: { label: string; entered: number | null; system: number | null; target?: number | null; hint?: string }[] = [
+                {
+                  label: 'Cash',
+                  entered: data.dayCash ? data.dayCash.total : null,
+                  system: sysCash,
+                  target: sysCash != null ? Math.round((sysCash - expensesAmt) * 100) / 100 : null,
+                  hint: expensesAmt ? 'after expenses' : undefined,
+                },
                 { label: 'POS machine (card)', entered: data.cardTotal ?? null, system: sysCard },
                 { label: 'Bank transfer', entered: data.bankTransferTotal ?? null, system: sysBank },
               ];
               const sum = (k: 'entered' | 'system') => rows.reduce((t, r) => t + (r[k] || 0), 0);
+              const shouldGive = Math.round((sum('system') - expensesAmt) * 100) / 100;
               const anyEntered = rows.some((r) => r.entered != null);
               const diffCell = (entered: number | null, system: number | null) => {
                 if (entered == null || system == null) return <span className="text-gray-400">—</span>;
@@ -300,22 +310,56 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                             <td className="py-1.5 pr-2 text-gray-700">{r.label}</td>
                             <td className="py-1.5 text-right tabular-nums">{r.entered != null ? formatRs(r.entered) : '—'}</td>
                             <td className="py-1.5 text-right tabular-nums text-gray-600">{r.system != null ? formatRs(r.system) : '—'}</td>
-                            <td className="py-1.5 pl-2 text-right text-xs tabular-nums">{diffCell(r.entered, r.system)}</td>
+                            <td className="py-1.5 pl-2 text-right text-xs tabular-nums">
+                              {diffCell(r.entered, r.target !== undefined ? r.target : r.system)}
+                              {r.hint && r.entered != null && <span className="block text-[10px] font-normal text-gray-400">{r.hint}</span>}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot>
-                        <tr className="border-t-2 border-gray-300 font-bold">
-                          <td className="py-2 pr-2 text-gray-900">Total</td>
+                      <tfoot className="text-sm">
+                        {discountAmt > 0 && (
+                          <>
+                            <tr className="border-t-2 border-gray-300">
+                              <td className="py-1.5 pr-2 text-gray-600">Sales at full price</td>
+                              <td />
+                              <td className="py-1.5 text-right tabular-nums text-gray-600">{formatRs(sum('system') + discountAmt)}</td>
+                              <td />
+                            </tr>
+                            <tr>
+                              <td className="py-1.5 pr-2 text-gray-600">− Discounts ({(data.discounts || []).length})</td>
+                              <td />
+                              <td className="py-1.5 text-right tabular-nums text-rose-700">−{formatRs(discountAmt)}</td>
+                              <td />
+                            </tr>
+                          </>
+                        )}
+                        <tr className={`font-semibold ${discountAmt > 0 ? '' : 'border-t-2 border-gray-300'}`}>
+                          <td className="py-1.5 pr-2 text-gray-900">= Total sales</td>
+                          <td className="py-1.5 text-right tabular-nums text-gray-900">{anyEntered ? formatRs(sum('entered')) : '—'}</td>
+                          <td className="py-1.5 text-right tabular-nums text-gray-900">{formatRs(sum('system'))}</td>
+                          <td />
+                        </tr>
+                        {expensesAmt > 0 && (
+                          <tr>
+                            <td className="py-1.5 pr-2 text-gray-600">− Expenses ({(data.expenses || []).length})</td>
+                            <td />
+                            <td className="py-1.5 text-right tabular-nums text-gray-700">−{formatRs(expensesAmt)}</td>
+                            <td />
+                          </tr>
+                        )}
+                        <tr className="border-t border-gray-300 bg-gray-50 font-bold">
+                          <td className="py-2 pr-2 text-gray-900">= Rest (to hand over)</td>
                           <td className="py-2 text-right tabular-nums text-gray-900">{anyEntered ? formatRs(sum('entered')) : '—'}</td>
-                          <td className="py-2 text-right tabular-nums text-gray-900">{formatRs(sum('system'))}</td>
-                          <td className="py-2 pl-2 text-right text-xs tabular-nums">{anyEntered ? diffCell(sum('entered'), sum('system')) : <span className="text-gray-400">—</span>}</td>
+                          <td className="py-2 text-right tabular-nums text-gray-900">{formatRs(shouldGive)}</td>
+                          <td className="py-2 pl-2 text-right text-xs tabular-nums">{anyEntered ? diffCell(sum('entered'), shouldGive) : <span className="text-gray-400">—</span>}</td>
                         </tr>
                       </tfoot>
                     </table>
                     {(() => {
                       // Cash short and card/bank over by about the same: payments saved under the wrong method.
-                      const cashD = rows[0].entered != null && rows[0].system != null ? rows[0].entered - rows[0].system : 0;
+                      const cashT = rows[0].target ?? rows[0].system;
+                      const cashD = rows[0].entered != null && cashT != null ? rows[0].entered - cashT : 0;
                       const otherD = rows.slice(1).reduce((t, r) => t + (r.entered != null && r.system != null ? r.entered - r.system : 0), 0);
                       const mixed = Math.abs(cashD) >= 100 && Math.abs(otherD) >= 100 && Math.sign(cashD) !== Math.sign(otherD) && Math.abs(cashD + otherD) < 0.5 * Math.max(Math.abs(cashD), Math.abs(otherD));
                       return mixed ? (
