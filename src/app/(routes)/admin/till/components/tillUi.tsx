@@ -342,12 +342,34 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                           <td />
                         </tr>
                         {expensesAmt > 0 && (
-                          <tr>
-                            <td className="py-1.5 pr-2 text-gray-600">− Expenses ({(data.expenses || []).length})</td>
-                            <td />
-                            <td className="py-1.5 text-right tabular-nums text-gray-700">−{formatRs(expensesAmt)}</td>
-                            <td />
-                          </tr>
+                          <>
+                            <tr>
+                              <td colSpan={4} className="pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                − Expenses ({(data.expenses || []).filter((x) => !x.shopUse).length})
+                              </td>
+                            </tr>
+                            {(data.expenses || []).map((x) => (
+                              <tr key={x._id} className={x.shopUse ? 'text-gray-400' : ''}>
+                                <td className="py-1 pl-3 pr-2 text-gray-700">
+                                  {x.title}
+                                  <span className="ml-1 text-[11px] text-gray-400">
+                                    {new Date(x.createdAt).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Karachi' })}
+                                    {x.paymentMethod && x.paymentMethod !== 'Cash' ? ` · ${x.paymentMethod}` : ''}
+                                    {x.shopUse ? ' · shop use, not from cash' : ''}
+                                  </span>
+                                </td>
+                                <td />
+                                <td className="py-1 text-right tabular-nums text-gray-700">{x.shopUse ? '—' : `−${formatRs(x.amount)}`}</td>
+                                <td />
+                              </tr>
+                            ))}
+                            <tr className="font-semibold">
+                              <td className="py-1.5 pl-3 pr-2 text-gray-800">Total expenses</td>
+                              <td />
+                              <td className="py-1.5 text-right tabular-nums text-rose-700">−{formatRs(expensesAmt)}</td>
+                              <td />
+                            </tr>
+                          </>
                         )}
                         <tr className="border-t border-gray-300 bg-gray-50 font-bold">
                           <td className="py-2 pr-2 text-gray-900">= Rest (to hand over)</td>
