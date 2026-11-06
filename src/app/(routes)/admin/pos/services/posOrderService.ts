@@ -60,6 +60,19 @@ export async function resendOrderWhatsapp(orderId: string): Promise<{ queued: bo
   return { ...json.data, message: json.message };
 }
 
+/** Discount after the sale: the total goes down, the customer gets the amount back. */
+export async function giveOrderDiscount(orderId: string, amount: number, reason?: string): Promise<POSOrder> {
+  if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
+  const res = await fetch(`${API_BASE_URL}/api/pos/orders/${orderId}/discount`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ amount, reason }),
+  });
+  if (!res.ok) throw await readError(res, 'Could not give the discount');
+  const json = await res.json();
+  return json.data as POSOrder;
+}
+
 /** Refund an order (stock goes back once). */
 export async function refundPOSOrder(orderId: string, reason?: string): Promise<POSOrder> {
   if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");

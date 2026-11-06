@@ -6,9 +6,9 @@ import { useParams } from 'next/navigation';
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { POSOrder } from '../../types';
-import { getPOSOrderById, getSettings } from '../../services/posOrderService';
+import { getPOSOrderById, getSettings, giveOrderDiscount } from '../../services/posOrderService';
 import { getCurrencySymbol } from '../../utils/currency';
-import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2, Gift, Printer } from 'lucide-react';
+import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2, Gift, Printer, BadgePercent } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import WhatsAppBadge from '../../components/WhatsAppBadge';
 import { orderItemName, printReceipt } from '../../utils/receipt';
@@ -59,6 +59,30 @@ export default function InvoicePage() {
 
   const [downloading, setDownloading] = useState(false);
   const downloadLock = useRef(false);
+
+  // Discount after the sale (pos_orders edit).
+  const canDiscount = can('pos_orders', 'edit');
+  const [discOpen, setDiscOpen] = useState(false);
+  const [discAmt, setDiscAmt] = useState('');
+  const [discReason, setDiscReason] = useState('');
+  const [discBusy, setDiscBusy] = useState(false);
+  const saveDiscount = async () => {
+    const n = Number(discAmt);
+    if (!order || discBusy || !(n > 0)) return;
+    setDiscBusy(true);
+    try {
+      const updated = await giveOrderDiscount(order._id, n, discReason.trim() || undefined);
+      if (updated) setOrder(updated);
+      toast.success(`Rs ${n} discount given — give Rs ${n} back to the customer`);
+      setDiscOpen(false);
+      setDiscAmt('');
+      setDiscReason('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not give the discount');
+    } finally {
+      setDiscBusy(false);
+    }
+  };
 
   const handleDownload = () => {
     if (!order || downloadLock.current) return;
@@ -163,6 +187,15 @@ export default function InvoicePage() {
             Close
           </button>
           <div className="flex items-center gap-2">
+          {canDiscount && order.orderStatus !== 'refunded' && order.orderStatus !== 'cancelled' && (
+            <button
+              onClick={() => setDiscOpen(true)}
+              className="flex items-center gap-2 bg-white border border-amber-300 text-amber-800 px-4 py-2 rounded-lg hover:bg-amber-50"
+            >
+              <BadgePercent className="h-4 w-4" />
+              Give discount
+            </button>
+          )}
           <button
             onClick={() => printReceipt(order, storeName, symbol)}
             className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
@@ -190,6 +223,46 @@ export default function InvoicePage() {
           </button>
           </div>
         </div>
+        {discOpen && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-xs text-gray-600">
+                Discount (Rs)
+                <input
+                  type="number"
+                  min={1}
+                  autoFocus
+                  value={discAmt}
+                  onChange={(e) => setDiscAmt(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveDiscount()}
+                  className="mt-1 block w-32 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="flex-1 min-w-[160px] text-xs text-gray-600">
+                Reason (optional)
+                <input
+                  value={discReason}
+                  onChange={(e) => setDiscReason(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveDiscount()}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <button
+                onClick={saveDiscount}
+                disabled={discBusy || !(Number(discAmt) > 0)}
+                className="flex items-center gap-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+              >
+                {discBusy && <Loader2 className="h-4 w-4 animate-spin" />} Save
+              </button>
+              <button onClick={() => setDiscOpen(false)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
+                Cancel
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-gray-500">
+              Bill total goes down by this amount. Give it back to the customer ({order.paymentMethod === 'cash' ? 'cash' : order.paymentMethod}). The till is updated.
+            </p>
+          </div>
+        )}
         <div className="mt-2 flex justify-end">
           <WhatsAppBadge status={order.whatsappStatus} orderId={order._id} />
         </div>
