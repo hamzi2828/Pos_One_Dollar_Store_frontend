@@ -357,7 +357,7 @@ export function CloseTillModal({
   title = 'Till report',
   onSaved,
 }: {
-  session: Pick<TillSession, '_id' | 'sessionNo' | 'counterName' | 'cashierName' | 'openedAt' | 'draft'>;
+  session: Pick<TillSession, '_id' | 'sessionNo' | 'counterName' | 'cashierName' | 'openedAt' | 'draft'> & { openingFloat?: CashCount | null };
   denominations?: number[];
   onClose: () => void;
   onClosed: (session: TillSession) => void;
@@ -366,7 +366,9 @@ export function CloseTillModal({
   title?: string;
 }) {
   const d = session.draft || null;
-  const [counts, setCounts] = useState<Record<string, number>>(() => ({ ...(d?.denominations || {}) }));
+  // Start from the saved report, else from the notes the till was opened with.
+  const startFrom: 'draft' | 'opening' | null = d ? 'draft' : session.openingFloat?.denominations && Object.keys(session.openingFloat.denominations).length ? 'opening' : null;
+  const [counts, setCounts] = useState<Record<string, number>>(() => ({ ...(d?.denominations || session.openingFloat?.denominations || {}) }));
   const [note, setNote] = useState(d?.note || '');
   const [busy, setBusy] = useState<'save' | 'submit' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -462,6 +464,14 @@ export function CloseTillModal({
         <div>
           <p className="mb-1.5 text-sm font-semibold text-gray-900">1. Till cash</p>
           <HelpBox>Count the cash left in the drawer (with the float), note by note.</HelpBox>
+          {startFrom && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-800">
+              {startFrom === 'draft' ? 'Filled from your saved report.' : 'Filled with the notes the till was opened with.'} Change only what is different.
+              <button type="button" className="underline text-gray-600 hover:text-gray-900" disabled={!!busy} onClick={() => setCounts({})}>
+                Clear all
+              </button>
+            </p>
+          )}
           <div className="mt-2">
             <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={!!busy} />
           </div>
