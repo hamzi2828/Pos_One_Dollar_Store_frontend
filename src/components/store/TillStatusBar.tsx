@@ -100,6 +100,8 @@ export interface TillCounterOption {
   busy: boolean;
   busyBy: string;
   mine: boolean;
+  /** This counter is assigned to me (Counters page). */
+  assignedToMe?: boolean;
   allowed: boolean;
 }
 
@@ -241,7 +243,9 @@ export function OpenTillModal({
   onOpened: (session: TillSession) => void;
 }) {
   const choices = status.counters.filter((c) => c.allowed && !c.busy);
-  const [counterId, setCounterId] = useState<string>(choices.length === 1 ? choices[0]._id : '');
+  // A counter assigned to this cashier is picked for them.
+  const own = choices.filter((c) => c.assignedToMe);
+  const [counterId, setCounterId] = useState<string>(choices.length === 1 ? choices[0]._id : own.length === 1 ? own[0]._id : '');
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
