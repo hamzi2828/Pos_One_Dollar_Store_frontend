@@ -121,6 +121,8 @@ export interface MyTill {
 
 export const tillApi = {
   my: () => storeApi.get<MyTill>('/till-sessions/my'),
+  /** Card and bank transfer the system took on this till (to fill the report). */
+  nonCash: (id: string) => storeApi.get<{ card: number; bankTransfer: number }>(`/till-sessions/${id}/non-cash`),
   open: (body: { counterId?: string; denominations: Record<string, number>; note?: string }) =>
     storeApi.post<TillSession>('/till-sessions/open', body),
   close: (
@@ -361,6 +363,59 @@ export function OpenTillModal({
 }
 
 /* ------------------------------------------------------------------ */
+/* Card / bank transfer the system took: filled in, cashier can change */
+/* ------------------------------------------------------------------ */
+
+function useSystemNonCash(
+  sessionId: string,
+  card: string,
+  bank: string,
+  setCard: (v: string) => void,
+  setBank: (v: string) => void,
+) {
+  const [data, setData] = useState<{ card: number; bankTransfer: number } | null>(null);
+  // Only fill boxes that are still empty when the figures arrive (never overwrite what was typed or saved).
+  const start = useRef({ card, bank });
+  useEffect(() => {
+    let alive = true;
+    tillApi
+      .nonCash(sessionId)
+      .then((res) => {
+        if (!alive) return;
+        setData(res.data);
+        if (start.current.card === '') setCard(String(res.data.card || 0));
+        if (start.current.bank === '') setBank(String(res.data.bankTransfer || 0));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+  return data;
+}
+
+function SystemHint({ value, current, onUse }: { value?: number; current: string; onUse: (v: string) => void }) {
+  if (value == null) return null;
+  const same = Math.abs((Number(current) || 0) - value) < 0.5;
+  return (
+    <p className="mt-1 text-[11px] text-gray-500">
+      System: {formatRs(value)}
+      {same ? (
+        ' · filled in'
+      ) : (
+        <>
+          {' · '}
+          <button type="button" className="underline hover:text-gray-800" onClick={() => onUse(String(value))}>
+            use this
+          </button>
+        </>
+      )}
+    </p>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Close till (blind count)                                            */
 /* ------------------------------------------------------------------ */
 
@@ -393,6 +448,7 @@ export function CloseTillModal({
   const [dayCash, setDayCash] = useState(d && d.dayCashTotal && !draftDayNotes ? String(d.dayCashTotal) : '');
   const [card, setCard] = useState(d && d.cardTotal != null ? String(d.cardTotal) : '');
   const [bank, setBank] = useState(d && d.bankTransferTotal != null ? String(d.bankTransferTotal) : '');
+  const nonCash = useSystemNonCash(session._id, card, bank, setCard, setBank);
   const tillCash = countTotal(counts);
   const dayNotesTotal = countTotal(dayCounts);
   // Notes counted win over the typed total.
@@ -523,11 +579,13 @@ export function CloseTillModal({
             <p className="mb-1 text-sm font-semibold text-gray-900">3. POS machine (card)</p>
             <p className="mb-2 text-xs text-gray-600">Total on the card machine&apos;s day slip.</p>
             <MoneyInput value={card} onValue={setCard} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <SystemHint value={nonCash?.card} current={card} onUse={(v) => setCard(v)} />
           </div>
           <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
             <p className="mb-1 text-sm font-semibold text-gray-900">4. Bank transfer</p>
             <p className="mb-2 text-xs text-gray-600">Total received by bank transfer today.</p>
             <MoneyInput value={bank} onValue={setBank} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <SystemHint value={nonCash?.bankTransfer} current={bank} onUse={(v) => setBank(v)} />
           </div>
         </div>
         <Field label="Note (optional)">
@@ -563,6 +621,7 @@ export function DayCashModal({
   const lockRef = useRef(false);
   const [card, setCard] = useState(session.cardTotal != null ? String(session.cardTotal) : '');
   const [bank, setBank] = useState(session.bankTransferTotal != null ? String(session.bankTransferTotal) : '');
+  const nonCash = useSystemNonCash(session._id, card, bank, setCard, setBank);
   const prevNotes = session.dayCash?.denominations && Object.keys(session.dayCash.denominations).length ? session.dayCash.denominations : null;
   const [dayCounts, setDayCounts] = useState<Record<string, number>>(() => ({ ...(prevNotes || {}) }));
   const notesTotal = countTotal(dayCounts);
@@ -643,9 +702,11 @@ export function DayCashModal({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="POS machine (card) total">
             <MoneyInput value={card} onValue={setCard} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <SystemHint value={nonCash?.card} current={card} onUse={(v) => setCard(v)} />
           </Field>
           <Field label="Bank transfer total">
             <MoneyInput value={bank} onValue={setBank} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <SystemHint value={nonCash?.bankTransfer} current={bank} onUse={(v) => setBank(v)} />
           </Field>
         </div>
         <Field label="Note (optional)">
