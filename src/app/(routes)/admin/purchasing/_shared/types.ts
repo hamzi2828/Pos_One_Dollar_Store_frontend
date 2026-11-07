@@ -43,6 +43,8 @@ export interface POBill {
   billTotal: number;
   notes: string;
   ledgerEntry: string | null;
+  /** Sent to the warehouse on its own while the trip is still buying. */
+  sentAt?: string | null;
   /** Total written on the vendor's paper bill (0 = not typed; the items total is used). */
   billAmount?: number;
   /** Paid to the vendor at the market (0 = nothing). */

@@ -5,7 +5,7 @@
 // away ("you can enter them while unpacking").
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Edit2, Loader2, PackagePlus, Plus, Receipt, Trash2 } from 'lucide-react';
+import { Edit2, Loader2, PackagePlus, Plus, Receipt, Trash2, Truck, Undo2 } from 'lucide-react';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
@@ -45,9 +45,12 @@ export default function BillCard({
   onChange,
   onEdit,
   onNewProduct,
+  canSend = false,
 }: {
   poId: string;
   bill: POBill;
+  /** Trip still buying: this bill can go to the warehouse on its own. */
+  canSend?: boolean;
   /** Warehouse progress for this bill (only once the trip is sent). */
   warehouse?: BillWarehouseStatus;
   editable: boolean;
@@ -56,6 +59,35 @@ export default function BillCard({
   onNewProduct?: () => void;
 }) {
   const [removing, setRemoving] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const sendBill = async () => {
+    if (sending) return;
+    if (!window.confirm(`Send the bill from ${bill.vendorName} (${bill.cartons || 0} boxes/packs) to the warehouse now?\nThe rest of the trip stays open for buying.`)) return;
+    setSending(true);
+    try {
+      onChange(await purchasingApi.sendBill(poId, bill._id));
+      toast.success(`${bill.vendorName}: sent to the warehouse`);
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not send the bill.'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const unsendBill = async () => {
+    if (sending) return;
+    if (!window.confirm(`Take the bill from ${bill.vendorName} back from the warehouse?`)) return;
+    setSending(true);
+    try {
+      onChange(await purchasingApi.unsendBill(poId, bill._id));
+      toast.success('Taken back');
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not take it back.'));
+    } finally {
+      setSending(false);
+    }
+  };
 
   const removeBill = async () => {
     if (removing) return;
@@ -87,6 +119,11 @@ export default function BillCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
               <h3 className="text-sm font-semibold text-gray-900 truncate">{bill.vendorName}</h3>
+              {canSend && bill.sentAt && !warehouse && (
+                <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 whitespace-nowrap">
+                  Sent to warehouse
+                </span>
+              )}
               {warehouse && <WarehouseChip w={warehouse} />}
             </div>
             <p className="text-[11px] text-gray-500">
@@ -138,6 +175,20 @@ export default function BillCard({
             {noBoxes && 'Enter how many boxes/packs came from this vendor.'}{' '}
             <button type="button" onClick={onEdit} className="underline font-semibold">
               Edit bill
+            </button>
+          </p>
+        )}
+
+        {canSend && editable && !bill.sentAt && (
+          <button type="button" onClick={sendBill} disabled={sending || missingAmount || noBoxes} className={`${secondaryBtn} w-full`}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />} Send this bill to warehouse
+          </button>
+        )}
+        {canSend && editable && bill.sentAt && (!warehouse || warehouse.status === 'not_checked') && (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-blue-700">
+            Sent to the warehouse {formatDate(bill.sentAt, true)}. You can keep buying on this trip.
+            <button type="button" onClick={unsendBill} disabled={sending} className="inline-flex items-center gap-1 underline text-gray-600 hover:text-gray-900">
+              {sending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />} Take back
             </button>
           </p>
         )}

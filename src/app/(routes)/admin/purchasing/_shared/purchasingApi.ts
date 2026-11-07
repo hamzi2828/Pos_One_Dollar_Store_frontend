@@ -122,6 +122,10 @@ export const purchasingApi = {
   updateBill: (id: string, billId: string, fields: BillFields & { removePhotos?: string[] }, photos: File[]) =>
     storeApi.upload<PurchaseOrder>(`${PO}/${id}/bills/${billId}`, toForm({ ...fields }, photos), 'put').then((r) => r.data),
   removeBill: (id: string, billId: string) => storeApi.del<PurchaseOrder>(`${PO}/${id}/bills/${billId}`).then((r) => r.data),
+  /** One bill to the warehouse while the trip is still buying. */
+  sendBill: (id: string, billId: string) => storeApi.post<PurchaseOrder>(`${PO}/${id}/bills/${billId}/send`, {}).then((r) => r.data),
+  /** Take a sent bill back (only before the warehouse checks it). */
+  unsendBill: (id: string, billId: string) => storeApi.post<PurchaseOrder>(`${PO}/${id}/bills/${billId}/unsend`, {}).then((r) => r.data),
   addItems: (id: string, billId: string, items: ItemInput[]) =>
     storeApi.post<PurchaseOrder>(`${PO}/${id}/bills/${billId}/items`, { items }).then((r) => r.data),
   updateItem: (id: string, billId: string, itemId: string, body: Partial<ItemInput> & { note?: string }) =>

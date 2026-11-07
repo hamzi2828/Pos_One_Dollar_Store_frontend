@@ -273,7 +273,7 @@ function Workspace() {
   const canReceive = !!po.goodsReceipt && can("goods_receiving", "view");
   /** Warehouse progress per vendor bill, shown on each bill card once the trip is sent. */
   const warehouseByBill = new Map<string, BillWarehouseStatus>(
-    sent || po.status === "received"
+    sent || po.status === "received" || isOpen
       ? (po.grn?.byBill || []).map((r) => [r.bill, r])
       : [],
   );
@@ -434,6 +434,24 @@ function Workspace() {
           </p>
         )}
 
+        {/* Some bills already sent one by one */}
+        {isOpen && po.goodsReceipt && po.bills.some((b) => b.sentAt) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs sm:text-sm text-blue-900">
+            <span>
+              {po.bills.filter((b) => b.sentAt).length} of {po.bills.length} bills already sent to the warehouse
+              {po.grnNumber ? ` (${po.grnNumber})` : ""}. “Send to warehouse” sends the rest.
+            </span>
+            {canReceive && (
+              <Link
+                href={`/admin/purchasing/receiving/${po.goodsReceipt}?status=receive`}
+                className="font-semibold underline"
+              >
+                Open in Receive Goods
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* Totals */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
           <StatTile label="Vendor bills" value={po.bills.length} />
@@ -568,6 +586,7 @@ function Workspace() {
                     bill={bill}
                     warehouse={warehouseByBill.get(bill._id)}
                     editable={canBuy}
+                    canSend={editable}
                     onChange={applyPO}
                     onEdit={() => setBillModal({ open: true, bill })}
                     onNewProduct={
