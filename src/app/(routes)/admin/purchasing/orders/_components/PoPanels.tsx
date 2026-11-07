@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
 import { AlertTriangle, Calculator, Check, Lightbulb, Loader2, Pencil, Plus, Trash2, Truck, X } from 'lucide-react';
-import { apiErrorMessage, formatRs } from '@/lib/storeApi';
+import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { Card, PhotoPicker, PhotoStrip } from '../../_shared/ui';
@@ -17,7 +17,11 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 const MAX_COST_FILES = 5;
 const NO_FILES: File[] = [];
 
-type CostEdit = { id: string; type: ChargeType; amount: string; note: string; builty: boolean };
+type CostEdit = { id: string; type: ChargeType; amount: string; note: string; date: string; builty: boolean };
+
+/** Today in Pakistan as YYYY-MM-DD. */
+const pkToday = () => new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+const dayOf = (v?: string | null) => (v ? new Date(new Date(v).getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10) : pkToday());
 
 /**
  * Trip costs: add, edit, remove. Stays open after "Send to warehouse" (until the
@@ -40,6 +44,7 @@ export function ChargesCard({
   const [type, setType] = useState<ChargeType>('car_rent');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [date, setDate] = useState(pkToday);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const lock = useRef(false);
@@ -63,7 +68,7 @@ export function ChargesCard({
 
   const add = async () => {
     if (!(toNum(amount) > 0)) return toast.error('Enter the amount');
-    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), note: note.trim() }, files), 'Could not add the cost.');
+    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), note: note.trim(), date }, files), 'Could not add the cost.');
     if (ok) {
       setFiles([]);
       setAmount('');
@@ -74,7 +79,7 @@ export function ChargesCard({
   const save = async () => {
     if (!edit) return;
     if (!(toNum(edit.amount) > 0)) return toast.error('Enter the amount');
-    const body = { amount: toNum(edit.amount), note: edit.note.trim(), ...(edit.builty ? {} : { type: edit.type }) };
+    const body = { amount: toNum(edit.amount), note: edit.note.trim(), date: edit.date, ...(edit.builty ? {} : { type: edit.type }) };
     const ok = await run(edit.id, () => purchasingApi.updateCharge(po._id, edit.id, body), 'Could not save the cost.');
     if (ok) setEdit(null);
   };
@@ -104,7 +109,7 @@ export function ChargesCard({
           {po.charges.map((c) => {
             const photos = c.photos || [];
             const ownFiles = editable && c.source === 'manual';
-            const detail = [c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
+            const detail = [formatDate(c.date || c.createdAt), c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
             if (edit && edit.id === c._id) {
               return (
                 <li key={c._id} className="py-2 space-y-2">
@@ -134,14 +139,24 @@ export function ChargesCard({
                       className={inputClass}
                     />
                   </div>
-                  <input
-                    placeholder="Note (optional)"
-                    aria-label="Note"
-                    value={edit.note}
-                    onChange={(e) => setEdit({ ...edit, note: e.target.value })}
-                    onKeyDown={(e) => e.key === 'Enter' && save()}
-                    className={inputClass}
-                  />
+                  <div className="grid grid-cols-[1fr_9.5rem] gap-2">
+                    <input
+                      placeholder="Note (optional)"
+                      aria-label="Note"
+                      value={edit.note}
+                      onChange={(e) => setEdit({ ...edit, note: e.target.value })}
+                      onKeyDown={(e) => e.key === 'Enter' && save()}
+                      className={inputClass}
+                    />
+                    <input
+                      type="date"
+                      aria-label="Date"
+                      value={edit.date}
+                      max={pkToday()}
+                      onChange={(e) => setEdit({ ...edit, date: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={save} disabled={!!busy} className={`${primaryBtn} flex-1`}>
                       {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
@@ -189,7 +204,7 @@ export function ChargesCard({
                     <button
                       type="button"
                       onClick={() =>
-                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', builty: c.source === 'builty' })
+                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', date: dayOf(c.date || c.createdAt), builty: c.source === 'builty' })
                       }
                       disabled={!!busy}
                       className="p-1.5 text-gray-400 hover:text-honey-700 disabled:opacity-50"
@@ -234,14 +249,17 @@ export function ChargesCard({
               className={inputClass}
             />
           </div>
-          <input
-            placeholder="Note (optional) — e.g. paid to driver Ali"
-            aria-label="Note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && add()}
-            className={inputClass}
-          />
+          <div className="grid grid-cols-[1fr_9.5rem] gap-2">
+            <input
+              placeholder="Note (optional) — e.g. paid to driver Ali"
+              aria-label="Note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && add()}
+              className={inputClass}
+            />
+            <input type="date" aria-label="Date" value={date} max={pkToday()} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+          </div>
           <div className="flex items-center gap-2">
             <PhotoPicker files={files} onChange={setFiles} max={MAX_COST_FILES} allowPdf compact label="Screenshot" />
             <button type="button" onClick={add} disabled={!!busy} className={`${primaryBtn} flex-1`}>

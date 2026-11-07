@@ -60,6 +60,8 @@ export interface POCharge {
   type: ChargeType;
   amount: number;
   note: string;
+  date?: string | null;
+  createdAt?: string;
   paidTo: string;
   /** Payment proof: screenshots / PDFs (max 5) */
   photos?: string[];
