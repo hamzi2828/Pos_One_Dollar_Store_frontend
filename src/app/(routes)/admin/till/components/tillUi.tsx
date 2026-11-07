@@ -403,6 +403,12 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                     {!isOpen && sum('system') === 0 && !anyEntered && (
                       <p className="mt-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs text-gray-600">No sales on this till.</p>
                     )}
+                    {data.dayCash && Object.keys(data.dayCash.denominations || {}).length > 0 && (
+                      <div className="mt-3 border-t border-gray-100 pt-2">
+                        <p className="mb-1 text-[11px] font-semibold uppercase text-gray-500">Day&apos;s cash notes · {formatRs(data.dayCash.total)}</p>
+                        <CountTable count={data.dayCash} />
+                      </div>
+                    )}
                     {!isOpen && data.closingCount && !data.dayCash && sum('system') > 0 && (
                       <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The cashier has not entered the day&apos;s cash yet.</p>
                     )}

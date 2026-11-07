@@ -73,6 +73,7 @@ export interface TillSession {
     denominations: Record<string, number>;
     drawerTotal: number;
     dayCashTotal: number;
+    dayCashDenominations?: Record<string, number>;
     cardTotal: number | null;
     bankTransferTotal: number | null;
     note: string;
@@ -124,7 +125,7 @@ export const tillApi = {
     storeApi.post<TillSession>('/till-sessions/open', body),
   close: (
     id: string,
-    body: { denominations: Record<string, number>; note?: string; dayCashTotal?: number; cardTotal?: number; bankTransferTotal?: number },
+    body: TillReportBody,
   ) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/close`, body),
   dayCash: (
@@ -134,8 +135,18 @@ export const tillApi = {
     storeApi.post<TillSession>(`/till-sessions/${id}/day-cash`, body),
   draft: (
     id: string,
-    body: { denominations: Record<string, number>; dayCashTotal?: number; cardTotal?: number; bankTransferTotal?: number; note?: string },
+    body: TillReportBody,
   ) => storeApi.post<TillSession>(`/till-sessions/${id}/draft`, body),
+};
+
+type TillReportBody = {
+  denominations: Record<string, number>;
+  note?: string;
+  dayCashTotal?: number;
+  /** Day's cash counted note by note (wins over dayCashTotal). */
+  dayCashDenominations?: Record<string, number>;
+  cardTotal?: number;
+  bankTransferTotal?: number;
 };
 
 export const DEFAULT_DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
@@ -377,17 +388,22 @@ export function CloseTillModal({
   const [busy, setBusy] = useState<'save' | 'submit' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
-  const [dayCash, setDayCash] = useState(d && d.dayCashTotal ? String(d.dayCashTotal) : '');
+  const draftDayNotes = d?.dayCashDenominations && Object.keys(d.dayCashDenominations).length ? d.dayCashDenominations : null;
+  const [dayCounts, setDayCounts] = useState<Record<string, number>>(() => ({ ...(draftDayNotes || {}) }));
+  const [dayCash, setDayCash] = useState(d && d.dayCashTotal && !draftDayNotes ? String(d.dayCashTotal) : '');
   const [card, setCard] = useState(d && d.cardTotal != null ? String(d.cardTotal) : '');
   const [bank, setBank] = useState(d && d.bankTransferTotal != null ? String(d.bankTransferTotal) : '');
   const tillCash = countTotal(counts);
-  const day = Math.max(0, Number(dayCash) || 0);
+  const dayNotesTotal = countTotal(dayCounts);
+  // Notes counted win over the typed total.
+  const day = dayNotesTotal > 0 ? dayNotesTotal : Math.max(0, Number(dayCash) || 0);
   const total = tillCash + day;
   const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
 
   const body = () => ({
     denominations: cleanCounts(counts),
     dayCashTotal: day || undefined,
+    dayCashDenominations: dayNotesTotal > 0 ? cleanCounts(dayCounts) : undefined,
     cardTotal: card === '' ? undefined : Math.max(0, Number(card) || 0),
     bankTransferTotal: bank === '' ? undefined : Math.max(0, Number(bank) || 0),
     note: note.trim() || undefined,
@@ -482,8 +498,19 @@ export function CloseTillModal({
         </div>
         <div className="rounded-lg border border-honey-300 bg-honey-50/60 p-3">
           <p className="mb-1 text-sm font-semibold text-gray-900">2. Total cash of the day</p>
-          <p className="mb-2 text-xs text-gray-600">The sales cash you took out of the drawer (handed over). Write the total amount.</p>
-          <MoneyInput value={dayCash} onValue={setDayCash} disabled={!!busy} className={`${inputClass} text-right text-lg font-semibold tabular-nums`} placeholder="e.g. 738150" />
+          <p className="mb-2 text-xs text-gray-600">The sales cash you took out of the drawer (handed over). Count it note by note, or write the total amount.</p>
+          <div className="rounded-lg bg-white p-2.5 ring-1 ring-gray-200">
+            <DenominationCounter denominations={denoms} counts={dayCounts} onChange={setDayCounts} disabled={!!busy} />
+          </div>
+          <Field label={dayNotesTotal > 0 ? 'Total (from the notes above)' : 'Or write the total'}>
+            <MoneyInput
+              value={dayNotesTotal > 0 ? String(dayNotesTotal) : dayCash}
+              onValue={setDayCash}
+              disabled={!!busy || dayNotesTotal > 0}
+              className={`${inputClass} text-right text-lg font-semibold tabular-nums`}
+              placeholder="e.g. 738150"
+            />
+          </Field>
           <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-gray-200">
             <span className="text-gray-600">
               Till {formatRs(tillCash)} + day {formatRs(day)}
@@ -527,15 +554,20 @@ export function DayCashModal({
   onClose: () => void;
   onSaved: (session: TillSession) => void;
 }) {
-  const [amount, setAmount] = useState(session.dayCash ? String(session.dayCash.total) : '');
+  const [amount, setAmount] = useState(
+    session.dayCash && !(session.dayCash.denominations && Object.keys(session.dayCash.denominations).length) ? String(session.dayCash.total) : '',
+  );
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lockRef = useRef(false);
   const [card, setCard] = useState(session.cardTotal != null ? String(session.cardTotal) : '');
   const [bank, setBank] = useState(session.bankTransferTotal != null ? String(session.bankTransferTotal) : '');
-  const total = Math.max(0, Number(amount) || 0);
-  void denominations;
+  const prevNotes = session.dayCash?.denominations && Object.keys(session.dayCash.denominations).length ? session.dayCash.denominations : null;
+  const [dayCounts, setDayCounts] = useState<Record<string, number>>(() => ({ ...(prevNotes || {}) }));
+  const notesTotal = countTotal(dayCounts);
+  const total = notesTotal > 0 ? notesTotal : Math.max(0, Number(amount) || 0);
+  const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
   const drawer = session.drawerCount?.total ?? session.closingCount?.total ?? 0;
 
   const submit = async () => {
@@ -550,7 +582,8 @@ export function DayCashModal({
     setError(null);
     try {
       const res = await tillApi.dayCash(session._id, {
-        amount: total || undefined,
+        amount: notesTotal > 0 ? undefined : total || undefined,
+        denominations: notesTotal > 0 ? cleanCounts(dayCounts) : undefined,
         cardTotal: card === '' ? undefined : Math.max(0, Number(card) || 0),
         bankTransferTotal: bank === '' ? undefined : Math.max(0, Number(bank) || 0),
         note: note.trim() || undefined,
@@ -591,7 +624,16 @@ export function DayCashModal({
           {formatRs(drawer)} till cash you counted when closing.
           {session.dayCash ? ` You already added ${formatRs(session.dayCash.total)}; this will replace it.` : ''}
         </HelpBox>
-        <MoneyInput value={amount} onValue={setAmount} disabled={busy} autoFocus className={`${inputClass} text-right text-lg font-semibold tabular-nums`} placeholder="e.g. 738150" />
+        <DenominationCounter denominations={denoms} counts={dayCounts} onChange={setDayCounts} disabled={busy} />
+        <Field label={notesTotal > 0 ? 'Total (from the notes above)' : 'Or write the total'}>
+          <MoneyInput
+            value={notesTotal > 0 ? String(notesTotal) : amount}
+            onValue={setAmount}
+            disabled={busy || notesTotal > 0}
+            className={`${inputClass} text-right text-lg font-semibold tabular-nums`}
+            placeholder="e.g. 738150"
+          />
+        </Field>
         <div className="flex items-center justify-between rounded-lg bg-gray-900 px-4 py-2.5 text-white">
           <span className="text-sm">
             Till {formatRs(drawer)} + day {formatRs(total)}
