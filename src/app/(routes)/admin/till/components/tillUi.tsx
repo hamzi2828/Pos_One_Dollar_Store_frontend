@@ -42,7 +42,7 @@ export interface TillDetail extends TillSession {
   liveExpected: TillExpected | null;
   verifiedBy?: { firstName?: string; lastName?: string } | string | null;
   discounts?: { _id: string; orderNumber: string; createdAt: string; subtotal: number; discount: number; total: number; reason: string }[];
-  expenses?: { _id: string; title: string; amount: number; paymentMethod: string; createdAt: string; shopUse: boolean }[];
+  expenses?: { _id: string; title: string; amount: number; paymentMethod: string; createdAt: string; shopUse: boolean; kind?: "expense" | "vendor_payment" }[];
 }
 
 /** Modal, or a plain full page (opened in its own tab from the cash closing report). */
@@ -345,7 +345,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                           <>
                             <tr>
                               <td colSpan={4} className="pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                − Expenses ({(data.expenses || []).filter((x) => !x.shopUse).length})
+                                − Expenses &amp; vendor payments ({(data.expenses || []).filter((x) => !x.shopUse).length})
                               </td>
                             </tr>
                             {(data.expenses || []).map((x) => (
@@ -364,7 +364,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                               </tr>
                             ))}
                             <tr className="font-semibold">
-                              <td className="py-1.5 pl-3 pr-2 text-gray-800">Total expenses</td>
+                              <td className="py-1.5 pl-3 pr-2 text-gray-800">Total paid out</td>
                               <td />
                               <td className="py-1.5 text-right tabular-nums text-rose-700">−{formatRs(expensesAmt)}</td>
                               <td />
@@ -397,7 +397,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                         Cash should be = cash sales {formatRs(e.cashSales)}
                         {e.cashReceivedOnCredit > 0 ? ` + credit received ${formatRs(e.cashReceivedOnCredit)}` : ''}
                         {e.cashRefunds > 0 ? ` − refunds ${formatRs(e.cashRefunds)}` : ''}
-                        {(e.expenses || 0) > 0 ? ` − expenses of the day ${formatRs(e.expenses || 0)}` : ''}
+                        {(e.expenses || 0) > 0 ? ` − expenses & vendor payments ${formatRs(e.expenses || 0)}` : ''}
                       </p>
                     )}
                     {!isOpen && sum('system') === 0 && !anyEntered && (
@@ -484,7 +484,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
                   </div>
                   <div className="rounded-lg border border-gray-200 p-3">
                     <div className="mb-2 flex items-baseline justify-between">
-                      <p className="text-xs font-semibold uppercase text-gray-500">Expenses of the day ({exp.length}) · taken off the cash</p>
+                      <p className="text-xs font-semibold uppercase text-gray-500">Expenses &amp; vendor payments ({exp.length}) · taken off the cash</p>
                       <p className="text-lg font-bold tabular-nums text-gray-900">{formatRs(sumOf(money))}</p>
                     </div>
                     {exp.length === 0 ? (
