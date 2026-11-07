@@ -1,7 +1,8 @@
 'use client';
 
 // "Month" tab: employees × days grid with short coloured codes, legend and
-// totals per employee (present, late, absent, leave, overtime). Click a cell
+// totals per employee (hours, present, late, absent, leave, overtime). Each
+// worked day shows its hours under the code ("in only" = no check-out). Click a cell
 // for that day's details and corrections. CSV download for export users.
 // Days closed by an approved payroll show their status with a small lock.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,12 +14,31 @@ import { attendanceApi, clock, downloadSheetCsv, hoursLabel, mins, shopMonth, ty
 import { CODE_STYLE, MonthPicker, cardClass, statusLabel } from './AttendanceBits';
 import DayModal from './DayModal';
 
+/** Compact worked time for under a grid code: 8h, 8.5h, 45m. */
+function shortHours(m: number) {
+  const n = Math.round(Number(m) || 0);
+  if (n <= 0) return '';
+  if (n < 60) return `${n}m`;
+  return `${Math.round((n / 60) * 10) / 10}h`;
+}
+
+/** Small line under the code: hours worked, or "in only" when there is no check-out. */
+function cellHours(c: SheetCell, today: string): { text: string; tone: string } | null {
+  if (c.checkIn && !c.checkOut) {
+    return c.date === today && c.status !== 'missing_out' ? { text: 'in', tone: 'text-green-700' } : { text: 'in only', tone: 'text-purple-700' };
+  }
+  const t = shortHours(c.workedMinutes);
+  return t ? { text: t, tone: 'text-gray-500' } : null;
+}
+
 function cellTitle(c: SheetCell, name: string) {
   const parts = [`${name} · ${c.date}`, statusLabel(c.status)];
   if (c.shiftName) parts.push(c.shiftName);
   if (c.holidayName) parts.push(c.holidayName);
   if (c.checkIn) parts.push(`in ${clock(c.checkIn)}`);
   if (c.checkOut) parts.push(`out ${clock(c.checkOut)}`);
+  if (c.workedMinutes) parts.push(`worked ${mins(c.workedMinutes)}`);
+  else if (c.checkIn && !c.checkOut) parts.push('no check-out yet');
   if (c.lateMinutes) parts.push(`${mins(c.lateMinutes)} late`);
   if (c.locked) parts.push('locked by payroll');
   if (c.overtimeMinutes) parts.push(`OT ${mins(c.overtimeMinutes)}${c.overtimeApproved === null ? ' (waiting)' : c.overtimeApproved ? '' : ' (rejected)'}`);
@@ -134,7 +154,7 @@ export default function MonthTab({
                     <th
                       key={d.date}
                       title={d.holidayName || undefined}
-                      className={`px-0.5 py-1 border-b border-gray-200 font-medium text-center min-w-[2rem] ${
+                      className={`px-0.5 py-1 border-b border-gray-200 font-medium text-center min-w-[2.25rem] ${
                         d.date === sheet.today ? 'bg-honey-100 text-gray-900' : d.holidayName ? 'bg-teal-50 text-teal-800' : 'bg-gray-50 text-gray-600'
                       }`}
                     >
@@ -142,7 +162,7 @@ export default function MonthTab({
                       <span className="block text-[9px] font-normal text-gray-400">{d.weekday.slice(0, 2)}</span>
                     </th>
                   ))}
-                  {['Present', 'Late', 'Half', 'Absent', 'No out', 'Leave', 'OT ✓', 'OT wait'].map((h) => (
+                  {['Hours', 'Present', 'Late', 'Half', 'Absent', 'No out', 'Leave', 'OT ✓', 'OT wait'].map((h) => (
                     <th key={h} className="px-2 py-2 border-b border-l border-gray-200 bg-gray-50 font-semibold text-gray-700 text-center whitespace-nowrap">
                       {h}
                     </th>
@@ -163,8 +183,9 @@ export default function MonthTab({
                     </td>
                     {e.cells.map((c) => {
                       const clickable = c.status !== 'not_employed' && c.date <= sheet.today;
+                      const hrs = cellHours(c, sheet.today);
                       return (
-                        <td key={c.date} className="p-0.5 border-b border-gray-100 text-center">
+                        <td key={c.date} className="p-0.5 border-b border-gray-100 text-center align-top">
                           <button
                             type="button"
                             disabled={!clickable}
@@ -176,9 +197,11 @@ export default function MonthTab({
                             {c.overtimeMinutes > 0 && c.overtimeApproved === null && <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-honey-500 ring-1 ring-white" />}
                             {c.locked && <Lock className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-sm bg-white text-gray-500" aria-hidden />}
                           </button>
+                          <span className={`block h-3 mt-px text-[9px] leading-3 font-medium whitespace-nowrap tracking-tight ${hrs?.tone ?? ''}`}>{hrs?.text}</span>
                         </td>
                       );
                     })}
+                    <Total v={e.totals.workedMinutes ? hoursLabel(e.totals.workedMinutes) : 0} />
                     <Total v={e.totals.present + e.totals.offDaysWorked} />
                     <Total v={e.totals.late} warn />
                     <Total v={e.totals.halfDays} warn />
@@ -205,6 +228,12 @@ export default function MonthTab({
             </span>
             <span className="inline-flex items-center gap-1">
               <Lock className="h-3 w-3 text-gray-500" /> Paid month (locked)
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] font-medium text-gray-500">8.5h</span> Hours worked
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="text-[9px] font-medium text-purple-700">in only</span> No check-out
             </span>
           </div>
         </div>
