@@ -100,7 +100,6 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'product_stock', label: 'Stock', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'stock_receive', label: 'Receive Stock', actions: ['view', 'create'] },
       { key: 'discounts', label: 'Discounts', actions: ['view', 'create', 'edit', 'delete'] },
-      { key: 'price_tiers', label: 'Price Tiers', actions: ['view', 'create', 'edit', 'delete'] },
     ],
   },
   {

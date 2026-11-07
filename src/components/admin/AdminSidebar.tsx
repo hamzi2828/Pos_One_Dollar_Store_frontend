@@ -50,7 +50,6 @@ import {
   Target,
   Calculator,
   Percent,
-  Tags,
   Contact,
   UsersRound,
   CalendarClock,
@@ -201,7 +200,6 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Attributes', path: '/admin/products/attributes', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_attributes' },
     { name: 'Stock', path: '/admin/products/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['product_stock', 'stock_receive'] },
     { name: 'Discount Rules', path: '/admin/products/discounts', icon: <Percent className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'discounts' },
-    { name: 'Price Tiers', path: '/admin/products/price-tiers', icon: <Tags className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'price_tiers' },
   ];
 
   // Purchasing & Vendors — purchase trips (buy from many vendors), receive goods (check boxes, unpack, tags), vendor ledger.
