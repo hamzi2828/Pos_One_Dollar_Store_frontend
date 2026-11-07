@@ -2,7 +2,8 @@
 
 // Till & cash closing.
 //   "My till"     (`till`):        open with a float, blind close, my history (no expected amounts).
-//   "Verify cash" (`till_verify`): closed tills with counted vs expected, variance, bills, verify / dispute.
+//   "Verify cash" (`till_verify`): every till with counted vs expected, variance, bills, verify / dispute.
+//   Admins (till_verify) see only the list of all tills; "My till" is for cashiers.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Banknote, Lock, LockOpen, RefreshCw, Search, ShieldCheck, AlertCircle, Wallet } from 'lucide-react';
@@ -20,23 +21,18 @@ import {
 import { SessionDetailModal, StatusBadge, varianceClass, varianceLabel } from './components/tillUi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
-type Tab = 'mine' | 'verify';
 
 export default function TillPage() {
   const { can, loaded } = useAccess();
   const canTill = can('till', 'view');
   const canVerify = can('till_verify', 'view');
-  const [tab, setTab] = useState<Tab>('mine');
   const [linkedSession, setLinkedSession] = useState<string | null>(null);
 
   // Notification links: /admin/till?session=<id>
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('session');
-    if (id && canVerify) {
-      setTab('verify');
-      setLinkedSession(id);
-    } else if (!canTill && canVerify) setTab('verify');
-  }, [canTill, canVerify]);
+    if (id && canVerify) setLinkedSession(id);
+  }, [canVerify]);
 
   if (!loaded) return <div className="max-w-7xl mx-auto px-4 py-6"><LoadingCard text="Loading…" /></div>;
   if (!canTill && !canVerify) {
@@ -57,24 +53,8 @@ export default function TillPage() {
           </p>
         </div>
 
-        {canTill && canVerify && (
-          <div className="mb-4 inline-flex bg-white border border-gray-200 rounded-lg p-1">
-            {(['mine', 'verify'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`px-3 sm:px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  tab === t ? 'bg-honey-500 text-gray-900' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {t === 'mine' ? 'My till' : 'Verify cash'}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {tab === 'mine' && canTill ? <MyTillPanel /> : canVerify ? <VerifyPanel linkedSession={linkedSession} onLinkedDone={() => setLinkedSession(null)} /> : null}
+        {/* Admin (till_verify) sees every till; "My till" is only for cashiers (owner, 2026-11-08). */}
+        {canVerify ? <VerifyPanel linkedSession={linkedSession} onLinkedDone={() => setLinkedSession(null)} /> : <MyTillPanel />}
       </div>
     </div>
   );
@@ -263,7 +243,8 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
   const [rows, setRows] = useState<TillSession[]>([]);
   const [meta, setMeta] = useState<(PageMeta & { summary?: Summary }) | null>(null);
   const [counters, setCounters] = useState<CounterOption[]>([]);
-  const [status, setStatus] = useState('closed');
+  // All tills by default; "To verify" etc. are filters.
+  const [status, setStatus] = useState('');
   const [counter, setCounter] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
