@@ -34,7 +34,7 @@ export interface CashCount {
   total: number;
 }
 
-export type TillSessionStatus = 'open' | 'closed' | 'verified' | 'disputed';
+export type TillSessionStatus = 'open' | 'closed' | 'verified' | 'disputed' | 'deleted';
 
 export interface TillExpected {
   float: number;

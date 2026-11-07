@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
-import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, Clock, Receipt } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, Clock, Receipt, Trash2 } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
@@ -82,6 +82,7 @@ const STATUS_STYLE: Record<TillSessionStatus, { label: string; cls: string }> = 
   closed: { label: 'To verify', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   verified: { label: 'Verified', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   disputed: { label: 'Disputed', cls: 'bg-red-50 text-red-700 border-red-200' },
+  deleted: { label: 'Deleted', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 };
 
 /** Cashier wording: "closed" = waiting for the admin. */
@@ -116,6 +117,7 @@ const ACTION_LABEL: Record<string, string> = {
   close_by_admin: 'Closed by admin',
   verify: 'Verified',
   dispute: 'Disputed',
+  deleted: 'Deleted',
 };
 
 function CountTable({ count }: { count: CashCount | null }) {
@@ -139,11 +141,12 @@ function CountTable({ count }: { count: CashCount | null }) {
 export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: { id: string; onClose: () => void; onChanged?: () => void; asPage?: boolean }) {
   const { can, access } = useAccess();
   const canEdit = can('till_verify', 'edit');
+  const canDelete = can('till_verify', 'delete');
   const [data, setData] = useState<TillDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [busy, setBusy] = useState<'verify' | 'dispute' | null>(null);
+  const [busy, setBusy] = useState<'verify' | 'dispute' | 'delete' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const lockRef = useRef(false);
@@ -188,10 +191,41 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
     }
   };
 
+  // Delete a till the shop does not need: hidden everywhere, the record stays.
+  const remove = async () => {
+    if (lockRef.current || !data) return;
+    const reason = window.prompt(`Delete ${data.sessionNo}?
+It disappears from the till lists and reports. Its sales stay as they are.
+
+Reason (optional):`);
+    if (reason === null) return;
+    lockRef.current = true;
+    setBusy('delete');
+    setActionError(null);
+    try {
+      await storeApi.del(`/till-sessions/${data._id}`, { reason: reason.trim() || undefined });
+      toast.success(`${data.sessionNo} deleted`);
+      onChanged?.();
+      onClose();
+    } catch (err) {
+      setActionError(apiErrorMessage(err, 'Could not delete the till.'));
+    } finally {
+      lockRef.current = false;
+      setBusy(null);
+    }
+  };
+
   const e = data?.expected || data?.liveExpected || null;
   const isOpen = data?.status === 'open';
   const own = !!data && !!access?.user?.id && String(data.cashier) === String(access.user.id) && !access.isSuperAdmin;
   const canReview = canEdit && !!data && (data.status === 'closed' || data.status === 'disputed') && !own;
+  const deleteBtn =
+    canDelete && data && !isOpen && data.status !== 'deleted' ? (
+      <button type="button" onClick={remove} disabled={!!busy} className={`${secondaryBtn} !text-red-600 sm:mr-auto`}>
+        {busy === 'delete' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+        Delete till
+      </button>
+    ) : null;
   const Shell = asPage ? PageShell : Modal;
 
   return (
@@ -206,6 +240,7 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
         footer={
           canReview ? (
             <>
+              {deleteBtn}
               <button type="button" onClick={() => review('dispute')} disabled={!!busy} className={secondaryBtn}>
                 {busy === 'dispute' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldAlert className="h-4 w-4 text-red-600" />}
                 Dispute
@@ -219,7 +254,9 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
             <button type="button" onClick={() => setClosing(true)} className={secondaryBtn}>
               <Lock className="h-4 w-4" /> Close this till for the cashier
             </button>
-          ) : undefined
+          ) : (
+            deleteBtn || undefined
+          )
         }
       >
         {loading && !data ? (
