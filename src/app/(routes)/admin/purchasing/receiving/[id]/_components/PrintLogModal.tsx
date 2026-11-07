@@ -12,7 +12,7 @@ interface PrintRow {
   id: string;
   count: number;
   total: number;
-  mode: 'sale' | 'piece' | 'custom' | 'moved' | 'scanned';
+  mode: 'sale' | 'piece' | 'custom' | 'moved' | 'scanned' | 'removed';
   note?: string;
   piecesPerSale: number;
   via: 'printer' | 'browser';
@@ -27,7 +27,7 @@ interface PrintLog {
 }
 
 const modeText = (r: PrintRow) =>
-  r.mode === 'scanned' ? 'Own barcode on the pack (scanned), no sticker needed' : r.mode === 'moved' ? r.note || 'Moved with the pieces' : r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
+  r.mode === 'scanned' ? 'Own barcode on the pack (scanned), no sticker needed' : r.mode === 'moved' ? r.note || 'Moved with the pieces' : r.mode === 'removed' ? r.note || 'Extra stickers removed' : r.mode === 'sale' ? `By sale (1 per ${r.piecesPerSale} pcs)` : r.mode === 'piece' ? 'All pieces' : 'Typed number';
 
 export default function PrintLogModal({
   productId,
@@ -70,7 +70,7 @@ export default function PrintLogModal({
     setBusy(r.id);
     try {
       await storeApi.patch(`/label-prints/${r.id}`, { ignored: true });
-      toast.success(`${r.count} sticker${r.count === 1 ? '' : 's'} ignored`);
+      toast.success(r.mode === 'removed' ? 'Extra stickers counted again' : `${r.count} sticker${r.count === 1 ? '' : 's'} ignored`);
       setReload((n) => n + 1);
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not ignore this print.'));
@@ -121,13 +121,13 @@ export default function PrintLogModal({
               <li key={r.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-gray-900">
-                    {r.mode === 'scanned' ? (r.count ? `${r.count.toLocaleString()} own barcode` : 'Pieces per barcode updated') : r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
+                    {r.mode === 'scanned' ? (r.count ? `${r.count.toLocaleString()} own barcode` : 'Pieces per barcode updated') : r.mode === 'moved' ? `${r.count > 0 ? '+' : ''}${r.count.toLocaleString()} printed (moved)` : r.mode === 'removed' ? `${r.count.toLocaleString()} extra removed` : `${r.count.toLocaleString()} of ${r.total.toLocaleString()} printed`}
                     <span className={`ml-2 text-xs font-medium ${left > 0 ? 'text-red-600' : 'text-green-600'}`}>
                       {left > 0 ? `${left.toLocaleString()} left` : 'all done'}
                     </span>
                   </span>
                   <span className="block text-xs text-gray-600">
-                    {modeText(r)}{r.mode === 'moved' || r.mode === 'scanned' ? '' : r.via === 'printer' ? ' · Label printer' : ' · Print window'}
+                    {modeText(r)}{r.mode === 'moved' || r.mode === 'scanned' || r.mode === 'removed' ? '' : r.via === 'printer' ? ' · Label printer' : ' · Print window'}
                   </span>
                 </span>
                 <span className="flex flex-col items-end gap-1 text-right text-[11px] text-gray-500">
@@ -140,10 +140,10 @@ export default function PrintLogModal({
                     type="button"
                     onClick={() => ignore(r)}
                     disabled={!!busy}
-                    title="Test or wrong print: don't count it"
+                    title={r.mode === 'removed' ? 'Count these extra stickers again' : "Test or wrong print: don't count it"}
                     className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {busy === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <EyeOff className="h-3 w-3" />} Ignore
+                    {busy === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <EyeOff className="h-3 w-3" />} {r.mode === 'removed' ? 'Undo' : 'Ignore'}
                   </button>
                 </span>
               </li>

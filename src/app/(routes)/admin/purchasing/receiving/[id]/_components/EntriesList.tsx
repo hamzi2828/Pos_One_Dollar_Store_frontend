@@ -3,9 +3,10 @@
 // Goods entered on this trip (newest first): tags again, undo, edit.
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { History, ListChecks, Loader2, Pencil, Printer, ScanBarcode, Undo2 } from 'lucide-react';
+import { Eraser, History, ListChecks, Loader2, Pencil, Printer, ScanBarcode, Undo2 } from 'lucide-react';
 import { Field, Modal, inputClass, primaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
+import SearchSelect from '@/components/ui/SearchSelect';
 import { apiErrorMessage, formatDate, formatRs, storeApi } from '@/lib/storeApi';
 import { apiErrorCode, isReceipt, purchasingApi } from '../../../_shared/purchasingApi';
 import { Card } from '../../../_shared/ui';
@@ -165,6 +166,26 @@ export default function EntriesList({
     }
   };
 
+  // Printed more stickers than the pieces: take the extra off the print log (kept in the history).
+  const removeExtra = async (e: GRNEntry, extra: number) => {
+    if (lock.current) return;
+    if (!window.confirm(`Remove the ${extra} extra sticker${extra === 1 ? '' : 's'} from the print log of "${e.productName}"? It will show only the ${productPieces(e)} pieces as printed.`)) return;
+    lock.current = true;
+    setBusy(`extra-${e._id}`);
+    try {
+      const res = await storeApi.post<{ removed: number }>('/label-prints/remove-extra', { grnId: grn._id, entryId: e._id });
+      const n = res?.data?.removed || 0;
+      if (n > 0) toast.success(`${n} extra sticker${n === 1 ? '' : 's'} removed`);
+      else toast('No extra stickers to remove');
+      setTick((t) => t + 1);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not remove the extra stickers.'));
+    } finally {
+      lock.current = false;
+      setBusy(null);
+    }
+  };
+
   const tags = async (e: GRNEntry) => {
     if (lock.current) return;
     lock.current = true;
@@ -186,7 +207,7 @@ export default function EntriesList({
       {onTagSize && rows.length > 0 && (
         <label className="mb-2 flex items-center gap-2 text-xs text-gray-600">
           <Printer className="h-3.5 w-3.5 flex-shrink-0" /> Sticker size
-          <select
+          <SearchSelect
             value={tagSize}
             onChange={(ev) => onTagSize(ev.target.value as StickerSize)}
             className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-900"
@@ -196,7 +217,7 @@ export default function EntriesList({
                 {s.label}
               </option>
             ))}
-          </select>
+          </SearchSelect>
         </label>
       )}
       {rows.length === 0 ? (
@@ -240,6 +261,18 @@ export default function EntriesList({
                               : `All ${need} stickers printed${done > need ? ` (+${done - need} extra)` : ''}`
                             : `${parts} of ${need} · ${left} left`}
                         </p>
+                        {full && done > need && stickers > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => removeExtra(e, Math.min(done - need, stickers))}
+                            disabled={!!busy}
+                            className="mt-1 inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            title="Printed more stickers than the pieces: take the extra off the print log"
+                          >
+                            {busy === `extra-${e._id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eraser className="h-3 w-3" />}
+                            Remove {Math.min(done - need, stickers)} extra
+                          </button>
+                        )}
                         {left > 0 && (
                           <button
                             type="button"
