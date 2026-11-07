@@ -22,7 +22,7 @@ import {
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
-import { METHOD_LABEL, downloadRegister, payrollApi, type PayrollLine, type PayrollRun, type RunWarning } from '../_shared/payrollApi';
+import { METHOD_LABEL, downloadRegister, payrollApi, shortHours, type PayrollLine, type PayrollRun, type RunWarning } from '../_shared/payrollApi';
 import { ErrorCard, PageHeader, StatTile, StatusChip, cardClass, minusRs, tdClass, thClass } from '../_shared/PayrollBits';
 import LineDrawer from './components/LineDrawer';
 import { ApproveModal, PayModal, ReopenModal } from './components/RunModals';
@@ -331,6 +331,7 @@ export default function PayrollRunPage() {
                     )}
                     <th className={thClass}>Employee</th>
                     <th className={`${thClass} text-right`}>Days worked</th>
+                    <th className={`${thClass} text-right`}>Hours</th>
                     <th className={`${thClass} text-right`}>Absent</th>
                     <th className={`${thClass} text-right`}>Late</th>
                     <th className={`${thClass} text-right`}>Gross</th>
@@ -367,6 +368,12 @@ export default function PayrollRunPage() {
                         <td className={`${tdClass} text-right tabular-nums`}>
                           {a.daysWorked}
                           <span className="block text-[11px] text-gray-500">of {a.scheduledDaysInMonth} shifts</span>
+                        </td>
+                        <td className={`${tdClass} text-right tabular-nums whitespace-nowrap`}>
+                          {shortHours(a.workedMinutes)}
+                          {a.overtimeMinutesApproved + a.overtimeMinutesPending > 0 && (
+                            <span className="block text-[11px] text-gray-500">{shortHours(a.overtimeMinutesApproved + a.overtimeMinutesPending)} OT</span>
+                          )}
                         </td>
                         <td className={`${tdClass} text-right tabular-nums ${a.absentDays ? 'text-red-700' : ''}`}>
                           {a.absentDays}
@@ -406,7 +413,7 @@ export default function PayrollRunPage() {
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-1">
                       <p className="text-[11px] text-gray-500">
-                        {l.attendance.daysWorked} days · {l.attendance.absentDays} absent · {l.attendance.lateCount} late
+                        {l.attendance.daysWorked} days · {shortHours(l.attendance.workedMinutes)} · {l.attendance.absentDays} absent · {l.attendance.lateCount} late
                       </p>
                       <StatusChip status={l.status === 'paid' ? 'paid' : draft ? 'draft' : 'to_pay'} />
                     </div>

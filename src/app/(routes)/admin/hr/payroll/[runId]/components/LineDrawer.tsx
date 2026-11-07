@@ -9,8 +9,9 @@ import { FileText, Loader2, Minus, Plus, Save, Trash2, X } from 'lucide-react';
 import { Field, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import MoneyInput from '@/components/ui/MoneyInput';
-import { hoursText, payrollApi, type Adjustment, type MoneyRow, type PayrollLine, type PayrollRun } from '../../_shared/payrollApi';
+import { hoursText, payrollApi, shortHours, type Adjustment, type MoneyRow, type PayrollLine, type PayrollRun } from '../../_shared/payrollApi';
 import { StatusChip, minusRs } from '../../_shared/PayrollBits';
+import DayHours from './DayHours';
 
 function Rows({ rows, minus }: { rows: MoneyRow[]; minus?: boolean }) {
   if (!rows.length) return <p className="text-xs text-gray-400 py-1">None</p>;
@@ -168,6 +169,7 @@ export default function LineDrawer({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Attendance</h3>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               <Fact label="Days worked" value={a.daysWorked} />
+              <Fact label="Hours worked" value={shortHours(a.workedMinutes)} />
               <Fact label="Shift days" value={a.scheduledDaysInMonth} warn={!a.scheduledDaysInMonth} />
               <Fact label="Absent" value={a.absentDays} warn={a.absentDays > 0} />
               <Fact label="Half days" value={a.halfDays} />
@@ -181,6 +183,9 @@ export default function LineDrawer({
               {a.notEmployedDays > 0 && <Fact label="Not employed" value={`${a.notEmployedDays} days`} />}
             </div>
           </section>
+
+          {/* Day by day */}
+          <DayHours runId={run._id} lineId={line._id} />
 
           {/* Money */}
           <section>

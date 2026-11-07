@@ -345,6 +345,8 @@ export const payrollApi = {
     storeApi.post<PayrollRun>(`/payroll/runs/${id}/pay`, body),
   remove: (id: string) => storeApi.del<{ deleted: boolean }>(`/payroll/runs/${id}`),
   payslip: (id: string, lineId: string) => storeApi.get<Payslip>(`/payroll/runs/${id}/lines/${lineId}/payslip`),
+  /** Hours worked day by day behind one line (live from attendance, not stored on the run). */
+  lineDays: (id: string, lineId: string) => storeApi.get<LineDays>(`/payroll/runs/${id}/lines/${lineId}/days`),
   staff: (search: string) => storeApi.get<StaffOption[]>('/payroll/employees', { search, limit: 30 }),
 
   advances: (params: DayRangeParams & { status?: string; employee?: string; search?: string; page?: number; limit?: number }) =>
@@ -407,6 +409,16 @@ export function recentMonths(count = 13) {
   });
 }
 
+/** Compact hours: "8h 30m", "45m", "0h". */
+export function shortHours(minutes: number) {
+  const m = Math.round(minutes || 0);
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (!h && !r) return '0h';
+  if (!h) return `${r}m`;
+  return r ? `${h}h ${r}m` : `${h}h`;
+}
+
 /** "2 h 30 min" */
 export function hoursText(minutes: number) {
   const m = Math.round(minutes || 0);
@@ -428,3 +440,51 @@ export function waNumber(phone: string | null | undefined): string | null {
 
 /** A fresh id so a retried "pay" request is not paid twice. */
 export const newRequestId = () => `pay-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+export type DayStatus =
+  | 'present'
+  | 'late'
+  | 'half_day'
+  | 'absent'
+  | 'missing_out'
+  | 'off'
+  | 'holiday'
+  | 'leave'
+  | 'upcoming'
+  | 'not_employed'
+  | 'pending';
+
+export interface LineDay {
+  date: string;
+  status: DayStatus;
+  planned: 'shift' | 'off' | 'holiday' | 'leave' | 'none' | null;
+  shiftName: string;
+  leaveType: string | null;
+  holidayName: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  workedMinutes: number;
+  overtimeMinutes: number;
+  overtimeApproved: boolean | null;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+}
+
+export interface LineDays {
+  run: { _id: string; runNo: string; month: string; monthLabel: string; status: RunStatus };
+  line: { _id: string; employee: string; name: string; code: string };
+  days: LineDay[];
+  totals: {
+    workedMinutes: number;
+    overtimeMinutes: number;
+    overtimeApprovedMinutes: number;
+    daysWorked: number;
+    fullDays: number;
+    halfDays: number;
+    lateDays: number;
+    absentDays: number;
+    leaveDays: number;
+    offDays: number;
+    missingOutDays: number;
+  };
+}
