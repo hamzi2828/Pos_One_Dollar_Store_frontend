@@ -14,6 +14,7 @@ import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { payrollApi, recentMonths, type PayrollRunSummary, type RunListMeta } from './_shared/payrollApi';
 import { ErrorCard, PageHeader, StatusChip, cardClass, tdClass, thClass } from './_shared/PayrollBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import SalaryToDate from './_shared/SalaryToDate';
 
 export default function PayrollMonthsPage() {
   const router = useRouter();
@@ -96,6 +97,8 @@ export default function PayrollMonthsPage() {
             </Link>
           }
         />
+
+        <SalaryToDate />
 
         {canCreate && (
           <div className={`${cardClass} p-4 mb-5 flex flex-col sm:flex-row sm:items-center gap-3`}>

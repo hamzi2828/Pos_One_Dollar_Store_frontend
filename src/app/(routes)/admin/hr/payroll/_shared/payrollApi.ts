@@ -301,7 +301,38 @@ export type DayRangeParams = {
   to?: string;
 };
 
+export interface SalaryToDateRow {
+  employee: string;
+  name: string;
+  code: string;
+  designation: string;
+  payType: 'monthly' | 'daily';
+  salary: number;
+  dailyRate: number;
+  dayRate: number;
+  daysSoFar: number;
+  employedDays: number;
+  presentDays: number;
+  absentDays: number;
+  lateCount: number;
+  overtime: number;
+  cuts: number;
+  earned: number;
+  due: number;
+  payableNow: number;
+}
+
+export interface SalaryToDate {
+  month: string;
+  monthLabel: string;
+  today: string;
+  rows: SalaryToDateRow[];
+  totals: { staff: number; earned: number; due: number; payableNow: number; fullMonth: number };
+}
+
 export const payrollApi = {
+  /** Salary earned so far this month, per employee. */
+  toDate: () => storeApi.get<SalaryToDate>('/payroll/to-date'),
   runs: (params: { status?: string; page?: number; limit?: number } = {}) => storeApi.get<PayrollRunSummary[]>('/payroll/runs', params),
   generate: (month: string) => storeApi.post<PayrollRun>('/payroll/runs', { month }),
   run: (id: string) => storeApi.get<PayrollRun>(`/payroll/runs/${id}`),
