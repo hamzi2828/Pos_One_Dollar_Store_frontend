@@ -11,7 +11,8 @@ import { getCurrencySymbol } from '../../utils/currency';
 import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2, Gift, Printer, BadgePercent } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import WhatsAppBadge from '../../components/WhatsAppBadge';
-import { orderItemName, printReceipt } from '../../utils/receipt';
+import { orderItemName } from '../../utils/receipt';
+import { printOrDispatchReceipt } from '../../utils/printRouter';
 
 export default function InvoicePage() {
   const params = useParams();
@@ -197,7 +198,7 @@ export default function InvoicePage() {
             </button>
           )}
           <button
-            onClick={() => printReceipt(order, storeName, symbol)}
+            onClick={() => void printOrDispatchReceipt(order, storeName, symbol)}
             className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
           >
             <Printer className="h-4 w-4" />

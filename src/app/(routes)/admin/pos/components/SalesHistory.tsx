@@ -5,7 +5,8 @@ import { useRef, useState } from 'react';
 import { POSOrder } from '../types';
 import { Receipt, Clock, Eye, Image as ImageIcon, Printer, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
-import { printReceipt } from '../utils/receipt';
+import { printOrDispatchReceipt } from '../utils/printRouter';
+import type { PrintOnCounter } from '@/components/store/TillStatusBar';
 import WhatsAppBadge from './WhatsAppBadge';
 
 interface SalesHistoryProps {
@@ -14,9 +15,11 @@ interface SalesHistoryProps {
   showDate?: boolean;
   storeName?: string;
   currency?: string;
+  /** Counter that prints this counter's receipts (undefined = look it up). */
+  printOn?: PrintOnCounter | null;
 }
 
-export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'DOLLAR & Co', currency = 'PKR' }: SalesHistoryProps) {
+export default function SalesHistory({ orders, onViewReceipt, showDate = false, storeName = 'DOLLAR & Co', currency = 'PKR', printOn }: SalesHistoryProps) {
   const symbol = getCurrencySymbol(currency);
   // Brief lock while the print dialog spins up, so a double click doesn't queue two prints.
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -56,7 +59,7 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
       printLock.current = false;
       setPrintingId(null);
     }, 1500);
-    printReceipt(order, storeName, symbol);
+    void printOrDispatchReceipt(order, storeName, symbol, printOn);
   };
 
   const getPaymentBadge = (method: string) => {

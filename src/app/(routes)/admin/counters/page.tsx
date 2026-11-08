@@ -6,12 +6,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Monitor, Plus, Edit2, Trash2, Loader2, Clock, Users, AlertCircle, BellRing, LockOpen } from 'lucide-react';
+import { Monitor, Plus, Edit2, Trash2, Loader2, Clock, Users, AlertCircle, BellRing, LockOpen, Printer } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { Modal, Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { formatTime, DenominationCounter, DEFAULT_DENOMINATIONS, countTotal } from '@/components/store/TillStatusBar';
 import MoneyInput from '@/components/ui/MoneyInput';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface Counter {
   _id: string;
@@ -25,6 +26,9 @@ interface Counter {
   floatDenominations?: Record<string, number>;
   assignedUsers: { _id: string; firstName?: string; lastName?: string; email?: string }[];
   notes: string;
+  /** Counter whose printer prints this counter's receipts (null = own printer). */
+  printOnCounter?: string | null;
+  printOnCounterName?: string | null;
   openSession: { _id: string; sessionNo: string; cashierName: string; openedAt: string } | null;
 }
 
@@ -45,6 +49,7 @@ interface FormState {
   floatDenominations: Record<string, number>;
   assignedUsers: string[];
   notes: string;
+  printOnCounter: string;
 }
 
 const userName = (u: Counter['assignedUsers'][number]) => `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Staff';
@@ -190,6 +195,11 @@ export default function CountersPage() {
                     <Users className="h-3.5 w-3.5 text-gray-400" />
                     {c.assignedUsers.length ? c.assignedUsers.map(userName).join(', ') : 'Any cashier'}
                   </p>
+                  {c.printOnCounter && (
+                    <p className="flex items-center gap-1.5">
+                      <Printer className="h-3.5 w-3.5 text-gray-400" /> Receipts → <strong>{c.printOnCounterName || 'another counter'}</strong>
+                    </p>
+                  )}
                 </div>
                 <div className="mt-3 text-xs">
                   {c.openSession ? (
@@ -231,6 +241,7 @@ export default function CountersPage() {
       {editing && (
         <CounterModal
           counter={editing === 'new' ? null : editing}
+          allCounters={rows}
           onClose={() => setEditing(null)}
           onSaved={async () => {
             setEditing(null);
@@ -242,7 +253,17 @@ export default function CountersPage() {
   );
 }
 
-function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; onClose: () => void; onSaved: () => void }) {
+function CounterModal({
+  counter,
+  allCounters,
+  onClose,
+  onSaved,
+}: {
+  counter: Counter | null;
+  allCounters: Counter[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [form, setForm] = useState<FormState>({
     name: counter?.name || '',
     code: counter?.code || '',
@@ -254,7 +275,9 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
     floatDenominations: counter?.floatDenominations || {},
     assignedUsers: counter?.assignedUsers.map((u) => u._id) || [],
     notes: counter?.notes || '',
+    printOnCounter: counter?.printOnCounter || '',
   });
+  const otherCounters = allCounters.filter((c) => c._id !== counter?._id);
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -303,6 +326,7 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
       ...(form.floatFixed ? { floatDenominations: form.floatDenominations } : {}),
       assignedUsers: form.assignedUsers,
       notes: form.notes,
+      printOnCounter: form.printOnCounter,
     };
     try {
       if (counter) await storeApi.put(`/counters/${counter._id}`, body);
@@ -393,6 +417,19 @@ function CounterModal({ counter, onClose, onSaved }: { counter: Counter | null; 
               ))}
             </div>
           )}
+        </Field>
+        <Field
+          label="Receipts print on"
+          hint="Pick this when this counter has no receipt printer. Its receipts print on the chosen counter's printer (that counter's POS must be open with its till open)."
+        >
+          <SearchSelect value={form.printOnCounter} onChange={(e) => set('printOnCounter', e.target.value)} className={inputClass} disabled={busy}>
+            <option value="">This counter (has its own printer)</option>
+            {otherCounters.map((c) => (
+              <option key={c._id} value={c._id}>
+                {c.name}
+              </option>
+            ))}
+          </SearchSelect>
         </Field>
         <Toggle checked={form.isActive} onChange={(v) => set('isActive', v)} label="Active" hint="Switched-off counters cannot be opened and get no alerts." disabled={busy} />
         <Field label="Notes">

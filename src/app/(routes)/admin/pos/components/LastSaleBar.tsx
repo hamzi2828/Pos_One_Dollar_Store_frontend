@@ -5,17 +5,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Printer, FileText, X, Loader2 } from 'lucide-react';
 import { POSOrder } from '../types';
-import { printReceipt } from '../utils/receipt';
+import { printOrDispatchReceipt } from '../utils/printRouter';
+import type { PrintOnCounter } from '@/components/store/TillStatusBar';
 import WhatsAppBadge from './WhatsAppBadge';
 
 interface Props {
   order: POSOrder;
   storeName: string;
   symbol: string;
+  /** Counter that prints this counter's receipts (undefined = look it up). */
+  printOn?: PrintOnCounter | null;
   onClose: () => void;
 }
 
-export default function LastSaleBar({ order, storeName, symbol, onClose }: Props) {
+export default function LastSaleBar({ order, storeName, symbol, printOn, onClose }: Props) {
   const [printing, setPrinting] = useState(false);
   const lock = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -27,7 +30,7 @@ export default function LastSaleBar({ order, storeName, symbol, onClose }: Props
     if (lock.current) return;
     lock.current = true;
     setPrinting(true);
-    printReceipt(order, storeName, symbol);
+    void printOrDispatchReceipt(order, storeName, symbol, printOn);
     timer.current = setTimeout(() => {
       lock.current = false;
       setPrinting(false);

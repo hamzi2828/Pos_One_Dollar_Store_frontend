@@ -30,33 +30,65 @@ export function pickReceiptPrinter(printers: string[], labelPrinter: string): st
   return real.length === 1 ? real[0] : null;
 }
 
-export async function openCashDrawer(): Promise<string | null> {
-  let status: { printer?: string; printers?: string[] } | null = null;
+type AgentStatus = { printer?: string; printers?: string[] };
+
+/**
+ * Find the receipt printer through the local print agent (cached).
+ * Returns { printer } or { error: 'agent' } (app not running) / { error: 'printer' } (not found).
+ */
+export async function findReceiptPrinter(): Promise<{ printer: string | null; printers: string[]; error?: 'agent' | 'printer' }> {
+  if (cachedPrinter) return { printer: cachedPrinter, printers: [] };
+  let status: AgentStatus | null = null;
   try {
-    if (!cachedPrinter) {
-      const r = await fetch(`${AGENT}/status`, withTimeout(2500));
-      status = await r.json();
-      cachedPrinter = pickReceiptPrinter(Array.isArray(status?.printers) ? status!.printers! : [], String(status?.printer || ''));
-    }
+    const r = await fetch(`${AGENT}/status`, withTimeout(2500));
+    status = await r.json();
   } catch {
-    return 'Cash drawer: DollarCoPos desktop app is not running (or the browser blocked it). Open the POS from the app’s Sales button.';
+    return { printer: null, printers: [], error: 'agent' };
   }
-  if (!cachedPrinter) {
-    const list = (status?.printers || []).join(', ') || 'none';
-    return `Cash drawer: receipt printer not found on this PC (printers: ${list}).`;
-  }
+  const printers = Array.isArray(status?.printers) ? status!.printers! : [];
+  cachedPrinter = pickReceiptPrinter(printers, String(status?.printer || ''));
+  return cachedPrinter ? { printer: cachedPrinter, printers } : { printer: null, printers, error: 'printer' };
+}
+
+/** Send raw ESC/POS (a string of Windows-1252 chars) to the receipt printer. Null = sent, else the reason. */
+export async function sendRawToReceiptPrinter(data: string): Promise<string | null> {
+  const found = await findReceiptPrinter();
+  if (found.error === 'agent') return 'DollarCoPos desktop app is not running (or the browser blocked it).';
+  if (!found.printer) return `receipt printer not found on this PC (printers: ${found.printers.join(', ') || 'none'}).`;
   try {
     const r = await fetch(`${AGENT}/print`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: KICK, printer: cachedPrinter }),
+      body: JSON.stringify({ data, printer: found.printer }),
+      ...withTimeout(8000),
+    });
+    if (r.ok) return null;
+    const body = await r.json().catch(() => null);
+    cachedPrinter = null;
+    return `"${found.printer}" did not take the print${body?.error ? ` (${body.error})` : ''}.`;
+  } catch {
+    cachedPrinter = null;
+    return 'no answer from the DollarCoPos desktop app.';
+  }
+}
+
+export async function openCashDrawer(): Promise<string | null> {
+  const found = await findReceiptPrinter();
+  if (found.error === 'agent') {
+    return 'Cash drawer: DollarCoPos desktop app is not running (or the browser blocked it). Open the POS from the app’s Sales button.';
+  }
+  if (!found.printer) return `Cash drawer: receipt printer not found on this PC (printers: ${found.printers.join(', ') || 'none'}).`;
+  try {
+    const r = await fetch(`${AGENT}/print`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: KICK, printer: found.printer }),
       ...withTimeout(5000),
     });
     if (r.ok) return null;
     const body = await r.json().catch(() => null);
-    const printer = cachedPrinter;
     cachedPrinter = null;
-    return `Cash drawer: "${printer}" did not take the open command${body?.error ? ` (${body.error})` : ''}.`;
+    return `Cash drawer: "${found.printer}" did not take the open command${body?.error ? ` (${body.error})` : ''}.`;
   } catch {
     cachedPrinter = null;
     return 'Cash drawer: no answer from the DollarCoPos desktop app.';

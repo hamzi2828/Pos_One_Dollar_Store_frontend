@@ -34,7 +34,7 @@ import { cartToOrderItems, giftLineId, manualProduct, paidLineId } from './utils
 import type { ManualItemInput } from './components/ManualItemModal';
 import { getCurrencySymbol } from './utils/currency';
 import { HeldCart } from './types';
-import { Archive, Filter, AlertCircle, ShoppingCart, LayoutGrid, RefreshCw } from 'lucide-react';
+import { Archive, Filter, AlertCircle, ShoppingCart, LayoutGrid, RefreshCw, Printer } from 'lucide-react';
 import { decodeJwt, getAuthHeader, getAuthToken, type UserPayload } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import OfflineBadge from './offline/OfflineBadge';
@@ -45,7 +45,8 @@ import { isTypedCustomer, priceCartOffline, saveOfflineSale } from './offline/of
 import { onUploadDone } from './offline/syncWorker';
 import { uuid } from './offline/device';
 import { registerPosServiceWorker } from './offline/registerSw';
-import { printReceipt } from './utils/receipt';
+import { printOrDispatchReceipt, rememberPrintOn } from './utils/printRouter';
+import { usePrintStation } from './hooks/usePrintStation';
 import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
 import ProductInsightPanel from '@/components/store/ProductInsightPanel';
 
@@ -226,7 +227,11 @@ export default function POSPage() {
     !offlineMode && !quote?.offline && till && till.required && !till.open ? 'Open your till (cash drawer) before selling' : null;
   useEffect(() => {
     if (till?.open) setTillMessage(null);
+    if (till) rememberPrintOn(till.printOn || null);
   }, [till]);
+  // Counter 1: print receipts sent by other counters while the till is open.
+  const printsFor = till?.open ? till.printsFor || [] : [];
+  const { agent: printerAgent } = usePrintStation(printsFor.length > 0);
 
   // ---------- tabs
   const handleTabChange = useCallback(
@@ -806,7 +811,7 @@ export default function POSPage() {
       resetSale();
       setShowPaymentModal(false);
       setMobileView('products');
-      printReceipt(order, storeName, symbol);
+      void printOrDispatchReceipt(order, storeName, symbol, till ? till.printOn || null : undefined);
       setTimeout(() => searchRef.current?.focus(), 50);
     };
     try {
@@ -894,7 +899,7 @@ export default function POSPage() {
       setShowPaymentModal(false);
       setMobileView('products');
       // Owner, 2026-11-04: every sale prints its bill (and opens the drawer), online too.
-      printReceipt(order, storeName, symbol);
+      void printOrDispatchReceipt(order, storeName, symbol, till ? till.printOn || null : undefined);
       setTimeout(() => searchRef.current?.focus(), 50);
     } catch (error) {
       console.error('Order creation failed:', error);
@@ -951,6 +956,20 @@ export default function POSPage() {
       <div className={`flex-1 min-h-0 flex-col overflow-hidden ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
         <div className="bg-white border-b border-gray-200 p-3 sm:p-4 space-y-3">
           <TillStatusBar onStatusChange={setTill} />
+          {till?.printOn ? (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-blue-50 border border-blue-200 text-blue-800">
+              <Printer className="h-3.5 w-3.5" /> Receipts print on {till.printOn.counterName}
+            </div>
+          ) : printsFor.length > 0 ? (
+            <div
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border ${
+                printerAgent === 'missing' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-800'
+              }`}
+            >
+              <Printer className="h-3.5 w-3.5" /> Printing receipts for {printsFor.join(', ')}
+              {printerAgent === 'missing' && <strong> · Printer app not found</strong>}
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1000,7 +1019,7 @@ export default function POSPage() {
               <button onClick={() => setTillMessage(null)} className="text-xs underline">OK</button>
             </div>
           )}
-          {lastOrder && <LastSaleBar order={lastOrder} storeName={storeName} symbol={symbol} onClose={() => setLastOrder(null)} />}
+          {lastOrder && <LastSaleBar order={lastOrder} storeName={storeName} symbol={symbol} printOn={till ? till.printOn || null : undefined} onClose={() => setLastOrder(null)} />}
 
           {tab === 'products' && (
             <ProductSearch

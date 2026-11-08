@@ -5,7 +5,8 @@
 //
 // Contract (keep stable):
 //   <TillStatusBar onStatusChange={(s) => ...} />
-//   s = { open: boolean; required: boolean; sessionId: string | null; counterName: string | null }
+//   s = { open: boolean; required: boolean; sessionId: string | null; counterName: string | null;
+//         printOn: { counterId, counterName } | null; printsFor: string[] }
 //   - Shows "Till open · Counter 1 · since 10:02" or an "Open till" button
 //     (opening float by denomination) when no session is open.
 //   - When required && !open the POS should block "Complete sale".
@@ -27,6 +28,15 @@ export interface TillStatus {
   required: boolean;
   sessionId: string | null;
   counterName: string | null;
+  /** This counter's receipts print on another counter's printer. */
+  printOn: PrintOnCounter | null;
+  /** Names of counters that send their receipts to this counter's printer. */
+  printsFor: string[];
+}
+
+export interface PrintOnCounter {
+  counterId: string;
+  counterName: string;
 }
 
 export interface CashCount {
@@ -117,6 +127,8 @@ export interface MyTill {
   counters: TillCounterOption[];
   canOpen: boolean;
   canClose: boolean;
+  printOn?: PrintOnCounter | null;
+  printsFor?: string[];
 }
 
 export const tillApi = {
@@ -770,6 +782,8 @@ export default function TillStatusBar({ onStatusChange }: { onStatusChange?: (st
       required: !!data?.required,
       sessionId: data?.open && data.session ? data.session._id : null,
       counterName: data?.open && data.session ? data.session.counterName || null : null,
+      printOn: data?.printOn?.counterId ? data.printOn : null,
+      printsFor: Array.isArray(data?.printsFor) ? data.printsFor : [],
     }),
     [data],
   );

@@ -12,7 +12,7 @@ export const orderItemName = (item: POSOrder['items'][number]) =>
   (typeof item.product === 'object' && item.product?.name) || item.name || 'Product';
 
 // Printed on every slip (same as the website's "Visit us" section).
-const SHOP = {
+export const SHOP = {
   address: 'Nishat Center, Allama Iqbal Road',
   city: 'Mirpur, Azad Kashmir',
   phone: '0314 7000513',
@@ -33,7 +33,7 @@ function reviewQr(sizeMm: number): string {
   return `<div class="qr" style="width:${sizeMm}mm;height:${sizeMm}mm">${svg}</div>`;
 }
 
-const paymentLabel =(m: string) => (m === 'bank_transfer' ? 'Bank Transfer' : m.charAt(0).toUpperCase() + m.slice(1));
+export const paymentLabel = (m: string) => (m === 'bank_transfer' ? 'Bank Transfer' : m.charAt(0).toUpperCase() + m.slice(1));
 
 export function buildReceiptHtml(order: POSOrder, storeName: string, symbol: string): string {
   const money = (n: number | undefined) => `${symbol}${(Number(n) || 0).toFixed(2)}`;
@@ -121,8 +121,8 @@ ${GOOGLE_REVIEW_URL ? `<div class="review" style="margin-top:8px">${reviewQr(32)
 </body></html>`;
 }
 
-/** Print silently through a hidden iframe (no new tab). */
-export function printReceipt(order: POSOrder, storeName: string, symbol: string) {
+/** Print silently through a hidden iframe (no new tab). openDrawer: false = do not kick the cash drawer. */
+export function printReceipt(order: POSOrder, storeName: string, symbol: string, { openDrawer = true }: { openDrawer?: boolean } = {}) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'absolute';
   iframe.style.top = '-10000px';
@@ -139,9 +139,11 @@ export function printReceipt(order: POSOrder, storeName: string, symbol: string)
   doc.write(buildReceiptHtml(order, storeName, symbol));
   doc.close();
   // Owner, 2026-11-04: the cash drawer opens with every receipt print.
-  void openCashDrawer().then((problem) => {
-    if (problem) toast.error(problem, { duration: 8000, id: 'cash-drawer' });
-  });
+  if (openDrawer) {
+    void openCashDrawer().then((problem) => {
+      if (problem) toast.error(problem, { duration: 8000, id: 'cash-drawer' });
+    });
+  }
   setTimeout(() => {
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
