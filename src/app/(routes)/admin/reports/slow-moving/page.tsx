@@ -36,6 +36,7 @@ import {
   selectClass,
 } from '../demand/_shared/reportKit';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { useCategoryTags } from '@/lib/useCategoryTags';
 
 type Action = 'reduce' | 'replace' | 'return' | 'swap';
 
@@ -115,6 +116,7 @@ export default function SlowMovingPage() {
   const [days, setDays] = useState('');
   const [soldPct, setSoldPct] = useState('');
   const [category, setCategory] = useState('');
+  const { keywordsFor } = useCategoryTags();
   const [vendorId, setVendorId] = useState('');
   const [action, setAction] = useState<Action | ''>('');
   const [sort, setSort] = useState('value');
@@ -240,7 +242,7 @@ export default function SlowMovingPage() {
         <SearchSelect value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
           <option value="">All categories</option>
           {opts.categories.map((c) => (
-            <option key={c} value={c}>
+            <option key={c} value={c} data-keywords={keywordsFor(c)}>
               {c}
             </option>
           ))}

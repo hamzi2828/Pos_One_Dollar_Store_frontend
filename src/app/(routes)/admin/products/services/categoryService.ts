@@ -12,6 +12,8 @@ export interface CategoryDTO {
   thumbnailUrls?: string[];
   active: boolean;
   parentId?: { _id: string; name: string; slug: string } | string | null;
+  /** Other names of this category (old categories merged into it), e.g. "Tissue". */
+  tags?: string[];
   children?: CategoryDTO[];
   createdAt?: string;
   updatedAt?: string;
@@ -25,6 +27,7 @@ export interface CategoryInput {
   thumbnailUrls?: string[];
   active: boolean;
   parentId?: string | null;
+  tags?: string[];
 }
 
 export interface CategoryUI {
@@ -37,10 +40,29 @@ export interface CategoryUI {
   active: boolean;
   parentId: string | null;
   parentName: string | null;
+  /** Other names of this category (searched in every category dropdown). */
+  tags: string[];
   children: CategoryUI[];
   createdAt?: string;
   updatedAt?: string;
 }
+
+/** Clean list of tags (trimmed, no blanks, no duplicates ignoring case). */
+export function normalizeTags(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(',') : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of list) {
+    const tag = String(t ?? '').trim();
+    if (!tag || seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    out.push(tag);
+  }
+  return out;
+}
+
+/** Value for an <option data-keywords> so SearchSelect also finds the category by its tags. */
+export const tagKeywords = (tags?: string[] | null): string => (tags || []).join('|');
 
 // Map backend category to frontend shape used in UI
 function mapCategory(dto: CategoryDTO): CategoryUI {
@@ -81,6 +103,7 @@ function mapCategory(dto: CategoryDTO): CategoryUI {
     active: dto.active,
     parentId,
     parentName,
+    tags: normalizeTags(dto.tags),
     children: dto.children?.map(child => mapCategory(child)) ?? [],
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,

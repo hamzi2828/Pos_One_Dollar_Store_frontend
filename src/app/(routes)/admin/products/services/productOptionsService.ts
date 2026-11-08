@@ -25,6 +25,7 @@ export interface MinimalCategory {
   slug: string;
   description: string;
   active: boolean;
+  tags?: string[];
 }
 
 export interface CreateTabData extends AttributeOptions {

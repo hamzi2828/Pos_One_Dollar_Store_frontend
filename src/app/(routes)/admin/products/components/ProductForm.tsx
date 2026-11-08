@@ -7,6 +7,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { toast } from "react-hot-toast";
 import type { Product, ProductVariant } from "./AllProducts";
 import type { Category } from "./CategoriesTab";
+import { filterCategoriesByQuery, TagHint } from "@/components/ui/CategoryTagHint";
 import { slugify, buildVariantCombos, syncVariants, type Variant } from "../services/productCreateService";
 import { productService, type ProductUI } from "../services/productService";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -375,11 +376,11 @@ export default function ProductForm({
     [categories]
   );
 
-  const filteredParentCategories = useMemo(() => {
-    const q = categorySearchQuery.toLowerCase().trim();
-    if (!q) return parentCategories;
-    return parentCategories.filter((c) => c.name.toLowerCase().includes(q));
-  }, [parentCategories, categorySearchQuery]);
+  // Search matches the name or a tag (old category names, e.g. "Tissue" -> Cleaning & Bath).
+  const filteredParentCategories = useMemo(
+    () => filterCategoriesByQuery(parentCategories, categorySearchQuery),
+    [parentCategories, categorySearchQuery]
+  );
 
   // Children of the currently selected Category, for Subcategory Select2
   const childCategories = useMemo(() => {
@@ -389,11 +390,10 @@ export default function ProductForm({
     return categories.filter((c) => c.parentId === parent.id && c.active !== false);
   }, [categories, form.category]);
 
-  const filteredChildCategories = useMemo(() => {
-    const q = subCategorySearchQuery.toLowerCase().trim();
-    if (!q) return childCategories;
-    return childCategories.filter((c) => c.name.toLowerCase().includes(q));
-  }, [childCategories, subCategorySearchQuery]);
+  const filteredChildCategories = useMemo(
+    () => filterCategoriesByQuery(childCategories, subCategorySearchQuery),
+    [childCategories, subCategorySearchQuery]
+  );
 
   // Filter colors for variant multi-select
   const filteredVariantColorOptions = useMemo(() => {
@@ -1189,7 +1189,10 @@ export default function ProductForm({
                                   setCategorySearchQuery("");
                                 }}
                               >
-                                <span className="text-sm flex-1">{cat.name}</span>
+                                <span className="text-sm flex-1">
+                                  {cat.name}
+                                  <TagHint category={cat} query={categorySearchQuery} />
+                                </span>
                                 {form.category === cat.name && (
                                   <svg className="w-4 h-4 text-honey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1290,7 +1293,10 @@ export default function ProductForm({
                                     setSubCategorySearchQuery("");
                                   }}
                                 >
-                                  <span className="text-sm flex-1">{cat.name}</span>
+                                  <span className="text-sm flex-1">
+                                    {cat.name}
+                                    <TagHint category={cat} query={subCategorySearchQuery} />
+                                  </span>
                                   {form.subCategory === cat.name && (
                                     <svg className="w-4 h-4 text-honey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

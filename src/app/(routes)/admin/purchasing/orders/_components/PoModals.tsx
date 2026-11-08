@@ -11,6 +11,7 @@ import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { BuyerField, OTHER_BUYER, buyerPayload, buyerProblem, useBuyers } from '../../_shared/BuyerField';
 import { Disclosure, NumberStepper, PhotoPicker, PhotoStrip, billTotalOf, dateInput, paidOf, todayInput } from '../../_shared/ui';
 import type { POBill, PurchaseOrder } from '../../_shared/types';
+import { useCategoryTags } from '@/lib/useCategoryTags';
 
 // ---------------------------------------------------------------- send to warehouse
 
@@ -235,6 +236,7 @@ export function NewProductModal({
 }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
+  const { tagsFor } = useCategoryTags(); // old names, so typing "Tissue" suggests its main category
   const [salePrice, setSalePrice] = useState('300');
   const [perBox, setPerBox] = useState('1');
   const [qty, setQty] = useState('');
@@ -290,7 +292,7 @@ export function NewProductModal({
             <input value={category} onChange={(e) => setCategory(e.target.value)} list="po-categories" className={inputClass} />
             <datalist id="po-categories">
               {categories.map((c) => (
-                <option key={c} value={c} />
+                <option key={c} value={c} label={tagsFor(c).length ? `${c} (also: ${tagsFor(c).join(', ')})` : undefined} />
               ))}
             </datalist>
           </Field>

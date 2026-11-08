@@ -4,9 +4,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { categoryService } from '../../../services/categoryService';
+import { categoryService, tagKeywords } from '../../../services/categoryService';
 import { type Category } from '../../../components/CategoriesTab';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import TagChipsInput from '@/components/ui/TagChipsInput';
+import { clearCategoryTagsCache } from '@/lib/useCategoryTags';
 
 const slugify = (str: string) =>
   str
@@ -20,6 +22,7 @@ interface ParentCategory {
   id: string;
   name: string;
   slug: string;
+  tags?: string[];
 }
 
 const MAX_THUMBNAILS = 10;
@@ -45,6 +48,7 @@ const EditCategoryPage = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
+  const [tags, setTags] = useState<string[]>([]);
   const [parentId, setParentId] = useState<string>('');
   const [parentCategories, setParentCategories] = useState<ParentCategory[]>([]);
   // Existing thumbnails already saved on the server
@@ -75,6 +79,7 @@ const EditCategoryPage = () => {
           setName(category.name);
           setDescription(toPlainText(category.description || ''));
           setActive(category.active);
+          setTags(category.tags || []);
           setParentId(category.parentId || '');
           const initialUrls = (category.thumbnailUrls && category.thumbnailUrls.length > 0)
             ? category.thumbnailUrls
@@ -154,6 +159,7 @@ const EditCategoryPage = () => {
       formData.append('description', description);
       formData.append('active', active.toString());
       formData.append('parentId', parentId || '');
+      formData.append('tags', JSON.stringify(tags));
       formData.append('existingThumbnailUrls', JSON.stringify(existingUrls));
 
       for (const file of newFiles) {
@@ -161,6 +167,7 @@ const EditCategoryPage = () => {
       }
 
       await categoryService.updateCategory(categoryId, formData);
+      clearCategoryTagsCache();
       router.push('/admin/products/categories');
     } catch (e) {
       console.error('Failed to update category', e);
@@ -221,12 +228,18 @@ const EditCategoryPage = () => {
               >
                 <option value="">None (Top-level category)</option>
                 {parentCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
+                  <option key={cat.id} value={cat.id} data-keywords={tagKeywords(cat.tags)}>
                     {cat.name}
                   </option>
                 ))}
               </SearchSelect>
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="category-tags" className="block text-sm font-medium text-gray-700">Tags (other names)</label>
+            <p className="text-xs text-gray-500 mb-1">Old or other names, e.g. Tissue, Towel. Typing one in any category list finds this category.</p>
+            <TagChipsInput id="category-tags" value={tags} onChange={setTags} />
           </div>
 
           <div>

@@ -12,6 +12,7 @@ import { useAccess } from '@/context/AccessContext';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { Modal, Field, Toggle, ErrorBox, HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { useCategoryTags } from '@/lib/useCategoryTags';
 
 interface CategoryOption {
   name: string;
@@ -251,6 +252,7 @@ function AssignmentModal({
   onSaved: () => void;
 }) {
   const [category, setCategory] = useState(assignment?.category || initialCategory);
+  const { tagsFor } = useCategoryTags(); // old names, so typing "Tissue" suggests its main category
   const [picked, setPicked] = useState<Map<string, string>>(
     () => new Map((assignment?.employees || []).map((e) => [e.employee, e.sharePct === null ? '' : String(e.sharePct)])),
   );
@@ -362,7 +364,7 @@ function AssignmentModal({
             <input list="cat-staff-categories" value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass} placeholder="e.g. Kitchen" />
             <datalist id="cat-staff-categories">
               {categories.map((c) => (
-                <option key={c} value={c} />
+                <option key={c} value={c} label={tagsFor(c).length ? `${c} (also: ${tagsFor(c).join(', ')})` : undefined} />
               ))}
             </datalist>
           </Field>

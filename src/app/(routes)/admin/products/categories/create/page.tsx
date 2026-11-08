@@ -4,8 +4,10 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { categoryService } from '../../services/categoryService';
+import { categoryService, tagKeywords } from '../../services/categoryService';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import TagChipsInput from '@/components/ui/TagChipsInput';
+import { clearCategoryTagsCache } from '@/lib/useCategoryTags';
 
 const slugify = (str: string) =>
   str
@@ -19,6 +21,7 @@ interface ParentCategory {
   id: string;
   name: string;
   slug: string;
+  tags?: string[];
 }
 
 const MAX_THUMBNAILS = 10;
@@ -29,6 +32,7 @@ const CreateCategoryPage = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
+  const [tags, setTags] = useState<string[]>([]);
   const [parentId, setParentId] = useState<string>('');
   const [parentCategories, setParentCategories] = useState<ParentCategory[]>([]);
   const [thumbnailFiles, setThumbnailFiles] = useState<File[]>([]);
@@ -103,6 +107,7 @@ const CreateCategoryPage = () => {
     setLoading(true);
 
     try {
+      let created;
       if (thumbnailFiles.length > 0) {
         const formData = new FormData();
         formData.append('name', name.trim());
@@ -115,15 +120,21 @@ const CreateCategoryPage = () => {
           formData.append('thumbnail', file);
         }
 
-        await categoryService.createCategory(formData);
+        created = await categoryService.createCategory(formData);
       } else {
-        await categoryService.createCategory({
+        created = await categoryService.createCategory({
           name: name.trim(),
           slug,
           description,
           active,
           parentId: parentId || null,
         });
+      }
+
+      // Create does not take tags; save them right after.
+      if (tags.length) {
+        await categoryService.updateCategory(created.id, { tags });
+        clearCategoryTagsCache();
       }
 
       router.push('/admin/products/categories');
@@ -178,12 +189,18 @@ const CreateCategoryPage = () => {
               >
                 <option value="">None (Top-level category)</option>
                 {parentCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
+                  <option key={cat.id} value={cat.id} data-keywords={tagKeywords(cat.tags)}>
                     {cat.name}
                   </option>
                 ))}
               </SearchSelect>
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="category-tags" className="block text-sm font-medium text-gray-700">Tags (other names)</label>
+            <p className="text-xs text-gray-500 mb-1">Old or other names, e.g. Tissue, Towel. Typing one in any category list finds this category.</p>
+            <TagChipsInput id="category-tags" value={tags} onChange={setTags} />
           </div>
 
           <div>

@@ -10,6 +10,9 @@
 // Opens a list with a search box (5 options or more), filters as you type,
 // works with the keyboard (arrows, Enter, Esc, type to jump) and floats above
 // modals and tables (rendered at the end of <body>).
+//
+// An <option data-keywords="Tissue|Towel"> is also found by those words (split on
+// `|` or `,`); the list then shows "also: Tissue" under it.
 import {
   Children,
   Fragment,
@@ -35,6 +38,8 @@ interface Opt {
   label: string;
   disabled: boolean;
   group?: string;
+  /** Extra search words (from the option's `data-keywords`), e.g. a category's other names. */
+  keywords?: string[];
 }
 
 export type SearchSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> & {
@@ -64,11 +69,21 @@ function textOf(node: ReactNode): string {
 function readOptions(children: ReactNode, out: Opt[] = [], group?: string): Opt[] {
   Children.forEach(children, (child) => {
     if (!isValidElement(child)) return;
-    const props = child.props as { value?: unknown; label?: string; disabled?: boolean; children?: ReactNode };
+    const props = child.props as {
+      value?: unknown;
+      label?: string;
+      disabled?: boolean;
+      children?: ReactNode;
+      'data-keywords'?: unknown;
+    };
     if (child.type === 'option') {
       const label = textOf(props.children).trim() || String(props.label ?? '');
       const value = props.value === undefined || props.value === null ? label : String(props.value);
-      out.push({ value, label, disabled: !!props.disabled, group });
+      const kw = props['data-keywords'];
+      const keywords = (Array.isArray(kw) ? kw.map(String) : typeof kw === 'string' ? kw.split(/[|,]/) : [])
+        .map((k) => k.trim())
+        .filter(Boolean);
+      out.push({ value, label, disabled: !!props.disabled, group, ...(keywords.length ? { keywords } : {}) });
     } else if (child.type === 'optgroup') {
       readOptions(props.children, out, props.label);
     } else if (child.type === Fragment) {
@@ -80,14 +95,25 @@ function readOptions(children: ReactNode, out: Opt[] = [], group?: string): Opt[
 
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-/** Every word typed must appear in the label (any order, any case). */
+const queryWords = (query: string) => fold(query).split(/\s+/).filter(Boolean);
+
+/** Every word typed must appear in the label or the option's keywords (any order, any case). */
 function filterOptions(options: Opt[], query: string): Opt[] {
-  const words = fold(query).split(/\s+/).filter(Boolean);
+  const words = queryWords(query);
   if (!words.length) return options;
   return options.filter((o) => {
-    const label = fold(o.label);
-    return words.every((w) => label.includes(w));
+    const text = o.keywords ? [o.label, ...o.keywords].map(fold).join('\n') : fold(o.label);
+    return words.every((w) => text.includes(w));
   });
+}
+
+/** Keywords that matched words the label itself does not have (shown as "also: ..."). */
+function keywordHits(o: Opt, words: string[]): string[] {
+  if (!o.keywords || !words.length) return [];
+  const label = fold(o.label);
+  const missing = words.filter((w) => !label.includes(w));
+  if (!missing.length) return [];
+  return o.keywords.filter((k) => missing.some((w) => fold(k).includes(w)));
 }
 
 function nextEnabled(list: Opt[], from: number, step: 1 | -1): number {
@@ -134,6 +160,7 @@ export function SearchSelect({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(-1);
   const shown = useMemo(() => filterOptions(options, query), [options, query]);
+  const words = useMemo(() => queryWords(query), [query]);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -415,6 +442,7 @@ export function SearchSelect({
                 shown.map((o, i) => {
                   const isSel = o.value === current;
                   const header = o.group && (i === 0 || shown[i - 1].group !== o.group);
+                  const hits = keywordHits(o, words);
                   return (
                     <Fragment key={`${o.value}\u0000${i}`}>
                       {header && (
@@ -435,7 +463,12 @@ export function SearchSelect({
                           o.disabled ? 'cursor-not-allowed text-gray-300' : `cursor-pointer ${i === active ? 'bg-honey-50 text-gray-900' : 'text-gray-700'}`
                         } ${isSel ? 'font-semibold' : ''}`}
                       >
-                        <span className="min-w-0 flex-1 break-words">{o.label || ' '}</span>
+                        <span className="min-w-0 flex-1 break-words">
+                          {o.label || ' '}
+                          {hits.length > 0 && (
+                            <span className="block text-xs font-normal text-gray-400">also: {hits.join(', ')}</span>
+                          )}
+                        </span>
                         {isSel && <Check className="mt-0.5 h-4 w-4 shrink-0 text-honey-700" />}
                       </li>
                     </Fragment>

@@ -8,6 +8,7 @@ import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/
 import MoneyInput from '@/components/ui/MoneyInput';
 import { purchasingApi, toNum } from '../../../_shared/purchasingApi';
 import type { ReceivingUnit } from '../../../_shared/types';
+import { useCategoryTags } from '@/lib/useCategoryTags';
 
 export default function QuickProductModal({
   grnId,
@@ -27,6 +28,7 @@ export default function QuickProductModal({
   const [name, setName] = useState(looksLikeCode ? '' : initialName.trim());
   const [barcode, setBarcode] = useState(looksLikeCode ? initialName.trim() : '');
   const [category, setCategory] = useState('');
+  const { tagsFor } = useCategoryTags(); // old names, so typing "Tissue" suggests its main category
   const [salePrice, setSalePrice] = useState('300');
   const [costPrice, setCostPrice] = useState('');
   const [perBox, setPerBox] = useState('1');
@@ -106,7 +108,7 @@ export default function QuickProductModal({
             <input value={category} onChange={(e) => setCategory(e.target.value)} list="receiving-categories" className={inputClass} placeholder="Optional" />
             <datalist id="receiving-categories">
               {categories.map((c) => (
-                <option key={c} value={c} />
+                <option key={c} value={c} label={tagsFor(c).length ? `${c} (also: ${tagsFor(c).join(', ')})` : undefined} />
               ))}
             </datalist>
           </Field>

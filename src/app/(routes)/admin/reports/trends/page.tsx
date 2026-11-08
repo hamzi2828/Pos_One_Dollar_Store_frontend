@@ -38,6 +38,7 @@ import {
   selectClass,
 } from '../demand/_shared/reportKit';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { useCategoryTags } from '@/lib/useCategoryTags';
 
 interface Money {
   qty: number;
@@ -86,6 +87,7 @@ export default function TrendsPage() {
   const opts = useFilterOptions(canView);
   const [months, setMonths] = useState('12');
   const [category, setCategory] = useState('');
+  const { keywordsFor } = useCategoryTags();
   const [sort, setSort] = useState<Metric>('revenue');
   const [search, setSearch] = useState('');
   const debounced = useDebounced(search);
@@ -217,7 +219,7 @@ export default function TrendsPage() {
         <SearchSelect value={category} onChange={(e) => setCategory(e.target.value)} className={selectClass} aria-label="Category">
           <option value="">All categories</option>
           {opts.categories.map((c) => (
-            <option key={c} value={c}>
+            <option key={c} value={c} data-keywords={keywordsFor(c)}>
               {c}
             </option>
           ))}

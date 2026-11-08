@@ -47,6 +47,8 @@ export interface Category {
   active: boolean;
   parentId?: string | null;
   parentName?: string | null;
+  /** Other names (old categories merged into this one), e.g. "Tissue". */
+  tags?: string[];
 }
 
 export interface CategoryWithCount extends Category {
@@ -63,6 +65,23 @@ interface CategoriesTabProps {
   onReorder?: (reorderedCategories: Category[]) => void;
   /** category id -> request in progress for it (shows a spinner and disables that row's actions) */
   busy?: Record<string, "active" | "delete">;
+}
+
+/** True when one of the category's tags (other names) contains the search text. */
+const tagsMatch = (cat: Category, q: string) => {
+  const needle = q.trim().toLowerCase();
+  return !!needle && (cat.tags || []).some((t) => t.toLowerCase().includes(needle));
+};
+
+/** Small grey line "Also: Tissue · Towel · Jabtco" under a category name. */
+function TagsLine({ tags, className = "" }: { tags?: string[]; className?: string }) {
+  if (!tags?.length) return null;
+  const text = tags.join(" · ");
+  return (
+    <p className={`text-[11px] text-gray-400 truncate ${className}`} title={`Also: ${text}`}>
+      Also: {text}
+    </p>
+  );
 }
 
 export default function CategoriesTab({ categories, onEdit, onDelete, onToggleActive, onReorder, busy = {} }: CategoriesTabProps) {
@@ -145,7 +164,8 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   const filteredParentCategories = useMemo(() => {
     return parentCategories.filter(cat => {
       const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           cat.slug.toLowerCase().includes(searchQuery.toLowerCase());
+                           cat.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           tagsMatch(cat, searchQuery);
       const matchesFilter = filterStatus === "all" ||
                            (filterStatus === "active" && cat.active) ||
                            (filterStatus === "inactive" && !cat.active);
@@ -165,7 +185,8 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
     const subs = getSubcategories(selectedParentId);
     return subs.filter(cat => {
       const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           cat.slug.toLowerCase().includes(searchQuery.toLowerCase());
+                           cat.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           tagsMatch(cat, searchQuery);
       const matchesFilter = filterStatus === "all" ||
                            (filterStatus === "active" && cat.active) ||
                            (filterStatus === "inactive" && !cat.active);
@@ -248,6 +269,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <h3 className="text-sm font-medium text-gray-900 truncate" title={cat.name}>
               {cat.name}
             </h3>
+            <TagsLine tags={cat.tags} />
           </div>
 
           {/* Stats */}
@@ -363,6 +385,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{cat.name}</p>
               <p className="text-xs text-gray-400 truncate">/{cat.slug}</p>
+              <TagsLine tags={cat.tags} />
             </div>
           </div>
         </td>
@@ -515,7 +538,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
-              placeholder={isViewingSubcategories ? "Search subcategories..." : "Search categories..."}
+              placeholder={isViewingSubcategories ? "Search subcategories or tags..." : "Search categories or tags..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-honey-500 focus:border-honey-500 transition-all duration-200"
@@ -623,7 +646,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
           {filteredParentCategories.map((parent) => {
             const subs = getSubcategories(parent.id);
             const visibleSubs = subs.filter((s) => {
-              const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
+              const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || tagsMatch(s, searchQuery);
               const matchesFilter = filterStatus === "all" ||
                 (filterStatus === "active" && s.active) ||
                 (filterStatus === "inactive" && !s.active);
@@ -685,6 +708,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                     <p className="text-xs text-gray-500 truncate mt-0.5">
                       {subs.length} subcategories · {parent.count} products
                     </p>
+                    <TagsLine tags={parent.tags} />
                   </button>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -758,6 +782,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                               <p className="text-[11px] text-gray-400 truncate">
                                 /{sub.slug} · {sub.count} products
                               </p>
+                              <TagsLine tags={sub.tags} />
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <button

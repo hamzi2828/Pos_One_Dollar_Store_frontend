@@ -2,6 +2,7 @@
 import React from "react";
 import { Search, X, Filter } from "lucide-react";
 import { SearchSelect } from "@/components/ui/SearchSelect";
+import { useCategoryTags } from "@/lib/useCategoryTags";
 
 interface ProductFiltersProps {
   searchQuery: string;
@@ -26,6 +27,8 @@ export default function ProductFilters({
   onCurrentPageReset,
   onClearFilters
 }: ProductFiltersProps) {
+  // Category tags (old names, e.g. "Tissue") so the category list finds them too.
+  const { keywordsFor } = useCategoryTags();
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
   };
@@ -100,7 +103,7 @@ export default function ProductFilters({
           >
             <option value="all">All Categories</option>
             {availableCategories.map((c) => (
-              <option key={c} value={c}>
+              <option key={c} value={c} data-keywords={keywordsFor(c)}>
                 {c}
               </option>
             ))}
