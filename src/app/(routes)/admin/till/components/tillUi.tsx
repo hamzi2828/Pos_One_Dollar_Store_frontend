@@ -4,7 +4,7 @@
 // status badge, variance colours and the session detail (expected vs counted,
 // bills, verify / dispute). Only rendered for `till_verify` users.
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, Clock, Receipt, Trash2 } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
@@ -345,7 +345,8 @@ Reason (optional):`);
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {rows.map((r) => (
-                          <tr key={r.label}>
+                          <Fragment key={r.label}>
+                          <tr>
                             <td className="py-1.5 pr-2 text-gray-700">{r.label}</td>
                             <td className="py-1.5 text-right tabular-nums">{r.entered != null ? formatRs(r.entered) : '—'}</td>
                             <td className="py-1.5 text-right tabular-nums text-gray-600">{r.system != null ? formatRs(r.system) : '—'}</td>
@@ -354,6 +355,21 @@ Reason (optional):`);
                               {r.hint && r.entered != null && <span className="block text-[10px] font-normal text-gray-400">{r.hint}</span>}
                             </td>
                           </tr>
+                          {r.label === 'Cash' && data.dayCash && (
+                            <tr>
+                              <td colSpan={4} className="pb-2 pl-3">
+                                {Object.keys(data.dayCash.denominations || {}).length > 0 ? (
+                                  <div className="rounded-md bg-gray-50 p-2">
+                                    <p className="mb-1 text-[11px] font-semibold uppercase text-gray-500">Cash notes · {formatRs(data.dayCash.total)}</p>
+                                    <CountTable count={data.dayCash} />
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-gray-400">Given as one total, not note by note.</p>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         ))}
                       </tbody>
                       <tfoot className="text-sm">
@@ -442,12 +458,7 @@ Reason (optional):`);
                     {!isOpen && sum('system') === 0 && !anyEntered && (
                       <p className="mt-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs text-gray-600">No sales on this till.</p>
                     )}
-                    {data.dayCash && Object.keys(data.dayCash.denominations || {}).length > 0 && (
-                      <div className="mt-3 border-t border-gray-100 pt-2">
-                        <p className="mb-1 text-[11px] font-semibold uppercase text-gray-500">Day&apos;s cash notes · {formatRs(data.dayCash.total)}</p>
-                        <CountTable count={data.dayCash} />
-                      </div>
-                    )}
+                    
                     {!isOpen && data.closingCount && !data.dayCash && sum('system') > 0 && (
                       <p className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">The cashier has not entered the day&apos;s cash yet.</p>
                     )}
