@@ -4,6 +4,7 @@ import { Montserrat } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import ClientLayout from "@/components/ClientLayout";
 import DynamicFavicon from "@/components/DynamicFavicon";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -55,6 +56,7 @@ export default function RootLayout({
           <DynamicFavicon />
           <ClientLayout>{children}</ClientLayout>
         </Suspense>
+        <Analytics />
       </body>
     </html>
   );
