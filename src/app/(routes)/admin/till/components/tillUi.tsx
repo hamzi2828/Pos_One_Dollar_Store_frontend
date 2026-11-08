@@ -121,7 +121,7 @@ const ACTION_LABEL: Record<string, string> = {
   deleted: 'Deleted',
 };
 
-function CountTable({ count }: { count: CashCount | null }) {
+export function CountTable({ count }: { count: CashCount | null }) {
   const rows = Object.entries(count?.denominations || {})
     .map(([v, c]) => [Number(v), Number(c)] as const)
     .filter(([, c]) => c > 0)

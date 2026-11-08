@@ -18,7 +18,8 @@ import {
   type MyTill,
   type TillSession,
 } from '@/components/store/TillStatusBar';
-import { SessionDetailModal, StatusBadge, varianceClass, varianceLabel } from './components/tillUi';
+import { CountTable, SessionDetailModal, StatusBadge, varianceClass, varianceLabel, type TillDetail } from './components/tillUi';
+import { ChevronDown } from 'lucide-react';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
 
@@ -304,6 +305,7 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
 
   return (
     <div className="space-y-4">
+      <OpenCounters refreshKey={rows.length + (meta?.total || 0)} onOpen={setDetailId} />
       {/* Filters */}
       <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3">
         <SearchSelect value={status} onChange={(e) => resetPage(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
@@ -364,47 +366,15 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
         <div className={`bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden ${loading ? 'opacity-60' : ''}`}>
           <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-2 bg-gray-50 text-[11px] font-semibold uppercase text-gray-500">
             <span className="col-span-3">Till</span>
-            <span className="col-span-3">Opened / closed</span>
-            <span className="col-span-2 text-right">Expected</span>
-            <span className="col-span-2 text-right">Counted</span>
+            <span className="col-span-2">Opened / closed</span>
+            <span className="col-span-2 text-right">Till (float)</span>
+            <span className="col-span-2 text-right">Sales cash</span>
             <span className="col-span-2 text-right">Variance</span>
+            <span className="col-span-1 text-right">Notes</span>
           </div>
           <div className="divide-y divide-gray-100">
             {rows.map((r) => (
-              <button
-                key={r._id}
-                type="button"
-                onClick={() => setDetailId(r._id)}
-                className="w-full text-left grid grid-cols-2 md:grid-cols-12 gap-x-3 gap-y-1 px-4 py-3 hover:bg-gray-50 text-sm"
-              >
-                <span className="col-span-2 md:col-span-3 min-w-0">
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 truncate">{r.cashierName}</span>
-                    <StatusBadge status={r.status} />
-                  </span>
-                  <span className="block text-xs text-gray-500 truncate">
-                    {r.sessionNo} · {r.counterName || 'No counter'}
-                  </span>
-                </span>
-                <span className="col-span-2 md:col-span-3 text-xs text-gray-600">
-                  {formatDate(r.openedAt, true)}
-                  {r.closedAt ? ` → ${formatTime(r.closedAt)}` : ''}
-                  {(r.lateOpen || r.lateClose) && (
-                    <span className="block text-amber-600">{[r.lateOpen && 'late open', r.lateClose && 'late close'].filter(Boolean).join(' · ')}</span>
-                  )}
-                </span>
-                <span className="md:col-span-2 md:text-right tabular-nums text-gray-700">
-                  <span className="md:hidden text-[11px] text-gray-400 mr-1">Expected</span>
-                  {r.expected ? formatRs(r.expected.expectedCash) : '—'}
-                </span>
-                <span className="md:col-span-2 text-right tabular-nums text-gray-700">
-                  <span className="md:hidden text-[11px] text-gray-400 mr-1">Counted</span>
-                  {r.closingCount && r.status !== 'open' ? formatRs(r.closingCount.total) : '—'}
-                </span>
-                <span className={`col-span-2 md:col-span-2 text-right font-semibold ${varianceClass(r.variance)}`}>
-                  {r.status === 'open' ? <span className="text-xs font-normal text-gray-400">still open</span> : varianceLabel(r.variance)}
-                </span>
-              </button>
+              <TillRow key={r._id} r={r} onOpen={() => setDetailId(r._id)} />
             ))}
           </div>
           <Pager meta={meta} page={page} onPage={setPage} />
@@ -412,6 +382,162 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
       )}
 
       {detailId && <SessionDetailModal id={detailId} onClose={() => setDetailId(null)} onChanged={load} />}
+    </div>
+  );
+}
+
+/** One till in the admin list. The notes button opens float / drawer / sales cash note by note. */
+function TillRow({ r, onOpen }: { r: TillSession; onOpen: () => void }) {
+  const [showNotes, setShowNotes] = useState(false);
+  const drawer = r.drawerCount ?? (r.dayCash ? null : r.closingCount);
+  const isOpen = r.status === 'open';
+  return (
+    <div className="text-sm">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onOpen();
+        }}
+        className="w-full cursor-pointer text-left grid grid-cols-2 md:grid-cols-12 gap-x-3 gap-y-1 px-4 py-3 hover:bg-gray-50"
+      >
+        <span className="col-span-2 md:col-span-3 min-w-0">
+          <span className="flex items-center gap-2">
+            <span className="font-medium text-gray-900 truncate">{r.cashierName}</span>
+            <StatusBadge status={r.status} />
+          </span>
+          <span className="block text-xs text-gray-500 truncate">
+            {r.sessionNo} · {r.counterName || 'No counter'}
+          </span>
+        </span>
+        <span className="col-span-2 md:col-span-2 text-xs text-gray-600">
+          {formatDate(r.openedAt, true)}
+          {r.closedAt ? ` → ${formatTime(r.closedAt)}` : ''}
+          {(r.lateOpen || r.lateClose) && (
+            <span className="block text-amber-600">{[r.lateOpen && 'late open', r.lateClose && 'late close'].filter(Boolean).join(' · ')}</span>
+          )}
+        </span>
+        <span className="md:col-span-2 md:text-right tabular-nums text-gray-700">
+          <span className="md:hidden text-[11px] text-gray-400 mr-1">Till</span>
+          {drawer && !isOpen ? formatRs(drawer.total) : formatRs(r.openingFloat?.total)}
+          <span className="block text-[11px] text-gray-400">{drawer && !isOpen ? `float ${formatRs(r.openingFloat?.total)}` : 'float'}</span>
+        </span>
+        <span className="md:col-span-2 text-right tabular-nums text-gray-900 font-medium">
+          <span className="md:hidden text-[11px] text-gray-400 mr-1 font-normal">Sales cash</span>
+          {isOpen ? <span className="text-xs font-normal text-gray-400">counting at close</span> : r.dayCash ? formatRs(r.dayCash.total) : '—'}
+          {!isOpen && r.expected && (
+            <span className="block text-[11px] font-normal text-gray-400">expected {formatRs(r.expected.expectedCash - (r.openingFloat?.total || 0))}</span>
+          )}
+        </span>
+        <span className={`col-span-1 md:col-span-2 text-right font-semibold ${varianceClass(r.variance)}`}>
+          {isOpen ? <span className="text-xs font-normal text-gray-400">still open</span> : varianceLabel(r.variance)}
+        </span>
+        <span className="col-span-1 md:col-span-1 text-right">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowNotes((v) => !v);
+            }}
+            className="inline-flex items-center gap-0.5 rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600 hover:bg-white"
+          >
+            Notes <ChevronDown className={`h-3 w-3 transition-transform ${showNotes ? 'rotate-180' : ''}`} />
+          </button>
+        </span>
+      </div>
+      {showNotes && (
+        <div className="grid gap-3 bg-gray-50 px-4 py-3 md:grid-cols-3">
+          <NotesBox title="Opening float" count={r.openingFloat} />
+          <NotesBox title="Till left in drawer" count={isOpen ? null : drawer} empty={isOpen ? 'Counted at close' : undefined} />
+          <NotesBox title="Sales cash handed over" count={isOpen ? null : r.dayCash} empty={isOpen ? 'Counted at close' : undefined} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotesBox({ title, count, empty }: { title: string; count: TillSession['openingFloat'] | null | undefined; empty?: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-2.5">
+      <p className="mb-1.5 text-[11px] font-semibold uppercase text-gray-500">
+        {title}
+        {count ? ` · ${formatRs(count.total)}` : ''}
+      </p>
+      {count ? <CountTable count={count} /> : <p className="text-xs text-gray-500">{empty || '—'}</p>}
+    </div>
+  );
+}
+
+/** Live cash in every open counter (admin). Refreshes every minute. */
+function OpenCounters({ refreshKey, onOpen }: { refreshKey: number; onOpen: (id: string) => void }) {
+  const [tills, setTills] = useState<TillDetail[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await storeApi.get<TillSession[]>('/till-sessions', { status: 'open', page: 1, limit: 20 });
+      const details = await Promise.all((res.data || []).map((s) => storeApi.get<TillDetail>(`/till-sessions/${s._id}`).then((d) => d.data)));
+      setTills(details.filter(Boolean));
+    } catch {
+      /* the list below still shows the tills */
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = window.setInterval(load, 60_000);
+    return () => window.clearInterval(t);
+  }, [load, refreshKey]);
+
+  if (!tills.length) return null;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {tills.map((t) => {
+        const e = t.liveExpected || t.expected;
+        const floatAmt = t.openingFloat?.total ?? e?.float ?? 0;
+        const salesCash = e ? e.cashSales + e.cashReceivedOnCredit - e.cashRefunds : 0;
+        const exp = e?.expenses || 0;
+        return (
+          <button
+            key={t._id}
+            type="button"
+            onClick={() => onOpen(t._id)}
+            className="rounded-xl border border-green-200 bg-white p-4 text-left shadow-sm hover:border-green-400"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-gray-900">
+                {t.counterName || 'No counter'} <span className="font-normal text-gray-500">· {t.cashierName}</span>
+              </p>
+              <span className="text-[11px] text-gray-500">since {formatTime(t.openedAt)}</span>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">Cash in the counter now</p>
+            <p className="text-2xl font-bold tabular-nums text-green-700">{formatRs(Math.round((floatAmt + salesCash - exp) * 100) / 100)}</p>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+              <dt className="text-gray-500">Till (float)</dt>
+              <dd className="text-right tabular-nums">{formatRs(floatAmt)}</dd>
+              <dt className="text-gray-500">Cash sales ({e?.billCount ?? 0} bills)</dt>
+              <dd className="text-right tabular-nums">+{formatRs(salesCash)}</dd>
+              {exp > 0 && (
+                <>
+                  <dt className="text-gray-500">Expenses paid</dt>
+                  <dd className="text-right tabular-nums text-rose-700">−{formatRs(exp)}</dd>
+                </>
+              )}
+              <dt className="text-gray-500">Card / Bank</dt>
+              <dd className="text-right tabular-nums text-gray-600">
+                {formatRs(t.nonCash?.card ?? e?.card ?? 0)} / {formatRs(t.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0)}
+              </dd>
+            </dl>
+            {t.openingFloat && Object.keys(t.openingFloat.denominations || {}).length > 0 && (
+              <div className="mt-2 border-t border-gray-100 pt-2">
+                <p className="mb-1 text-[11px] font-semibold uppercase text-gray-500">Float notes</p>
+                <CountTable count={t.openingFloat} />
+              </div>
+            )}
+            <p className="mt-2 text-[11px] text-gray-400">Sales cash is counted note by note when the cashier closes the till.</p>
+          </button>
+        );
+      })}
     </div>
   );
 }
