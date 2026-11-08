@@ -11,6 +11,7 @@ import {
   Calendar,
   Download,
   Eye,
+  Pencil,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import ReportsNav from '../components/ReportsNav';
@@ -25,6 +26,8 @@ import { getCurrencySymbol } from '../../pos/utils/currency';
 import TablePagination from '@/components/admin/TablePagination';
 import { useServerPagination } from '@/helper/useServerPagination';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { useAccess } from '@/context/AccessContext';
+import EditBillModal, { type EditableBill } from './EditBillModal';
 
 const CURRENCY = 'PKR';
 
@@ -42,6 +45,9 @@ export default function SalesReportPage() {
   const [customEnd, setCustomEnd] = useState('');
   const [data, setData] = useState<SalesSummaryReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const { can } = useAccess();
+  const canEditBill = can('pos_orders', 'edit');
+  const [editBill, setEditBill] = useState<EditableBill | null>(null);
 
   const range = useMemo(() => rangeFromFilter(filter, customStart, customEnd), [filter, customStart, customEnd]);
   const pg = useServerPagination(25);
@@ -349,7 +355,18 @@ export default function SalesReportPage() {
                               <span className="text-gray-400">—</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-right">
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            {canEditBill && (
+                              <button
+                                type="button"
+                                onClick={() => setEditBill(o)}
+                                className="mr-2 inline-flex items-center gap-1 text-gray-600 hover:text-gray-900"
+                                title="Edit bill"
+                                aria-label="Edit bill"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
                             <Link
                               href={viewHref}
                               target="_blank"
@@ -378,6 +395,7 @@ export default function SalesReportPage() {
           </div>
         </>
       ) : null}
+      {editBill && <EditBillModal bill={editBill} onClose={() => setEditBill(null)} onSaved={load} />}
     </div>
   );
 }
