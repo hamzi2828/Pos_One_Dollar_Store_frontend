@@ -66,6 +66,20 @@ export interface SalesSummaryReport {
     avgOrderValue: number;
     posOrders: number;
     posSales: number;
+    /** The same totals split by counter. */
+    byCounter?: Array<{
+      name: string;
+      orders: number;
+      sales: number;
+      paid: number;
+      pending: number;
+      cost: number;
+      profit: number;
+      cash: number;
+      card: number;
+      bank: number;
+      items: number;
+    }>;
   };
   orders: Array<{
     _id: string;

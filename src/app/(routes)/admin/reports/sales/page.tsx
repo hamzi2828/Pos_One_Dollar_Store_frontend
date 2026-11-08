@@ -280,6 +280,60 @@ export default function SalesReportPage() {
             ))}
           </div>
 
+          {/* The same totals, counter by counter */}
+          {(data.summary.byCounter?.length ?? 0) > 0 && (
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="px-3 py-2 border-b border-gray-200 text-sm font-semibold text-gray-900">By counter</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Counter</th>
+                      <th className="px-3 py-2 text-right">Orders</th>
+                      <th className="px-3 py-2 text-right">Total sales</th>
+                      <th className="px-3 py-2 text-right">Cash</th>
+                      <th className="px-3 py-2 text-right">Card</th>
+                      <th className="px-3 py-2 text-right">Bank</th>
+                      <th className="px-3 py-2 text-right">Pending</th>
+                      <th className="px-3 py-2 text-right">Items</th>
+                      <th className="px-3 py-2 text-right">Cost</th>
+                      <th className="px-3 py-2 text-right">Profit · %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {data.summary.byCounter!.map((c) => (
+                      <tr key={c.name}>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                              c.name === 'No counter' ? 'bg-gray-100 text-gray-700' : /2/.test(c.name) ? 'bg-violet-100 text-violet-800' : 'bg-sky-100 text-sky-800'
+                            }`}
+                          >
+                            {c.name}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{c.orders}</td>
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold">
+                          {fmt(c.sales)}
+                          <span className="block text-[10px] font-normal text-gray-500">{pct(c.sales, data.summary.totalSales) || '0%'}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-emerald-800">{fmt(c.cash)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-sky-800">{fmt(c.card)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-violet-800">{fmt(c.bank)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmt(c.pending)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{c.items}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmt(c.cost)}</td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${c.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                          {fmt(c.profit)} <span className="text-[10px] text-gray-500">{pct(c.profit, c.sales)}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
 
             <div className="overflow-x-auto">
