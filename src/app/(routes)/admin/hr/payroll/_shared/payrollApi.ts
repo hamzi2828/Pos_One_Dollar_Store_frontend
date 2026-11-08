@@ -320,6 +320,12 @@ export interface SalaryToDateRow {
   earned: number;
   due: number;
   payableNow: number;
+  /** Overtime minutes this month: approved (paid) and waiting for approval. */
+  otApprovedMinutes?: number;
+  otPendingMinutes?: number;
+  /** Tips given this month (not part of salary). */
+  tips?: number;
+  tipCount?: number;
 }
 
 export interface SalaryToDate {
@@ -327,7 +333,7 @@ export interface SalaryToDate {
   monthLabel: string;
   today: string;
   rows: SalaryToDateRow[];
-  totals: { staff: number; earned: number; due: number; payableNow: number; fullMonth: number };
+  totals: { staff: number; earned: number; due: number; payableNow: number; fullMonth: number; tips?: number };
 }
 
 export const payrollApi = {

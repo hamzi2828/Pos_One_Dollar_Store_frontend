@@ -8,6 +8,15 @@ import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { payrollApi, type SalaryToDate as Data } from './payrollApi';
 import { cardClass, tdClass, thClass } from './PayrollBits';
 
+/** 240 -> "4 h", 90 -> "1 h 30 m", 0 -> "". */
+function hoursOf(min: number): string {
+  const m = Math.round(Number(min) || 0);
+  if (m <= 0) return '';
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return h && r ? `${h} h ${r} m` : h ? `${h} h` : `${r} m`;
+}
+
 export default function SalaryToDate() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +60,11 @@ export default function SalaryToDate() {
                   <th className={`${thClass} text-right`}>Salary</th>
                   <th className={`${thClass} text-right`}>Days so far</th>
                   <th className={`${thClass} text-right`}>Absent / late</th>
+                  <th className={`${thClass} text-right`} title="Approved overtime is paid. Reject it in Fix before payroll if needed.">Overtime</th>
                   <th className={`${thClass} text-right`}>Earned so far</th>
                   <th className={`${thClass} text-right`}>Advances / deductions</th>
                   <th className={`${thClass} text-right`}>Payable now</th>
+                  <th className={`${thClass} text-right`} title="Tips already given this month. Not part of salary.">Tips taken</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -80,12 +91,32 @@ export default function SalaryToDate() {
                         </span>
                       )}
                     </td>
+                    <td className={`${tdClass} text-right tabular-nums`}>
+                      {r.otApprovedMinutes ? (
+                        <span className="font-semibold text-green-700">
+                          {hoursOf(r.otApprovedMinutes)} approved
+                          <span className="block text-[11px] font-normal">{formatRs(r.overtime)}</span>
+                        </span>
+                      ) : (
+                        !r.otPendingMinutes && <span className="text-gray-400">—</span>
+                      )}
+                      {r.otPendingMinutes ? <span className="block text-[11px] text-amber-700">{hoursOf(r.otPendingMinutes)} waiting</span> : null}
+                    </td>
                     <td className={`${tdClass} text-right tabular-nums font-semibold text-gray-900`}>
                       {formatRs(r.earned)}
-                      {r.overtime > 0 && <span className="block text-[11px] font-normal text-green-700">incl. overtime {formatRs(r.overtime)}</span>}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums text-red-700`}>{r.due > 0 ? `−${formatRs(r.due)}` : '—'}</td>
                     <td className={`${tdClass} text-right tabular-nums font-semibold text-gray-900`}>{formatRs(r.payableNow)}</td>
+                    <td className={`${tdClass} text-right tabular-nums`}>
+                      {r.tips ? (
+                        <span className="font-semibold text-green-700">
+                          {formatRs(r.tips)}
+                          {r.tipCount ? <span className="block text-[11px] font-normal text-green-600">{r.tipCount} tip{r.tipCount === 1 ? '' : 's'}</span> : null}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -95,9 +126,13 @@ export default function SalaryToDate() {
                   <td className={`${tdClass} text-right tabular-nums`}>{formatRs(data.totals.fullMonth)}</td>
                   <td className={tdClass} />
                   <td className={tdClass} />
+                  <td className={`${tdClass} text-right tabular-nums text-green-700`}>
+                    {hoursOf(data.rows.reduce((t, r) => t + (r.otApprovedMinutes || 0), 0)) || '—'}
+                  </td>
                   <td className={`${tdClass} text-right tabular-nums`}>{formatRs(data.totals.earned)}</td>
                   <td className={`${tdClass} text-right tabular-nums text-red-700`}>{data.totals.due > 0 ? `−${formatRs(data.totals.due)}` : '—'}</td>
                   <td className={`${tdClass} text-right tabular-nums`}>{formatRs(data.totals.payableNow)}</td>
+                  <td className={`${tdClass} text-right tabular-nums text-green-700`}>{data.totals.tips ? formatRs(data.totals.tips) : '—'}</td>
                 </tr>
               </tfoot>
             </table>
@@ -120,6 +155,9 @@ export default function SalaryToDate() {
                 <p className="mt-1 text-[11px] text-gray-600">
                   Salary {r.payType === 'daily' ? `${formatRs(r.dailyRate)} / day` : formatRs(r.salary)}
                   {r.due > 0 ? ` · advances / deductions −${formatRs(r.due)}` : ''} · payable now <strong>{formatRs(r.payableNow)}</strong>
+                  {r.otApprovedMinutes ? <span className="text-green-700"> · overtime {hoursOf(r.otApprovedMinutes)} {formatRs(r.overtime)}</span> : null}
+                  {r.otPendingMinutes ? <span className="text-amber-700"> · {hoursOf(r.otPendingMinutes)} waiting</span> : null}
+                  {r.tips ? <span className="font-semibold text-green-700"> · tips taken {formatRs(r.tips)}</span> : null}
                 </p>
               </div>
             ))}
