@@ -105,8 +105,19 @@ export interface BillWarehouseStatus {
   items: number;
 }
 
+/** Vendor account around one bill: balance before it, the bill, paid since, left. */
+export interface BillAccount {
+  previous: number;
+  thisBill: number;
+  total: number;
+  paid: number;
+  balance: number;
+}
+
 export interface PurchaseOrder {
   _id: string;
+  /** Per bill id (trip detail only). */
+  billAccounts?: Record<string, BillAccount>;
   poNumber: string;
   status: POStatus;
   /** Staff login the trip is bought by (the receiving rule checks this). */

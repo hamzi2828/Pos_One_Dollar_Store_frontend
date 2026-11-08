@@ -585,6 +585,7 @@ function Workspace() {
                     poId={po._id}
                     bill={bill}
                     warehouse={warehouseByBill.get(bill._id)}
+                    account={po.billAccounts?.[bill._id]}
                     editable={canBuy}
                     canSend={editable}
                     onChange={applyPO}

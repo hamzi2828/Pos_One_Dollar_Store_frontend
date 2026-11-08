@@ -13,7 +13,7 @@ import { PAYMENT_METHODS } from '@/app/(routes)/admin/vendors/services/vendorApi
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { ProductSearch } from '../../_shared/Pickers';
 import { Disclosure, PhotoStrip, billTotalOf, owedOf, paidOf } from '../../_shared/ui';
-import type { BillWarehouseStatus, POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
+import type { BillAccount, BillWarehouseStatus, POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
 
 const cellInput = `${inputClass} !px-2 !py-1 text-right`;
 
@@ -46,7 +46,10 @@ export default function BillCard({
   onEdit,
   onNewProduct,
   canSend = false,
+  account,
 }: {
+  /** Vendor account around this bill (previous balance, paid, left). */
+  account?: BillAccount;
   poId: string;
   bill: POBill;
   /** Trip still buying: this bill can go to the warehouse on its own. */
@@ -153,6 +156,35 @@ export default function BillCard({
       </div>
 
       <div className="p-4 space-y-3">
+        {account && !missingAmount ? (
+          <div className={`grid gap-2 text-center ${account.previous ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-3'}`}>
+            <div className="rounded-lg bg-gray-50 px-2 py-2">
+              <p className="text-[11px] text-gray-500">This bill</p>
+              <p className="text-sm font-semibold text-gray-900">{formatRs(account.thisBill)}</p>
+            </div>
+            {account.previous !== 0 && (
+              <>
+                <div className="rounded-lg bg-gray-50 px-2 py-2">
+                  <p className="text-[11px] text-gray-500">{account.previous > 0 ? 'Previous balance' : 'Vendor owes us'}</p>
+                  <p className="text-sm font-semibold text-gray-900">{formatRs(Math.abs(account.previous))}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-2 py-2">
+                  <p className="text-[11px] text-gray-500">Total</p>
+                  <p className="text-sm font-semibold text-gray-900">{formatRs(account.total)}</p>
+                </div>
+              </>
+            )}
+            <div className="rounded-lg bg-gray-50 px-2 py-2">
+              <p className="text-[11px] text-gray-500">Total paid</p>
+              <p className="text-sm font-semibold text-green-700">{formatRs(account.paid)}</p>
+              {paid > 0 && <p className="text-[10px] text-gray-500 truncate">{formatRs(paid)} now · {methodLabel(bill.paidMethod)}</p>}
+            </div>
+            <div className="rounded-lg bg-honey-50 px-2 py-2">
+              <p className="text-[11px] text-gray-600">Balance</p>
+              <p className="text-sm font-semibold text-gray-900">{formatRs(account.balance)}</p>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-lg bg-gray-50 px-2 py-2">
             <p className="text-[11px] text-gray-500">Bill total</p>
@@ -168,6 +200,7 @@ export default function BillCard({
             <p className="text-sm font-semibold text-gray-900">{formatRs(owed)}</p>
           </div>
         </div>
+        )}
 
         {(missingAmount || noBoxes) && editable && (
           <p className="text-xs text-red-600">
