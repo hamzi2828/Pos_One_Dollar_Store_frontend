@@ -2,7 +2,8 @@
 // Shows applied discounts (rules + manual) and gift lines as "FREE — gift".
 import { POSOrder } from '../types';
 import toast from 'react-hot-toast';
-import { openCashDrawer } from './cashDrawer';
+import { openCashDrawer, sendRawToReceiptPrinter } from './cashDrawer';
+import { buildEscPosReceipt } from './escposReceipt';
 import qrcode from 'qrcode-generator';
 
 const esc = (v: unknown) =>
@@ -122,7 +123,27 @@ ${GOOGLE_REVIEW_URL ? `<div class="review" style="margin-top:8px">${reviewQr(32)
 }
 
 /** Print silently through a hidden iframe (no new tab). openDrawer: false = do not kick the cash drawer. */
-export function printReceipt(order: POSOrder, storeName: string, symbol: string, { openDrawer = true }: { openDrawer?: boolean } = {}) {
+/**
+ * Print a receipt. First straight to the thermal printer through the DollarCoPos
+ * app (sharp text, no print box, same as slips sent from another counter);
+ * if that does not work, the browser print below.
+ */
+export function printReceipt(
+  order: POSOrder,
+  storeName: string,
+  symbol: string,
+  { openDrawer = true, direct = true }: { openDrawer?: boolean; direct?: boolean } = {}
+) {
+  if (!direct) return printReceiptInBrowser(order, storeName, symbol, openDrawer);
+  // ESC p: the drawer opens in the same job as the slip.
+  const data = (openDrawer ? '\x1bp\x00\x19\xfa' : '') + buildEscPosReceipt(order, storeName, symbol);
+  void sendRawToReceiptPrinter(data).then((problem) => {
+    if (problem) printReceiptInBrowser(order, storeName, symbol, openDrawer);
+  });
+}
+
+/** Print through a hidden iframe (the browser print). */
+function printReceiptInBrowser(order: POSOrder, storeName: string, symbol: string, openDrawer: boolean) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'absolute';
   iframe.style.top = '-10000px';

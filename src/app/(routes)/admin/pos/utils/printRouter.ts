@@ -83,7 +83,7 @@ export async function printRemoteJob(job: PrintJob): Promise<{ ok: boolean; erro
   if (!problem) return { ok: true };
   // Desktop app not reachable: use the browser print dialog instead.
   try {
-    printReceipt(order, storeName || 'DOLLAR & Co', symbol || '', { openDrawer: false });
+    printReceipt(order, storeName || 'DOLLAR & Co', symbol || '', { openDrawer: false, direct: false });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(problem) };
