@@ -20,7 +20,6 @@ import {
   ErrorState,
   LoadingBlock,
   ReportActions,
-  BarChart,
   LineChart,
   Heatmap,
   Sparkline,
@@ -253,17 +252,6 @@ export default function TrendsPage() {
             </Card>
           ) : (
             <>
-              <Card title="Month by month" subtitle="Net sales and profit (Rs). Hover a month for numbers." bodyClass="p-3 sm:p-4">
-                <BarChart
-                  series={['Net sales', 'Profit']}
-                  data={d.monthly.map((m) => ({
-                    label: fmtMonth(m.month, true),
-                    values: [m.revenue, Math.max(0, m.profit)],
-                    tip: `${fmtMonth(m.month)}: ${formatRs(m.revenue)} sales · ${formatRs(m.profit)} profit · ${fmtNum(m.qty)} pcs · ${fmtNum(m.bills)} bills`,
-                  }))}
-                />
-              </Card>
-
               {heat && heat.rows.length > 0 && (
                 <Card
                   title={`Categories × months (${METRIC_LABEL[sort].toLowerCase()})`}

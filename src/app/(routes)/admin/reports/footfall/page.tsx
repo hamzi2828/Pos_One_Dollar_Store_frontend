@@ -6,7 +6,7 @@
 
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
-import { Footprints, Users, Plus, Pencil, Trash2, Download } from 'lucide-react';
+import { Footprints, Users, Download } from 'lucide-react';
 import ReportsNav from '../components/ReportsNav';
 import { useAccess } from '@/context/AccessContext';
 import { storeApi, apiErrorMessage } from '@/lib/storeApi';
@@ -14,13 +14,11 @@ import { Modal, Field, ErrorBox, LoadingCard, NoAccessCard, inputClass, primaryB
 import {
   PageHeader,
   FilterBar,
-  StatCard,
   Card,
   EmptyState,
   ErrorState,
   LoadingBlock,
   ReportActions,
-  BarChart,
   Heatmap,
   DateRangePicker,
   useDateRange,
@@ -199,118 +197,19 @@ export default function FootfallPage() {
         <LoadingBlock />
       ) : d && s ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-            <StatCard label="Bills" value={fmtNum(s.bills)} hint={`${fmtNum(s.avgBillsPerDay, 1)} per day`} />
-            <StatCard label="Buyers" value={fmtNum(s.buyers)} hint={`${fmtNum(s.walkInBills)} walk-in bills`} />
-            <StatCard label="Average bill" value={formatRs(s.avgBill)} hint={`${fmtNum(s.itemsPerBill, 2)} items per bill`} />
-            <StatCard label="Sales" value={formatRs(s.sales)} />
-            <StatCard label="Visitors counted" value={s.visitors === null ? '—' : fmtNum(s.visitors)} hint={s.daysWithVisitors ? `on ${s.daysWithVisitors} day(s)` : 'type them below'} />
-            <StatCard label="Conversion" value={fmtPct(s.conversionPct)} tone="info" hint="bills ÷ visitors" />
-            <StatCard label="Busiest hour" value={s.peakHour === null ? '—' : `${hourLabel(s.peakHour)}–${hourLabel((s.peakHour + 1) % 24)}`} />
-            <StatCard label="Busiest weekday" value={s.peakWeekday || '—'} hint={s.busiestDay ? `top day ${fmtDay(s.busiestDay, false)}` : undefined} />
-          </div>
-
           {s.bills === 0 ? (
             <Card>
               <EmptyState icon={<Users className="h-10 w-10" />} title="No bills in this period" text="Pick another period." />
             </Card>
           ) : (
             <>
-              <Card title="Bills per day" subtitle="Hover a day for buyers and the average bill" bodyClass="p-3 sm:p-4">
-                <BarChart
-                  series={['Bills']}
-                  format={(n) => fmtNum(n)}
-                  data={d.days.map((x) => ({
-                    label: d.days.length > 31 ? fmtDay(x.day, false) : String(Number(x.day.slice(8))),
-                    values: [x.bills],
-                    tip: `${fmtDay(x.day)} (${x.weekday}): ${x.bills} bills · ${x.buyers} buyers · avg ${formatRs(x.avgBill)}${x.visitors ? ` · ${fmtPct(x.conversionPct)} of ${x.visitors} visitors` : ''}`,
-                  }))}
-                />
-              </Card>
-
-              {heat && (
-                <Card title="Busy hours" subtitle="Bills by weekday and hour (Pakistan time) — darker = busier" bodyClass="p-3 sm:p-4">
-                  <Heatmap rows={heat.rows} cols={heat.cols} values={heat.values} colEvery={2} minCell={26} rowWidth="w-12" cellLabel={(ri, ci) => `${heat.rows[ri]} ${heat.cols[ci]}: ${heat.values[ri][ci]} bills`} />
-                </Card>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                <Card title="By weekday" subtitle="Average per weekday in this period">
-                  <SimpleTable
-                    head={['Day', 'Bills / day', 'Sales / day', 'Avg bill']}
-                    rows={WEEK_ORDER.map((w) => d.byWeekday[w]).map((x) => [x.label, fmtNum(x.avgBills, 1), formatRs(x.avgSales), formatRs(x.avgBill)])}
-                  />
-                </Card>
-                <Card title="By cashier">
-                  <SimpleTable
-                    head={['Cashier', 'Bills', 'Sales', 'Avg bill', 'Items']}
-                    rows={d.byCashier.map((c) => [c.name, fmtNum(c.bills), formatRs(c.sales), formatRs(c.avgBill), fmtNum(c.itemsPerBill, 2)])}
-                  />
-                </Card>
-              </div>
+                {heat && (
+                  <Card title="Busy hours" subtitle="Bills by weekday and hour (Pakistan time) — darker = busier" bodyClass="p-3 sm:p-4">
+                    <Heatmap rows={heat.rows} cols={heat.cols} values={heat.values} colEvery={2} minCell={26} rowWidth="w-12" cellLabel={(ri, ci) => `${heat.rows[ri]} ${heat.cols[ci]}: ${heat.values[ri][ci]} bills`} />
+                  </Card>
+                )}
             </>
           )}
-
-          <Card
-            title="Visitors at the door"
-            subtitle="Optional daily count (door counter or staff tally) — gives the conversion %"
-            actions={
-              canAdd && (
-                <button type="button" onClick={() => setEditing('new')} className={`${primaryBtn} !py-1.5`}>
-                  <Plus className="h-4 w-4" /> Add count
-                </button>
-              )
-            }
-          >
-            {ent.error ? (
-              <div className="p-3">
-                <ErrorState message={ent.error} onRetry={ent.reload} />
-              </div>
-            ) : entries.length === 0 ? (
-              <EmptyState title="No visitor counts in this period" text={canAdd ? 'Add the number of people who came in on a day.' : undefined} />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Day</th>
-                      <th className="px-3 py-2 text-right">Visitors</th>
-                      <th className="px-3 py-2 text-right">Bills</th>
-                      <th className="px-3 py-2 text-right">Conversion</th>
-                      <th className="px-3 py-2 text-left">Note</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {entries.map((e) => {
-                      const day = d.days.find((x) => x.day === e.day);
-                      return (
-                        <tr key={e._id}>
-                          <td className="px-3 py-2 whitespace-nowrap">{fmtDay(e.day)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{fmtNum(e.visitors)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{day ? fmtNum(day.bills) : '—'}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{day && e.visitors ? fmtPct(Math.round((day.bills / e.visitors) * 1000) / 10) : '—'}</td>
-                          <td className="px-3 py-2 text-gray-500 text-xs">{e.note || ''}</td>
-                          <td className="px-3 py-2 text-right whitespace-nowrap">
-                            {canEdit && (
-                              <button type="button" onClick={() => setEditing(e)} className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100" aria-label={`Edit ${fmtDay(e.day)}`}>
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button type="button" onClick={() => remove(e)} disabled={busyId === e._id} className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50" aria-label={`Delete ${fmtDay(e.day)}`}>
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
 
           <Card title="Day by day">
             <SimpleTable
