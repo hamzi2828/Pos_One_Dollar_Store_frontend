@@ -361,7 +361,7 @@ export default function SalesReportPage() {
                                 type="button"
                                 onClick={() => setEditBill(o)}
                                 className="mr-2 inline-flex items-center gap-1 text-gray-600 hover:text-gray-900"
-                                title="Edit bill"
+                                title="Edit, discount or refund"
                                 aria-label="Edit bill"
                               >
                                 <Pencil className="h-4 w-4" />

@@ -1,13 +1,13 @@
 'use client';
 
-// Edit a bill from the sales report: fix the payment method, or give a discount after the sale.
+// Edit a bill from the sales report: fix the payment method, give a discount after the sale, or refund it.
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Pencil, Loader2 } from 'lucide-react';
+import { Pencil, Loader2, Undo2 } from 'lucide-react';
 import { Modal, Field, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { formatRs } from '@/lib/storeApi';
-import { changeOrderPaymentMethod, giveOrderDiscount, type BillPayMethod } from '../../pos/services/posOrderService';
+import { changeOrderPaymentMethod, giveOrderDiscount, refundPOSOrder, type BillPayMethod } from '../../pos/services/posOrderService';
 
 export interface EditableBill {
   _id: string;
@@ -37,7 +37,9 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
   const [reason, setReason] = useState('');
   const [amt, setAmt] = useState('');
   const [discReason, setDiscReason] = useState('');
-  const [busy, setBusy] = useState<'method' | 'discount' | null>(null);
+  const [busy, setBusy] = useState<'method' | 'discount' | 'refund' | null>(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [confirmRefund, setConfirmRefund] = useState(false);
 
   const total = Number(bill.total) || 0;
   const n = Number(amt) || 0;
@@ -70,6 +72,22 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not give the discount');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Whole bill back: pieces return to stock, the money is handed back.
+  const doRefund = async () => {
+    if (busy || closedBill) return;
+    setBusy('refund');
+    try {
+      await refundPOSOrder(bill._id, refundReason.trim() || undefined);
+      toast.success(`${bill.orderNumber} refunded — give ${formatRs(Number(bill.total) - (Number(bill.pendingAmount) || 0))} back`);
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not refund the bill');
     } finally {
       setBusy(null);
     }
@@ -144,6 +162,42 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
             {busy === 'discount' && <Loader2 className="h-4 w-4 animate-spin" />}
             Give discount
           </button>
+        </section>
+
+        <section className="space-y-3 border-t border-gray-200 pt-4">
+          <h3 className="text-sm font-semibold text-gray-900">Refund</h3>
+          <p className="text-xs text-gray-600">
+            The whole bill is refunded: all pieces go back into stock and the customer gets {formatRs(total - (Number(bill.pendingAmount) || 0))} back. Cash comes out of your till.
+          </p>
+          <Field label="Reason (optional)">
+            <input className={inputClass} value={refundReason} maxLength={300} disabled={closedBill || !!busy} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. customer returned the items" />
+          </Field>
+          {!confirmRefund ? (
+            <button
+              type="button"
+              onClick={() => setConfirmRefund(true)}
+              disabled={closedBill || !!busy}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              <Undo2 className="h-4 w-4" /> Refund bill
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
+              <span className="text-sm text-red-800">Refund {bill.orderNumber}? This cannot be undone.</span>
+              <button
+                type="button"
+                onClick={doRefund}
+                disabled={!!busy}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {busy === 'refund' && <Loader2 className="h-4 w-4 animate-spin" />}
+                Yes, refund
+              </button>
+              <button type="button" onClick={() => setConfirmRefund(false)} disabled={!!busy} className="text-sm text-gray-600 underline">
+                No
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </Modal>
