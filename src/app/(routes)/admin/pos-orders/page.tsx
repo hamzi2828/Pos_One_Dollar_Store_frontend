@@ -28,6 +28,7 @@ import {
   X,
   Gift,
   Undo2,
+  ScrollText,
 } from 'lucide-react';
 import { POSOrder, PaymentMethodType } from '../pos/types';
 import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder } from '../pos/services/posOrderService';
@@ -39,6 +40,7 @@ import { orderItemName } from '../pos/utils/receipt';
 import TablePagination from '@/components/admin/TablePagination';
 import { useServerPagination } from '@/helper/useServerPagination';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { ActivityLogModal } from './logs/activityView';
 
 type StatusFilter = 'all' | 'completed' | 'pending' | 'refunded' | 'cancelled';
 type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer';
@@ -55,7 +57,10 @@ export default function POSOrdersPage() {
     pay: can(['pos', 'pos_orders'], 'edit'),
     refund: can('pos_orders', 'edit'),
     remove: can('pos_orders', 'delete'),
+    logs: can('pos_orders', 'view'),
   };
+  // POS activity log of one bill (scans / clicks before the sale).
+  const [logOf, setLogOf] = useState<POSOrder | null>(null);
   const [refunding, setRefunding] = useState<POSOrder | null>(null);
   // Edit window (payment method, discount, refund) — same as the sales report.
   const [editing, setEditing] = useState<EditableBill | null>(null);
@@ -182,6 +187,16 @@ export default function POSOrdersPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Refreshing…' : 'Refresh'}
           </button>
+          {perms.logs && (
+            <Link
+              href="/admin/pos-orders/logs"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+              title="Every scan and click on the POS, per bill"
+            >
+              <ScrollText className="h-4 w-4" />
+              Logs
+            </Link>
+          )}
           <Link
             href="/admin/pos"
             className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
@@ -317,6 +332,7 @@ export default function POSOrdersPage() {
                     symbol={symbol}
                     perms={perms}
                     onView={() => setViewing(o)}
+                    onLog={() => setLogOf(o)}
                     onDelete={() => handleDelete(o._id)}
                     onPay={() => setPaying(o)}
                     onRefund={() => setRefunding(o)}
@@ -352,6 +368,9 @@ export default function POSOrdersPage() {
 
       {viewing && (
         <OrderDetailModal order={viewing} symbol={symbol} seeCost={perms.seeCost} onClose={() => setViewing(null)} />
+      )}
+      {logOf && (
+        <ActivityLogModal orderId={logOf._id} title={`Log · ${logOf.orderNumber}`} onClose={() => setLogOf(null)} />
       )}
       {editing && <EditBillModal bill={editing} onClose={() => setEditing(null)} onSaved={() => setReloadTick((t) => t + 1)} />}
       {refunding && (
@@ -437,13 +456,14 @@ function StatusBadge({ paymentStatus, orderStatus }: { paymentStatus?: string; o
   );
 }
 
-type RowPerms = { seeCost: boolean; pay: boolean; refund: boolean; remove: boolean };
+type RowPerms = { seeCost: boolean; pay: boolean; refund: boolean; remove: boolean; logs: boolean };
 
 function OrderRow({
   order,
   symbol,
   perms,
   onView,
+  onLog,
   onDelete,
   onPay,
   onRefund,
@@ -455,6 +475,7 @@ function OrderRow({
   symbol: string;
   perms: RowPerms;
   onView: () => void;
+  onLog: () => void;
   onDelete: () => void;
   onPay: () => void;
   onRefund: () => void;
@@ -534,6 +555,16 @@ function OrderRow({
           >
             <Eye className="h-4 w-4" />
           </button>
+          {perms.logs && (
+            <button
+              onClick={onLog}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+              title="POS log: what was scanned and clicked for this bill"
+              aria-label="POS log"
+            >
+              <ScrollText className="h-4 w-4" />
+            </button>
+          )}
           {perms.refund && (
             <button
               onClick={onEdit}

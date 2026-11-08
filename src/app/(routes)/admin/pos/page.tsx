@@ -46,6 +46,7 @@ import { onUploadDone } from './offline/syncWorker';
 import { uuid } from './offline/device';
 import { registerPosServiceWorker } from './offline/registerSw';
 import { printOrDispatchReceipt, rememberPrintOn } from './utils/printRouter';
+import { logPos, type PosEventType } from './utils/activityLog';
 import { usePrintStation } from './hooks/usePrintStation';
 import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
 import ProductInsightPanel from '@/components/store/ProductInsightPanel';
@@ -192,6 +193,13 @@ export default function POSPage() {
     selectedTaxIds,
     { offlineMode, offlinePricer }
   );
+  // Activity log (utils/activityLog): pieces in the cart + bill total go with each event.
+  const quoteTotalRef = useRef<number | undefined>(undefined);
+  quoteTotalRef.current = quote?.total;
+  const log = useCallback((type: PosEventType, label: string, data?: Record<string, unknown>, pieces?: number) => {
+    const itemCount = pieces ?? cartRef.current.items.reduce((s, i) => s + i.quantity, 0);
+    logPos(type, label, data, { itemCount, total: quoteTotalRef.current });
+  }, []);
   const pricedCart = useMemo<POSCart>(() => {
     if (!quote || !quoteReady) return cart;
     return {
@@ -396,6 +404,14 @@ export default function POSPage() {
         toast(stock <= 0 ? `${product.name} is out of stock – sold anyway` : `Only ${stock} of ${product.name} in stock – sold anyway`, { icon: '⚠️', id: 'pos-stock' });
       }
       const price = salePrice(variant || product);
+      const variantText = variant ? [variant.color, variant.size].filter(Boolean).join(' / ') : '';
+      const name = `${product.name}${variantText ? ` (${variantText})` : ''}`;
+      log(
+        'add',
+        `Added ${name} × ${qty} @ Rs ${price.toLocaleString('en-PK')}`,
+        { product: name, code: scannedCode || undefined, qty, price },
+        cartRef.current.items.reduce((s, i) => s + i.quantity, 0) + qty
+      );
       setCart((prev) => {
         const existing = prev.items.find((i) => i.id === itemId);
         // Room left for this line = stock - pieces of the same unit on other lines.
@@ -424,7 +440,7 @@ export default function POSPage() {
       });
       return true;
     },
-    []
+    [log]
   );
 
   // Code scanned for a variant product whose variant must still be picked (kept on that line).
@@ -480,6 +496,7 @@ export default function POSPage() {
       const r = !found.ok && found.product && found.match ? { ok: true as const, product: found.product, match: found.match } : found;
       if (r.ok) {
         const { product, match } = r;
+        log('scan', `Scanned ${code} → ${product.name}`, { code, product: product.name });
         if (product.productType === 'variant' && !match.variantId) {
           pendingScanCode.current = match.code || code;
           setSelectedProduct(product);
@@ -500,18 +517,22 @@ export default function POSPage() {
       if (r.status === 404) {
         // Not a code: a typed name with exactly one result adds that product.
         if (!isSearching && loadedQuery === code && products.length === 1) {
+          log('scan', `Searched "${code}" → ${products[0].name}`, { code, product: products[0].name });
           handleProductSelect(products[0]);
           return true;
         }
         if (!isSearching && loadedQuery === code && products.length > 1) return false; // pick from the list
+        log('scan_not_found', `Scanned ${code} → not found`, { code });
         playScanError();
         toast.error(`No product with code "${code}"`, { id: 'pos-scan' });
         return false;
       }
+      log('scan_not_found', `Scanned ${code} → ${r.message}`, { code, message: r.message });
       playScanError();
       toast.error(r.message, { id: 'pos-scan' }); // e.g. out of stock
       return true;
     } catch {
+      log('scan_not_found', `Scanned ${code} → could not look up (connection)`, { code });
       playScanError();
       toast.error('Could not look up the code. Check the connection.', { id: 'pos-scan' });
       return false;
@@ -550,6 +571,11 @@ export default function POSPage() {
   });
 
   const updateQuantity = (itemId: string, quantity: number) => {
+    const line = cartRef.current.items.find((i) => i.id === itemId);
+    if (line && line.quantity !== quantity) {
+      const pieces = cartRef.current.items.reduce((s, i) => s + i.quantity, 0) - line.quantity + quantity;
+      log('qty', `Quantity of ${line.product.name}: ${line.quantity} → ${quantity}`, { product: line.product.name, from: line.quantity, to: quantity }, pieces);
+    }
     setCart((prev) => ({
       ...prev,
       items: prev.items.map((item) => (item.id === itemId ? { ...item, quantity, subtotal: item.unitPrice * quantity } : item)),
@@ -589,6 +615,11 @@ export default function POSPage() {
   };
 
   const removeItem = (itemId: string) => {
+    const line = cartRef.current.items.find((i) => i.id === itemId);
+    if (line) {
+      const pieces = cartRef.current.items.reduce((s, i) => s + i.quantity, 0) - line.quantity;
+      log('remove', `Removed ${line.product.name} × ${line.quantity}`, { product: line.product.name, qty: line.quantity }, pieces);
+    }
     setCart((prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }));
   };
 
@@ -605,6 +636,12 @@ export default function POSPage() {
       subtotal: price * quantity,
       isManual: true,
     };
+    log(
+      'add',
+      `Added manual item ${name} × ${quantity} @ Rs ${price.toLocaleString('en-PK')}`,
+      { product: name, qty: quantity, price, manual: true },
+      cartRef.current.items.reduce((s, i) => s + i.quantity, 0) + quantity
+    );
     setCart((prev) => ({ ...prev, items: [...prev.items, newItem] }));
   };
 
@@ -626,7 +663,26 @@ export default function POSPage() {
   };
 
   const clearCart = () => {
-    if (confirm('Are you sure you want to clear the cart?')) resetSale();
+    if (confirm('Are you sure you want to clear the cart?')) {
+      log('clear', 'Cart cleared', undefined, 0);
+      resetSale();
+    }
+  };
+
+  const applyDiscount = (discount: ManualDiscount | null) => {
+    if (discount && discount.value > 0) {
+      const text = discount.type === 'percentage' ? `${discount.value}%` : `Rs ${discount.value.toLocaleString('en-PK')}`;
+      log('discount', `Discount ${text}${discount.reason ? ` (${discount.reason})` : ''}`, { value: discount.value, type: discount.type, reason: discount.reason || undefined });
+    } else {
+      log('discount', 'Discount removed', { value: 0, type: null });
+    }
+    setCart((prev) => ({ ...prev, manualDiscount: discount }));
+  };
+
+  const pickCustomer = (c: POSCustomer | null) => {
+    const name = c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.phone || 'Customer' : '';
+    log('customer', c ? `Customer: ${name}` : 'Customer removed (walk-in)', { name: name || null });
+    setCustomer(c);
   };
 
   const handleHoldCart = async () => {
@@ -655,6 +711,7 @@ export default function POSPage() {
         },
         customerName
       );
+      log('hold', `Order held${customerName ? ` for ${customerName}` : ''}`, customerName ? { customer: customerName } : undefined);
       await loadHeldCarts();
       resetSale();
       toast.success('Order held successfully');
@@ -677,6 +734,13 @@ export default function POSPage() {
       if (held) {
         const manual: ManualDiscount | null =
           held.cart.discount > 0 ? { type: 'fixed', value: held.cart.discount, reason: held.cart.discountReason || '' } : null;
+        const heldPieces = (held.cart.items || []).reduce((s, i) => s + i.quantity, 0);
+        logPos(
+          'retrieve',
+          `Held order brought back (${heldPieces} pcs)`,
+          { heldId: cartId },
+          { itemCount: heldPieces, total: Number(held.cart.total) || undefined }
+        );
         setCart({ ...held.cart, manualDiscount: manual });
         setCustomer(held.cart.customer || null);
         await loadHeldCarts();
@@ -726,6 +790,10 @@ export default function POSPage() {
     if (!quoteReady) {
       toast('Prices are updating — try again in a second', { icon: '⏳', id: 'pos-wait' });
       return;
+    }
+    if (!showPaymentModal) {
+      const total = quote?.total ?? 0;
+      log('pay_open', `Payment window opened (Rs ${total.toLocaleString('en-PK')})`, { total });
     }
     setShowPaymentModal(true);
   };
@@ -784,6 +852,15 @@ export default function POSPage() {
     // One id for this sale: sent with the online order AND used for the offline
     // copy if the online call is lost, so the server never counts it twice.
     const clientId = uuid();
+    {
+      const amount = isPartialPayment ? paidAmount ?? 0 : cashAmount ?? quote.total;
+      log('pay_submit', `Pay pressed: ${String(paymentMethod).replace('_', ' ')} Rs ${Number(amount).toLocaleString('en-PK')}`, {
+        method: paymentMethod,
+        amount,
+        partial: isPartialPayment || undefined,
+      });
+    }
+    const logFail = (message: string) => log('failed', `Sale failed: ${message}`, { message });
     const goOffline = async () => {
       const jwt = decodeJwt<UserPayload>(getAuthToken() || '');
       const me = access?.user;
@@ -806,6 +883,7 @@ export default function POSPage() {
           email: me?.email || jwt?.email,
         },
       });
+      log('offline_saved', `Offline sale saved ${order.orderNumber}`, { offlineNumber: order.orderNumber, total: order.total, method: paymentMethod });
       toast.success(`Offline sale ${order.orderNumber} saved on this PC. It will upload by itself.`, { duration: 5000 });
       setLastOrder(order);
       resetSale();
@@ -817,6 +895,7 @@ export default function POSPage() {
     try {
       if (offlineModeRef.current || quote.offline) {
         if (!offlineEnabled) {
+          logFail('No internet (this user cannot sell offline)');
           toast.error('No internet. This user cannot sell offline.', { duration: 5000 });
           return;
         }
@@ -841,6 +920,7 @@ export default function POSPage() {
             return;
           }
           console.error('Failed to create/find customer:', customerError);
+          logFail(`Could not save customer (${customerError instanceof Error ? customerError.message : 'Unknown error'})`);
           toast.error(`Failed to save customer: ${customerError instanceof Error ? customerError.message : 'Unknown error'}`);
           return;
         }
@@ -882,12 +962,19 @@ export default function POSPage() {
             await goOffline();
             return;
           }
+          logFail('No internet, sale not saved');
           toast.error('No internet. The sale was not saved. Try again when the connection is back.', { duration: 6000 });
           return;
         }
         throw sendError;
       }
 
+      log('completed', `Sale completed #${order.orderNumber}`, {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        total: order.total,
+        method: paymentMethod,
+      });
       const pendingAmount = order.pendingAmount || 0;
       if (pendingAmount > 0) {
         toast.success(`Order #${order.orderNumber} saved. Paid: ${(order.paidAmount || 0).toFixed(2)} / Pending: ${pendingAmount.toFixed(2)}`);
@@ -903,6 +990,7 @@ export default function POSPage() {
       setTimeout(() => searchRef.current?.focus(), 50);
     } catch (error) {
       console.error('Order creation failed:', error);
+      logFail(error instanceof Error ? error.message || 'Unknown error' : 'Unknown error');
       if (error instanceof POSApiError) {
         if (error.code === 'TILL_NOT_OPEN') {
           setTillMessage(error.message || 'Your till is not open. Open it in the bar above, then take the payment.');
@@ -1086,7 +1174,7 @@ export default function POSPage() {
           availableTaxes={availableTaxes}
           selectedTaxIds={selectedTaxIds}
           onTaxSelectionChange={setSelectedTaxIds}
-          onApplyDiscount={(discount) => setCart((prev) => ({ ...prev, manualDiscount: discount }))}
+          onApplyDiscount={applyDiscount}
           onAddManualItem={addManualItem}
           onUpdateManualPrice={updateManualPrice}
         />
@@ -1118,7 +1206,7 @@ export default function POSPage() {
       <CustomerSelector
         isOpen={showCustomerSelector}
         onClose={() => setShowCustomerSelector(false)}
-        onSelect={setCustomer}
+        onSelect={pickCustomer}
         currentCustomer={customer}
         offline={offlineMode}
       />
@@ -1138,7 +1226,9 @@ export default function POSPage() {
         cart={pricedCart}
         customer={customer}
         onClose={() => {
-          if (!paying) setShowPaymentModal(false);
+          if (paying) return;
+          log('pay_close', 'Payment window closed (not paid)');
+          setShowPaymentModal(false);
         }}
         onConfirm={handlePaymentConfirm}
         processing={paying}
