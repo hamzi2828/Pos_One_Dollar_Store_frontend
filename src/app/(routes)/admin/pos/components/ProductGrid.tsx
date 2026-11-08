@@ -239,7 +239,7 @@ export default function ProductGrid({
 
   // Nothing shown until asked: two buttons open the categories or all products.
   const btn = (active: boolean) =>
-    `inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+    `inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs sm:text-sm font-medium transition-colors ${
       active ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-700 hover:border-honey-500 hover:text-honey-800'
     }`;
   const chip = (active: boolean) =>
@@ -263,7 +263,7 @@ export default function ProductGrid({
         )}
       </div>
 
-      {!view && <p className="mt-6 text-center text-sm text-gray-400">Scan a barcode or search above. Open Categories or All products only if you need to look.</p>}
+      {!view && <p className="mt-4 text-center text-xs text-gray-400">Scan a barcode or search above. Open Categories or All products only if you need to look.</p>}
 
       {view === 'categories' && (
         <div className="mt-3">

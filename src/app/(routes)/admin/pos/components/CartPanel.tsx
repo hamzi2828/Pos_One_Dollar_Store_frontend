@@ -134,6 +134,9 @@ export default function CartPanel({
     ? 'Updating prices…'
     : null;
 
+  // Products in the cart (shown big next to the total).
+  const itemCount = cart.items.reduce((n, i) => n + i.quantity, 0);
+
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
       {/* Header */}
@@ -214,7 +217,7 @@ export default function CartPanel({
 
       {/* Summary */}
       {!isEmpty && (
-        <div className="border-t border-gray-200 p-3 sm:p-4 space-y-3">
+        <div className="border-t border-gray-200 px-3 py-2 space-y-2">
           {/* Spend-more hint */}
           {quote?.nextDiscount && (
             <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
@@ -226,7 +229,7 @@ export default function CartPanel({
             </div>
           )}
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600 flex items-center gap-1.5">
                 Subtotal
@@ -362,9 +365,15 @@ export default function CartPanel({
               </div>
             )}
 
-            <div className="flex justify-between items-baseline text-lg font-bold border-t pt-2">
-              <span>Total</span>
-              <span className={quoteLoading ? 'text-gray-400' : ''}>{money(quote?.total ?? cart.total)}</span>
+            <div className="flex justify-between items-end border-t pt-1.5">
+              <div className="leading-none">
+                <span className="text-3xl font-extrabold text-gray-900 tabular-nums">{itemCount}</span>
+                <span className="ml-1 text-xs font-medium text-gray-500">{itemCount === 1 ? 'item' : 'items'}</span>
+              </div>
+              <div className="text-right leading-none">
+                <span className="block text-[11px] font-medium text-gray-500">Total</span>
+                <span className={`text-2xl font-extrabold tabular-nums ${quoteLoading ? 'text-gray-400' : 'text-gray-900'}`}>{money(quote?.total ?? cart.total)}</span>
+              </div>
             </div>
             {quote?.canSeeCost && quote.cogs !== undefined && (
               <div className="flex justify-between text-[11px] text-gray-500">
@@ -388,13 +397,13 @@ export default function CartPanel({
           )}
 
           {/* Action Buttons */}
-          <div className="space-y-2">
+          <div className="flex gap-2">
             <button
               onClick={onCheckout}
               disabled={!canPay}
               aria-busy={paying}
               title={payHint || 'F9'}
-              className="w-full bg-honey-500 text-gray-900 py-3 rounded-lg font-semibold hover:bg-honey-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-honey-500"
+              className="flex-1 min-w-0 bg-honey-500 text-gray-900 py-2 rounded-lg font-semibold text-sm hover:bg-honey-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-honey-500"
             >
               {paying ? (
                 <>
@@ -408,26 +417,17 @@ export default function CartPanel({
                 </>
               ) : (
                 <>
-                  <span className="flex flex-col items-center leading-tight">
-                    <span>
-                      Process Payment
-                      {quoteReady && quote ? ` · ${money(quote.total)}` : ''}
-                    </span>
-                    <span className="text-xs font-medium opacity-80">
-                      {cart.items.reduce((n, i) => n + i.quantity, 0)} {cart.items.reduce((n, i) => n + i.quantity, 0) === 1 ? 'product' : 'products'}
-                    </span>
-                  </span>
+                  <span>Pay{quoteReady && quote ? ` ${money(quote.total)}` : ''}</span>
                   <kbd className="hidden sm:inline text-[10px] font-normal opacity-70 border border-white/40 rounded px-1">F9</kbd>
                 </>
               )}
             </button>
-            {payHint && !paying && <p className="text-[11px] text-center text-gray-500">{payHint}</p>}
             <button
               onClick={onHoldCart}
               disabled={busy || !!holdDisabledReason}
               title={holdDisabledReason || undefined}
               aria-busy={holding}
-              className="w-full border border-gray-300 text-gray-700 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white"
+              className="flex-shrink-0 border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-white"
             >
               {holding ? (
                 <>
@@ -437,11 +437,12 @@ export default function CartPanel({
               ) : (
                 <>
                   <Archive className="h-4 w-4" />
-                  Hold Order
+                  Hold
                 </>
               )}
             </button>
           </div>
+          {payHint && !paying && !blockedReason && <p className="text-[11px] text-center text-gray-500">{payHint}</p>}
         </div>
       )}
     </div>

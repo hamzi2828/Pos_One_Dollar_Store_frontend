@@ -61,7 +61,7 @@ export default function ProductSearch({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           aria-busy={busy}
-          className="w-full pl-10 pr-20 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
+          className="w-full pl-10 pr-20 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
           autoFocus
           autoComplete="off"
           spellCheck={false}
@@ -92,7 +92,7 @@ export default function ProductSearch({
           </div>
         )}
       </div>
-      <div className="mt-1 min-h-[1rem] text-xs" aria-live="polite">
+      <div className="mt-0.5 text-[11px] leading-tight empty:hidden" aria-live="polite">
         {scanning ? (
           <span className="text-honey-700">Looking up &ldquo;{query}&rdquo;…</span>
         ) : searching ? (
@@ -102,7 +102,7 @@ export default function ProductSearch({
             {resultCount === 0 ? <>No products match &ldquo;{query}&rdquo;</> : <>{resultCount} product{resultCount !== 1 ? 's' : ''} found for &ldquo;{query}&rdquo; — Enter adds a scanned code</>}
           </span>
         ) : isBarcodeMode ? (
-          <span className="text-gray-500">Scanner ready: scan any time, the cursor can be anywhere. Or type a short code and press Enter</span>
+          <span className="text-gray-400">Scanner ready · or type a short code + Enter</span>
         ) : null}
       </div>
       <style>{`@keyframes pos-search-bar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}`}</style>
