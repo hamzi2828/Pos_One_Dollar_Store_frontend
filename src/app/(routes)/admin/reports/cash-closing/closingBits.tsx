@@ -2,6 +2,7 @@
 
 // Shared bits of the Cash Closing report: per-till figures and the
 // "by day — all counters together" table (owner, 2026-11-09).
+import { Eye } from 'lucide-react';
 import { formatRs } from '@/lib/storeApi';
 import type { TillSession } from '@/components/store/TillStatusBar';
 import { varianceClass, varianceLabel } from '../../till/components/tillUi';
@@ -61,12 +62,13 @@ export function byDay(rows: ReportRow[]) {
       day,
       tills: list.length,
       counters: [...new Set(list.map((r) => r.counterName || 'No counter'))].sort(),
+      ids: list.map((r) => r._id),
       figs: list.map(figures),
     }));
 }
 
 /** "2026-11-08" -> "Sun, 8 Nov 2026". */
-const dayLabel = (d: string) =>
+export const dayLabel = (d: string) =>
   d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
 
@@ -105,6 +107,7 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
             <th className={th}>Expenses</th>
             <th className={th}>Discounts</th>
             <th className={th}>Over / short</th>
+            <th className="px-4 py-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -118,6 +121,16 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
                 </span>
               </td>
               {cells(d.figs)}
+              <td className="px-4 py-2 text-right">
+                <a
+                  href={`/admin/reports/cash-closing/combined/day?day=${d.day}&ids=${d.ids.join(',')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Eye className="h-3.5 w-3.5" /> View
+                </a>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -128,6 +141,7 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
                 Total ({days.length} days)
               </td>
               {cells(allFigs, false)}
+              <td />
             </tr>
           </tfoot>
         )}
