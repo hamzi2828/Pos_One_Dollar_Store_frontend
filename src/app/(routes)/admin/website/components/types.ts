@@ -37,10 +37,17 @@ export interface PriceItem {
   label: string;
   note: string;
 }
+export interface CategoryPhoto {
+  imageUrl: string;
+  caption: string;
+}
 export interface CategoryItem {
   name: string;
   text: string;
+  /** Card picture (optional; the website uses the first photo when empty). */
   imageUrl: string;
+  /** Shown under the card when it is clicked (max limits.categoryPhotos). */
+  photos: CategoryPhoto[];
 }
 export interface OfferItem {
   title: string;
@@ -102,6 +109,8 @@ export interface Limits {
   url: number;
   items: number;
   galleryItems: number;
+  /** Photos per category (older servers do not send it). */
+  categoryPhotos?: number;
 }
 
 export interface WebsiteMeta {
@@ -110,7 +119,7 @@ export interface WebsiteMeta {
   limits: Limits;
 }
 
-export const DEFAULT_LIMITS: Limits = { line: 120, text: 1500, body: 5000, url: 2000, items: 24, galleryItems: 40 };
+export const DEFAULT_LIMITS: Limits = { line: 120, text: 1500, body: 5000, url: 2000, items: 24, galleryItems: 40, categoryPhotos: 12 };
 
 /** Fixed icon keys -> lucide icons (the website maps the same keys). */
 export const ICONS: Record<string, { Icon: LucideIcon; label: string }> = {

@@ -129,12 +129,46 @@ const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 /** Where to load a preview from (null = a website file we cannot show here). */
-function previewSrc(url: string, siteUrl: string): string | null {
+export function previewSrc(url: string, siteUrl: string): string | null {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
   if (url.startsWith('/uploads/')) return `${BACKEND_URL}${url}`;
   if (url.startsWith('/') && siteUrl) return `${siteUrl.replace(/\/+$/, '')}${url}`;
   return null;
+}
+
+/**
+ * Upload several pictures one after another (at most `room`). Bad files are
+ * skipped with a message; returns the URLs that were uploaded.
+ */
+export async function uploadPictures(
+  files: FileList | File[] | null,
+  room: number,
+  onProgress?: (text: string | null) => void
+): Promise<string[]> {
+  const all = Array.from(files || []);
+  const list = all.slice(0, Math.max(0, room));
+  if (list.length < all.length) toast.error(`Only ${Math.max(0, room)} more picture${room === 1 ? '' : 's'} fit here; extra ones were skipped.`);
+  const urls: string[] = [];
+  try {
+    for (let i = 0; i < list.length; i++) {
+      onProgress?.(`${i + 1} / ${list.length}`);
+      const f = list[i];
+      if (!IMAGE_TYPES.includes(f.type) || f.size > MAX_IMAGE_BYTES) {
+        toast.error(`${f.name}: use a JPG, PNG or WebP picture up to 5 MB`);
+        continue;
+      }
+      const form = new FormData();
+      form.append('file', f);
+      const res = await storeApi.upload<{ url: string }>('/website/upload', form);
+      urls.push(res.data.url);
+    }
+  } catch (e) {
+    toast.error(apiErrorMessage(e, 'Could not upload a picture.'));
+  } finally {
+    onProgress?.(null);
+  }
+  return urls;
 }
 
 export function ImageField({

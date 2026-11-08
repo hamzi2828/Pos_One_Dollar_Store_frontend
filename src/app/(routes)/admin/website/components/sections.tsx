@@ -4,12 +4,12 @@
 // and a setter for one section; nothing is saved until "Save changes".
 import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ImagePlus, Loader2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ImageIcon, ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import { apiErrorMessage, formatRs, storeApi } from '@/lib/storeApi';
 import { Field, HelpBox, Toggle, inputClass, secondaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
-import { Grid2, IconPicker, ImageField, ListEditor, SectionCard, TextField, UrlField, useEditor } from './fields';
-import { ICONS, type EditableContent, type IconItem, type OfferItem, type SectionKey, type TabKey } from './types';
+import { Grid2, IconPicker, ImageField, ListEditor, SectionCard, TextField, UrlField, previewSrc, uploadPictures, useEditor } from './fields';
+import { ICONS, type CategoryItem, type CategoryPhoto, type EditableContent, type IconItem, type OfferItem, type SectionKey, type TabKey } from './types';
 
 export type SetSection = <K extends SectionKey>(key: K, value: EditableContent[K]) => void;
 interface TabProps {
@@ -162,19 +162,134 @@ function PricesTab({ c, set }: TabProps) {
 }
 
 // ------------------------------------------------------------------ Categories
+// Small picture with a fallback when it cannot be shown here.
+function Thumb({ url }: { url: string }) {
+  const { siteUrl } = useEditor();
+  const [broken, setBroken] = useState<string | null>(null);
+  const src = previewSrc(url, siteUrl);
+  return (
+    <div className="h-16 w-20 flex-shrink-0 rounded-md border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+      {src && broken !== src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setBroken(src)} />
+      ) : (
+        <ImageIcon className="h-5 w-5 text-gray-400" />
+      )}
+    </div>
+  );
+}
+
+function CategoryPhotos({ photos, onChange, max }: { photos: CategoryPhoto[]; onChange: (p: CategoryPhoto[]) => void; max: number }) {
+  const { canEdit, limits } = useEditor();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  const add = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const urls = await uploadPictures(files, max - photos.length, setUploading);
+    if (fileRef.current) fileRef.current.value = '';
+    if (urls.length) {
+      onChange([...photos, ...urls.map((imageUrl) => ({ imageUrl, caption: '' }))]);
+      toast.success(`${urls.length} photo${urls.length === 1 ? '' : 's'} added. Save changes to publish.`);
+    }
+  };
+  const move = (i: number, d: -1 | 1) => {
+    const j = i + d;
+    if (j < 0 || j >= photos.length) return;
+    const next = [...photos];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+  const iconBtn =
+    'p-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent';
+
+  return (
+    <div>
+      <div className="flex items-end justify-between gap-2 mb-1.5">
+        <label className="block text-xs font-medium text-gray-700">Photos (up to {max})</label>
+        <span className="text-[11px] text-gray-500 tabular-nums">
+          {photos.length} / {max}
+        </span>
+      </div>
+      <p className="mb-2 text-[11px] text-gray-500">People see these photos when they tap this category on the website.</p>
+      {photos.length === 0 && <p className="mb-2 text-xs text-gray-500 italic">No photos yet.</p>}
+      <div className="space-y-2">
+        {photos.map((p, i) => (
+          <div key={`${p.imageUrl}-${i}`} className="flex items-center gap-2 sm:gap-3 rounded-md border border-gray-200 bg-white p-2">
+            <Thumb url={p.imageUrl} />
+            <input
+              className={`${inputClass} flex-1 min-w-0`}
+              value={p.caption}
+              maxLength={limits.line}
+              placeholder="Caption (optional)"
+              aria-label={`Caption for photo ${i + 1}`}
+              disabled={!canEdit}
+              onChange={(e) => onChange(photos.map((x, j) => (j === i ? { ...x, caption: e.target.value } : x)))}
+            />
+            {canEdit && (
+              <div className="flex flex-col sm:flex-row items-center gap-0.5 flex-shrink-0">
+                <button type="button" className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+                <button type="button" className={iconBtn} onClick={() => move(i, 1)} disabled={i === photos.length - 1} aria-label="Move down">
+                  <ArrowDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className={`${iconBtn} hover:!text-red-600 hover:!bg-red-50`}
+                  onClick={() => onChange(photos.filter((_, j) => j !== i))}
+                  aria-label="Remove photo"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {canEdit && (
+        <div className="mt-2">
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => add(e.target.files)}
+          />
+          <button
+            type="button"
+            className={secondaryBtn}
+            onClick={() => fileRef.current?.click()}
+            disabled={!!uploading || photos.length >= max}
+          >
+            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+            {uploading ? `Uploading ${uploading}` : 'Add photos'}
+          </button>
+          <span className="ml-2 text-[11px] text-gray-500">You can pick several photos at once.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CategoriesTab({ c, set }: TabProps) {
   const { limits } = useEditor();
   const s = c.categories;
   const up = (patch: Partial<typeof s>) => set('categories', { ...s, ...patch });
+  const maxPhotos = limits.categoryPhotos ?? 12;
   return (
     <SectionCard title="Categories" subtitle="The kinds of things people find in the shop." section="categories" show={s.show} onShow={(v) => up({ show: v })}>
       <TextField label="Heading" value={s.heading} onChange={(v) => up({ heading: v })} />
-      <ListEditor
+      <ListEditor<CategoryItem>
         items={s.items}
         onChange={(items) => up({ items })}
         max={limits.items}
-        newItem={() => ({ name: '', text: '', imageUrl: '' })}
-        itemTitle={(it) => or(it.name, 'New category')}
+        newItem={() => ({ name: '', text: '', imageUrl: '', photos: [] })}
+        itemTitle={(it) => {
+          const n = it.photos?.length || 0;
+          return `${or(it.name, 'New category')}${n ? ` · ${n} photo${n === 1 ? '' : 's'}` : ''}`;
+        }}
         addLabel="Add a category"
         emptyText="No categories yet."
       >
@@ -182,7 +297,13 @@ function CategoriesTab({ c, set }: TabProps) {
           <>
             <TextField label="Name" value={it.name} onChange={(v) => setIt({ name: v })} />
             <TextField label="Short text (optional)" kind="text" rows={2} value={it.text} onChange={(v) => setIt({ text: v })} />
-            <ImageField compact label="Picture (optional)" value={it.imageUrl} onChange={(v) => setIt({ imageUrl: v })} />
+            <ImageField
+              compact
+              label="Card picture (optional — else the first photo)"
+              value={it.imageUrl}
+              onChange={(v) => setIt({ imageUrl: v })}
+            />
+            <CategoryPhotos photos={it.photos ?? []} onChange={(photos) => setIt({ photos })} max={maxPhotos} />
           </>
         )}
       </ListEditor>
