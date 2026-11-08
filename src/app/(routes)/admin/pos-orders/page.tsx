@@ -12,6 +12,7 @@ import {
   Calendar,
   Filter,
   Eye,
+  Pencil,
   FileText,
   Trash2,
   DollarSign,
@@ -32,6 +33,7 @@ import { POSOrder, PaymentMethodType } from '../pos/types';
 import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder } from '../pos/services/posOrderService';
 import WhatsAppBadge from '../pos/components/WhatsAppBadge';
 import { useAccess } from '@/context/AccessContext';
+import EditBillModal, { type EditableBill } from '../reports/sales/EditBillModal';
 import { getCurrencySymbol } from '../pos/utils/currency';
 import { orderItemName } from '../pos/utils/receipt';
 import TablePagination from '@/components/admin/TablePagination';
@@ -55,6 +57,8 @@ export default function POSOrdersPage() {
     remove: can('pos_orders', 'delete'),
   };
   const [refunding, setRefunding] = useState<POSOrder | null>(null);
+  // Edit window (payment method, discount, refund) — same as the sales report.
+  const [editing, setEditing] = useState<EditableBill | null>(null);
 
   const [orders, setOrders] = useState<POSOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -316,6 +320,17 @@ export default function POSOrdersPage() {
                     onDelete={() => handleDelete(o._id)}
                     onPay={() => setPaying(o)}
                     onRefund={() => setRefunding(o)}
+                    onEdit={() =>
+                      setEditing({
+                        _id: o._id,
+                        orderNumber: o.orderNumber,
+                        total: Number(o.total) || 0,
+                        pendingAmount: Number(o.pendingAmount) || 0,
+                        paymentMethod: String(o.paymentMethod || ''),
+                        paymentStatus: String(o.paymentStatus || ''),
+                        orderStatus: String(o.orderStatus || ''),
+                      })
+                    }
                     deleting={deletingId === o._id}
                     anyDeleting={!!deletingId}
                   />
@@ -338,6 +353,7 @@ export default function POSOrdersPage() {
       {viewing && (
         <OrderDetailModal order={viewing} symbol={symbol} seeCost={perms.seeCost} onClose={() => setViewing(null)} />
       )}
+      {editing && <EditBillModal bill={editing} onClose={() => setEditing(null)} onSaved={() => setReloadTick((t) => t + 1)} />}
       {refunding && (
         <RefundModal
           order={refunding}
@@ -431,6 +447,7 @@ function OrderRow({
   onDelete,
   onPay,
   onRefund,
+  onEdit,
   deleting,
   anyDeleting,
 }: {
@@ -441,6 +458,7 @@ function OrderRow({
   onDelete: () => void;
   onPay: () => void;
   onRefund: () => void;
+  onEdit: () => void;
   deleting: boolean;
   anyDeleting: boolean;
 }) {
@@ -516,6 +534,15 @@ function OrderRow({
           >
             <Eye className="h-4 w-4" />
           </button>
+          {perms.refund && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded"
+              title="Edit: payment method, discount or refund"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
           <Link
             href={`/admin/pos/invoice/${order._id}`}
             target="_blank"
