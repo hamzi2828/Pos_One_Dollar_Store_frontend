@@ -435,13 +435,19 @@ function EditEntryModal({
         const pcs = (r?.data || [])
           .filter((x) => x.bill === entry.bill && (x.variantId || null) === (entry.variantId || null))
           .reduce((t, x) => t + Math.max(0, (x.printed || 0) - (x.scanned || 0)), 0);
-        setStickerSales(Math.floor(pcs / perSale));
+        // The print log is per bill + product: take off the pieces of this product's
+        // other entries on the same bill, so only this entry's stickers are left.
+        const others = (grn.entries || [])
+          .filter((x) => !x.undone && x._id !== entry._id && x.bill === entry.bill && x.product === entry.product && (x.variantId || null) === (entry.variantId || null))
+          .reduce((t, x) => t + (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), 0);
+        setStickerSales(Math.floor(Math.max(0, pcs - others) / perSale));
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [entry.product, entry.variantId, entry.bill, perSale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.product, entry.variantId, entry.bill, entry._id, perSale]);
   useEffect(() => {
     if (codeTotal > 0) setQty(String(codeTotal + stickerSales));
   }, [codeTotal, stickerSales]);
@@ -594,12 +600,11 @@ function EditEntryModal({
               inputMode="numeric"
               value={qty}
               onChange={(ev) => setQty(ev.target.value)}
-              disabled={codeTotal > 0}
               className={`${inputClass} ${codeTotal > 0 ? 'bg-sky-50' : ''}`}
             />
             {codeTotal > 0 && (
               <span className="mt-0.5 block text-[11px] text-sky-800">
-                {stickerSales > 0 ? `${codeTotal} own barcode + ${stickerSales} stickers printed` : 'Total of the barcodes below'}
+                {stickerSales > 0 ? `${codeTotal} own barcode + ${stickerSales} stickers printed` : 'Total of the barcodes below'} · you can change it
               </span>
             )}
           </Field>
