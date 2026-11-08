@@ -11,6 +11,8 @@ import { PAYMENT_METHODS } from '../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 import BankSelect from '../components/BankSelect';
+import CounterSelect from '../components/CounterSelect';
+import { tillApi } from '@/components/store/TillStatusBar';
 import InvestmentBillSelect from '../components/InvestmentBillSelect';
 import LoanPersonPicker, { YesNo } from '@/components/finance/LoanPersonPicker';
 
@@ -41,6 +43,21 @@ export default function CreateExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
   const [bankId, setBankId] = useState('');
+  const [counterId, setCounterId] = useState('');
+  // Paid from: start with the counter of my open till (if any).
+  useEffect(() => {
+    let alive = true;
+    tillApi
+      .my()
+      .then((res) => {
+        const c = res.data?.open ? res.data.session?.counter : null;
+        if (alive && c) setCounterId((v) => v || String(c));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [investmentId, setInvestmentId] = useState('');
   const [fromPersonal, setFromPersonal] = useState(false);
   const [lenderId, setLenderId] = useState('');
@@ -236,6 +253,7 @@ export default function CreateExpensePage() {
         date: date || undefined,
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId || undefined : undefined,
+        counter: paymentMethod === 'Cash' && !fromPersonal ? counterId || undefined : undefined,
         investmentId: investmentId || undefined,
         fromPersonal: fromPersonal || undefined,
         lenderId: fromPersonal ? lenderId : undefined,
@@ -532,6 +550,7 @@ export default function CreateExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
+            {paymentMethod === 'Cash' && !fromPersonal && <CounterSelect value={counterId} onChange={setCounterId} disabled={loading} />}
             <div className="md:col-span-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>

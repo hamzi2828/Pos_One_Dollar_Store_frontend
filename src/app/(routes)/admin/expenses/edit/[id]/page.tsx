@@ -10,6 +10,7 @@ import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod } fr
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import BankSelect from '../../components/BankSelect';
+import CounterSelect from '../../components/CounterSelect';
 import InvestmentBillSelect from '../../components/InvestmentBillSelect';
 import ExpenseAdjustments from '../../components/ExpenseAdjustments';
 import type { ExpenseAdjustment } from '../../types';
@@ -30,6 +31,8 @@ export default function EditExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
   const [bankId, setBankId] = useState('');
+  const [counterId, setCounterId] = useState('');
+  const [counterName, setCounterName] = useState('');
   const [investmentId, setInvestmentId] = useState('');
   const [linked, setLinked] = useState<{ id: string; title: string; mine: number } | null>(null);
   const [notes, setNotes] = useState('');
@@ -64,6 +67,8 @@ export default function EditExpensePage() {
         setPaymentMethod((data.paymentMethod as PaymentMethod) || 'Cash');
         setReference(data.reference || '');
         setBankId(data.bank ? String(data.bank) : '');
+        setCounterId(data.counter ? String(data.counter) : '');
+        setCounterName(data.counterName || '');
         setInvestmentId(data.investment ? String(data.investment) : '');
         setLinked(data.investment ? { id: String(data.investment), title: data.investmentTitle || 'Investment bill', mine: Number(data.amount) || 0 } : null);
         setNotes(data.notes || '');
@@ -145,6 +150,7 @@ export default function EditExpensePage() {
         date: date || undefined,
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId : '',
+        counter: paymentMethod === 'Cash' ? counterId : '',
         investmentId,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -302,6 +308,7 @@ export default function EditExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
+            {paymentMethod === 'Cash' && <CounterSelect value={counterId} onChange={setCounterId} savedName={counterName} disabled={loading} />}
             <div className="md:col-span-2">
               <InvestmentBillSelect value={investmentId} current={linked} disabled={loading} onChange={(id) => setInvestmentId(id)} />
               {linked && (

@@ -99,6 +99,7 @@ export const expenseService = {
       if (expenseData.date) formData.append('date', expenseData.date);
       if (expenseData.paymentMethod) formData.append('paymentMethod', expenseData.paymentMethod);
       if (expenseData.bankId) formData.append('bankId', expenseData.bankId);
+      if (expenseData.counter) formData.append('counter', expenseData.counter);
       if (expenseData.investmentId) formData.append('investmentId', expenseData.investmentId);
       if (expenseData.fromPersonal) {
         formData.append('fromPersonal', 'true');
@@ -130,6 +131,7 @@ export const expenseService = {
       if (expenseData.date !== undefined) formData.append('date', expenseData.date);
       if (expenseData.paymentMethod !== undefined) formData.append('paymentMethod', expenseData.paymentMethod);
       if (expenseData.bankId !== undefined) formData.append('bankId', expenseData.bankId);
+      if (expenseData.counter !== undefined) formData.append('counter', expenseData.counter);
       if (expenseData.investmentId !== undefined) formData.append('investmentId', expenseData.investmentId);
       if (expenseData.reference !== undefined) formData.append('reference', expenseData.reference);
       if (expenseData.notes !== undefined) formData.append('notes', expenseData.notes);

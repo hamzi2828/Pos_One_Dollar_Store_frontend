@@ -10,6 +10,7 @@ import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, C
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
+import { CounterTag } from '../../expenses/components/CounterSelect';
 import {
   CloseTillModal,
   formatTime,
@@ -42,7 +43,7 @@ export interface TillDetail extends TillSession {
   liveExpected: TillExpected | null;
   verifiedBy?: { firstName?: string; lastName?: string } | string | null;
   discounts?: { _id: string; orderNumber: string; createdAt: string; subtotal: number; discount: number; total: number; reason: string }[];
-  expenses?: { _id: string; title: string; amount: number; paymentMethod: string; createdAt: string; shopUse: boolean; kind?: "expense" | "vendor_payment" | "trip_cost" }[];
+  expenses?: { _id: string; title: string; amount: number; paymentMethod: string; createdAt: string; shopUse: boolean; kind?: "expense" | "vendor_payment" | "trip_cost"; counterName?: string }[];
 }
 
 /** Modal, or a plain full page (opened in its own tab from the cash closing report). */
@@ -389,6 +390,7 @@ Reason (optional):`);
                               <tr key={x._id} className={x.shopUse ? 'text-gray-400' : ''}>
                                 <td className="py-1 pl-3 pr-2 text-gray-700">
                                   {x.title}
+                                  {x.counterName && <CounterTag name={x.counterName} className="ml-1" />}
                                   <span className="ml-1 text-[11px] text-gray-400">
                                     {new Date(x.createdAt).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Karachi' })}
                                     {x.paymentMethod && x.paymentMethod !== 'Cash' ? ` · ${x.paymentMethod}` : ''}
@@ -533,6 +535,7 @@ Reason (optional):`);
                             <li key={x._id} className="flex items-start justify-between gap-2 py-1.5">
                               <span>
                                 <span className="font-medium text-gray-800">{x.title}</span>
+                                {x.counterName && <CounterTag name={x.counterName} className="ml-1" />}
                                 <span className="block text-[10px] text-gray-500">
                                   {formatTime(x.createdAt)} · {x.shopUse ? 'shop use (own stock, no money)' : x.paymentMethod || '—'}
                                 </span>

@@ -13,6 +13,7 @@ const PkrIcon = ({ className }: { className?: string }) => (
   <span className={`font-bold ${className}`}>Rs</span>
 );
 import { expenseService } from './service/expenseService';
+import { CounterTag } from './components/CounterSelect';
 import type { Expense, RawExpense, ExpenseCategory, PaymentMethod, ExpenseSummary, ExpenseCategoryItem } from './types';
 
 const expensesPerPage = 10;
@@ -147,6 +148,8 @@ const ExpensesPage = () => {
         date: String(e.date ?? new Date().toISOString()),
         paymentMethod: (e.paymentMethod ?? 'Cash') as PaymentMethod,
         bankName: e.bankName || '',
+        counter: e.counter ? String(e.counter) : null,
+        counterName: e.counterName || '',
         investment: e.investment ? String(e.investment) : null,
         investmentTitle: e.investmentTitle || '',
         fromPersonal: !!e.fromPersonal,
@@ -491,6 +494,7 @@ const ExpensesPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-600">{expense.paymentMethod}</span>
+                      {expense.counterName && <CounterTag name={expense.counterName} className="ml-1.5" />}
                       {expense.bankName && <span className="block text-[11px] text-gray-500">{expense.bankName}</span>}
                       {expense.fromPersonal && (
                         <a href="/admin/loans" className="mt-0.5 block text-[11px] font-medium text-violet-700 hover:underline" title="Paid from personal money: a loan was added for it">

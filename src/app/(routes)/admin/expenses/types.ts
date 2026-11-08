@@ -22,6 +22,9 @@ export interface Expense {
   paymentMethod: PaymentMethod;
   bank?: string | null;
   bankName?: string;
+  /** Paid from this counter's till (null = no counter). */
+  counter?: string | null;
+  counterName?: string;
   investment?: string | null;
   investmentTitle?: string;
   /** Paid from personal money: linked loan. */
@@ -53,6 +56,8 @@ export interface RawExpense {
   paymentMethod?: string;
   bank?: string | null;
   bankName?: string;
+  counter?: string | null;
+  counterName?: string;
   investment?: string | null;
   investmentTitle?: string;
   fromPersonal?: boolean;
@@ -73,6 +78,8 @@ export interface CreateExpenseData {
   date?: string;
   paymentMethod?: PaymentMethod;
   bankId?: string;
+  /** Counter whose till paid it ('' = none). */
+  counter?: string;
   investmentId?: string;
   /** Paid from personal money -> a loan from lenderId is added too. */
   fromPersonal?: boolean;
@@ -89,6 +96,7 @@ export interface UpdateExpenseData {
   date?: string;
   paymentMethod?: PaymentMethod;
   bankId?: string;
+  counter?: string;
   investmentId?: string;
   reference?: string;
   notes?: string;
