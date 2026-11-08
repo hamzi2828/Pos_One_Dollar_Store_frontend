@@ -10,6 +10,8 @@ export interface SoldByBarcodeRow {
   sales: number;
   amount: number;
   lastSoldAt: string | null;
+  /** The code is the own code of one received stock: where it came from. */
+  stock?: { plain: boolean; vendorName: string; billNo: string; grnNumber: string; costPrice: number; landedUnitCost: number; pieces: number; receivedAt: string | null; undone: boolean };
 }
 
 export interface SoldByBarcodeReport {

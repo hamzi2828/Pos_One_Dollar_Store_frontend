@@ -39,14 +39,19 @@ export function saveTagSize(size: StickerSize) {
 /**
  * Print `copies` piece tags of one product. Call straight from the click
  * handler: the print window is opened before any await (popup blockers).
+ * `code` = the stock's own code (entry.batchCode); without it the product code is printed.
  * Returns true when the tags were sent to a window / the printer.
  */
-export async function printTags(t: { productId: string; variantId: string | null; copies: number; bill?: string | null }, size: StickerSize): Promise<boolean> {
+export async function printTags(
+  t: { productId: string; variantId: string | null; copies: number; bill?: string | null; code?: string | null },
+  size: StickerSize,
+): Promise<boolean> {
   const copies = Math.max(1, Math.floor(t.copies || 1));
   const w = openPrintWindow();
   try {
+    const what = t.code ? { type: 'barcode' as const, code: t.code } : { type: 'unit' as const };
     const { html } = await labelService.getStickersHtml(
-      [{ productId: t.productId, ...(t.variantId ? { variantId: t.variantId } : {}), ...(t.bill ? { bill: t.bill } : {}), type: 'unit', copies }],
+      [{ productId: t.productId, ...(t.variantId ? { variantId: t.variantId } : {}), ...(t.bill ? { bill: t.bill } : {}), ...what, copies }],
       { size, showPrice: true, autoPrint: true },
     );
     if (w && !w.closed) {

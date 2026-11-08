@@ -71,7 +71,8 @@ export interface QuickProductInput {
 export interface EntryResult {
   entry: GRNEntry;
   grn: GoodsReceipt;
-  tags: { productId: string; variantId: string | null; copies: number; piecesPerSale?: number; productName?: string; code?: string; salePrice?: number };
+  /** code = what the tags print (this stock's own code); productCode = the product's short code */
+  tags: { productId: string; variantId: string | null; copies: number; piecesPerSale?: number; productName?: string; code?: string; productCode?: string; batchCode?: string; salePrice?: number };
   warnings: string[];
   /** the same requestId was sent before: this is the first entry */
   repeated?: boolean;

@@ -186,11 +186,17 @@ export default function EntriesList({
     }
   };
 
+  // Re-print: this entry's own code, for the pieces of this vendor that carry the same code.
+  const tagCodeOf = (e: GRNEntry) => e.batchCode || e.code || '';
+  const codePieces = (e: GRNEntry) =>
+    all
+      .filter((x) => x.product === e.product && (x.variantId || null) === (e.variantId || null) && x.bill === e.bill && tagCodeOf(x) === tagCodeOf(e))
+      .reduce((n, x) => n + (x.stockQty || 0) * Math.max(1, x.piecesPerSale || 1), 0);
   const tags = async (e: GRNEntry) => {
     if (lock.current) return;
     lock.current = true;
     setBusy(`tags-${e._id}`);
-    await printTags({ productId: e.product, variantId: e.variantId, copies: productPieces(e), bill: e.bill }, tagSize);
+    await printTags({ productId: e.product, variantId: e.variantId, copies: codePieces(e) || productPieces(e), bill: e.bill, code: e.batchCode || null }, tagSize);
     lock.current = false;
     setBusy(null);
   };
@@ -230,7 +236,11 @@ export default function EntriesList({
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 leading-tight">{e.productName}</p>
                   <p className="text-[11px] text-gray-500">
-                    {e.code && <span className="font-mono">#{e.code} · </span>}
+                    {tagCodeOf(e) && (
+                      <span className="font-mono" title={e.batchCode && e.batchCode !== e.code ? `Own code of this stock. Product code #${e.code} also sells it.` : undefined}>
+                        #{tagCodeOf(e)} ·{' '}
+                      </span>
+                    )}
                     {e.vendorName}
                     {(e.boxNo || 0) > 0 && <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700">Box/pack {e.boxNo}</span>}
                   </p>
@@ -564,7 +574,7 @@ function EditEntryModal({
     <Modal
       wide="xl"
       title={`Edit ${entry.productName}`}
-      subtitle={`${entry.vendorName}${entry.code ? ` · #${entry.code}` : ''}`}
+      subtitle={`${entry.vendorName}${entry.batchCode || entry.code ? ` · #${entry.batchCode || entry.code}` : ''}`}
       icon={<Pencil className="h-5 w-5" />}
       onClose={onClose}
       busy={saving}

@@ -31,6 +31,22 @@ export interface LabelBatch {
   suggestedCopies: number;
 }
 
+/** One received stock's own sticker code (first stock = the short code itself, `plain`). */
+export interface LabelStockCode {
+  code: string;
+  plain: boolean;
+  vendorName: string;
+  billNo: string;
+  grnNumber: string;
+  costPrice: number;
+  landedUnitCost: number;
+  /** good pieces received with this code */
+  qty: number;
+  /** its entry was undone (the code is kept, never used again) */
+  undone: boolean;
+  createdAt: string | null;
+}
+
 export interface LabelUnit {
   /** null for a single (non-variant) product */
   variantId: string | null;
@@ -45,6 +61,8 @@ export interface LabelUnit {
   stock: number;
   barcodes: { code: string; qty: number; label: string }[];
   fullBoxCode: string | null;
+  /** Own code of each received stock (newest last). Print with type 'barcode' + code. */
+  stockCodes?: LabelStockCode[];
   batches: LabelBatch[];
   suggested: { unit: number; box: number | null; fullBox: number | null };
 }
@@ -62,8 +80,10 @@ export interface LabelData {
 export interface LabelPrintItem {
   productId: string;
   variantId?: string;
-  type: StickerType;
+  /** 'barcode' prints `code` (one of the item's own codes, e.g. a stock code) */
+  type: StickerType | 'barcode';
   batchNo?: string;
+  code?: string;
   copies?: number;
   /** Vendor bill (receiving) these stickers are for: the print log is kept per vendor. */
   bill?: string;
@@ -216,12 +236,13 @@ export const labelService = {
   /** Sticker page HTML for one product (GET /products/:id/labels). */
   async getProductStickersHtml(
     productId: string,
-    params: { variantId?: string; type?: StickerType; batchNo?: string; copies?: number } & LabelPrintOptions
+    params: { variantId?: string; type?: StickerType | 'barcode'; batchNo?: string; code?: string; copies?: number } & LabelPrintOptions
   ): Promise<string> {
     const q = new URLSearchParams();
     if (params.variantId) q.set('variantId', params.variantId);
     if (params.type) q.set('type', params.type);
     if (params.batchNo) q.set('batchNo', params.batchNo);
+    if (params.code) q.set('code', params.code);
     if (params.copies) q.set('copies', String(params.copies));
     q.set('size', params.size);
     q.set('showPrice', params.showPrice ? '1' : '0');

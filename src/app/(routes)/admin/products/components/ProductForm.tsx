@@ -14,6 +14,7 @@ import { ChevronDown, Hash, Loader2, Sparkles, X } from "lucide-react";
 import { apiErrorMessage } from "@/lib/storeApi";
 import PackagingStockCard from "./packaging/PackagingStockCard";
 import SoldByBarcodeCard from "./SoldByBarcodeCard";
+import StockCodesCard from "./StockCodesCard";
 import VariantCodesRow from "./packaging/VariantCodesRow";
 import {
   type PackagingState,
@@ -1667,6 +1668,13 @@ export default function ProductForm({
               {!isVariant && mode === "edit" && productId && (
                 <div className="mt-3 sm:mt-4">
                   <SoldByBarcodeCard productId={productId} />
+                </div>
+              )}
+
+              {/* Own code per received stock (edit; hidden until something was received) */}
+              {mode === "edit" && productId && (
+                <div className="mt-3 sm:mt-4">
+                  <StockCodesCard productId={productId} />
                 </div>
               )}
 

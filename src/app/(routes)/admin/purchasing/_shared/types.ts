@@ -412,6 +412,9 @@ export interface GRNEntry {
   variantId: string | null;
   productName: string;
   code: string;
+  /** Code printed on this stock's tags: the product code for a new product's first stock,
+   *  else its own new code (e.g. 7306202). '' on older entries (they print `code`). */
+  batchCode?: string;
   salePrice: number;
   qty: number;
   /** Box of this bill it came out of (1..n); 0 / missing = not said. */

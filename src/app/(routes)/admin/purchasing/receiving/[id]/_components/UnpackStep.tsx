@@ -113,7 +113,7 @@ export default function UnpackStep({
   const productHits = (billOf: string) => {
     const t = search.trim().toLowerCase();
     if (!t) return [];
-    return (grn.entries || []).filter((e) => !e.undone && e.bill === billOf && `${e.productName || ''} ${e.code || ''}`.toLowerCase().includes(t));
+    return (grn.entries || []).filter((e) => !e.undone && e.bill === billOf && `${e.productName || ''} ${e.code || ''} ${e.batchCode || ''}`.toLowerCase().includes(t));
   };
   const [showDone, setShowDone] = useState(false);
   // Bill photos / PDFs uploaded while buying, opened from the vendor header (bill id).
@@ -1134,12 +1134,15 @@ function SavedCard({
   const e = result.entry;
   const pps = Math.max(1, result.tags?.piecesPerSale || e?.piecesPerSale || 1);
   const copies = result.tags?.copies ?? (e?.stockQty ?? 0) * pps;
+  // This stock's own code (new stock of an item that was already in the shop gets a new one).
+  const tagCode = result.tags?.code || e?.batchCode || e?.code || '';
+  const productCode = result.tags?.productCode || e?.code || '';
 
   const print = async () => {
     if (lock.current || !copies) return;
     lock.current = true;
     setPrinting(true);
-    await printTags({ productId: result.tags?.productId || e.product, variantId: result.tags?.variantId ?? e.variantId, copies, bill: e?.bill }, tagSize);
+    await printTags({ productId: result.tags?.productId || e.product, variantId: result.tags?.variantId ?? e.variantId, copies, bill: e?.bill, code: tagCode || null }, tagSize);
     lock.current = false;
     setPrinting(false);
   };
@@ -1158,6 +1161,12 @@ function SavedCard({
               </p>
             )}
             {e && <p className="text-xs text-gray-500">{e.shelved > 0 ? `${e.shelved} pcs put on the shelf.` : 'In the warehouse.'}</p>}
+            {tagCode && (
+              <p className="mt-1 text-xs text-gray-700">
+                Tag code <span className="font-mono font-semibold text-gray-900">#{tagCode}</span>
+                {productCode && tagCode !== productCode && <> · new code for this stock (old code #{productCode} still sells it)</>}
+              </p>
+            )}
             {pps > 1 && copies > 0 && (
               <p className="mt-1 text-xs font-semibold text-gray-800">
                 Sold {pps} together: stick one tag on every piece ({copies} tags). At the counter, scan any one piece of a set.

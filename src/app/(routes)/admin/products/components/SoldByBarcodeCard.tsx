@@ -61,7 +61,15 @@ export default function SoldByBarcodeCard({ productId }: { productId: string }) 
                 <tr key={r.code || "__none"} className="border-b border-gray-100 last:border-0">
                   <td className="py-1.5 pr-3">
                     {r.code ? (
-                      <span className="font-mono text-gray-900">{r.code}</span>
+                      <>
+                        <span className="font-mono text-gray-900">{r.code}</span>
+                        {r.stock && (
+                          <span className="block text-[11px] text-gray-500">
+                            Stock from {r.stock.vendorName || "—"}
+                            {r.stock.billNo ? ` · bill ${r.stock.billNo}` : ""} · cost Rs {r.stock.costPrice.toLocaleString("en-PK")}
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <span className="text-gray-500">No barcode (searched)</span>
                     )}
