@@ -63,6 +63,37 @@ function Pair({ got, should }: { got: number | null; should: number | null }) {
   );
 }
 
+/** Shop day of a till: its closing time less 6 h, so a till closed after midnight counts for the day before. */
+const shopDay = (r: ReportRow) => {
+  const at = r.closedAt || r.openedAt;
+  return at ? dayString(new Date(new Date(at).getTime() - 6 * 3600 * 1000)) : '';
+};
+
+type Fig = ReturnType<typeof figures>;
+type FigKey = 'cash' | 'sysCash' | 'card' | 'sysCard' | 'bank' | 'sysBank' | 'expenses' | 'discounts' | 'over';
+const addFig = (all: Fig[], k: FigKey) => all.reduce((t, f) => t + ((f[k] as number | null) || 0), 0);
+
+/** Every day with all its counters added together (owner, 2026-11-09). */
+function byDay(rows: ReportRow[]) {
+  const map = new Map<string, ReportRow[]>();
+  for (const r of rows) {
+    const d = shopDay(r);
+    map.set(d, [...(map.get(d) || []), r]);
+  }
+  return [...map.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([day, list]) => ({
+      day,
+      tills: list.length,
+      counters: [...new Set(list.map((r) => r.counterName || 'No counter'))].sort(),
+      figs: list.map(figures),
+    }));
+}
+
+/** "2026-11-08" -> "Sun, 8 Nov 2026". */
+const dayLabel = (d: string) =>
+  d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
 interface CashierRow {
   _id: string;
   cashierName: string;
@@ -280,6 +311,83 @@ export default function CashClosingReportPage() {
           </div>
         )}
 
+        {/* By day: both counters together */}
+        {rows.length > 0 &&
+          (() => {
+            const days = byDay(rows);
+            const allFigs = days.flatMap((d) => d.figs);
+            const th = 'px-4 py-2 text-right font-semibold';
+            const td = 'px-4 py-2 text-right tabular-nums whitespace-nowrap';
+            return (
+              <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+                <div className="px-4 py-2.5 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-gray-900">By day — all counters together</h2>
+                  <p className="text-[11px] text-gray-500">A till closed after midnight (up to 6 am) counts for the day before.</p>
+                </div>
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold">Day</th>
+                      <th className="px-4 py-2 text-left font-semibold">Counters</th>
+                      <th className={th}>Cash</th>
+                      <th className={th}>POS</th>
+                      <th className={th}>Bank</th>
+                      <th className={th}>Expenses</th>
+                      <th className={th}>Discounts</th>
+                      <th className={th}>Over / short</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {days.map((d) => (
+                      <tr key={d.day}>
+                        <td className="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">{dayLabel(d.day)}</td>
+                        <td className="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">
+                          {d.counters.join(' + ')}
+                          <span className="block text-[10px] text-gray-400">
+                            {d.tills} till{d.tills === 1 ? '' : 's'}
+                          </span>
+                        </td>
+                        <td className={td}>
+                          <Pair got={addFig(d.figs, 'cash')} should={addFig(d.figs, 'sysCash')} />
+                        </td>
+                        <td className={td}>
+                          <Pair got={addFig(d.figs, 'card')} should={addFig(d.figs, 'sysCard')} />
+                        </td>
+                        <td className={td}>
+                          <Pair got={addFig(d.figs, 'bank')} should={addFig(d.figs, 'sysBank')} />
+                        </td>
+                        <td className={`${td} text-gray-700`}>{addFig(d.figs, 'expenses') ? formatRs(addFig(d.figs, 'expenses')) : '—'}</td>
+                        <td className={`${td} text-rose-700`}>{addFig(d.figs, 'discounts') ? formatRs(addFig(d.figs, 'discounts')) : '—'}</td>
+                        <td className={`${td} font-semibold ${varianceClass(addFig(d.figs, 'over'))}`}>{varianceLabel(addFig(d.figs, 'over'))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {days.length > 1 && (
+                    <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+                      <tr>
+                        <td className="px-4 py-2" colSpan={2}>
+                          Total ({days.length} days)
+                        </td>
+                        <td className={td}>
+                          <Pair got={addFig(allFigs, 'cash')} should={addFig(allFigs, 'sysCash')} />
+                        </td>
+                        <td className={td}>
+                          <Pair got={addFig(allFigs, 'card')} should={addFig(allFigs, 'sysCard')} />
+                        </td>
+                        <td className={td}>
+                          <Pair got={addFig(allFigs, 'bank')} should={addFig(allFigs, 'sysBank')} />
+                        </td>
+                        <td className={td}>{formatRs(addFig(allFigs, 'expenses'))}</td>
+                        <td className={`${td} text-rose-700`}>{formatRs(addFig(allFigs, 'discounts'))}</td>
+                        <td className={`${td} ${varianceClass(addFig(allFigs, 'over'))}`}>{varianceLabel(addFig(allFigs, 'over'))}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            );
+          })()}
+
         {/* Sessions */}
         {loading && rows.length === 0 ? (
           <LoadingCard text="Loading report…" />
@@ -357,8 +465,7 @@ export default function CashClosingReportPage() {
               {rows.length > 1 &&
                 (() => {
                   const all = rows.map(figures);
-                  const add = (k: 'cash' | 'sysCash' | 'card' | 'sysCard' | 'bank' | 'sysBank' | 'expenses' | 'discounts' | 'over') =>
-                    all.reduce((t, f) => t + ((f[k] as number | null) || 0), 0);
+                  const add = (k: FigKey) => addFig(all, k);
                   return (
                     <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
                       <tr>
