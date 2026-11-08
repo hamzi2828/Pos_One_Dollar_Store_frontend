@@ -8,8 +8,6 @@ import {
   Layers,
   Search,
   CheckCircle,
-  Grid3X3,
-  List,
   GripVertical,
   Loader2
 } from "lucide-react";
@@ -28,7 +26,6 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-  rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -94,7 +91,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // DnD sensors
   const sensors = useSensors(
@@ -148,126 +144,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   }), [categories]);
 
   // Category Card Component
-  const CategoryCard = ({ cat }: { cat: CategoryWithCount }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: cat.id,
-      disabled: !isDragEnabled,
-    });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    };
-
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-200 group relative"
-      >
-        {/* Drag Handle */}
-        {isDragEnabled && (
-          <button
-            {...attributes}
-            {...listeners}
-            className="absolute top-1.5 left-1/2 -translate-x-1/2 z-10 p-1 bg-white/80 backdrop-blur-sm rounded-md shadow-sm border border-gray-200 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing"
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
-        )}
-        {/* Category Image */}
-        <div className="relative aspect-[3/2] bg-gray-100">
-          {cat.thumbnailUrl && !imageErrors.has(cat.id) ? (
-            <Image
-              src={getImageSrc(cat.thumbnailUrl)}
-              alt={cat.name}
-              fill
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              onError={() => handleImageError(cat.id)}
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-sage-100">
-              <span className="text-2xl font-bold text-honey-700">
-                {cat.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
-
-          {/* Status Badge */}
-          <div className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
-            cat.active
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          }`}>
-            {cat.active ? "Active" : "Inactive"}
-          </div>
-        </div>
-
-        {/* Category Info */}
-        <div className="p-3">
-          <div className="mb-1.5">
-            <h3 className="text-sm font-medium text-gray-900 truncate" title={cat.name}>
-              {cat.name}
-            </h3>
-            <TagChips tags={cat.tags} className="mt-1" />
-          </div>
-
-          {/* Stats */}
-          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium rounded">
-              <Package className="h-2.5 w-2.5" />
-              {cat.count}
-            </span>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-            <div className="flex items-center gap-1">
-              {/* Active Toggle */}
-              <button
-                onClick={() => onToggleActive(cat.id)}
-                disabled={!!busy[cat.id]}
-                aria-busy={busy[cat.id] === "active"}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
-                  cat.active ? 'bg-green-500' : 'bg-gray-300'
-                }`}
-                title={cat.active ? "Set inactive" : "Set active"}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
-                    cat.active ? 'translate-x-[18px]' : 'translate-x-0.5'
-                  }`}
-                />
-                {busy[cat.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
-              </button>
-            </div>
-
-            <div className="flex items-center">
-              <button
-                onClick={() => onEdit(cat.id)}
-                className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
-                title="Edit category"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => onDelete(cat.id)}
-                disabled={!!busy[cat.id]}
-                aria-busy={busy[cat.id] === "delete"}
-                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                title="Delete category"
-              >
-                {busy[cat.id] === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-red-500" /> : <Trash2 className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Category Row Component for List View
   const CategoryRow = ({ cat }: { cat: CategoryWithCount }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -444,35 +320,11 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               <option value="inactive">Inactive</option>
             </SearchSelect>
 
-            <div className="flex items-center border border-gray-300 rounded overflow-hidden">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`p-1.5 transition-all duration-200 ${
-                  viewMode === "grid"
-                    ? "bg-honey-500 text-gray-900"
-                    : "bg-white text-gray-500 hover:bg-gray-50"
-                }`}
-                title="Grid view"
-              >
-                <Grid3X3 className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`p-1.5 transition-all duration-200 ${
-                  viewMode === "list"
-                    ? "bg-honey-500 text-gray-900"
-                    : "bg-white text-gray-500 hover:bg-gray-50"
-                }`}
-                title="List view"
-              >
-                <List className="h-3.5 w-3.5" />
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Categories Grid/List */}
+      {/* Categories list */}
       {displayCategories.length === 0 ? (
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-6 sm:p-8 md:p-12 text-center">
           <Layers className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-gray-300 mx-auto mb-3 sm:mb-4" />
@@ -485,16 +337,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               : "Create your first category to get started."}
           </p>
         </div>
-      ) : viewMode === "grid" ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={displayCategories.map((c) => c.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
-              {displayCategories.map((cat) => (
-                <CategoryCard key={cat.id} cat={cat} />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
       ) : (
         /* List View */
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
