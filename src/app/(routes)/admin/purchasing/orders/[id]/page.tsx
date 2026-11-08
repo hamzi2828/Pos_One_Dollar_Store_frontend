@@ -586,6 +586,7 @@ function Workspace() {
                     bill={bill}
                     warehouse={warehouseByBill.get(bill._id)}
                     account={po.billAccounts?.[bill._id]}
+                    billOnly={!can("vendor_payments", "view")}
                     editable={canBuy}
                     canSend={editable}
                     onChange={applyPO}

@@ -47,7 +47,10 @@ export default function BillCard({
   onNewProduct,
   canSend = false,
   account,
+  billOnly = false,
 }: {
+  /** Only "This bill" (no paid / balance): for people who do not see vendor payments. */
+  billOnly?: boolean;
   /** Vendor account around this bill (previous balance, paid, left). */
   account?: BillAccount;
   poId: string;
@@ -156,7 +159,12 @@ export default function BillCard({
       </div>
 
       <div className="p-4 space-y-3">
-        {account && !missingAmount ? (
+        {billOnly ? (
+          <div className="rounded-lg bg-gray-50 px-3 py-2 text-center">
+            <p className="text-[11px] text-gray-500">This bill</p>
+            <p className={`text-sm font-semibold ${missingAmount ? 'text-red-600' : 'text-gray-900'}`}>{missingAmount ? 'Not set' : formatRs(total)}</p>
+          </div>
+        ) : account && !missingAmount ? (
           <div className={`grid gap-2 text-center ${account.previous ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-3'}`}>
             <div className="rounded-lg bg-gray-50 px-2 py-2">
               <p className="text-[11px] text-gray-500">This bill</p>
