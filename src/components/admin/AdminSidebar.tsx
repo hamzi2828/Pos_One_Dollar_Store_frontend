@@ -208,6 +208,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Vendor Payments', path: '/admin/vendors/payments', icon: <HandCoins className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendor_payments' },
     { name: 'Consignment', path: '/admin/vendors/consignment', icon: <Handshake className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'consignment' },
     { name: 'Vendor Returns', path: '/admin/vendors/returns', icon: <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'vendor_returns' },
+    { name: 'Purchasing Log', path: '/admin/purchasing/log', icon: <ScrollText className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'purchasing_log' },
   ];
 
   // Inventory & Warehouse — racks/shelves (A1..D20 x 4 shelves), put-away, movement ledger, damages.

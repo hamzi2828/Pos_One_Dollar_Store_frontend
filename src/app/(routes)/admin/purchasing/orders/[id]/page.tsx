@@ -20,6 +20,7 @@ import {
   PackageCheck,
   Plus,
   RotateCcw,
+  ScrollText,
   Truck,
 } from "lucide-react";
 import { useAccess } from "@/context/AccessContext";
@@ -405,6 +406,11 @@ function Workspace() {
                 )}{" "}
                 {busy === "cancel" ? "Cancelling…" : "Cancel trip"}
               </button>
+            )}
+            {can("purchasing_log", "view") && (
+              <Link href={`/admin/purchasing/log?purchaseOrder=${po._id}`} className={secondaryBtn}>
+                <ScrollText className="h-4 w-4" /> Log
+              </Link>
             )}
             {sendBtn}
           </div>

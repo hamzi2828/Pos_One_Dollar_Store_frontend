@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ScrollText } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -188,6 +188,11 @@ export default function ReceiveGoodsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">{grn.poNumber || grn.grnNumber}</h1>
             <GRNStatusBadge status={grn.status} />
+            {can('purchasing_log', 'view') && (
+              <Link href={`/admin/purchasing/log?grn=${grn._id}`} className={`${secondaryBtn} !px-2.5 !py-1 !text-xs ml-auto`}>
+                <ScrollText className="h-3.5 w-3.5" /> Log
+              </Link>
+            )}
           </div>
           <p className="mt-0.5 text-xs sm:text-sm text-gray-500">
             {vendors.length > 3 ? `${vendors.length} vendors` : vendors.join(', ') || '—'} · bought by {grn.buyerName || '—'}

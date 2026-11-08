@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Edit2, HandCoins, Undo2, Phone, MessageCircle, MapPin, Landmark, Clock, BookOpen, Package, Handshake } from 'lucide-react';
+import { ArrowLeft, Edit2, HandCoins, Undo2, Phone, MessageCircle, MapPin, Landmark, Clock, BookOpen, Package, Handshake, ScrollText } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage } from '@/helper/access';
 import { formatRs, formatDate } from '@/lib/storeApi';
@@ -161,6 +161,11 @@ export default function VendorProfilePage() {
                       <button onClick={() => setEditing(true)} className={secondaryBtn}>
                         <Edit2 className="h-4 w-4" /> Edit
                       </button>
+                    )}
+                    {can('purchasing_log', 'view') && (
+                      <Link href={`/admin/purchasing/log?vendor=${vendor._id}`} className={secondaryBtn}>
+                        <ScrollText className="h-4 w-4" /> Log
+                      </Link>
                     )}
                   </div>
                 </div>
