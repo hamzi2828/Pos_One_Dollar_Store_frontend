@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { categoryService, tagKeywords } from '../../services/categoryService';
-import { SearchSelect } from '@/components/ui/SearchSelect';
+import { categoryService } from '../../services/categoryService';
 import TagChipsInput from '@/components/ui/TagChipsInput';
 import { clearCategoryTagsCache } from '@/lib/useCategoryTags';
 
@@ -17,13 +16,6 @@ const slugify = (str: string) =>
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
 
-interface ParentCategory {
-  id: string;
-  name: string;
-  slug: string;
-  tags?: string[];
-}
-
 const MAX_THUMBNAILS = 10;
 
 const CreateCategoryPage = () => {
@@ -33,32 +25,13 @@ const CreateCategoryPage = () => {
   const [description, setDescription] = useState('');
   const [active, setActive] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
-  const [parentId, setParentId] = useState<string>('');
-  const [parentCategories, setParentCategories] = useState<ParentCategory[]>([]);
   const [thumbnailFiles, setThumbnailFiles] = useState<File[]>([]);
   const [thumbnailPreviews, setThumbnailPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const submittingRef = useRef(false);
-  const [loadingParents, setLoadingParents] = useState(true);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   const slug = useMemo(() => slugify(name), [name]);
-
-  // Load parent categories for dropdown
-  useEffect(() => {
-    const loadParentCategories = async () => {
-      try {
-        setLoadingParents(true);
-        const categories = await categoryService.listParentCategories();
-        setParentCategories(categories as unknown as ParentCategory[]);
-      } catch (error) {
-        console.error('Failed to load parent categories:', error);
-      } finally {
-        setLoadingParents(false);
-      }
-    };
-    loadParentCategories();
-  }, []);
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -114,7 +87,7 @@ const CreateCategoryPage = () => {
         formData.append('slug', slug);
         formData.append('description', description);
         formData.append('active', active.toString());
-        formData.append('parentId', parentId || '');
+        formData.append('parentId', ''); // categories are flat (no subcategories)
 
         for (const file of thumbnailFiles) {
           formData.append('thumbnail', file);
@@ -127,7 +100,7 @@ const CreateCategoryPage = () => {
           slug,
           description,
           active,
-          parentId: parentId || null,
+          parentId: null, // categories are flat (no subcategories)
         });
       }
 
@@ -177,25 +150,6 @@ const CreateCategoryPage = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Parent Category (Optional)</label>
-            <p className="text-xs text-gray-500 mb-1">Select a parent to create this as a subcategory</p>
-            <div className="relative">
-              <SearchSelect
-                className="mt-1 h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                value={parentId}
-                onChange={(e) => setParentId(e.target.value)}
-                disabled={loadingParents}
-              >
-                <option value="">None (Top-level category)</option>
-                {parentCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id} data-keywords={tagKeywords(cat.tags)}>
-                    {cat.name}
-                  </option>
-                ))}
-              </SearchSelect>
-            </div>
-          </div>
 
           <div>
             <label htmlFor="category-tags" className="block text-sm font-medium text-gray-700">Tags (other names)</label>

@@ -10,10 +10,6 @@ import {
   CheckCircle,
   Grid3X3,
   List,
-  ChevronRight,
-  ChevronDown,
-  FolderTree,
-  ArrowLeft,
   GripVertical,
   Loader2
 } from "lucide-react";
@@ -73,14 +69,24 @@ const tagsMatch = (cat: Category, q: string) => {
   return !!needle && (cat.tags || []).some((t) => t.toLowerCase().includes(needle));
 };
 
-/** Small grey line "Also: Tissue · Towel · Jabtco" under a category name. */
-function TagsLine({ tags, className = "" }: { tags?: string[]; className?: string }) {
+/** Tag chips ("Tissue" "Towel" "Jabtco") = other names of a category. `max` shows only the first N + "+N". */
+function TagChips({ tags, max, className = "" }: { tags?: string[]; max?: number; className?: string }) {
   if (!tags?.length) return null;
-  const text = tags.join(" · ");
+  const shown = max ? tags.slice(0, max) : tags;
+  const hidden = tags.length - shown.length;
   return (
-    <p className={`text-[11px] text-gray-400 truncate ${className}`} title={`Also: ${text}`}>
-      Also: {text}
-    </p>
+    <div className={`flex flex-wrap gap-1 ${className}`} title={`Also: ${tags.join(", ")}`}>
+      {shown.map((t) => (
+        <span key={t} className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[11px] leading-4">
+          {t}
+        </span>
+      ))}
+      {hidden > 0 && (
+        <span className="inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[11px] leading-4 font-medium">
+          +{hidden}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -88,26 +94,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
-  const [viewMode, setViewMode] = useState<"tree" | "grid" | "list">("tree");
-  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
-  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
-
-  const toggleParentExpanded = (id: string) => {
-    setExpandedParents((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const expandAll = () => {
-    setExpandedParents(new Set(categories.filter((c) => !c.parentId).map((p) => p.id)));
-  };
-
-  const collapseAll = () => {
-    setExpandedParents(new Set());
-  };
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // DnD sensors
   const sensors = useSensors(
@@ -118,21 +105,29 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   // Whether drag is possible (no search/filter active)
   const isDragEnabled = !searchQuery && filterStatus === "all" && !!onReorder;
 
+  // Categories are flat: every category (even one that still has a parentId) is listed as a normal category.
+  const displayCategories = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return categories.filter(cat => {
+      const matchesSearch = cat.name.toLowerCase().includes(q) ||
+                           cat.slug.toLowerCase().includes(q) ||
+                           tagsMatch(cat, searchQuery);
+      const matchesFilter = filterStatus === "all" ||
+                           (filterStatus === "active" && cat.active) ||
+                           (filterStatus === "inactive" && !cat.active);
+      return matchesSearch && matchesFilter;
+    });
+  }, [categories, searchQuery, filterStatus]);
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id || !onReorder) return;
 
-    const sourceList = selectedParentId ? filteredSubcategories : filteredParentCategories;
-    const oldIndex = sourceList.findIndex((c) => c.id === active.id);
-    const newIndex = sourceList.findIndex((c) => c.id === over.id);
+    const oldIndex = displayCategories.findIndex((c) => c.id === active.id);
+    const newIndex = displayCategories.findIndex((c) => c.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(sourceList, oldIndex, newIndex);
-
-    // Build the full categories list with reordered items in place
-    const reorderedIds = new Set(reordered.map((c) => c.id));
-    const otherCategories = categories.filter((c) => !reorderedIds.has(c.id));
-    onReorder([...reordered, ...otherCategories] as Category[]);
+    onReorder(arrayMove(displayCategories, oldIndex, newIndex) as Category[]);
   };
 
   const handleImageError = (categoryId: string) => {
@@ -145,68 +140,15 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
       : thumbnailUrl;
   };
 
-  // Get parent categories only
-  const parentCategories = useMemo(() => {
-    return categories.filter(cat => !cat.parentId);
-  }, [categories]);
-
-  // Get subcategories for a parent
-  const getSubcategories = (parentId: string) => {
-    return categories.filter(cat => cat.parentId === parentId);
-  };
-
-  // Get subcategory count for each parent
-  const getSubcategoryCount = (parentId: string) => {
-    return categories.filter(cat => cat.parentId === parentId).length;
-  };
-
-  // Filter and search parent categories
-  const filteredParentCategories = useMemo(() => {
-    return parentCategories.filter(cat => {
-      const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           cat.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           tagsMatch(cat, searchQuery);
-      const matchesFilter = filterStatus === "all" ||
-                           (filterStatus === "active" && cat.active) ||
-                           (filterStatus === "inactive" && !cat.active);
-      return matchesSearch && matchesFilter;
-    });
-  }, [parentCategories, searchQuery, filterStatus]);
-
-  // Get selected parent details
-  const selectedParent = useMemo(() => {
-    if (!selectedParentId) return null;
-    return categories.find(c => c.id === selectedParentId);
-  }, [selectedParentId, categories]);
-
-  // Get filtered subcategories when viewing a parent's subcategories
-  const filteredSubcategories = useMemo(() => {
-    if (!selectedParentId) return [];
-    const subs = getSubcategories(selectedParentId);
-    return subs.filter(cat => {
-      const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           cat.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           tagsMatch(cat, searchQuery);
-      const matchesFilter = filterStatus === "all" ||
-                           (filterStatus === "active" && cat.active) ||
-                           (filterStatus === "inactive" && !cat.active);
-      return matchesSearch && matchesFilter;
-    });
-  }, [selectedParentId, categories, searchQuery, filterStatus]);
-
   // Stats
   const stats = useMemo(() => ({
     total: categories.length,
     active: categories.filter(c => c.active).length,
-    inactive: categories.filter(c => !c.active).length,
     totalProducts: categories.reduce((acc, c) => acc + c.count, 0),
-    parents: parentCategories.length,
-    subcategories: categories.filter(c => c.parentId).length,
-  }), [categories, parentCategories]);
+  }), [categories]);
 
   // Category Card Component
-  const CategoryCard = ({ cat, showSubcategoryButton = false }: { cat: CategoryWithCount; showSubcategoryButton?: boolean }) => {
-    const subcategoryCount = showSubcategoryButton ? getSubcategoryCount(cat.id) : 0;
+  const CategoryCard = ({ cat }: { cat: CategoryWithCount }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
       id: cat.id,
       disabled: !isDragEnabled,
@@ -269,7 +211,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <h3 className="text-sm font-medium text-gray-900 truncate" title={cat.name}>
               {cat.name}
             </h3>
-            <TagsLine tags={cat.tags} />
+            <TagChips tags={cat.tags} className="mt-1" />
           </div>
 
           {/* Stats */}
@@ -278,15 +220,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               <Package className="h-2.5 w-2.5" />
               {cat.count}
             </span>
-            {showSubcategoryButton && subcategoryCount > 0 && (
-              <button
-                onClick={() => setSelectedParentId(cat.id)}
-                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-medium rounded hover:bg-blue-200 transition-colors"
-              >
-                <FolderTree className="h-2.5 w-2.5" />
-                {subcategoryCount} subs
-              </button>
-            )}
           </div>
 
           {/* Actions */}
@@ -336,8 +269,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
   };
 
   // Category Row Component for List View
-  const CategoryRow = ({ cat, showSubcategoryButton = false }: { cat: CategoryWithCount; showSubcategoryButton?: boolean }) => {
-    const subcategoryCount = showSubcategoryButton ? getSubcategoryCount(cat.id) : 0;
+  const CategoryRow = ({ cat }: { cat: CategoryWithCount }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
       id: cat.id,
       disabled: !isDragEnabled,
@@ -385,20 +317,12 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{cat.name}</p>
               <p className="text-xs text-gray-400 truncate">/{cat.slug}</p>
-              <TagsLine tags={cat.tags} />
             </div>
           </div>
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
-          {showSubcategoryButton && subcategoryCount > 0 ? (
-            <button
-              onClick={() => setSelectedParentId(cat.id)}
-              className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full hover:bg-blue-200 transition-colors"
-            >
-              <FolderTree className="h-3 w-3" />
-              {subcategoryCount} subcategories
-              <ChevronRight className="h-3 w-3" />
-            </button>
+        <td className="px-6 py-4">
+          {cat.tags?.length ? (
+            <TagChips tags={cat.tags} max={6} className="max-w-xs" />
           ) : (
             <span className="text-xs text-gray-400">—</span>
           )}
@@ -453,34 +377,19 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
     );
   };
 
-  // Determine which categories to display
-  const displayCategories = selectedParentId ? filteredSubcategories : filteredParentCategories;
-  const isViewingSubcategories = !!selectedParentId;
 
   return (
     <div className="space-y-2 sm:space-y-3 md:space-y-4">
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <div className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-sm transition-all duration-200">
           <div className="flex items-center gap-2">
             <div className="p-1.5 bg-sage-200 rounded">
               <Layers className="h-4 w-4 text-honey-700" />
             </div>
             <div>
-              <p className="text-lg font-semibold text-gray-900">{stats.parents}</p>
+              <p className="text-lg font-semibold text-gray-900">{stats.total}</p>
               <p className="text-[10px] text-gray-500">Categories</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-2.5 hover:shadow-sm transition-all duration-200">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-blue-100 rounded">
-              <FolderTree className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold text-gray-900">{stats.subcategories}</p>
-              <p className="text-[10px] text-gray-500">Subs</p>
             </div>
           </div>
         </div>
@@ -510,27 +419,6 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
         </div>
       </div>
 
-      {/* Subcategory View Header */}
-      {isViewingSubcategories && selectedParent && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <button
-            onClick={() => setSelectedParentId(null)}
-            className="p-2 bg-white rounded-lg hover:bg-blue-100 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 text-blue-600" />
-          </button>
-          <div className="flex items-center gap-2">
-            <FolderTree className="h-5 w-5 text-blue-600" />
-            <span className="text-blue-700 font-medium">
-              Subcategories of <strong>{selectedParent.name}</strong>
-            </span>
-          </div>
-          <span className="ml-auto text-sm text-blue-600">
-            {filteredSubcategories.length} subcategories
-          </span>
-        </div>
-      )}
-
       {/* Search and Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-2.5">
         <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
@@ -538,7 +426,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
-              placeholder={isViewingSubcategories ? "Search subcategories or tags..." : "Search categories or tags..."}
+              placeholder="Search categories or tags..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-honey-500 focus:border-honey-500 transition-all duration-200"
@@ -556,39 +444,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
               <option value="inactive">Inactive</option>
             </SearchSelect>
 
-            {viewMode === "tree" && !isViewingSubcategories && (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={expandAll}
-                  className="text-[11px] px-2 py-1 text-gray-600 hover:text-gray-900 border border-gray-300 rounded"
-                  title="Expand all"
-                >
-                  Expand all
-                </button>
-                <button
-                  type="button"
-                  onClick={collapseAll}
-                  className="text-[11px] px-2 py-1 text-gray-600 hover:text-gray-900 border border-gray-300 rounded"
-                  title="Collapse all"
-                >
-                  Collapse all
-                </button>
-              </div>
-            )}
-
             <div className="flex items-center border border-gray-300 rounded overflow-hidden">
-              <button
-                onClick={() => setViewMode("tree")}
-                className={`p-1.5 transition-all duration-200 ${
-                  viewMode === "tree"
-                    ? "bg-honey-500 text-gray-900"
-                    : "bg-white text-gray-500 hover:bg-gray-50"
-                }`}
-                title="Tree view"
-              >
-                <FolderTree className="h-3.5 w-3.5" />
-              </button>
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-1.5 transition-all duration-200 ${
@@ -621,222 +477,20 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
         <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-6 sm:p-8 md:p-12 text-center">
           <Layers className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-gray-300 mx-auto mb-3 sm:mb-4" />
           <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-1.5 sm:mb-2">
-            {isViewingSubcategories ? "No subcategories found" : "No categories found"}
+            No categories found
           </h3>
           <p className="text-sm text-gray-500">
             {searchQuery || filterStatus !== "all"
               ? "Try adjusting your search or filter criteria."
-              : isViewingSubcategories
-                ? "This category has no subcategories yet."
-                : "Create your first category to get started."}
+              : "Create your first category to get started."}
           </p>
-          {isViewingSubcategories && (
-            <button
-              onClick={() => setSelectedParentId(null)}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Categories
-            </button>
-          )}
-        </div>
-      ) : viewMode === "tree" && !isViewingSubcategories ? (
-        /* Tree View — parents with subcategories nested inline */
-        <div className="space-y-2">
-          {filteredParentCategories.map((parent) => {
-            const subs = getSubcategories(parent.id);
-            const visibleSubs = subs.filter((s) => {
-              const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || tagsMatch(s, searchQuery);
-              const matchesFilter = filterStatus === "all" ||
-                (filterStatus === "active" && s.active) ||
-                (filterStatus === "inactive" && !s.active);
-              return matchesSearch && matchesFilter;
-            }) as CategoryWithCount[];
-            const isExpanded = expandedParents.has(parent.id);
-
-            return (
-              <div key={parent.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                {/* Parent row */}
-                <div className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
-                  <button
-                    type="button"
-                    onClick={() => toggleParentExpanded(parent.id)}
-                    className="p-1 text-gray-400 hover:text-gray-700 rounded transition-colors"
-                    aria-label={isExpanded ? "Collapse" : "Expand"}
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </button>
-
-                  {parent.thumbnailUrl && !imageErrors.has(parent.id) ? (
-                    <div className="relative h-10 w-10 rounded-md overflow-hidden flex-shrink-0 border border-gray-200">
-                      <Image
-                        src={getImageSrc(parent.thumbnailUrl)}
-                        alt={parent.name}
-                        fill
-                        className="object-cover"
-                        sizes="40px"
-                        onError={() => handleImageError(parent.id)}
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-10 w-10 rounded-md bg-sage-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-honey-700">
-                        {parent.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => toggleParentExpanded(parent.id)}
-                    className="flex-1 text-left min-w-0"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">{parent.name}</h3>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                          parent.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {parent.active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">
-                      {subs.length} subcategories · {parent.count} products
-                    </p>
-                    <TagsLine tags={parent.tags} />
-                  </button>
-
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => onToggleActive(parent.id)}
-                      disabled={!!busy[parent.id]}
-                      aria-busy={busy[parent.id] === "active"}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-                        parent.active ? "bg-green-500" : "bg-gray-300"
-                      }`}
-                      title={parent.active ? "Set inactive" : "Set active"}
-                    >
-                      <span
-                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
-                          parent.active ? "translate-x-5" : "translate-x-1"
-                        }`}
-                      />
-                      {busy[parent.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onEdit(parent.id)}
-                      className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                      title="Edit category"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(parent.id)}
-                      disabled={!!busy[parent.id]}
-                      aria-busy={busy[parent.id] === "delete"}
-                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Delete category"
-                    >
-                      {busy[parent.id] === "delete" ? <Loader2 className="h-4 w-4 animate-spin text-red-500" /> : <Trash2 className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Subcategories nested */}
-                {isExpanded && (
-                  <div className="border-t border-gray-100 bg-gray-50/50">
-                    {visibleSubs.length === 0 ? (
-                      <div className="px-12 py-3 text-xs text-gray-400">
-                        No subcategories
-                        {searchQuery || filterStatus !== "all" ? " match the current filters" : " yet"}.
-                      </div>
-                    ) : (
-                      <ul className="divide-y divide-gray-100">
-                        {visibleSubs.map((sub) => (
-                          <li
-                            key={sub.id}
-                            className="flex items-center gap-3 pl-12 pr-3 py-2 hover:bg-white transition-colors"
-                          >
-                            <div className="h-1.5 w-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-800 truncate">{sub.name}</span>
-                                <span
-                                  className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                                    sub.active
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-red-100 text-red-700"
-                                  }`}
-                                >
-                                  {sub.active ? "Active" : "Inactive"}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-gray-400 truncate">
-                                /{sub.slug} · {sub.count} products
-                              </p>
-                              <TagsLine tags={sub.tags} />
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => onToggleActive(sub.id)}
-                                disabled={!!busy[sub.id]}
-                                aria-busy={busy[sub.id] === "active"}
-                                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-                                  sub.active ? "bg-green-500" : "bg-gray-300"
-                                }`}
-                                title={sub.active ? "Set inactive" : "Set active"}
-                              >
-                                <span
-                                  className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-sm transition-transform ${
-                                    sub.active ? "translate-x-3.5" : "translate-x-0.5"
-                                  }`}
-                                />
-                                {busy[sub.id] === "active" && <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-white" />}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEdit(sub.id)}
-                                className="p-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
-                                title="Edit subcategory"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onDelete(sub.id)}
-                                disabled={!!busy[sub.id]}
-                                aria-busy={busy[sub.id] === "delete"}
-                                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                title="Delete subcategory"
-                              >
-                                {busy[sub.id] === "delete" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-red-500" /> : <Trash2 className="h-3.5 w-3.5" />}
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
         </div>
       ) : viewMode === "grid" ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={displayCategories.map((c) => c.id)} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
               {displayCategories.map((cat) => (
-                <CategoryCard key={cat.id} cat={cat} showSubcategoryButton={!isViewingSubcategories} />
+                <CategoryCard key={cat.id} cat={cat} />
               ))}
             </div>
           </SortableContext>
@@ -855,10 +509,10 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                         </th>
                       )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {isViewingSubcategories ? "Subcategory" : "Category"}
+                        Category
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Subcategories
+                        Tags
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Products
@@ -873,7 +527,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {displayCategories.map((cat) => (
-                      <CategoryRow key={cat.id} cat={cat} showSubcategoryButton={!isViewingSubcategories} />
+                      <CategoryRow key={cat.id} cat={cat} />
                     ))}
                   </tbody>
                 </table>
@@ -886,7 +540,7 @@ export default function CategoriesTab({ categories, onEdit, onDelete, onToggleAc
       {/* Results count */}
       {(searchQuery || filterStatus !== "all") && (
         <div className="text-sm text-gray-500 text-center">
-          Showing {displayCategories.length} {isViewingSubcategories ? "subcategories" : "categories"}
+          Showing {displayCategories.length} categories
         </div>
       )}
     </div>
