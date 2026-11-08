@@ -105,6 +105,8 @@ function nextBatch(): { body: Record<string, unknown>; items: QueuedEvent[] } | 
     cartId,
     startedAt: items[0].startedAt,
     events: items.map((x) => x.event),
+    // This PC's clock now: the server corrects the times if the clock is wrong.
+    sentAt: new Date().toISOString(),
   };
   if (last.itemCount !== undefined) body.itemCount = last.itemCount;
   if (last.total !== undefined) body.total = last.total;
