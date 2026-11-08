@@ -23,13 +23,14 @@ import PaymentModal from './components/PaymentModal';
 import HeldOrders from './components/HeldOrders';
 import PendingPaymentsTab from './components/PendingPaymentsTab';
 import LastSaleBar from './components/LastSaleBar';
+import ScanAlertModal from './components/ScanAlertModal';
 import { getPOSProducts, getProductByBarcode, type ScanResult } from './services/posProductService';
 import { createPOSOrder, POSApiError } from './services/posOrderService';
 import { createOrFindCustomer } from './services/posCustomerService';
 import { holdCart, getHeldCarts, retrieveHeldCart, clearHeldCart } from './services/posCartService';
 import { useCartQuote } from './hooks/useCartQuote';
 import { useBarcodeScanner } from './hooks/useBarcodeScanner';
-import { playScanError } from './utils/scanSound';
+import { playScanError, playScanAlert } from './utils/scanSound';
 import { cartToOrderItems, giftLineId, manualProduct, paidLineId } from './utils/cartPayload';
 import type { ManualItemInput } from './components/ManualItemModal';
 import { getCurrencySymbol } from './utils/currency';
@@ -150,6 +151,8 @@ export default function POSPage() {
   const [tillMessage, setTillMessage] = useState<string | null>(null);
   const [insight, setInsight] = useState<{ productId: string; variantId: string | null } | null>(null);
   const [lastOrder, setLastOrder] = useState<POSOrder | null>(null);
+  // Scanned code that is not in the shop: big blinking alert until OK.
+  const [scanAlert, setScanAlert] = useState<string | null>(null);
   // Phones / small tablets: show either the products or the cart.
   const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
 
@@ -523,8 +526,8 @@ export default function POSPage() {
         }
         if (!isSearching && loadedQuery === code && products.length > 1) return false; // pick from the list
         log('scan_not_found', `Scanned ${code} → not found`, { code });
-        playScanError();
-        toast.error(`No product with code "${code}"`, { id: 'pos-scan' });
+        playScanAlert();
+        setScanAlert(code);
         return false;
       }
       log('scan_not_found', `Scanned ${code} → ${r.message}`, { code, message: r.message });
@@ -1106,6 +1109,15 @@ export default function POSPage() {
               <span className="flex-1">{tillMessage}</span>
               <button onClick={() => setTillMessage(null)} className="text-xs underline">OK</button>
             </div>
+          )}
+          {scanAlert && (
+            <ScanAlertModal
+              code={scanAlert}
+              onClose={() => {
+                setScanAlert(null);
+                setTimeout(() => searchRef.current?.focus(), 50);
+              }}
+            />
           )}
           {lastOrder && <LastSaleBar order={lastOrder} storeName={storeName} symbol={symbol} printOn={till ? till.printOn || null : undefined} onClose={() => setLastOrder(null)} />}
 
