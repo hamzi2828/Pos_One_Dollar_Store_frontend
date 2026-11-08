@@ -6,7 +6,6 @@ import Link from 'next/link';
 import {
   Wallet,
   TrendingUp,
-  LineChart,
   AlertCircle,
   Boxes,
   Receipt,
@@ -36,7 +35,6 @@ export const REPORTS: ReportLink[] = [
   { href: '/admin/reports/trends', label: 'Sales Trends', icon: CalendarRange, perm: 'report_trends', about: 'Sales day by day and how they change.', group: 'Sales' },
   { href: '/admin/reports/footfall', label: 'Footfall', icon: Footprints, perm: 'report_footfall', about: 'Busy hours and days, bills and buyers.', group: 'Sales' },
   { href: '/admin/reports/category-performance', label: 'Category Performance', icon: Target, perm: 'report_category_performance', about: 'Which categories sell and earn the most.', group: 'Sales' },
-  { href: '/admin/reports/cost-analysis', label: 'Cost Analysis', icon: LineChart, perm: 'report_cost_analysis', about: 'Cost, profit and margin of what was sold.', group: 'Sales' },
   { href: '/admin/reports/stock', label: 'Stock', icon: Boxes, perm: 'report_stock', about: 'Stock on hand and its value.', group: 'Stock' },
   { href: '/admin/reports/demand', label: 'Demand List', icon: TrendingDown, perm: 'report_demand', about: 'Items running low that need ordering.', group: 'Stock' },
   { href: '/admin/reports/slow-moving', label: 'Slow Moving', icon: Hourglass, perm: 'report_slow_moving', about: 'Items that are not selling.', group: 'Stock' },

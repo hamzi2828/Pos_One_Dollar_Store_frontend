@@ -30,7 +30,6 @@ import {
   ChevronDown,
   Shield,
   TrendingUp,
-  LineChart,
   AlertCircle,
   UserCog,
   Warehouse,
@@ -178,7 +177,6 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   // Reports Section — all business analytics reports in one place.
   const reportsMenuItems: MenuItem[] = [
     { name: 'Sales Reports', path: '/admin/reports/sales', icon: <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_sales' },
-    { name: 'Cost Analysis', path: '/admin/reports/cost-analysis', icon: <LineChart className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_cost_analysis' },
     { name: 'Stock', path: '/admin/reports/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_stock' },
     { name: 'Spending', path: '/admin/reports/spending', icon: <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_expenses' },
     { name: 'Expenses', path: '/admin/reports/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'report_expenses' },
