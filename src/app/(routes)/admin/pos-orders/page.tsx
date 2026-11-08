@@ -24,11 +24,9 @@ import {
   CheckCircle2,
   XCircle,
   ShoppingBag,
-  TrendingUp,
   X,
   Gift,
   Undo2,
-  Percent,
 } from 'lucide-react';
 import { POSOrder, PaymentMethodType } from '../pos/types';
 import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder } from '../pos/services/posOrderService';
@@ -99,9 +97,6 @@ export default function POSOrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate, payment, status, debouncedSearch]);
 
-  // Server returns pagination + summary; summary reflects full filtered set.
-  const [summary, setSummary] = useState({ count: 0, total: 0, paid: 0, pending: 0, discount: 0, cogs: undefined as number | undefined });
-
   useEffect(() => {
     const ctl = new AbortController();
     setLoading(true);
@@ -119,17 +114,6 @@ export default function POSOrdersPage() {
       .then((resp) => {
         setOrders(resp.orders);
         pg.setTotal(resp.total);
-        if (resp.summary) {
-          const sum = resp.summary as typeof resp.summary & { totalDiscount?: number; totalCogs?: number };
-          setSummary({
-            count: sum.totalOrders,
-            total: sum.totalSales,
-            paid: sum.totalPaid,
-            pending: sum.totalPending,
-            discount: sum.totalDiscount || 0,
-            cogs: sum.totalCogs,
-          });
-        }
       })
       .catch((err) => {
         if ((err as Error).name === 'AbortError') return;
@@ -202,48 +186,6 @@ export default function POSOrdersPage() {
             Open POS
           </Link>
         </div>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3">
-        <SummaryCard
-          icon={<ShoppingBag className="h-5 w-5" />}
-          label="Orders"
-          value={summary.count.toString()}
-          accent="bg-blue-50 text-blue-600"
-        />
-        <SummaryCard
-          icon={<TrendingUp className="h-5 w-5" />}
-          label="Total Sales"
-          value={`${symbol}${summary.total.toFixed(2)}`}
-          accent="bg-emerald-50 text-emerald-600"
-        />
-        <SummaryCard
-          icon={<CheckCircle2 className="h-5 w-5" />}
-          label="Paid"
-          value={`${symbol}${summary.paid.toFixed(2)}`}
-          accent="bg-green-50 text-green-600"
-        />
-        <SummaryCard
-          icon={<AlertCircle className="h-5 w-5" />}
-          label="Pending"
-          value={`${symbol}${summary.pending.toFixed(2)}`}
-          accent="bg-orange-50 text-orange-600"
-        />
-        <SummaryCard
-          icon={<Percent className="h-5 w-5" />}
-          label="Discounts given"
-          value={`${symbol}${summary.discount.toFixed(2)}`}
-          accent="bg-lime-50 text-lime-700"
-        />
-        {perms.seeCost && summary.cogs !== undefined && (
-          <SummaryCard
-            icon={<DollarSign className="h-5 w-5" />}
-            label="Cost of sales"
-            value={`${symbol}${summary.cogs.toFixed(2)}`}
-            accent="bg-slate-100 text-slate-700"
-          />
-        )}
       </div>
 
       {/* Filters */}
@@ -425,30 +367,6 @@ export default function POSOrdersPage() {
 }
 
 // ---------- Small components ----------
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  accent: string;
-}) {
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 flex items-center gap-3">
-      <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${accent}`}>
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</div>
-        <div className="text-sm sm:text-lg font-semibold text-gray-900 truncate">{value}</div>
-      </div>
-    </div>
-  );
-}
 
 function PaymentBadge({ method }: { method: string }) {
   const map: Record<string, { icon: React.ReactNode; label: string; className: string }> = {
