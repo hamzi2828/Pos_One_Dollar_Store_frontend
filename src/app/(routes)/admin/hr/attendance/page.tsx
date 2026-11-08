@@ -8,19 +8,22 @@
 // Links from Payroll: ?view=corrections|overtime&month=YYYY-MM&employee=<id>
 // open "Fix before payroll" filtered; ?view=month highlights the employee.
 import { useEffect, useState } from 'react';
-import { CalendarDays, Clock3, ListChecks } from 'lucide-react';
+import { CalendarDays, Clock3, ListChecks, Wallet } from 'lucide-react';
 import { NoAccessCard } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
 import TodayTab from './components/TodayTab';
 import MonthTab from './components/MonthTab';
 import ExceptionsTab from './components/ExceptionsTab';
+import SalaryToDate from '../payroll/_shared/SalaryToDate';
 import { DesktopNote } from './components/AttendanceBits';
 import { readAttendanceLink, type AttendanceLink } from './services/attendanceApi';
 
-type Tab = 'today' | 'month' | 'fix';
+type Tab = 'today' | 'month' | 'salary' | 'fix';
 const TABS: { key: Tab; label: string; Icon: typeof Clock3 }[] = [
   { key: 'today', label: 'Today', Icon: Clock3 },
   { key: 'month', label: 'Month', Icon: CalendarDays },
+  // Salary earned so far this month (owner, 2026-11-08); needs payroll view.
+  { key: 'salary', label: 'Salary so far', Icon: Wallet },
   { key: 'fix', label: 'Fix before payroll', Icon: ListChecks },
 ];
 
@@ -29,6 +32,8 @@ export default function AttendancePage() {
   const canView = can('attendance', 'view');
   const canEdit = can('attendance', 'edit');
   const canExport = can('attendance', 'export');
+  const canPayroll = can('payroll', 'view');
+  const tabs = TABS.filter((t) => t.key !== 'salary' || canPayroll);
   const [tab, setTab] = useState<Tab>('today');
   // The link this page was opened with (read once in the browser, then tabs mount).
   const [link, setLink] = useState<AttendanceLink | null>(null);
@@ -66,7 +71,7 @@ export default function AttendancePage() {
 
         <div className="mb-4 overflow-x-auto">
           <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-sm" role="tablist">
-            {TABS.map(({ key, label, Icon }) => (
+            {tabs.map(({ key, label, Icon }) => (
               <button
                 key={key}
                 type="button"
@@ -84,6 +89,7 @@ export default function AttendancePage() {
 
         {link && tab === 'today' && <TodayTab canEdit={canEdit} />}
         {link && tab === 'month' && <MonthTab canEdit={canEdit} canExport={canExport} initialMonth={link.month} highlightEmployee={link.employeeId} />}
+        {link && tab === 'salary' && canPayroll && <SalaryToDate />}
         {link && tab === 'fix' && <ExceptionsTab canEdit={canEdit} initialMonth={link.month} focus={link.focus} employeeId={link.employeeId} />}
       </div>
     </div>

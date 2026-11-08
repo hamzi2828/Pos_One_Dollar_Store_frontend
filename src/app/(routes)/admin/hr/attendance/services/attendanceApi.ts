@@ -352,7 +352,7 @@ export const SOURCE_LABEL: Record<PunchSource, string> = {
 /** What a link from Payroll asks for: ?view=corrections|overtime|month|today|fix&month=YYYY-MM&employee=<id>. */
 export type AttendanceFocus = 'corrections' | 'overtime';
 export interface AttendanceLink {
-  tab: 'today' | 'month' | 'fix';
+  tab: 'today' | 'month' | 'salary' | 'fix';
   month: string | null;
   employeeId: string | null;
   focus: AttendanceFocus | null;
@@ -366,6 +366,6 @@ export function readAttendanceLink(search: string, hash: string): AttendanceLink
   const employee = q.get('employee') || q.get('employeeId');
   const employeeId = employee && /^[0-9a-f]{24}$/i.test(employee) ? employee : null;
   if (view === 'corrections' || view === 'overtime') return { tab: 'fix', month, employeeId, focus: view };
-  if (view === 'month' || view === 'fix' || view === 'today') return { tab: view, month, employeeId, focus: null };
+  if (view === 'month' || view === 'fix' || view === 'today' || view === 'salary') return { tab: view, month, employeeId, focus: null };
   return { tab: month ? 'month' : 'today', month, employeeId, focus: null };
 }
