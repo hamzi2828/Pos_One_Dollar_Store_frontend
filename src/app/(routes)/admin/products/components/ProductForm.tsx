@@ -87,6 +87,21 @@ interface ProductFormProps {
   defaultBarcode?: string;
   /** Create: vendor to start with (receiving: the bill's vendor). */
   defaultVendorId?: string;
+  /**
+   * Create (receiving): while the name is typed, show products that already exist
+   * so the same product is picked instead of making a copy (owner, 2026-11-08).
+   */
+  nameMatches?: {
+    search: (term: string) => Promise<NameMatch[]>;
+    onPick: (key: string) => void;
+  };
+}
+
+export interface NameMatch {
+  key: string;
+  label: string;
+  detail?: string;
+  thumb?: string | null;
 }
 
 type VariantWithCodes = ProductVariant & VariantCodeFields;
@@ -158,6 +173,7 @@ export default function ProductForm({
   defaultName = "",
   defaultBarcode = "",
   defaultVendorId = "",
+  nameMatches,
 }: ProductFormProps) {
   const { currency } = useCurrency();
   const searchParams = useSearchParams();
@@ -226,6 +242,32 @@ export default function ProductForm({
   // "Improve name": OpenAI on the server fixes spelling / capitals. `nameBefore` allows Undo.
   const [improving, setImproving] = useState(false);
   const [nameBefore, setNameBefore] = useState<string | null>(null);
+  // Products that already exist with a name like the one typed (create from receiving).
+  const [matches, setMatches] = useState<NameMatch[]>([]);
+  const [matchesFor, setMatchesFor] = useState("");
+  const [matchesHidden, setMatchesHidden] = useState(false);
+  const matchSeq = useRef(0);
+  useEffect(() => {
+    if (!nameMatches || mode !== "create") return;
+    const term = form.name.trim();
+    if (term.length < 3) {
+      setMatches([]);
+      return;
+    }
+    const my = ++matchSeq.current;
+    const t = setTimeout(() => {
+      nameMatches
+        .search(term)
+        .then((rows) => {
+          if (my !== matchSeq.current) return;
+          setMatches(rows.slice(0, 6));
+          setMatchesFor(term);
+        })
+        .catch(() => {});
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.name, mode]);
   const improveName = async () => {
     const typed = form.name.trim();
     if (!typed || improving) return;
@@ -980,6 +1022,7 @@ export default function ProductForm({
                       onChange={(e) => {
                         setField("name", e.target.value);
                         setNameBefore(null);
+                        setMatchesHidden(false);
                       }}
                     />
                     <button
@@ -1007,6 +1050,41 @@ export default function ProductForm({
                         Undo
                       </button>
                     </p>
+                  )}
+                  {nameMatches && !matchesHidden && matches.length > 0 && (
+                    <div className="mt-2 rounded-lg border border-honey-300 bg-honey-50/60">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-honey-200">
+                        <p className="text-xs font-semibold text-gray-800">
+                          Already in the shop — like “{matchesFor}”. Pick it to add more stock and print its labels:
+                        </p>
+                        <button type="button" onClick={() => setMatchesHidden(true)} className="text-xs text-gray-500 underline flex-shrink-0">
+                          No, it&apos;s new
+                        </button>
+                      </div>
+                      <ul className="divide-y divide-honey-100">
+                        {matches.map((m) => (
+                          <li key={m.key}>
+                            <button
+                              type="button"
+                              onClick={() => nameMatches.onPick(m.key)}
+                              className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-honey-100"
+                            >
+                              {m.thumb && isValidUrl(m.thumb) ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={m.thumb} alt="" className="h-9 w-9 flex-shrink-0 rounded object-cover" />
+                              ) : (
+                                <span className="h-9 w-9 flex-shrink-0 rounded bg-white border border-gray-200" />
+                              )}
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium text-gray-900">{m.label}</span>
+                                {m.detail && <span className="block truncate text-[11px] text-gray-500">{m.detail}</span>}
+                              </span>
+                              <span className="flex-shrink-0 rounded-md bg-honey-500 px-2 py-1 text-xs font-semibold text-gray-900">Use this</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                   {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
                 </div>

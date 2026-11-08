@@ -10,6 +10,10 @@ import ProductForm from '@/app/(routes)/admin/products/components/ProductForm';
 import type { Category } from '@/app/(routes)/admin/products/components/CategoriesTab';
 import { loadCreateTabData } from '@/app/(routes)/admin/products/services/productOptionsService';
 import type { ProductUI } from '@/app/(routes)/admin/products/services/productService';
+import type { NameMatch } from '@/app/(routes)/admin/products/components/ProductForm';
+import { purchasingApi } from '../../../_shared/purchasingApi';
+import type { ReceivingUnit } from '../../../_shared/types';
+import { formatRs } from '@/lib/storeApi';
 
 export default function FullProductModal({
   vendorName,
@@ -18,7 +22,15 @@ export default function FullProductModal({
   initialName = '',
   onClose,
   onCreated,
+  grnId,
+  billId,
+  onPickExisting,
 }: {
+  /** Receipt + bill: used to find products that already exist while the name is typed. */
+  grnId?: string;
+  billId?: string;
+  /** An existing product was picked instead of making a new one. */
+  onPickExisting?: (unit: ReceivingUnit) => void;
   vendorName: string;
   /** Pre-picked as the product's vendor. */
   vendorId?: string;
@@ -31,6 +43,33 @@ export default function FullProductModal({
 }) {
   const [data, setData] = useState<{ categories: Category[]; colorOptions: string[]; sizeOptions: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Products already in the shop with a name like the one typed.
+  const [found] = useState(() => new Map<string, ReceivingUnit>());
+  const nameMatches =
+    grnId && onPickExisting
+      ? {
+          search: async (term: string): Promise<NameMatch[]> => {
+            const units = await purchasingApi.grnLookup(grnId, term, billId);
+            found.clear();
+            return units.map((u, i) => {
+              const key = `${u.productId}:${u.variantId || ''}:${i}`;
+              found.set(key, u);
+              return {
+                key,
+                label: u.name || u.productName || 'Product',
+                detail: [u.code ? `#${u.code}` : '', u.salePrice ? `sells ${formatRs(u.salePrice)}` : '', typeof u.stockTotal === 'number' ? `${u.stockTotal} in stock` : '', u.lastVendorName ? `last from ${u.lastVendorName}` : '']
+                  .filter(Boolean)
+                  .join(' · '),
+                thumb: u.thumbnailUrl || null,
+              };
+            });
+          },
+          onPick: (key: string) => {
+            const u = found.get(key);
+            if (u) onPickExisting(u);
+          },
+        }
+      : undefined;
   const looksLikeCode = /^[0-9A-Z-]{6,}$/i.test(initialName.trim()) && /\d/.test(initialName);
 
   useEffect(() => {
@@ -71,6 +110,7 @@ export default function FullProductModal({
           defaultName={looksLikeCode ? '' : initialName.trim()}
           defaultBarcode={looksLikeCode ? initialName.trim() : ''}
           defaultVendorId={vendorId || ''}
+          nameMatches={nameMatches}
           categories={data.categories}
           colorOptions={data.colorOptions}
           sizeOptions={data.sizeOptions}

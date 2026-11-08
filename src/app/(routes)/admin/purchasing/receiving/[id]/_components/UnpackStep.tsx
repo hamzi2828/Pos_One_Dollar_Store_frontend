@@ -681,7 +681,21 @@ export default function UnpackStep({
       </div>
 
       {newProduct !== null && canCreateProducts && (
-        <FullProductModal vendorName={bill.vendorName} vendorId={boxOf(bill.bill)?.vendor || undefined} boxLabel={boxLabel} initialName={newProduct} onClose={() => setNewProduct(null)} onCreated={afterCreate} />
+        <FullProductModal
+          vendorName={bill.vendorName}
+          vendorId={boxOf(bill.bill)?.vendor || undefined}
+          boxLabel={boxLabel}
+          initialName={newProduct}
+          onClose={() => setNewProduct(null)}
+          onCreated={afterCreate}
+          grnId={grn._id}
+          billId={bill.bill}
+          onPickExisting={(u) => {
+            // Same product already in the shop: enter more pieces of it (labels print as usual).
+            setNewProduct(null);
+            pick(u);
+          }}
+        />
       )}
       {newProduct !== null && !canCreateProducts && (
         <QuickProductModal
