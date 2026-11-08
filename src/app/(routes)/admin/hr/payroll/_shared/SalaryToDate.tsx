@@ -20,6 +20,13 @@ function hoursOf(min: number): string {
 export default function SalaryToDate() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Long-day rule from the HR policy (owner: past 12 h in a day = × 2).
+  const dblRow = data?.rows.find((r) => (r.doubleAfterHours || 0) > 0);
+  const dblAfter = dblRow?.doubleAfterHours || 0;
+  const dblRate = dblRow?.doubleRate ?? 2;
+  const dblLabel = `Over ${dblAfter} h (×${dblRate})`;
+  const normalMin = (r: Data['rows'][number]) => (r.otNormalMinutes ?? r.otApprovedMinutes) || 0;
+  const normalRs = (r: Data['rows'][number]) => r.overtimeNormal ?? r.overtime;
 
   useEffect(() => {
     payrollApi
@@ -60,7 +67,12 @@ export default function SalaryToDate() {
                   <th className={`${thClass} text-right`}>Salary</th>
                   <th className={`${thClass} text-right`}>Days so far</th>
                   <th className={`${thClass} text-right`}>Absent / late</th>
-                  <th className={`${thClass} text-right`} title="Approved overtime is paid. Reject it in Fix before payroll if needed.">Overtime</th>
+                  <th className={`${thClass} text-right`} title="Approved overtime at the normal hourly rate. Reject it in Fix before payroll if needed.">Overtime</th>
+                  {dblAfter > 0 && (
+                    <th className={`${thClass} text-right`} title={`Approved overtime worked past ${dblAfter} hours in one day is paid at ${dblRate}× the hourly rate.`}>
+                      {dblLabel}
+                    </th>
+                  )}
                   <th className={`${thClass} text-right`}>Earned so far</th>
                   <th className={`${thClass} text-right`}>Advances / deductions</th>
                   <th className={`${thClass} text-right`}>Payable now</th>
@@ -92,16 +104,28 @@ export default function SalaryToDate() {
                       )}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums`}>
-                      {r.otApprovedMinutes ? (
+                      {normalMin(r) ? (
                         <span className="font-semibold text-green-700">
-                          {hoursOf(r.otApprovedMinutes)} approved
-                          <span className="block text-[11px] font-normal">{formatRs(r.overtime)}</span>
+                          {hoursOf(normalMin(r))} approved
+                          <span className="block text-[11px] font-normal">{formatRs(normalRs(r))}</span>
                         </span>
                       ) : (
                         !r.otPendingMinutes && <span className="text-gray-400">—</span>
                       )}
                       {r.otPendingMinutes ? <span className="block text-[11px] text-amber-700">{hoursOf(r.otPendingMinutes)} waiting</span> : null}
                     </td>
+                    {dblAfter > 0 && (
+                      <td className={`${tdClass} text-right tabular-nums`}>
+                        {r.otDoubleMinutes ? (
+                          <span className="font-semibold text-green-700">
+                            {hoursOf(r.otDoubleMinutes)}
+                            <span className="block text-[11px] font-normal">{formatRs(r.overtimeDouble || 0)}</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className={`${tdClass} text-right tabular-nums font-semibold text-gray-900`}>
                       {formatRs(r.earned)}
                     </td>
@@ -127,8 +151,13 @@ export default function SalaryToDate() {
                   <td className={tdClass} />
                   <td className={tdClass} />
                   <td className={`${tdClass} text-right tabular-nums text-green-700`}>
-                    {hoursOf(data.rows.reduce((t, r) => t + (r.otApprovedMinutes || 0), 0)) || '—'}
+                    {hoursOf(data.rows.reduce((t, r) => t + normalMin(r), 0)) || '—'}
                   </td>
+                  {dblAfter > 0 && (
+                    <td className={`${tdClass} text-right tabular-nums text-green-700`}>
+                      {hoursOf(data.rows.reduce((t, r) => t + (r.otDoubleMinutes || 0), 0)) || '—'}
+                    </td>
+                  )}
                   <td className={`${tdClass} text-right tabular-nums`}>{formatRs(data.totals.earned)}</td>
                   <td className={`${tdClass} text-right tabular-nums text-red-700`}>{data.totals.due > 0 ? `−${formatRs(data.totals.due)}` : '—'}</td>
                   <td className={`${tdClass} text-right tabular-nums`}>{formatRs(data.totals.payableNow)}</td>
@@ -155,7 +184,12 @@ export default function SalaryToDate() {
                 <p className="mt-1 text-[11px] text-gray-600">
                   Salary {r.payType === 'daily' ? `${formatRs(r.dailyRate)} / day` : formatRs(r.salary)}
                   {r.due > 0 ? ` · advances / deductions −${formatRs(r.due)}` : ''} · payable now <strong>{formatRs(r.payableNow)}</strong>
-                  {r.otApprovedMinutes ? <span className="text-green-700"> · overtime {hoursOf(r.otApprovedMinutes)} {formatRs(r.overtime)}</span> : null}
+                  {normalMin(r) ? <span className="text-green-700"> · overtime {hoursOf(normalMin(r))} {formatRs(normalRs(r))}</span> : null}
+                  {r.otDoubleMinutes ? (
+                    <span className="text-green-700">
+                      {' '}· {dblLabel.toLowerCase()} {hoursOf(r.otDoubleMinutes)} {formatRs(r.overtimeDouble || 0)}
+                    </span>
+                  ) : null}
                   {r.otPendingMinutes ? <span className="text-amber-700"> · {hoursOf(r.otPendingMinutes)} waiting</span> : null}
                   {r.tips ? <span className="font-semibold text-green-700"> · tips taken {formatRs(r.tips)}</span> : null}
                 </p>
@@ -163,7 +197,7 @@ export default function SalaryToDate() {
             ))}
           </div>
           <p className="px-4 py-2 text-[11px] text-gray-500 border-t border-gray-100">
-            Worked out from attendance up to today. Overtime counts only once approved. The final figure is made when you run payroll for the month.
+            Worked out from attendance up to today. Overtime counts only once approved.{dblAfter > 0 ? ` Hours past ${dblAfter} h in one day are paid at ${dblRate}× the hourly rate.` : ''} The final figure is made when you run payroll for the month.
           </p>
         </>
       )}

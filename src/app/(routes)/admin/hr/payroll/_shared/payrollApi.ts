@@ -323,6 +323,13 @@ export interface SalaryToDateRow {
   /** Overtime minutes this month: approved (paid) and waiting for approval. */
   otApprovedMinutes?: number;
   otPendingMinutes?: number;
+  /** Overtime split: normal rate vs. hours past `doubleAfterHours` in one day (× doubleRate). */
+  overtimeNormal?: number;
+  overtimeDouble?: number;
+  otNormalMinutes?: number;
+  otDoubleMinutes?: number;
+  doubleAfterHours?: number;
+  doubleRate?: number;
   /** Tips given this month (not part of salary). */
   tips?: number;
   tipCount?: number;
