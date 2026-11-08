@@ -448,9 +448,15 @@ function EditEntryModal({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.product, entry.variantId, entry.bill, entry._id, perSale]);
+  // The print log (own barcodes + stickers) is per bill + product, not per entry. With
+  // another entry of this product on the same bill we cannot tell which pieces are this
+  // entry's, so keep the entry's own qty and never fill it in.
+  const shared = (grn.entries || []).some(
+    (x) => !x.undone && x._id !== entry._id && x.bill === entry.bill && x.product === entry.product && (x.variantId || null) === (entry.variantId || null)
+  );
   useEffect(() => {
-    if (codeTotal > 0) setQty(String(codeTotal + stickerSales));
-  }, [codeTotal, stickerSales]);
+    if (codeTotal > 0 && !shared) setQty(String(codeTotal + stickerSales));
+  }, [codeTotal, stickerSales, shared]);
   useEffect(() => {
     let alive = true;
     storeApi
@@ -602,7 +608,7 @@ function EditEntryModal({
               onChange={(ev) => setQty(ev.target.value)}
               className={`${inputClass} ${codeTotal > 0 ? 'bg-sky-50' : ''}`}
             />
-            {codeTotal > 0 && (
+            {codeTotal > 0 && !shared && (
               <span className="mt-0.5 block text-[11px] text-sky-800">
                 {stickerSales > 0 ? `${codeTotal} own barcode + ${stickerSales} stickers printed` : 'Total of the barcodes below'} · you can change it
               </span>
