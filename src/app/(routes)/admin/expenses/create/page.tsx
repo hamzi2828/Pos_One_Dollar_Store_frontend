@@ -2,9 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Receipt, FileText, CreditCard, Upload, X, Image as ImageIcon, Check, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Receipt, FileText, CreditCard, X, Image as ImageIcon, Check, Plus, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { expenseService } from '../service/expenseService';
 import type { CreateExpenseData, PaymentMethod, ExpenseCategoryItem } from '../types';
 import { PAYMENT_METHODS } from '../types';
@@ -14,11 +13,11 @@ import BankSelect from '../components/BankSelect';
 import CounterSelect from '../components/CounterSelect';
 import { tillApi } from '@/components/store/TillStatusBar';
 import InvestmentBillSelect from '../components/InvestmentBillSelect';
+import ReceiptsPicker from '../components/ReceiptsPicker';
 import LoanPersonPicker, { YesNo } from '@/components/finance/LoanPersonPicker';
 
 export default function CreateExpensePage() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Categories from API (dynamic only)
   const [availableCategories, setAvailableCategories] = useState<ExpenseCategoryItem[]>([]);
@@ -64,9 +63,8 @@ export default function CreateExpensePage() {
   const [lenderName, setLenderName] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Receipt file
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  // Receipt / slip images (max 10)
+  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
 
   // UI State
   const [loading, setLoading] = useState(false);
@@ -191,34 +189,6 @@ export default function CreateExpensePage() {
     });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-      setReceiptFile(file);
-      setReceiptPreview(URL.createObjectURL(file));
-      setError(null);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setReceiptFile(null);
-    if (receiptPreview) {
-      URL.revokeObjectURL(receiptPreview);
-      setReceiptPreview(null);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitLockRef.current) return;
@@ -261,10 +231,11 @@ export default function CreateExpensePage() {
         notes: notes.trim() || undefined,
       };
 
-      await expenseService.createExpense(expenseData, receiptFile || undefined);
+      await expenseService.createExpense(expenseData, receiptFiles);
       router.push('/admin/expenses');
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create expense';
+      const apiMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const errorMessage = apiMsg || (err instanceof Error ? err.message : 'Failed to create expense');
       setError(errorMessage);
     } finally {
       submitLockRef.current = false;
@@ -608,48 +579,10 @@ export default function CreateExpensePage() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
             <ImageIcon className="h-5 w-5 text-honey-700" />
-            <h2 className="text-lg font-semibold text-gray-900">Receipt / Slip Image</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Receipt / Slip Images</h2>
           </div>
 
-          <div className="space-y-4">
-            {receiptPreview ? (
-              <div className="relative inline-block">
-                <Image
-                  src={receiptPreview}
-                  alt="Receipt preview"
-                  width={200}
-                  height={200}
-                  className="rounded-lg border border-gray-200 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveFile}
-                  disabled={loading}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => { if (!loading) fileInputRef.current?.click(); }}
-                aria-disabled={loading}
-                className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-honey-500'}`}
-              >
-                <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Click to upload receipt image</p>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG, JPEG up to 10MB</p>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-              disabled={loading}
-            />
-          </div>
+          <ReceiptsPicker files={receiptFiles} onFilesChange={setReceiptFiles} disabled={loading} onError={setError} />
         </div>
 
         {/* Notes */}

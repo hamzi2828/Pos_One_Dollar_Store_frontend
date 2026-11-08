@@ -33,10 +33,29 @@ export interface Expense {
   reference: string;
   notes: string;
   receipt: string | null;
+  /** All receipt / slip images (old records: the single receipt). */
+  receipts?: ExpenseReceipt[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+/** One receipt / slip image of an expense. */
+export interface ExpenseReceipt {
+  url: string;
+  originalName?: string;
+  uploadedAt?: string | null;
+}
+
+/** Most receipt images per expense. */
+export const MAX_RECEIPTS = 10;
+
+/** Receipts of an expense; old records only have `receipt`. */
+export const receiptsOf = (e: { receipts?: ExpenseReceipt[] | null; receipt?: string | null }): ExpenseReceipt[] => {
+  const list = (e.receipts || []).filter((r) => r && r.url);
+  if (list.length) return list;
+  return e.receipt ? [{ url: e.receipt }] : [];
+};
 
 export interface ExpenseAdjustment {
   amount: number; // + more spent, − less
@@ -65,6 +84,7 @@ export interface RawExpense {
   reference?: string;
   notes?: string;
   receipt?: string | null;
+  receipts?: ExpenseReceipt[];
   isActive?: boolean;
   createdAt?: string | Date;
   updatedAt?: string | Date;

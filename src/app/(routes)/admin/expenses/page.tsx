@@ -15,6 +15,8 @@ const PkrIcon = ({ className }: { className?: string }) => (
 import { expenseService } from './service/expenseService';
 import { CounterTag } from './components/CounterSelect';
 import type { Expense, RawExpense, ExpenseCategory, PaymentMethod, ExpenseSummary, ExpenseCategoryItem } from './types';
+import { receiptsOf } from './types';
+import ReceiptThumbs from '../vendors/components/ReceiptThumbs';
 
 const expensesPerPage = 10;
 
@@ -157,6 +159,7 @@ const ExpensesPage = () => {
         reference: String(e.reference ?? ''),
         notes: String(e.notes ?? ''),
         receipt: e.receipt || null,
+        receipts: receiptsOf(e),
         isActive: typeof e.isActive === 'boolean' ? e.isActive : true,
         createdAt: String(e.createdAt ?? new Date().toISOString()),
         updatedAt: String(e.updatedAt ?? new Date().toISOString()),
@@ -478,6 +481,10 @@ const ExpensesPage = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{expense.title}</div>
+                          {/* Receipt / slip images: click opens full size */}
+                          <div className="max-w-[16rem] whitespace-normal">
+                            <ReceiptThumbs urls={(expense.receipts || []).map((r) => r.url)} size={28} />
+                          </div>
                         </div>
                       </div>
                     </td>

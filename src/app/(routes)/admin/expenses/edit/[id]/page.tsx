@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Loader2, Receipt, FileText, CreditCard, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Receipt, FileText, CreditCard, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { expenseService } from '../../service/expenseService';
-import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod } from '../../types';
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS } from '../../types';
+import type { UpdateExpenseData, RawExpense, ExpenseCategory, PaymentMethod, ExpenseReceipt } from '../../types';
+import { EXPENSE_CATEGORIES, PAYMENT_METHODS, receiptsOf } from '../../types';
+import ReceiptsPicker from '../../components/ReceiptsPicker';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import BankSelect from '../../components/BankSelect';
 import CounterSelect from '../../components/CounterSelect';
@@ -19,7 +19,6 @@ export default function EditExpensePage() {
   const router = useRouter();
   const params = useParams();
   const expenseId = params.id as string;
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Expense Info
   const [title, setTitle] = useState('');
@@ -38,11 +37,10 @@ export default function EditExpensePage() {
   const [notes, setNotes] = useState('');
   const [isActive, setIsActive] = useState(true);
 
-  // Receipt
-  const [existingReceipt, setExistingReceipt] = useState<string | null>(null);
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [removeReceipt, setRemoveReceipt] = useState(false);
+  // Receipt / slip images: saved ones, ones to remove on save, new files
+  const [savedReceipts, setSavedReceipts] = useState<ExpenseReceipt[]>([]);
+  const [removedUrls, setRemovedUrls] = useState<string[]>([]);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
 
   // UI State
   const [loading, setLoading] = useState(false);
@@ -73,7 +71,7 @@ export default function EditExpensePage() {
         setLinked(data.investment ? { id: String(data.investment), title: data.investmentTitle || 'Investment bill', mine: Number(data.amount) || 0 } : null);
         setNotes(data.notes || '');
         setIsActive(typeof data.isActive === 'boolean' ? data.isActive : true);
-        setExistingReceipt(data.receipt || null);
+        setSavedReceipts(receiptsOf(data));
       } catch (err) {
         console.error('Error fetching expense:', err);
         setError('Failed to load expense data');
@@ -86,40 +84,6 @@ export default function EditExpensePage() {
       fetchExpense();
     }
   }, [expenseId]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-      setReceiptFile(file);
-      setReceiptPreview(URL.createObjectURL(file));
-      setRemoveReceipt(false);
-      setError(null);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setReceiptFile(null);
-    if (receiptPreview) {
-      URL.revokeObjectURL(receiptPreview);
-      setReceiptPreview(null);
-    }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleRemoveExistingReceipt = () => {
-    setExistingReceipt(null);
-    setRemoveReceipt(true);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,10 +121,11 @@ export default function EditExpensePage() {
         isActive,
       };
 
-      await expenseService.updateExpense(expenseId, expenseData, receiptFile || undefined, removeReceipt);
+      await expenseService.updateExpense(expenseId, expenseData, newFiles, removedUrls);
       router.push('/admin/expenses');
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update expense';
+      const apiMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const errorMessage = apiMsg || (err instanceof Error ? err.message : 'Failed to update expense');
       setError(errorMessage);
     } finally {
       submitLockRef.current = false;
@@ -337,86 +302,25 @@ export default function EditExpensePage() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center gap-2 mb-4">
             <ImageIcon className="h-5 w-5 text-honey-700" />
-            <h2 className="text-lg font-semibold text-gray-900">Receipt / Slip Image</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Receipt / Slip Images</h2>
           </div>
 
-          <div className="space-y-4">
-            {/* Show existing receipt */}
-            {existingReceipt && !receiptFile && (
-              <div className="relative inline-block">
-                <Image
-                  src={existingReceipt}
-                  alt="Current receipt"
-                  width={200}
-                  height={200}
-                  className="rounded-lg border border-gray-200 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveExistingReceipt}
-                  disabled={loading}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Show new file preview */}
-            {receiptPreview && (
-              <div className="relative inline-block">
-                <Image
-                  src={receiptPreview}
-                  alt="Receipt preview"
-                  width={200}
-                  height={200}
-                  className="rounded-lg border border-gray-200 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveFile}
-                  disabled={loading}
-                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Show upload area if no receipt */}
-            {!existingReceipt && !receiptPreview && (
-              <div
-                onClick={() => { if (!loading) fileInputRef.current?.click(); }}
-                aria-disabled={loading}
-                className={`border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-honey-500'}`}
-              >
-                <Upload className="h-10 w-10 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">Click to upload receipt image</p>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG, JPEG up to 10MB</p>
-              </div>
-            )}
-
-            {/* Change receipt button */}
-            {(existingReceipt || receiptPreview) && (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={loading}
-                className="text-sm text-honey-700 hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                Change receipt image
+          <ReceiptsPicker
+            existing={savedReceipts.filter((r) => !removedUrls.includes(r.url))}
+            onRemoveExisting={(url) => setRemovedUrls((prev) => [...prev, url])}
+            files={newFiles}
+            onFilesChange={setNewFiles}
+            disabled={loading}
+            onError={setError}
+          />
+          {removedUrls.length > 0 && (
+            <p className="mt-2 text-xs text-amber-700">
+              {removedUrls.length} saved image{removedUrls.length > 1 ? 's' : ''} will be removed when you save.{' '}
+              <button type="button" onClick={() => setRemovedUrls([])} disabled={loading} className="underline">
+                Undo
               </button>
-            )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-              disabled={loading}
-            />
-          </div>
+            </p>
+          )}
         </div>
 
         {/* Notes */}

@@ -5,6 +5,36 @@ import type { Expense, CreateExpenseData, UpdateExpenseData, PaymentMethod } fro
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
+/**
+ * Phone photos are big; the server takes at most ~4.5 MB per request. Shrink
+ * each slip to 1600 px on the long side (JPEG) so 10 slips still fit and stay readable.
+ * Small files and anything that cannot be drawn are sent as they are.
+ */
+async function shrinkImage(file: File): Promise<File> {
+  if (typeof document === 'undefined' || !file.type.startsWith('image/') || file.type === 'image/gif' || file.size < 350 * 1024) return file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale);
+    const h = Math.round(bmp.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close?.();
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.8));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+const shrinkAll = (files: File[]) => Promise.all(files.map(shrinkImage));
+
 export interface ExpenseListParams extends BasePagingParams {
   category?: string;
   paymentMethod?: PaymentMethod;
@@ -84,7 +114,7 @@ export const expenseService = {
   },
 
   // Create expense
-  async createExpense(expenseData: CreateExpenseData, receiptFile?: File) {
+  async createExpense(expenseData: CreateExpenseData, receiptFiles: File[] = []) {
     try {
       const formData = new FormData();
       formData.append('title', expenseData.title);
@@ -107,7 +137,8 @@ export const expenseService = {
       }
       if (expenseData.reference) formData.append('reference', expenseData.reference);
       if (expenseData.notes) formData.append('notes', expenseData.notes);
-      if (receiptFile) formData.append('receipt', receiptFile);
+      // Receipt images (up to 10)
+      (await shrinkAll(receiptFiles)).forEach((f) => formData.append('receipts', f));
 
       const response = await axios.post(`${API_BASE_URL}/expenses`, formData, {
         headers: {
@@ -122,7 +153,8 @@ export const expenseService = {
   },
 
   // Update expense
-  async updateExpense(expenseId: string, expenseData: UpdateExpenseData, receiptFile?: File, removeReceipt?: boolean) {
+  // newFiles are added; removeReceipts are urls of saved images to drop.
+  async updateExpense(expenseId: string, expenseData: UpdateExpenseData, newFiles: File[] = [], removeReceipts: string[] = []) {
     try {
       const formData = new FormData();
       if (expenseData.title !== undefined) formData.append('title', expenseData.title);
@@ -136,8 +168,8 @@ export const expenseService = {
       if (expenseData.reference !== undefined) formData.append('reference', expenseData.reference);
       if (expenseData.notes !== undefined) formData.append('notes', expenseData.notes);
       if (expenseData.isActive !== undefined) formData.append('isActive', String(expenseData.isActive));
-      if (receiptFile) formData.append('receipt', receiptFile);
-      if (removeReceipt) formData.append('removeReceipt', 'true');
+      (await shrinkAll(newFiles)).forEach((f) => formData.append('receipts', f));
+      if (removeReceipts.length) formData.append('removeReceipts', JSON.stringify(removeReceipts));
 
       const response = await axios.put(`${API_BASE_URL}/expenses/${expenseId}`, formData, {
         headers: {
