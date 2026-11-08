@@ -295,6 +295,8 @@ export interface POSOrderOffline {
 }
 
 export interface POSOrder {
+  /** Sale counter the bill was rung on (list endpoints fill name). */
+  counter?: string | { _id: string; name?: string; code?: string } | null;
   _id: string;
   orderNumber: string;
   items: POSOrderItem[];

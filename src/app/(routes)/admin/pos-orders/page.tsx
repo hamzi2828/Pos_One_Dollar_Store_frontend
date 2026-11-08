@@ -495,7 +495,18 @@ function OrderRow({
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3">
-        <div className="font-medium text-gray-900">{order.orderNumber}</div>
+        <div className="font-medium text-gray-900">
+          {order.orderNumber}
+          {order.counter && typeof order.counter === 'object' && order.counter.name && (
+            <span
+              className={`ml-1.5 inline-block rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold ${
+                /2/.test(order.counter.name) ? 'bg-violet-100 text-violet-800' : 'bg-sky-100 text-sky-800'
+              }`}
+            >
+              {order.counter.name}
+            </span>
+          )}
+        </div>
         {order.offline?.clientId && (
           <span
             className="inline-flex mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800"
