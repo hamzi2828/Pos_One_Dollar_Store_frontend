@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { ErrorBox, inputClass, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { attendanceApi, clock, downloadSheetCsv, hoursLabel, mins, shopMonth, type Sheet, type SheetCell, type SheetEmployee } from '../services/attendanceApi';
-import { CODE_STYLE, MonthPicker, cardClass, statusLabel } from './AttendanceBits';
+import { CODE_STYLE, LATE_EXCUSED_STYLE, MonthPicker, cardClass, statusLabel } from './AttendanceBits';
 import DayModal from './DayModal';
 
 /** Compact worked time for under a grid code: 8h, 8.5h, 45m. */
@@ -39,7 +39,7 @@ function cellTitle(c: SheetCell, name: string) {
   if (c.checkOut) parts.push(`out ${clock(c.checkOut)}`);
   if (c.workedMinutes) parts.push(`worked ${mins(c.workedMinutes)}`);
   else if (c.checkIn && !c.checkOut) parts.push('no check-out yet');
-  if (c.lateMinutes) parts.push(`${mins(c.lateMinutes)} late`);
+  if (c.lateMinutes) parts.push(`${mins(c.lateMinutes)} late${c.lateExcused ? ' (excused, no cut)' : ''}`);
   if (c.locked) parts.push('locked by payroll');
   if (c.overtimeMinutes) parts.push(`OT ${mins(c.overtimeMinutes)}${c.overtimeApproved === null ? ' (waiting)' : c.overtimeApproved ? '' : ' (rejected)'}`);
   return parts.join(' · ');
@@ -191,9 +191,10 @@ export default function MonthTab({
                             disabled={!clickable}
                             onClick={() => setOpen({ emp: e, date: c.date })}
                             title={cellTitle(c, e.name)}
-                            className={`relative w-7 h-7 rounded text-[10px] font-bold ${CODE_STYLE[c.code] ?? CODE_STYLE['']} ${clickable ? 'hover:ring-2 hover:ring-honey-500' : 'cursor-default'}`}
+                            className={`relative w-7 h-7 rounded text-[10px] font-bold ${c.lateExcused ? LATE_EXCUSED_STYLE : CODE_STYLE[c.code] ?? CODE_STYLE['']} ${clickable ? 'hover:ring-2 hover:ring-honey-500' : 'cursor-default'}`}
                           >
                             {c.code}
+                            {c.lateExcused && <span className="absolute -top-1 -left-0.5 text-[9px] leading-none text-emerald-700" aria-hidden>✓</span>}
                             {c.overtimeMinutes > 0 && c.overtimeApproved === null && <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-honey-500 ring-1 ring-white" />}
                             {c.locked && <Lock className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-sm bg-white text-gray-500" aria-hidden />}
                           </button>
@@ -218,8 +219,13 @@ export default function MonthTab({
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 border-t border-gray-100 text-[11px] text-gray-600">
             {sheet.legend.map((l) => (
-              <span key={l.code} className="inline-flex items-center gap-1">
-                <span className={`inline-flex items-center justify-center w-6 h-5 rounded text-[10px] font-bold ${CODE_STYLE[l.code]}`}>{l.code}</span>
+              <span key={`${l.code}-${l.status}`} className="inline-flex items-center gap-1">
+                <span
+                  className={`inline-flex items-center justify-center w-6 h-5 rounded text-[10px] font-bold ${l.status === 'late_excused' ? LATE_EXCUSED_STYLE : CODE_STYLE[l.code]}`}
+                >
+                  {l.code}
+                  {l.status === 'late_excused' ? '✓' : ''}
+                </span>
                 {l.label}
               </span>
             ))}

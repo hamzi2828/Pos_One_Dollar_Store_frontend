@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { ErrorBox, inputClass, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { attendanceApi, clock, fileUrl, mins, planText, shopDay, type Board, type BoardRow } from '../services/attendanceApi';
-import { Avatar, DayPicker, PhotoViewer, SourceTag, StatTile, StatusChip, cardClass } from './AttendanceBits';
+import { Avatar, DayPicker, LateBadge, PhotoViewer, SourceTag, StatTile, StatusChip, cardClass } from './AttendanceBits';
 import DayModal from './DayModal';
 
 type Filter = 'all' | 'scheduled' | 'in' | 'late' | 'pending' | 'absent' | 'missing_out' | 'leave' | 'off' | 'holiday' | 'overtime';
@@ -221,7 +221,7 @@ export default function TodayTab({ canEdit }: { canEdit: boolean }) {
                         {r.overBreakMinutes ? ` · ${mins(r.overBreakMinutes)} over` : ''}
                       </span>
                     )}
-                    {r.lateMinutes > 0 && <span className="text-xs text-amber-700 font-medium">{mins(r.lateMinutes)} late</span>}
+                    {r.lateMinutes > 0 && <LateBadge minutes={r.lateMinutes} excused={r.lateExcused} small />}
                     {r.earlyLeaveMinutes > 0 && <span className="text-xs text-amber-700">left {mins(r.earlyLeaveMinutes)} early</span>}
                     {r.workedMinutes > 0 && <span className="text-xs text-gray-500">worked {mins(r.workedMinutes)}</span>}
                     {r.overtimeMinutes > 0 && (

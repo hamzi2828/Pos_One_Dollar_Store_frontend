@@ -3,9 +3,12 @@
 // One employee's shop day: plan, times (fingerprint or corrected), minutes,
 // fingerprint punches, correction history — plus "Correct times" (reason
 // required: corrections are the only change made outside the fingerprint
-// desktop app) and overtime approve / reject. Locked days are read-only.
+// desktop app), overtime approve / reject and "Don't count this late" (reason
+// required, can be undone: the late stays shown but is not cut). Locked days
+// are read-only.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { CalendarClock, Check, Fingerprint, History, Loader2, Lock, Pencil, X } from 'lucide-react';
+import Link from 'next/link';
+import { CalendarClock, Check, CircleSlash, Fingerprint, History, Info, Loader2, Lock, Pencil, RotateCcw, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ErrorBox, Field, Modal, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { apiErrorMessage } from '@/lib/storeApi';
@@ -23,12 +26,13 @@ import {
   type Correction,
   type DayDetail,
 } from '../services/attendanceApi';
-import { PhotoViewer, SourceTag, StatusChip } from './AttendanceBits';
+import { LateBadge, PhotoViewer, SourceTag, StatusChip } from './AttendanceBits';
 
-const FIELD_LABEL: Record<string, string> = { checkIn: 'Check-in', checkOut: 'Check-out', overtime: 'Overtime', status: 'Status' };
+const FIELD_LABEL: Record<string, string> = { checkIn: 'Check-in', checkOut: 'Check-out', overtime: 'Overtime', status: 'Status', lateExcuse: 'Late' };
 
 function correctionValue(c: Correction, v: string | boolean | null) {
   if (c.field === 'overtime') return v === true ? 'approved' : v === false ? 'rejected' : 'waiting';
+  if (c.field === 'lateExcuse') return v === true ? 'not counted' : 'counted';
   return v ? `${clock(String(v))} (${dayLabel(shopDay(String(v)), { day: 'numeric', month: 'short' })})` : 'empty';
 }
 
@@ -60,6 +64,9 @@ export default function DayModal({
   const [outTime, setOutTime] = useState('');
   const [reason, setReason] = useState('');
   const [otReason, setOtReason] = useState('');
+  const [excusing, setExcusing] = useState(false);
+  const [excuseReason, setExcuseReason] = useState('');
+  const [excuseError, setExcuseError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [photo, setPhoto] = useState<{ url: string; caption: string } | null>(null);
@@ -96,6 +103,8 @@ export default function DayModal({
   }, [load]);
 
   const editable = canEdit && !!day && !day.locked && !day.notEmployed;
+  // Worked on a day with no shift / roster: late can't be worked out.
+  const noShift = !!day && day.plan.type === 'none' && !day.notEmployed;
 
   const save = async () => {
     if (lock.current || !day) return;
@@ -150,6 +159,33 @@ export default function DayModal({
     }
   };
 
+  /** Don't count this late (reason required) / count it again. */
+  const setLateExcused = async (excused: boolean) => {
+    if (lock.current || !day) return;
+    if (excused && !excuseReason.trim()) {
+      setExcuseError('Write a short reason, e.g. "Bus was late".');
+      return;
+    }
+    lock.current = true;
+    setSaving(true);
+    setExcuseError(null);
+    try {
+      const res = await attendanceApi.excuseLate({ employeeId, date, excused, reason: excused ? excuseReason.trim() : undefined });
+      toast.success(res.message || (excused ? 'Late not counted' : 'Late counted again'));
+      setDay(res.data);
+      setExcusing(false);
+      setExcuseReason('');
+      onChanged();
+    } catch (e) {
+      const msg = apiErrorMessage(e, 'Could not save.');
+      if (excused) setExcuseError(msg);
+      else toast.error(msg);
+    } finally {
+      lock.current = false;
+      setSaving(false);
+    }
+  };
+
   const otState = !day?.overtimeMinutes ? null : day.overtimeApproved === true ? 'Approved' : day.overtimeApproved === false ? 'Rejected' : 'Waiting for approval';
 
   return (
@@ -197,11 +233,35 @@ export default function DayModal({
         </div>
       ) : day ? (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusChip status={day.status} />
-            <span className="text-sm text-gray-600">{planText(day.plan)}</span>
-            {day.policyName && <span className="text-[11px] text-gray-400">· {day.policyName}</span>}
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusChip status={day.status} />
+              <LateBadge minutes={day.lateMinutes} excused={day.lateExcused} />
+              <span className="text-sm text-gray-600">{planText(day.plan)}</span>
+              {day.policyName && <span className="text-[11px] text-gray-400">· {day.policyName}</span>}
+            </div>
+            {day.plan.type === 'shift' && day.lateMinutes > 0 && (
+              <p className="text-[11px] text-gray-500">
+                Shift {clock(day.plan.start)} · grace {day.graceMinutes ?? 0} min · checked in {clock(day.checkIn)}
+              </p>
+            )}
           </div>
+          {noShift && (
+            <div className="flex items-start gap-2 px-3 py-2 text-xs bg-blue-50 border border-blue-200 rounded-lg text-blue-900">
+              <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+              <span>
+                No shift on this day, so late can&apos;t be worked out — set a shift in{' '}
+                <Link href={`/admin/hr/roster?employeeId=${employeeId}&date=${date}`} className="font-semibold underline">
+                  Roster
+                </Link>{' '}
+                or on the{' '}
+                <Link href={`/admin/hr/employees/${employeeId}/edit`} className="font-semibold underline">
+                  employee
+                </Link>
+                .
+              </span>
+            </div>
+          )}
           {day.locked && (
             <div className="flex items-center gap-2 px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-600">
               <Lock className="h-4 w-4" /> Payroll for this month is approved — this day can no longer be changed.
@@ -222,7 +282,11 @@ export default function DayModal({
             <Fact label="Check-in" value={day.checkIn ? clock(day.checkIn) : '—'} tag={<SourceTag source={day.inSource} />} />
             <Fact label="Check-out" value={day.checkOut ? clock(day.checkOut) : '—'} tag={<SourceTag source={day.outSource} />} />
             <Fact label="Worked" value={day.workedMinutes ? mins(day.workedMinutes) : '—'} />
-            <Fact label="Late" value={day.lateMinutes ? mins(day.lateMinutes) : '—'} warn={!!day.lateMinutes} />
+            <Fact
+              label="Late"
+              value={day.lateMinutes ? `${mins(day.lateMinutes)}${day.lateExcused ? ' · excused' : ''}` : noShift ? 'No shift' : '—'}
+              warn={!!day.lateMinutes && !day.lateExcused}
+            />
             <Fact label="Left early" value={day.earlyLeaveMinutes ? mins(day.earlyLeaveMinutes) : '—'} warn={!!day.earlyLeaveMinutes} />
             <Fact label="Overtime" value={day.overtimeMinutes ? `${mins(day.overtimeMinutes)} · ${otState}` : '—'} />
             <Fact
@@ -246,6 +310,64 @@ export default function DayModal({
                   <X className="h-4 w-4" /> Reject
                 </button>
               </div>
+            </div>
+          )}
+
+          {day.lateMinutes > 0 && day.lateExcused && (
+            <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50 space-y-2">
+              <p className="text-xs text-emerald-900">
+                <strong>Late {mins(day.lateMinutes)} — not counted (no cut).</strong>
+                {day.lateExcuse?.reason ? ` “${day.lateExcuse.reason}”` : ''}
+                {day.lateExcuse?.byName ? ` — ${day.lateExcuse.byName}` : ''}
+              </p>
+              {editable && (
+                <button type="button" onClick={() => setLateExcused(false)} disabled={saving} className={secondaryBtn}>
+                  <RotateCcw className="h-4 w-4" /> Count this late again
+                </button>
+              )}
+            </div>
+          )}
+
+          {day.lateMinutes > 0 && !day.lateExcused && editable && (
+            <div className="p-3 rounded-lg border border-red-200 bg-red-50 space-y-2">
+              {!excusing ? (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-red-900">This late counts for the late cut in payroll.</p>
+                  <button type="button" onClick={() => setExcusing(true)} disabled={saving} className={secondaryBtn}>
+                    <CircleSlash className="h-4 w-4" /> Don&apos;t count this late (no cut)
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Field label="Why not count it?" required hint="Saved in the history with your name. You can undo it later.">
+                    <input
+                      value={excuseReason}
+                      onChange={(e) => setExcuseReason(e.target.value)}
+                      placeholder="e.g. Bus was late, told the manager"
+                      className={inputClass}
+                      maxLength={300}
+                      autoFocus
+                    />
+                  </Field>
+                  <ErrorBox message={excuseError} />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setLateExcused(true)} disabled={saving} className={`${primaryBtn} flex-1`}>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Don&apos;t count
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExcusing(false);
+                        setExcuseError(null);
+                      }}
+                      disabled={saving}
+                      className={`${secondaryBtn} flex-1`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

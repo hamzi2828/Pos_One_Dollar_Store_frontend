@@ -27,6 +27,7 @@ import {
   addMonths,
   dayLabel,
   fileUrl,
+  mins,
   monthLabel,
   type AttendanceStatus,
   type PunchSource,
@@ -89,6 +90,27 @@ export function DesktopNote({ className = '' }: { className?: string }) {
 }
 
 /** Month grid code colours (P, L, H, A, M, O, HO, LV, ·). */
+/** Month grid: an excused late keeps its L but in green with a ✓ (no cut). */
+export const LATE_EXCUSED_STYLE = 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-300';
+
+/** "Late 25 min" (amber) or "Late 25 min · excused" (green: not counted for the cut). */
+export function LateBadge({ minutes, excused, small }: { minutes: number; excused?: boolean; small?: boolean }) {
+  if (!minutes) return null;
+  const Icon = excused ? CheckCircle2 : Clock3;
+  return (
+    <span
+      title={excused ? 'Late, but not counted for the late cut' : 'Checked in after the shift start + grace time'}
+      className={`inline-flex items-center gap-1 border rounded-full font-semibold whitespace-nowrap ${small ? 'px-1.5 py-0 text-[10px]' : 'px-2 py-0.5 text-[11px]'} ${
+        excused ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+      }`}
+    >
+      <Icon className={small ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
+      Late {mins(minutes)}
+      {excused ? ' · excused' : ''}
+    </span>
+  );
+}
+
 export const CODE_STYLE: Record<string, string> = {
   P: 'bg-green-100 text-green-800',
   L: 'bg-amber-100 text-amber-800',

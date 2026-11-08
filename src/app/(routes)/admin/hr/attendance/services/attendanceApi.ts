@@ -79,6 +79,9 @@ export interface BoardRow {
   onBreak?: boolean;
   status: AttendanceStatus;
   lateMinutes: number;
+  /** Late, but a manager said not to count it (no cut). lateMinutes still shows how late. */
+  lateExcused?: boolean;
+  lateExcuse?: { reason: string; byName: string; at: string | null } | null;
   earlyLeaveMinutes: number;
   workedMinutes: number;
   overtimeMinutes: number;
@@ -123,6 +126,8 @@ export interface Board {
 export interface DayDetail extends Omit<BoardRow, 'corrections'> {
   date: string;
   policyName: string;
+  /** Minutes after the shift start before a check-in counts as late (policy). */
+  graceMinutes?: number;
   corrections: number;
   correctionLog: Correction[];
   notEmployed: boolean;
@@ -139,6 +144,8 @@ export interface SheetCell {
   checkIn: string | null;
   checkOut: string | null;
   lateMinutes: number;
+  /** Late but not counted for the cut (code stays L, shown in another colour). */
+  lateExcused?: boolean;
   earlyLeaveMinutes: number;
   workedMinutes: number;
   overtimeMinutes: number;
@@ -157,6 +164,8 @@ export interface SheetTotals {
   present: number;
   late: number;
   lateMinutes: number;
+  /** Late days not counted for the cut. */
+  lateExcused?: number;
   halfDays: number;
   absent: number;
   missingOut: number;
@@ -241,6 +250,9 @@ export const attendanceApi = {
   exceptions: async (month: string) => (await storeApi.get<Exceptions>('/attendance/exceptions', { month })).data,
   correct: (body: { employeeId: string; date: string; checkIn?: string | null; checkOut?: string | null; reason: string }) =>
     storeApi.put<DayDetail>('/attendance/day', body),
+  /** Don't count this day's late for the cut (reason required) / count it again. */
+  excuseLate: (body: { employeeId: string; date: string; excused: boolean; reason?: string }) =>
+    storeApi.put<DayDetail>('/attendance/day/late-excuse', body),
   overtime: (body: { recordIds: string[]; approved: boolean; reason?: string }) =>
     storeApi.post<{ approved: boolean; updated: { _id: string }[]; skipped: number }>('/attendance/overtime', body),
 };
