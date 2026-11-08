@@ -313,6 +313,15 @@ export default function SalesReportPage() {
                         <tr key={`${o.source}-${o._id}`} className="hover:bg-gray-50">
                           <td className="px-3 py-2 font-medium">
                             {o.orderNumber}
+                            {o.counterName && (
+                              <span
+                                className={`ml-1.5 inline-block rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold ${
+                                  /2/.test(o.counterName) ? 'bg-violet-100 text-violet-800' : 'bg-sky-100 text-sky-800'
+                                }`}
+                              >
+                                {o.counterName}
+                              </span>
+                            )}
                             <span className="block text-[11px] font-normal text-gray-500">
                               {new Date(o.createdAt).toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Karachi' })}
                             </span>

@@ -77,6 +77,8 @@ export interface SalesSummaryReport {
     profit: number;
     /** Pieces on the bill (sum of quantities). */
     itemCount?: number;
+    /** Counter the bill was rung on ("Counter 1"), null when unknown. */
+    counterName?: string | null;
     paymentMethod: string;
     rawPaymentMethod?: string;
     paymentStatus: string;
