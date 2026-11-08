@@ -40,6 +40,8 @@ import {
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import DesignationField from './DesignationField';
 import MoneyInput from '@/components/ui/MoneyInput';
+import { storeApi } from '@/lib/storeApi';
+import { rosterApi, type Shift } from '../../roster/services/rosterApi';
 
 type Form = {
   firstName: string;
@@ -68,6 +70,8 @@ type Form = {
   contractEndDate: string;
   shiftStart: string;
   shiftEnd: string;
+  /** Shift from HR → Roster → Shifts ('' = none). */
+  defaultShift: string;
   weeklyOff: Day[];
   basic: string;
   allowances: { name: string; amount: string }[];
@@ -89,6 +93,8 @@ type Form = {
 };
 
 const s = (v?: string | number | null) => (v === null || v === undefined ? '' : String(v));
+/** defaultShift as an id ('' when none); the API may send the id or the shift. */
+const shiftIdOf = (v?: string | { _id: string } | null) => (!v ? '' : typeof v === 'string' ? v : v._id || '');
 
 function toForm(e: Employee | null): Form {
   const allowances = e?.salaryBreakdown?.allowances || [];
@@ -118,8 +124,9 @@ function toForm(e: Employee | null): Form {
     probationEndDate: dateInput(e?.probationEndDate),
     contractStartDate: dateInput(e?.contractStartDate),
     contractEndDate: dateInput(e?.contractEndDate),
-    shiftStart: s(e?.shift?.start) || (e ? '' : '10:00'),
-    shiftEnd: s(e?.shift?.end) || (e ? '' : '22:00'),
+    shiftStart: s(e?.shift?.start),
+    shiftEnd: s(e?.shift?.end),
+    defaultShift: shiftIdOf((e as { defaultShift?: string | { _id: string } | null } | null | undefined)?.defaultShift),
     weeklyOff: e?.weeklyOff || [],
     basic: basic ? String(basic) : '',
     allowances: allowances.map((a) => ({ name: a.name, amount: String(a.amount) })),
@@ -166,7 +173,7 @@ function toPayload(f: Form): EmployeePayload {
     probationEndDate: f.probationEndDate || null,
     contractStartDate: f.contractStartDate || null,
     contractEndDate: f.contractEndDate || null,
-    shift: { start: f.shiftStart || null, end: f.shiftEnd || null },
+    shift: f.defaultShift ? { start: null, end: null } : { start: f.shiftStart || null, end: f.shiftEnd || null },
     weeklyOff: f.weeklyOff,
     salaryBreakdown: {
       basic: num(f.basic),
@@ -212,6 +219,19 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
     className: inputClass,
   });
 
+  // Shifts to pick from (HR → Roster → Shifts).
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  useEffect(() => {
+    let alive = true;
+    rosterApi
+      .shifts()
+      .then((rows) => alive && setShifts(rows || []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Staff logins that can be linked (plus the one already linked).
   useEffect(() => {
     let alive = true;
@@ -238,7 +258,6 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
     if (f.cnic && !CNIC_PATTERN.test(f.cnic)) return 'CNIC must be 13 digits: 12345-1234567-1.';
     if (f.gCnic && !CNIC_PATTERN.test(f.gCnic)) return 'Guarantor CNIC must be 13 digits: 12345-1234567-1.';
     if (f.contractStartDate && f.contractEndDate && f.contractEndDate < f.contractStartDate) return 'Contract end date is before the start date.';
-    if ((f.shiftStart && !f.shiftEnd) || (!f.shiftStart && f.shiftEnd)) return 'Enter both shift start and end time.';
     if (f.allowances.some((a) => a.amount.trim() && !a.name.trim())) return 'Each allowance needs a name.';
     if (Number(f.basic) < 0 || f.allowances.some((a) => Number(a.amount) < 0)) return 'Salary amounts cannot be negative.';
     return null;
@@ -259,6 +278,15 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
     try {
       const payload = toPayload(f);
       const saved = employee ? await employeeApi.update(employee._id, payload) : await employeeApi.create(payload);
+      // The shift is kept with the time & pay settings (same as the Time & pay card).
+      const before = shiftIdOf((employee as { defaultShift?: string | { _id: string } | null } | null | undefined)?.defaultShift);
+      if (!employee ? !!f.defaultShift : f.defaultShift !== before) {
+        try {
+          await storeApi.put(`/hr/employees/${saved._id}/time-settings`, { defaultShift: f.defaultShift || null });
+        } catch (err) {
+          toast.error(apiErrorMessage(err, 'Saved, but the shift could not be set. Set it in Time & pay.'));
+        }
+      }
 
       // Files after the record exists. A failed upload does not lose the record.
       const failed: string[] = [];
@@ -448,11 +476,17 @@ export default function EmployeeForm({ employee }: { employee: Employee | null }
                   ))}
                 </SearchSelect>
               </Field>
-              <Field label="Shift start">
-                <input type="time" {...input('shiftStart')} />
-              </Field>
-              <Field label="Shift end">
-                <input type="time" {...input('shiftEnd')} />
+              <Field label="Shift" hint="Shifts are made in HR → Roster → Shifts">
+                <SearchSelect {...input('defaultShift')}>
+                  <option value="">{f.shiftStart && f.shiftEnd ? `No shift picked (old times ${f.shiftStart}–${f.shiftEnd})` : 'No shift'}</option>
+                  {shifts
+                    .filter((sh) => sh.isActive || sh._id === f.defaultShift)
+                    .map((sh) => (
+                      <option key={sh._id} value={sh._id}>
+                        {sh.name} ({sh.start}–{sh.end})
+                      </option>
+                    ))}
+                </SearchSelect>
               </Field>
               <Field label="Weekly off">
                 <div className="flex flex-wrap gap-1">
