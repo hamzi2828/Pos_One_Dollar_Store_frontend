@@ -8,9 +8,7 @@ import {
   TrendingUp,
   Boxes,
   Receipt,
-  TrendingDown,
   CalendarRange,
-  Hourglass,
   Footprints,
   Target,
   Calculator,
@@ -24,19 +22,17 @@ export interface ReportLink {
   href: string;
   label: string;
   icon: LucideIcon;
-  perm: string;
+  perm: string | string[];
   about: string;
   group: 'Sales' | 'Stock' | 'Money';
 }
 
 export const REPORTS: ReportLink[] = [
   { href: '/admin/reports/sales', label: 'Sales Reports', icon: TrendingUp, perm: 'report_sales', about: 'Every bill: total, cost, profit by day, week or month.', group: 'Sales' },
-  { href: '/admin/reports/trends', label: 'Sales Trends', icon: CalendarRange, perm: 'report_trends', about: 'Sales day by day and how they change.', group: 'Sales' },
+  { href: '/admin/reports/trends', label: 'Demand & Trends', icon: CalendarRange, perm: ['report_demand', 'report_trends'], about: 'What to reorder, and which months and products sell more.', group: 'Stock' },
   { href: '/admin/reports/footfall', label: 'Footfall', icon: Footprints, perm: 'report_footfall', about: 'Busy hours and days, bills and buyers.', group: 'Sales' },
   { href: '/admin/reports/category-performance', label: 'Category Performance', icon: Target, perm: 'report_category_performance', about: 'Which categories sell and earn the most.', group: 'Sales' },
   { href: '/admin/reports/stock', label: 'Stock', icon: Boxes, perm: 'report_stock', about: 'Stock on hand and its value.', group: 'Stock' },
-  { href: '/admin/reports/demand', label: 'Demand List', icon: TrendingDown, perm: 'report_demand', about: 'Items running low that need ordering.', group: 'Stock' },
-  { href: '/admin/reports/slow-moving', label: 'Slow Moving', icon: Hourglass, perm: 'report_slow_moving', about: 'Items that are not selling.', group: 'Stock' },
   { href: '/admin/reports/stock-timeline', label: 'Stock Timeline', icon: Route, perm: 'report_stock_movement', about: 'Every move of one item: in, sold, moved, damaged.', group: 'Stock' },
   { href: '/admin/reports/cash-closing', label: 'Cash Closing', icon: Calculator, perm: 'report_cash_closing', about: 'Each till: cash, POS, bank, expenses, over / short.', group: 'Money' },
   { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: 'report_cash_in_hand', about: 'Cash taken in and paid out.', group: 'Money' },
