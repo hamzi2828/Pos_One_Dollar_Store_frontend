@@ -10,8 +10,8 @@ import { CheckCircle2, Download, Fingerprint, MonitorDown, Printer, RefreshCw, S
 import { storeApi } from '@/lib/storeApi';
 
 const FILE = '/downloads/DollarCoPos-Setup.exe';
-const VERSION = '1.6.2';
-const BUILT = '4 Nov 2026';
+const VERSION = '1.6.3';
+const BUILT = '9 Nov 2026';
 const SIZE = '3.8 MB';
 const DRIVER_FILE = '/downloads/SecuGen-Fingerprint-Driver.zip';
 const DRIVER_SIZE = '45 MB';
