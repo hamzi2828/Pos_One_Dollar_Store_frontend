@@ -8,6 +8,7 @@ import { Modal, Field, inputClass, primaryBtn, secondaryBtn } from '@/components
 import MoneyInput from '@/components/ui/MoneyInput';
 import { formatRs } from '@/lib/storeApi';
 import { changeOrderPaymentMethod, giveOrderDiscount, refundPOSOrder, type BillPayMethod } from '../../pos/services/posOrderService';
+import { RefundMethodPicker, type RefundMethod } from '../../pos/components/RefundMethodPicker';
 
 export interface EditableBill {
   _id: string;
@@ -40,6 +41,7 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
   const [busy, setBusy] = useState<'method' | 'discount' | 'refund' | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [confirmRefund, setConfirmRefund] = useState(false);
+  const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash');
 
   const total = Number(bill.total) || 0;
   const n = Number(amt) || 0;
@@ -82,7 +84,7 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
     if (busy || closedBill) return;
     setBusy('refund');
     try {
-      await refundPOSOrder(bill._id, refundReason.trim() || undefined);
+      await refundPOSOrder(bill._id, refundReason.trim() || undefined, refundMethod);
       toast.success(`${bill.orderNumber} refunded — give ${formatRs(Number(bill.total) - (Number(bill.pendingAmount) || 0))} back`);
       onSaved();
       onClose();
@@ -167,8 +169,9 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
         <section className="space-y-3 border-t border-gray-200 pt-4">
           <h3 className="text-sm font-semibold text-gray-900">Refund</h3>
           <p className="text-xs text-gray-600">
-            The whole bill is refunded: all pieces go back into stock and the customer gets {formatRs(total - (Number(bill.pendingAmount) || 0))} back. Cash comes out of your till.
+            The whole bill is refunded: all pieces go back into stock and the customer gets {formatRs(total - (Number(bill.pendingAmount) || 0))} back.
           </p>
+          <RefundMethodPicker value={refundMethod} onChange={setRefundMethod} disabled={closedBill || !!busy} />
           <Field label="Reason (optional)">
             <input className={inputClass} value={refundReason} maxLength={300} disabled={closedBill || !!busy} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. customer returned the items" />
           </Field>

@@ -89,12 +89,12 @@ export async function changeOrderPaymentMethod(orderId: string, method: BillPayM
 }
 
 /** Refund an order (stock goes back once). */
-export async function refundPOSOrder(orderId: string, reason?: string): Promise<POSOrder> {
+export async function refundPOSOrder(orderId: string, reason?: string, refundMethod?: 'cash' | 'bank_transfer' | 'card'): Promise<POSOrder> {
   if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
   const res = await fetch(`${API_BASE_URL}/api/pos/orders/${orderId}/refund`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, refundMethod }),
   });
   if (!res.ok) throw await readError(res, 'Could not refund the order');
   const json = await res.json();

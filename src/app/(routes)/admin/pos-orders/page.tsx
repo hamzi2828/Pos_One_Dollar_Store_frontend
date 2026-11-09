@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { POSOrder, PaymentMethodType } from '../pos/types';
 import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder } from '../pos/services/posOrderService';
+import { RefundMethodPicker, type RefundMethod } from '../pos/components/RefundMethodPicker';
 import WhatsAppBadge from '../pos/components/WhatsAppBadge';
 import { useAccess } from '@/context/AccessContext';
 import EditBillModal, { type EditableBill } from '../reports/sales/EditBillModal';
@@ -1085,6 +1086,7 @@ function RefundModal({
   onDone: (updated: POSOrder) => void;
 }) {
   const [reason, setReason] = useState('');
+  const [method, setMethod] = useState<RefundMethod>('cash');
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const submit = async () => {
@@ -1092,7 +1094,7 @@ function RefundModal({
     lock.current = true;
     setBusy(true);
     try {
-      onDone(await refundPOSOrder(order._id, reason.trim() || undefined));
+      onDone(await refundPOSOrder(order._id, reason.trim() || undefined, method));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not refund');
     } finally {
@@ -1122,6 +1124,9 @@ function RefundModal({
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
             autoFocus
           />
+          <div className="mt-3">
+            <RefundMethodPicker value={method} onChange={setMethod} disabled={busy} />
+          </div>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
           <button onClick={onClose} disabled={busy} className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-60">
