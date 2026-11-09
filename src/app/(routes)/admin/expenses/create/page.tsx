@@ -212,6 +212,10 @@ export default function CreateExpensePage() {
       setError('Pick whose personal money paid this expense');
       return;
     }
+    if (paymentMethod === 'Cash' && !fromPersonal && !counterId) {
+      setError('Pick which counter paid it (Paid from Counter 1 / Counter 2).');
+      return;
+    }
 
     submitLockRef.current = true;
     setLoading(true);
