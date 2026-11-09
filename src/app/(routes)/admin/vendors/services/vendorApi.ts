@@ -68,6 +68,8 @@ export interface VendorSummary {
   receivableCount: number;
   totalBilled?: number;
   totalPaid?: number;
+  paidFromInvestment?: number;
+  paidFromSales?: number;
   totalAdjusted?: number;
   totalLeft?: number;
 }

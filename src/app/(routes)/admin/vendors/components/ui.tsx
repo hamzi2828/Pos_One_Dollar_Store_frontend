@@ -40,7 +40,7 @@ export function StatCard({
   icon: React.ReactNode;
   label: string;
   value: React.ReactNode;
-  hint?: string;
+  hint?: React.ReactNode;
   tone?: 'honey' | 'rose' | 'emerald' | 'blue' | 'gray' | 'amber';
 }) {
   const bg = {
@@ -58,7 +58,7 @@ export function StatCard({
         <div className="min-w-0">
           <p className="text-[10px] sm:text-xs text-gray-500">{label}</p>
           <p className="text-sm sm:text-lg font-semibold text-gray-900 tabular-nums truncate">{value}</p>
-          {hint && <p className="text-[10px] sm:text-[11px] text-gray-400 truncate">{hint}</p>}
+          {hint && (typeof hint === 'string' ? <p className="text-[10px] sm:text-[11px] text-gray-400 truncate">{hint}</p> : <div className="text-[10px] sm:text-[11px] text-gray-500">{hint}</div>)}
         </div>
       </div>
     </div>
