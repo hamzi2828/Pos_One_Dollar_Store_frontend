@@ -128,6 +128,7 @@ export default function SalaryToDate() {
                     )}
                     <td className={`${tdClass} text-right tabular-nums font-semibold text-gray-900`}>
                       {formatRs(r.earned)}
+                      {r.tipsToSalary ? <span className="block text-[11px] font-normal text-honey-700">incl. tips {formatRs(r.tipsToSalary)}</span> : null}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums text-red-700`}>{r.due > 0 ? `−${formatRs(r.due)}` : '—'}</td>
                     <td className={`${tdClass} text-right tabular-nums font-semibold text-gray-900`}>{formatRs(r.payableNow)}</td>

@@ -56,7 +56,7 @@ export function GiveTipModal({ onClose, onDone }: { onClose: () => void; onDone:
   const nextKey = useRef(1);
   const [rows, setRows] = useState<TipRow[]>([{ key: 0, staff: null, amount: '' }]);
   const [date, setDate] = useState(todayPKT());
-  const [method, setMethod] = useState<PayMethod>('cash');
+  const [method, setMethod] = useState<PayMethod | 'salary'>('cash');
   const [note, setNote] = useState('');
 
   const setRow = (key: number, patch: Partial<TipRow>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -139,12 +139,13 @@ export function GiveTipModal({ onClose, onDone }: { onClose: () => void; onDone:
             <input type="date" value={date} max={todayPKT()} onChange={(e) => setDate(e.target.value)} className={inputClass} />
           </Field>
           <Field label="Given by" required>
-            <SearchSelect value={method} onChange={(e) => setMethod(e.target.value as PayMethod)} className={inputClass}>
+            <SearchSelect value={method} onChange={(e) => setMethod(e.target.value as PayMethod | 'salary')} className={inputClass}>
               {METHODS.map((m) => (
                 <option key={m} value={m}>
                   {METHOD_LABEL[m]}
                 </option>
               ))}
+              <option value="salary">Add to salary (not given yet)</option>
             </SearchSelect>
           </Field>
         </div>
@@ -153,8 +154,16 @@ export function GiveTipModal({ onClose, onDone }: { onClose: () => void; onDone:
         </Field>
         {total > 0 && (
           <p className="text-sm bg-honey-50 border border-honey-200 rounded-lg px-3 py-2 text-gray-900">
-            Total <span className="font-semibold">{formatRs(total)}</span> will be added to expenses ({TIPS_CATEGORY}) on this date.
-            {method === 'cash' && <span className="block text-xs text-gray-600 mt-0.5">Cash tips are taken out in that day&apos;s cash closing.</span>}
+            {method === 'salary' ? (
+              <>
+                Total <span className="font-semibold">{formatRs(total)}</span> will be <b>added to the salary</b> of this month. No money is given now.
+              </>
+            ) : (
+              <>
+                Total <span className="font-semibold">{formatRs(total)}</span> will be added to expenses ({TIPS_CATEGORY}) on this date.
+                {method === 'cash' && <span className="block text-xs text-gray-600 mt-0.5">Cash tips are taken out in that day&apos;s cash closing.</span>}
+              </>
+            )}
           </p>
         )}
         <ErrorBox message={error} />

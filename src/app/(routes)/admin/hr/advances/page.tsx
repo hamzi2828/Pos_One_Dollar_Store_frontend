@@ -561,7 +561,7 @@ function TipsTab({ canCreate, canDelete, reloadKey, onGive }: { canCreate: boole
                               {t.employeeName}
                               {t.employeeCode && <span className="block text-[11px] text-gray-500">{t.employeeCode}</span>}
                             </td>
-                            <td className={tdClass}>{t.methodLabel || METHOD_LABEL[t.method] || t.method}</td>
+                            <td className={tdClass}>{t.methodLabel || (t.method === 'salary' ? 'Added to salary' : METHOD_LABEL[t.method]) || t.method}</td>
                             <td className={`${tdClass} whitespace-normal max-w-[18rem] text-gray-600`}>{t.note || '—'}</td>
                             <td className={`${tdClass} text-right tabular-nums font-semibold text-gray-900`}>{formatRs(t.amount)}</td>
                             {canDelete && (
@@ -588,7 +588,7 @@ function TipsTab({ canCreate, canDelete, reloadKey, onGive }: { canCreate: boole
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-gray-900">{t.employeeName}</p>
                             <p className="text-[11px] text-gray-500">
-                              {t.tipNo} · {t.methodLabel || METHOD_LABEL[t.method]}
+                              {t.tipNo} · {t.methodLabel || (t.method === 'salary' ? 'Added to salary' : METHOD_LABEL[t.method])}
                             </p>
                             {t.note && <p className="text-xs text-gray-600 mt-0.5 break-words">{t.note}</p>}
                           </div>

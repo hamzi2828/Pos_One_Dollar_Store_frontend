@@ -281,7 +281,7 @@ export interface StaffTip {
   amount: number;
   date: string;
   day: string;
-  method: PayMethod;
+  method: PayMethod | 'salary';
   methodLabel: string;
   note: string;
   expense: string | null;
@@ -333,6 +333,8 @@ export interface SalaryToDateRow {
   /** Tips given this month (not part of salary). */
   tips?: number;
   tipCount?: number;
+  /** Tips saved as "Add to salary" (already inside earned). */
+  tipsToSalary?: number;
 }
 
 export interface SalaryToDate {
@@ -376,7 +378,7 @@ export const payrollApi = {
   waiveDeduction: (id: string, note: string) => storeApi.post<PayrollDeduction>(`/payroll-deductions/${id}/waive`, { note }),
 
   tips: (params: DayRangeParams & { employee?: string; search?: string; page?: number; limit?: number }) => storeApi.get<StaffTip[]>('/staff-tips', params),
-  addTips: (body: { date: string; method: PayMethod; note: string; tips: { employeeId: string; amount: number }[] }) => storeApi.post<StaffTip[]>('/staff-tips', body),
+  addTips: (body: { date: string; method: PayMethod | 'salary'; note: string; tips: { employeeId: string; amount: number }[] }) => storeApi.post<StaffTip[]>('/staff-tips', body),
   deleteTip: (id: string, reason: string) => storeApi.del<StaffTip>(`/staff-tips/${id}`, { reason }),
 };
 
