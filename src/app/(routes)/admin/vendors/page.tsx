@@ -135,24 +135,10 @@ export default function VendorsPage() {
 
         <VendorsNav />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-2 sm:mb-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3 mb-2 sm:mb-3">
           <StatCard icon={<Truck className="h-4 w-4" />} label="Total (all bills)" value={summary ? formatRs(summary.totalBilled || 0) : '—'} hint="Everything we owe vendors" />
-          <StatCard
-            tone="emerald"
-            icon={<HandCoins className="h-4 w-4" />}
-            label="Paid"
-            value={summary ? formatRs(summary.totalPaid || 0) : '—'}
-            hint={
-              summary ? (
-                <span className="block leading-snug">
-                  <span className="block">Investment (before 5 Nov): {formatRs(summary.paidFromInvestment || 0)}</span>
-                  <span className="block">From sales (5 Nov on): {formatRs(summary.paidFromSales || 0)}</span>
-                </span>
-              ) : (
-                'Payments only'
-              )
-            }
-          />
+          <StatCard tone="emerald" icon={<HandCoins className="h-4 w-4" />} label="Paid from investment" value={summary ? formatRs(summary.paidFromInvestment || 0) : '—'} hint="Payments before 5 Nov" />
+          <StatCard tone="emerald" icon={<HandCoins className="h-4 w-4" />} label="Paid from sales" value={summary ? formatRs(summary.paidFromSales || 0) : '—'} hint="Payments from 5 Nov on" />
           <StatCard tone="blue" icon={<Edit2 className="h-4 w-4" />} label="Adjusted" value={summary ? formatRs(summary.totalAdjusted || 0) : '—'} hint="Adjustments, returns, discounts" />
           <StatCard tone="rose" icon={<ArrowUpRight className="h-4 w-4" />} label="Left to pay" value={summary ? formatRs(summary.totalLeft || 0) : '—'} hint="Total − paid − adjusted" />
         </div>
