@@ -6,7 +6,6 @@ import Link from 'next/link';
 import {
   Wallet,
   TrendingUp,
-  AlertCircle,
   Boxes,
   Receipt,
   TrendingDown,
@@ -43,7 +42,6 @@ export const REPORTS: ReportLink[] = [
   { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: 'report_cash_in_hand', about: 'Cash taken in and paid out.', group: 'Money' },
   { href: '/admin/reports/spending', label: 'Spending', icon: PiggyBank, perm: 'report_expenses', about: 'Bought, paid to vendors, money left (cash + bank).', group: 'Money' },
   { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt, perm: 'report_expenses', about: 'Shop expenses by day, week or month.', group: 'Money' },
-  { href: '/admin/reports/receivables', label: 'Receivables', icon: AlertCircle, perm: 'report_receivables', about: 'Money customers still owe.', group: 'Money' },
 ];
 
 /** Shown at the top of every report: back to the Reports home. */
