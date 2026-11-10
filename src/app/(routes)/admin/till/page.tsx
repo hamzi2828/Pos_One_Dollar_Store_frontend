@@ -6,7 +6,7 @@
 //   Admins (till_verify) see only the list of all tills; "My till" is for cashiers.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Banknote, Lock, LockOpen, RefreshCw, Search, ShieldCheck, AlertCircle, Wallet } from 'lucide-react';
+import { Banknote, Layers, Lock, LockOpen, RefreshCw, Search, ShieldCheck, AlertCircle, Wallet } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate, type PageMeta } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { HelpBox, LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -256,6 +256,11 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const reqRef = useRef(0);
+  const { can } = useAccess();
+  // All counters added together, day by day (the Cash Closing report's view).
+  const combinedHref = `/admin/reports/cash-closing/combined?${new URLSearchParams(
+    Object.fromEntries(Object.entries({ from, to, status: status === 'closed' || status === 'verified' ? status : '' }).filter(([, v]) => v)),
+  ).toString()}`;
 
   useEffect(() => {
     if (linkedSession) {
@@ -325,17 +330,31 @@ function VerifyPanel({ linkedSession, onLinkedDone }: { linkedSession: string | 
         </SearchSelect>
         <input type="date" value={from} onChange={(e) => resetPage(setFrom)(e.target.value)} className={inputClass} aria-label="From" />
         <input type="date" value={to} onChange={(e) => resetPage(setTo)(e.target.value)} className={inputClass} aria-label="To" />
-        <div className="relative col-span-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
-            placeholder="Cashier, counter or till no…"
-            className={`${inputClass} pl-9`}
-          />
+        <div className="col-span-2 flex gap-1.5">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setPage(1);
+                setSearch(e.target.value);
+              }}
+              placeholder="Cashier, counter or till no…"
+              className={`${inputClass} pl-9`}
+            />
+          </div>
+          {can('report_cash_closing', 'view') && (
+            <a
+              href={combinedHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${secondaryBtn} !px-2.5 shrink-0`}
+              title="All counters added together, day by day (opens in a new tab)"
+              aria-label="Show all counters together"
+            >
+              <Layers className="h-4 w-4" /> Combined
+            </a>
+          )}
         </div>
       </div>
 
