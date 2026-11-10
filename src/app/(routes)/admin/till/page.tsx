@@ -542,10 +542,12 @@ function OpenCounters({ refreshKey, onOpen }: { refreshKey: number; onOpen: (id:
                   <dd className="text-right tabular-nums text-rose-700">−{formatRs(exp)}</dd>
                 </>
               )}
-              <dt className="text-gray-500">Card / Bank</dt>
+              <dt className="text-gray-500">Card / Bank (UBL)</dt>
               <dd className="text-right tabular-nums text-gray-600">
                 {formatRs(t.nonCash?.card ?? e?.card ?? 0)} / {formatRs(t.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0)}
               </dd>
+              <dt className="text-gray-500">JazzCash</dt>
+              <dd className="text-right tabular-nums text-gray-600">{formatRs(t.nonCash?.jazzcash ?? e?.jazzcash ?? 0)}</dd>
             </dl>
             {t.openingFloat && Object.keys(t.openingFloat.denominations || {}).length > 0 && (
               <div className="mt-2 border-t border-gray-100 pt-2">

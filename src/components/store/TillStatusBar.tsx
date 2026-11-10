@@ -56,7 +56,10 @@ export interface TillExpected {
   expectedCash: number;
   billCount: number;
   card?: number;
+  /** Bank (UBL) transfers. */
   bankTransfer?: number;
+  /** JazzCash (own wallet, not UBL). */
+  jazzcash?: number;
 }
 
 export interface TillSession {
@@ -78,6 +81,8 @@ export interface TillSession {
   dayCashAt?: string | null;
   cardTotal?: number | null;
   bankTransferTotal?: number | null;
+  /** JazzCash total the cashier wrote. */
+  jazzcashTotal?: number | null;
   /** Till report saved but not submitted (till still open). */
   draft?: {
     denominations: Record<string, number>;
@@ -86,6 +91,7 @@ export interface TillSession {
     dayCashDenominations?: Record<string, number>;
     cardTotal: number | null;
     bankTransferTotal: number | null;
+    jazzcashTotal?: number | null;
     note: string;
     savedAt: string | null;
   } | null;
@@ -133,8 +139,8 @@ export interface MyTill {
 
 export const tillApi = {
   my: () => storeApi.get<MyTill>('/till-sessions/my'),
-  /** Card and bank transfer the system took on this till (to fill the report). */
-  nonCash: (id: string) => storeApi.get<{ card: number; bankTransfer: number }>(`/till-sessions/${id}/non-cash`),
+  /** Card, Bank (UBL) and JazzCash the system took on this till (to fill the report). */
+  nonCash: (id: string) => storeApi.get<SystemNonCash>(`/till-sessions/${id}/non-cash`),
   open: (body: { counterId?: string; denominations: Record<string, number>; note?: string }) =>
     storeApi.post<TillSession>('/till-sessions/open', body),
   close: (
@@ -144,7 +150,14 @@ export const tillApi = {
     storeApi.post<TillSession>(`/till-sessions/${id}/close`, body),
   dayCash: (
     id: string,
-    body: { denominations?: Record<string, number>; amount?: number; cardTotal?: number; bankTransferTotal?: number; note?: string },
+    body: {
+      denominations?: Record<string, number>;
+      amount?: number;
+      cardTotal?: number;
+      bankTransferTotal?: number;
+      jazzcashTotal?: number;
+      note?: string;
+    },
   ) =>
     storeApi.post<TillSession>(`/till-sessions/${id}/day-cash`, body),
   draft: (
@@ -161,7 +174,14 @@ type TillReportBody = {
   dayCashDenominations?: Record<string, number>;
   cardTotal?: number;
   bankTransferTotal?: number;
+  jazzcashTotal?: number;
 };
+
+/** What the system took on a till that is not cash. jazzcash is missing on an old server. */
+type SystemNonCash = { card: number; bankTransfer: number; jazzcash?: number };
+
+/** '' = not written; else a number >= 0. */
+const moneyOrUndefined = (v: string) => (v === '' ? undefined : Math.max(0, Number(v) || 0));
 
 export const DEFAULT_DENOMINATIONS = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
 
@@ -375,19 +395,21 @@ export function OpenTillModal({
 }
 
 /* ------------------------------------------------------------------ */
-/* Card / bank transfer the system took: filled in, cashier can change */
+/* Card / Bank (UBL) / JazzCash the system took: filled in, cashier can change */
 /* ------------------------------------------------------------------ */
 
 function useSystemNonCash(
   sessionId: string,
   card: string,
   bank: string,
+  jazz: string,
   setCard: (v: string) => void,
   setBank: (v: string) => void,
+  setJazz: (v: string) => void,
 ) {
-  const [data, setData] = useState<{ card: number; bankTransfer: number } | null>(null);
+  const [data, setData] = useState<SystemNonCash | null>(null);
   // Only fill boxes that are still empty when the figures arrive (never overwrite what was typed or saved).
-  const start = useRef({ card, bank });
+  const start = useRef({ card, bank, jazz });
   useEffect(() => {
     let alive = true;
     tillApi
@@ -397,6 +419,7 @@ function useSystemNonCash(
         setData(res.data);
         if (start.current.card === '') setCard(String(res.data.card || 0));
         if (start.current.bank === '') setBank(String(res.data.bankTransfer || 0));
+        if (start.current.jazz === '' && res.data.jazzcash != null) setJazz(String(res.data.jazzcash || 0));
       })
       .catch(() => {});
     return () => {
@@ -460,7 +483,8 @@ export function CloseTillModal({
   const [dayCash, setDayCash] = useState(d && d.dayCashTotal && !draftDayNotes ? String(d.dayCashTotal) : '');
   const [card, setCard] = useState(d && d.cardTotal != null ? String(d.cardTotal) : '');
   const [bank, setBank] = useState(d && d.bankTransferTotal != null ? String(d.bankTransferTotal) : '');
-  const nonCash = useSystemNonCash(session._id, card, bank, setCard, setBank);
+  const [jazz, setJazz] = useState(d && d.jazzcashTotal != null ? String(d.jazzcashTotal) : '');
+  const nonCash = useSystemNonCash(session._id, card, bank, jazz, setCard, setBank, setJazz);
   const tillCash = countTotal(counts);
   const dayNotesTotal = countTotal(dayCounts);
   // Notes counted win over the typed total.
@@ -472,8 +496,9 @@ export function CloseTillModal({
     denominations: cleanCounts(counts),
     dayCashTotal: day || undefined,
     dayCashDenominations: dayNotesTotal > 0 ? cleanCounts(dayCounts) : undefined,
-    cardTotal: card === '' ? undefined : Math.max(0, Number(card) || 0),
-    bankTransferTotal: bank === '' ? undefined : Math.max(0, Number(bank) || 0),
+    cardTotal: moneyOrUndefined(card),
+    bankTransferTotal: moneyOrUndefined(bank),
+    jazzcashTotal: moneyOrUndefined(jazz),
     note: note.trim() || undefined,
   });
 
@@ -499,9 +524,10 @@ export function CloseTillModal({
     if (lockRef.current) return;
     const cardN = Math.max(0, Number(card) || 0);
     const bankN = Math.max(0, Number(bank) || 0);
+    const jazzN = Math.max(0, Number(jazz) || 0);
     if (
       !window.confirm(
-        `Cash: till ${formatRs(tillCash)} + day ${formatRs(day)} = ${formatRs(total)}\nPOS machine: ${formatRs(cardN)}\nBank transfer: ${formatRs(bankN)}\n\nSubmit the report and close the till? After this you cannot change it, and new sales go to the next till.`,
+        `Cash: till ${formatRs(tillCash)} + day ${formatRs(day)} = ${formatRs(total)}\nPOS machine: ${formatRs(cardN)}\nBank (UBL): ${formatRs(bankN)}\nJazzCash: ${formatRs(jazzN)}\n\nSubmit the report and close the till? After this you cannot change it, and new sales go to the next till.`,
       )
     )
       return;
@@ -586,7 +612,7 @@ export function CloseTillModal({
             <strong className="tabular-nums text-gray-900">= {formatRs(total)}</strong>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
             <p className="mb-1 text-sm font-semibold text-gray-900">3. POS machine (card)</p>
             <p className="mb-2 text-xs text-gray-600">Total on the card machine&apos;s day slip.</p>
@@ -594,10 +620,16 @@ export function CloseTillModal({
             <SystemHint value={nonCash?.card} current={card} onUse={(v) => setCard(v)} />
           </div>
           <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
-            <p className="mb-1 text-sm font-semibold text-gray-900">4. Bank transfer</p>
-            <p className="mb-2 text-xs text-gray-600">Total received by bank transfer today.</p>
+            <p className="mb-1 text-sm font-semibold text-gray-900">4. Bank (UBL)</p>
+            <p className="mb-2 text-xs text-gray-600">Total sent to the UBL bank account today.</p>
             <MoneyInput value={bank} onValue={setBank} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
             <SystemHint value={nonCash?.bankTransfer} current={bank} onUse={(v) => setBank(v)} />
+          </div>
+          <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+            <p className="mb-1 text-sm font-semibold text-gray-900">5. JazzCash</p>
+            <p className="mb-2 text-xs text-gray-600">Total sent to the JazzCash account today.</p>
+            <MoneyInput value={jazz} onValue={setJazz} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <SystemHint value={nonCash?.jazzcash} current={jazz} onUse={(v) => setJazz(v)} />
           </div>
         </div>
         <Field label="Note (optional)">
@@ -633,21 +665,28 @@ export function DayCashModal({
   const lockRef = useRef(false);
   const [card, setCard] = useState(session.cardTotal != null ? String(session.cardTotal) : '');
   const [bank, setBank] = useState(session.bankTransferTotal != null ? String(session.bankTransferTotal) : '');
-  const nonCash = useSystemNonCash(session._id, card, bank, setCard, setBank);
+  const [jazz, setJazz] = useState(session.jazzcashTotal != null ? String(session.jazzcashTotal) : '');
+  const nonCash = useSystemNonCash(session._id, card, bank, jazz, setCard, setBank, setJazz);
   const prevNotes = session.dayCash?.denominations && Object.keys(session.dayCash.denominations).length ? session.dayCash.denominations : null;
   const [dayCounts, setDayCounts] = useState<Record<string, number>>(() => ({ ...(prevNotes || {}) }));
   const notesTotal = countTotal(dayCounts);
   const total = notesTotal > 0 ? notesTotal : Math.max(0, Number(amount) || 0);
   const denoms = denominations?.length ? denominations : DEFAULT_DENOMINATIONS;
   const drawer = session.drawerCount?.total ?? session.closingCount?.total ?? 0;
+  const nothingWritten = total <= 0 && card === '' && bank === '' && jazz === '';
 
   const submit = async () => {
     if (lockRef.current) return;
-    if (total <= 0 && card === '' && bank === '') {
+    if (nothingWritten) {
       setError('Write the total cash of the day.');
       return;
     }
-    if (!window.confirm(`Day's cash ${formatRs(total)}\nPOS machine ${formatRs(Number(card) || 0)}\nBank transfer ${formatRs(Number(bank) || 0)}\n\nSave?`)) return;
+    if (
+      !window.confirm(
+        `Day's cash ${formatRs(total)}\nPOS machine ${formatRs(Number(card) || 0)}\nBank (UBL) ${formatRs(Number(bank) || 0)}\nJazzCash ${formatRs(Number(jazz) || 0)}\n\nSave?`,
+      )
+    )
+      return;
     lockRef.current = true;
     setBusy(true);
     setError(null);
@@ -655,8 +694,9 @@ export function DayCashModal({
       const res = await tillApi.dayCash(session._id, {
         amount: notesTotal > 0 ? undefined : total || undefined,
         denominations: notesTotal > 0 ? cleanCounts(dayCounts) : undefined,
-        cardTotal: card === '' ? undefined : Math.max(0, Number(card) || 0),
-        bankTransferTotal: bank === '' ? undefined : Math.max(0, Number(bank) || 0),
+        cardTotal: moneyOrUndefined(card),
+        bankTransferTotal: moneyOrUndefined(bank),
+        jazzcashTotal: moneyOrUndefined(jazz),
         note: note.trim() || undefined,
       });
       toast.success("Day's cash added. The admin will verify it.");
@@ -682,7 +722,7 @@ export function DayCashModal({
           <button type="button" onClick={onClose} disabled={busy} className={secondaryBtn}>
             Cancel
           </button>
-          <button type="button" onClick={submit} disabled={busy || (total <= 0 && card === '' && bank === '')} className={primaryBtn}>
+          <button type="button" onClick={submit} disabled={busy || nothingWritten} className={primaryBtn}>
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
             Save · {formatRs(total)}
           </button>
@@ -711,14 +751,18 @@ export function DayCashModal({
           </span>
           <span className="text-lg font-bold tabular-nums">= {formatRs(drawer + total)}</span>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="POS machine (card) total">
             <MoneyInput value={card} onValue={setCard} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
             <SystemHint value={nonCash?.card} current={card} onUse={(v) => setCard(v)} />
           </Field>
-          <Field label="Bank transfer total">
+          <Field label="Bank (UBL) total">
             <MoneyInput value={bank} onValue={setBank} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
             <SystemHint value={nonCash?.bankTransfer} current={bank} onUse={(v) => setBank(v)} />
+          </Field>
+          <Field label="JazzCash total">
+            <MoneyInput value={jazz} onValue={setJazz} disabled={busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+            <SystemHint value={nonCash?.jazzcash} current={jazz} onUse={(v) => setJazz(v)} />
           </Field>
         </div>
         <Field label="Note (optional)">

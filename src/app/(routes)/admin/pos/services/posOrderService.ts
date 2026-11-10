@@ -73,7 +73,7 @@ export async function giveOrderDiscount(orderId: string, amount: number, reason?
   return json.data as POSOrder;
 }
 
-export type BillPayMethod = 'cash' | 'card' | 'bank_transfer';
+export type BillPayMethod = 'cash' | 'card' | 'bank_transfer' | 'jazzcash';
 
 /** Fix the payment method of a bill paid with one method. */
 export async function changeOrderPaymentMethod(orderId: string, method: BillPayMethod, reason?: string): Promise<POSOrder> {
@@ -89,7 +89,7 @@ export async function changeOrderPaymentMethod(orderId: string, method: BillPayM
 }
 
 /** Refund an order (stock goes back once). */
-export async function refundPOSOrder(orderId: string, reason?: string, refundMethod?: 'cash' | 'bank_transfer' | 'card'): Promise<POSOrder> {
+export async function refundPOSOrder(orderId: string, reason?: string, refundMethod?: 'cash' | 'bank_transfer' | 'jazzcash' | 'card'): Promise<POSOrder> {
   if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
   const res = await fetch(`${API_BASE_URL}/api/pos/orders/${orderId}/refund`, {
     method: 'POST',

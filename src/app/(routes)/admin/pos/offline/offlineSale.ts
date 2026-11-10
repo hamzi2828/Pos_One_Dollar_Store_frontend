@@ -3,6 +3,7 @@
 
 import type { CartItem, CartQuote, CustomerInfo, ManualDiscount, PaymentMethodType, POSCustomer, POSOrder } from '../types';
 import { cartToOrderItems } from '../utils/cartPayload';
+import { isTransferMethod } from '../utils/paymentMethods';
 import { catalogUnit, getCatalogSnapshot } from './catalogSync';
 import { computeOfflineBill, type OfflinePermissions } from './offlinePricing';
 import { nextOfflineNumber } from './device';
@@ -87,7 +88,8 @@ export async function saveOfflineSale(input: OfflineSaleInput): Promise<POSOrder
   const realCustomer = input.customer && !isTypedCustomer(input.customer) ? input.customer : null;
   const total = quote.total;
   const paid = input.isPartialPayment ? Number(input.paidAmount) || 0 : total;
-  const takesCash = input.paymentMethod === 'cash' || input.paymentMethod === 'bank_transfer';
+  // Bank (UBL) and JazzCash: amount typed like cash (change can be given back).
+  const takesCash = input.paymentMethod === 'cash' || isTransferMethod(input.paymentMethod);
 
   const order: OfflineOrderPayload = {
     clientId: input.clientId,

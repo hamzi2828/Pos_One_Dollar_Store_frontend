@@ -11,6 +11,7 @@ import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi'
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
 import { CounterTag } from '../../expenses/components/CounterSelect';
+import { paymentMethodLabel } from '../../pos/utils/paymentMethods';
 import {
   CloseTillModal,
   formatTime,
@@ -39,7 +40,8 @@ export interface TillBill {
 export interface TillDetail extends TillSession {
   bills: TillBill[];
   voided: { _id: string; orderNumber: string; total: number; paymentMethod: string; createdAt: string; deletedAt: string }[];
-  nonCash: { card: number; bank_transfer: number };
+  /** jazzcash is missing on an old server. */
+  nonCash: { card: number; bank_transfer: number; jazzcash?: number };
   liveExpected: TillExpected | null;
   verifiedBy?: { firstName?: string; lastName?: string } | string | null;
   discounts?: { _id: string; orderNumber: string; createdAt: string; subtotal: number; discount: number; total: number; reason: string }[];
@@ -290,6 +292,7 @@ Reason (optional):`);
               const sysCash = e ? Math.round((e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) * 100) / 100 : null;
               const sysCard = data.nonCash?.card ?? e?.card ?? 0;
               const sysBank = data.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0;
+              const sysJazz = data.nonCash?.jazzcash ?? e?.jazzcash ?? 0;
               const rows: { label: string; entered: number | null; system: number | null; target?: number | null; hint?: string }[] = [
                 {
                   label: 'Cash',
@@ -299,7 +302,8 @@ Reason (optional):`);
                   hint: expensesAmt ? 'after expenses' : undefined,
                 },
                 { label: 'POS machine (card)', entered: data.cardTotal ?? null, system: sysCard },
-                { label: 'Bank transfer', entered: data.bankTransferTotal ?? null, system: sysBank },
+                { label: 'Bank (UBL)', entered: data.bankTransferTotal ?? null, system: sysBank },
+                { label: 'JazzCash', entered: data.jazzcashTotal ?? null, system: sysJazz },
               ];
               const sum = (k: 'entered' | 'system') => rows.reduce((t, r) => t + (r[k] || 0), 0);
               const shouldGive = Math.round((sum('system') - expensesAmt) * 100) / 100;
@@ -594,7 +598,7 @@ Reason (optional):`);
                           </td>
                           <td className="px-3 py-1.5 text-gray-600 whitespace-nowrap">{formatDate(b.createdAt, true)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{formatRs(b.total)}</td>
-                          <td className="px-3 py-1.5 text-gray-600 capitalize">{b.paymentMethod.replace('_', ' ')}</td>
+                          <td className="px-3 py-1.5 text-gray-600">{paymentMethodLabel(b.paymentMethod)}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">
                             {formatRs(b.cashSale + b.cashCredit)}
                             {b.cashCredit > 0 && <span className="block text-[10px] text-gray-500">credit {formatRs(b.cashCredit)}</span>}

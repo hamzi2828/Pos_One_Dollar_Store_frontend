@@ -49,6 +49,7 @@ import { registerPosServiceWorker } from './offline/registerSw';
 import { printOrDispatchReceipt, rememberPrintOn } from './utils/printRouter';
 import { logPos, type PosEventType } from './utils/activityLog';
 import { usePrintStation } from './hooks/usePrintStation';
+import { isTransferMethod, paymentMethodLabel } from './utils/paymentMethods';
 import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
 import ProductInsightPanel from '@/components/store/ProductInsightPanel';
 
@@ -857,7 +858,7 @@ export default function POSPage() {
     const clientId = uuid();
     {
       const amount = isPartialPayment ? paidAmount ?? 0 : cashAmount ?? quote.total;
-      log('pay_submit', `Pay pressed: ${String(paymentMethod).replace('_', ' ')} Rs ${Number(amount).toLocaleString('en-PK')}`, {
+      log('pay_submit', `Pay pressed: ${paymentMethodLabel(paymentMethod)} Rs ${Number(amount).toLocaleString('en-PK')}`, {
         method: paymentMethod,
         amount,
         partial: isPartialPayment || undefined,
@@ -944,10 +945,11 @@ export default function POSPage() {
         taxIds: selectedTaxIds,
         expectedTotal: total,
         paymentMethod,
-        cashAmount: paymentMethod === 'cash' || paymentMethod === 'bank_transfer' ? cashAmount : undefined,
+        cashAmount: paymentMethod === 'cash' || isTransferMethod(paymentMethod) ? cashAmount : undefined,
         cardAmount: paymentMethod === 'card' ? total : undefined,
-        change: cashAmount && (paymentMethod === 'cash' || paymentMethod === 'bank_transfer') ? cashAmount - total : undefined,
-        bankTransferScreenshot: paymentMethod === 'bank_transfer' ? bankTransferScreenshot : undefined,
+        change: cashAmount && (paymentMethod === 'cash' || isTransferMethod(paymentMethod)) ? cashAmount - total : undefined,
+        // Proof screenshot: same field for Bank (UBL) and JazzCash.
+        bankTransferScreenshot: isTransferMethod(paymentMethod) ? bankTransferScreenshot : undefined,
         isPOS: true,
         isPartialPayment,
         paidAmount: isPartialPayment ? paidAmount : undefined,

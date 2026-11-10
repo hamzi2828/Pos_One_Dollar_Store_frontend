@@ -287,7 +287,8 @@ export default function CashClosingReportPage() {
                   <th className="px-4 py-2 text-left font-semibold">Opened → closed</th>
                   <th className="px-4 py-2 text-right font-semibold">Cash</th>
                   <th className="px-4 py-2 text-right font-semibold">POS</th>
-                  <th className="px-4 py-2 text-right font-semibold">Bank</th>
+                  <th className="px-4 py-2 text-right font-semibold">Bank (UBL)</th>
+                  <th className="px-4 py-2 text-right font-semibold">JazzCash</th>
                   <th className="px-4 py-2 text-right font-semibold">Expenses</th>
                   <th className="px-4 py-2 text-right font-semibold">Discounts</th>
                   <th className="px-4 py-2 text-right font-semibold">Over / short</th>
@@ -323,6 +324,9 @@ export default function CashClosingReportPage() {
                           <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap">
                             <Pair got={f.bank} should={f.sysBank} />
                           </td>
+                          <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap">
+                            <Pair got={f.jazz} should={f.sysJazz} />
+                          </td>
                           <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap text-gray-700">{f.expenses ? formatRs(f.expenses) : '—'}</td>
                           <td className="px-4 py-2 text-right tabular-nums whitespace-nowrap text-rose-700">
                             {f.discounts ? formatRs(f.discounts) : '—'}
@@ -356,6 +360,9 @@ export default function CashClosingReportPage() {
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums">
                           <Pair got={add('bank')} should={add('sysBank')} />
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          <Pair got={add('jazz')} should={add('sysJazz')} />
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums">{formatRs(add('expenses'))}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-rose-700">{formatRs(add('discounts'))}</td>

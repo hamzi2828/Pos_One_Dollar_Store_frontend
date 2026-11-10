@@ -9,13 +9,17 @@ export interface CashInHandReport {
     totalSales: number;
     cashSales: number;
     cardSales: number;
+    /** Bank (UBL) transfers. */
     bankTransfer: number;
+    /** JazzCash wallet (not UBL). Missing on an old server. */
+    jazzcash?: number;
   };
   paymentsReceived: {
     total: number;
     cash: number;
     card: number;
     bank: number;
+    jazzcash?: number;
     count: number;
   };
   expenseSummary: {
@@ -47,6 +51,8 @@ export interface CashInHandReport {
   balances: {
     cashBalance: number;
     bankBalance: number;
+    /** Money in the JazzCash wallet from sales (not cash, not UBL). */
+    jazzcashBalance?: number;
     totalBalance: number;
   };
 }
@@ -62,6 +68,8 @@ export interface SalesSummaryReport {
     cashSales: number;
     cardSales: number;
     bankSales: number;
+    /** JazzCash sales (missing on an old server). */
+    jazzcash?: number;
     itemsSold: number;
     avgOrderValue: number;
     posOrders: number;
@@ -78,6 +86,7 @@ export interface SalesSummaryReport {
       cash: number;
       card: number;
       bank: number;
+      jazzcash?: number;
       items: number;
     }>;
   };

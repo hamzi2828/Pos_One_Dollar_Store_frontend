@@ -17,6 +17,7 @@ import {
   TrendingDown,
   Landmark,
   Banknote,
+  Smartphone,
   AlertCircle,
   Calendar,
 } from 'lucide-react';
@@ -144,7 +145,7 @@ export default function CashInHandPage() {
     y += 4;
 
     // Inflow card 1 — Total Sales
-    const inflowH = 28;
+    const inflowH = 33;
     doc.setFillColor(240, 253, 244);
     doc.setDrawColor(187, 247, 208);
     doc.roundedRect(margin, y, halfW, inflowH, 2, 2, 'FD');
@@ -162,8 +163,10 @@ export default function CashInHandPage() {
     doc.text(pdfMoney(salesBreakdown.cashSales), margin + halfW - 3, y + 13, { align: 'right' });
     doc.text('Card', margin + 3, y + 18);
     doc.text(pdfMoney(salesBreakdown.cardSales), margin + halfW - 3, y + 18, { align: 'right' });
-    doc.text('Bank', margin + 3, y + 23);
+    doc.text('Bank (UBL)', margin + 3, y + 23);
     doc.text(pdfMoney(salesBreakdown.bankTransfer), margin + halfW - 3, y + 23, { align: 'right' });
+    doc.text('JazzCash', margin + 3, y + 28);
+    doc.text(pdfMoney(salesBreakdown.jazzcash ?? 0), margin + halfW - 3, y + 28, { align: 'right' });
 
     // Inflow card 2 — Payments Received
     const x2 = margin + halfW + gap;
@@ -184,8 +187,10 @@ export default function CashInHandPage() {
     doc.text(pdfMoney(paymentsReceived.cash), x2 + halfW - 3, y + 13, { align: 'right' });
     doc.text('Card', x2 + 3, y + 18);
     doc.text(pdfMoney(paymentsReceived.card), x2 + halfW - 3, y + 18, { align: 'right' });
-    doc.text('Bank', x2 + 3, y + 23);
+    doc.text('Bank (UBL)', x2 + 3, y + 23);
     doc.text(pdfMoney(paymentsReceived.bank), x2 + halfW - 3, y + 23, { align: 'right' });
+    doc.text('JazzCash', x2 + 3, y + 28);
+    doc.text(pdfMoney(paymentsReceived.jazzcash ?? 0), x2 + halfW - 3, y + 28, { align: 'right' });
     y += inflowH + 5;
 
     // OUTFLOWS label
@@ -348,6 +353,7 @@ export default function CashInHandPage() {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(107, 114, 128);
     doc.text(`Cash: ${pdfMoney(balances.cashBalance)}`, margin + 4, y + 16);
+    doc.text(`JazzCash: ${pdfMoney(balances.jazzcashBalance ?? 0)}`, pageWidth / 2, y + 16, { align: 'center' });
     doc.text(`Bank: ${pdfMoney(balances.bankBalance)}`, pageWidth - margin - 4, y + 16, { align: 'right' });
 
     const filename = `Cash_In_Hand_${rangeLabel.replace(/\s|\//g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -475,7 +481,8 @@ export default function CashInHandPage() {
                   rows={[
                     ['Cash', report.salesBreakdown.cashSales],
                     ['Card', report.salesBreakdown.cardSales],
-                    ['Bank', report.salesBreakdown.bankTransfer],
+                    ['Bank (UBL)', report.salesBreakdown.bankTransfer],
+                    ['JazzCash', report.salesBreakdown.jazzcash ?? 0],
                   ]}
                   symbol={symbol}
                 />
@@ -487,7 +494,8 @@ export default function CashInHandPage() {
                   rows={[
                     ['Cash', report.paymentsReceived.cash],
                     ['Card', report.paymentsReceived.card],
-                    ['Bank', report.paymentsReceived.bank],
+                    ['Bank (UBL)', report.paymentsReceived.bank],
+                    ['JazzCash', report.paymentsReceived.jazzcash ?? 0],
                   ]}
                   footer={`${report.paymentsReceived.count} payment${report.paymentsReceived.count === 1 ? '' : 's'}`}
                   symbol={symbol}
@@ -565,7 +573,7 @@ export default function CashInHandPage() {
 
             {/* Balance */}
             <Section label="Balance Summary">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <BalanceCard
                   tone="green"
                   title="Cash Balance"
@@ -602,6 +610,18 @@ export default function CashInHandPage() {
                   ]}
                   symbol={symbol}
                 />
+                {/* JazzCash wallet: not cash and not the UBL bank. */}
+                <BalanceCard
+                  tone="rose"
+                  title="JazzCash Balance"
+                  total={report.balances.jazzcashBalance ?? 0}
+                  icon={<Smartphone className="h-5 w-5" />}
+                  rows={[
+                    ['Sales', `+${fmt(report.salesBreakdown.jazzcash ?? 0)}`, 'text-emerald-700'],
+                    ['Received', `+${fmt(report.paymentsReceived.jazzcash ?? 0)}`, 'text-teal-700'],
+                  ]}
+                  symbol={symbol}
+                />
               </div>
 
               <div
@@ -630,6 +650,7 @@ export default function CashInHandPage() {
                 </div>
                 <div className="flex flex-wrap justify-between gap-2 text-sm mt-2 pt-2 border-t border-gray-200">
                   <span className="text-gray-500">Cash: {fmt(report.balances.cashBalance)}</span>
+                  <span className="text-gray-500">JazzCash: {fmt(report.balances.jazzcashBalance ?? 0)}</span>
                   <span className="text-gray-500">Bank: {fmt(report.balances.bankBalance)}</span>
                 </div>
               </div>
@@ -724,16 +745,16 @@ function BalanceCard({
   rows,
   symbol,
 }: {
-  tone: 'green' | 'blue';
+  tone: 'green' | 'blue' | 'rose';
   title: string;
   total: number;
   icon: React.ReactNode;
   rows: Array<[string, string, string]>;
   symbol: string;
 }) {
-  const bg = tone === 'green' ? 'bg-green-100' : 'bg-blue-100';
-  const totalColor = tone === 'green' ? 'text-green-700' : 'text-blue-700';
-  const border = tone === 'green' ? 'border-green-200' : 'border-blue-200';
+  const bg = tone === 'green' ? 'bg-green-100' : tone === 'rose' ? 'bg-rose-100' : 'bg-blue-100';
+  const totalColor = tone === 'green' ? 'text-green-700' : tone === 'rose' ? 'text-rose-700' : 'text-blue-700';
+  const border = tone === 'green' ? 'border-green-200' : tone === 'rose' ? 'border-rose-200' : 'border-blue-200';
 
   return (
     <div className={`p-5 rounded-lg ${bg}`}>

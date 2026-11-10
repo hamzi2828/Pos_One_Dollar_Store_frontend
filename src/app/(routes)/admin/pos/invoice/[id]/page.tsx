@@ -8,10 +8,11 @@ import toast from 'react-hot-toast';
 import { POSOrder } from '../../types';
 import { getPOSOrderById, getSettings, giveOrderDiscount } from '../../services/posOrderService';
 import { getCurrencySymbol } from '../../utils/currency';
-import { ArrowLeft, Download, Banknote, CreditCard, Building2, CheckCircle2, Clock, AlertCircle, Loader2, Gift, Printer, BadgePercent } from 'lucide-react';
+import { ArrowLeft, Download, Banknote, CreditCard, Building2, Smartphone, CheckCircle2, Clock, AlertCircle, Loader2, Gift, Printer, BadgePercent } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import WhatsAppBadge from '../../components/WhatsAppBadge';
 import { orderItemName } from '../../utils/receipt';
+import { isTransferMethod, paymentMethodLabel } from '../../utils/paymentMethods';
 import { printOrDispatchReceipt } from '../../utils/printRouter';
 
 export default function InvoicePage() {
@@ -148,23 +149,14 @@ export default function InvoicePage() {
         return <CreditCard className="h-4 w-4 text-blue-600" />;
       case 'bank_transfer':
         return <Building2 className="h-4 w-4 text-purple-600" />;
+      case 'jazzcash':
+        return <Smartphone className="h-4 w-4 text-rose-600" />;
       default:
         return null;
     }
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method) {
-      case 'cash':
-        return 'Cash';
-      case 'card':
-        return 'Card';
-      case 'bank_transfer':
-        return 'Bank Transfer';
-      default:
-        return method;
-    }
-  };
+  const getPaymentMethodLabel = (method: string) => paymentMethodLabel(method);
 
   // Rule + manual discounts as applied by the server (old orders: one "Discount" row).
   const discountRows = (order.appliedDiscounts || []).filter((d) => d.amount > 0);
@@ -260,7 +252,7 @@ export default function InvoicePage() {
               </button>
             </div>
             <p className="mt-2 text-[11px] text-gray-500">
-              Bill total goes down by this amount. Give it back to the customer ({order.paymentMethod === 'cash' ? 'cash' : order.paymentMethod}). The till is updated.
+              Bill total goes down by this amount. Give it back to the customer ({paymentMethodLabel(order.paymentMethod)}). The till is updated.
             </p>
           </div>
         )}
@@ -325,7 +317,7 @@ export default function InvoicePage() {
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-1">Payment Method</h3>
-              <p className="text-gray-900 capitalize">{order.paymentMethod}</p>
+              <p className="text-gray-900">{paymentMethodLabel(order.paymentMethod)}</p>
             </div>
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
@@ -472,10 +464,10 @@ export default function InvoicePage() {
                 </div>
               </div>
             )}
-            {order.paymentMethod === 'cash' && order.cashAmount && (
+            {(order.paymentMethod === 'cash' || isTransferMethod(order.paymentMethod)) && !!order.cashAmount && (
               <>
                 <div className="flex justify-between text-gray-600">
-                  <span>Cash Received</span>
+                  <span>{order.paymentMethod === 'cash' ? 'Cash Received' : `Received (${paymentMethodLabel(order.paymentMethod)})`}</span>
                   <span>{symbol}{order.cashAmount.toFixed(2)}</span>
                 </div>
                 {order.changeGiven !== undefined && (
@@ -719,7 +711,7 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
   writeLine('Date:', margin, y, { bold: true, size: 9 });
   writeLine(new Date(order.createdAt).toLocaleString('en-US'), margin + 50, y, { size: 10 });
   writeLine('Payment:', margin + 300, y, { bold: true, size: 9 });
-  writeLine(order.paymentMethod.replace('_', ' ').toUpperCase(), margin + 355, y, { size: 10 });
+  writeLine(paymentMethodLabel(order.paymentMethod), margin + 355, y, { size: 10 });
   y += 14;
   writeLine('Status:', margin, y, { bold: true, size: 9 });
   writeLine(order.orderStatus.toUpperCase(), margin + 50, y, { size: 10 });
@@ -851,7 +843,7 @@ function generateInvoicePdf(order: POSOrder, storeName: string, symbol: string) 
       const p = order.paymentHistory[i];
       ensureSpace(20);
       const label = i === 0 ? '1st Payment' : `#${i + 1} Payment`;
-      const method = p.paymentMethod.replace('_', ' ');
+      const method = paymentMethodLabel(p.paymentMethod);
       const when = new Date(p.paidAt).toLocaleString('en-US');
       writeLine(`${label} (${method}) - ${when}`, margin, y, { size: 9 });
       writeLine(`${symbol}${p.amount.toFixed(2)}`, valueX, y, { size: 10, align: 'right' });

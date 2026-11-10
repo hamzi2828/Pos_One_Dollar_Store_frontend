@@ -38,6 +38,14 @@ export interface NotOnStatement {
 export interface MoneyIn {
   cardSales: number;
   cardSettled: number;
+  /** Bank (UBL) transfer sales in POS and their bills. Missing on an old statement. */
+  bankTransferSales?: number;
+  bankTransferBills?: number;
+  /** Transfers into UBL on the statement (should match bankTransferSales). */
+  transfersIn?: number;
+  /** JazzCash sales: go to the JazzCash wallet, NOT expected in UBL (for information). */
+  jazzcashSales?: number;
+  jazzcashBills?: number;
   cashCounted: number;
   cashDeposited: number;
   otherIn: { date?: string; amount?: number; label?: string; particulars?: string; payee?: string }[];

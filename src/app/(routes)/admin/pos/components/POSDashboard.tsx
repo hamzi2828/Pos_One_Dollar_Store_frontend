@@ -9,6 +9,8 @@ import {
   Package,
   CreditCard,
   Banknote,
+  Building2,
+  Smartphone,
   Clock,
   Calendar,
   BarChart3,
@@ -19,6 +21,7 @@ import {
 } from 'lucide-react';
 import { getDashboardStats, getSalesChart, DashboardStats, SalesChartData, FilterType } from '../services/posDashboardService';
 import { getCurrencySymbol } from '../utils/currency';
+import { paymentMethodLabel } from '../utils/paymentMethods';
 
 interface StatCardProps {
   title: string;
@@ -174,6 +177,8 @@ function PaymentPieChart({ data, symbol }: { data: { _id: string; totalSales: nu
     cash: '#10b981',
     card: '#3b82f6',
     split: '#8b5cf6',
+    bank_transfer: '#a855f7',
+    jazzcash: '#f43f5e',
   };
 
   let currentAngle = 0;
@@ -229,7 +234,7 @@ function PaymentPieChart({ data, symbol }: { data: { _id: string; totalSales: nu
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: seg.color }}
             />
-            <span className="text-sm text-gray-600 capitalize">{seg._id}</span>
+            <span className="text-sm text-gray-600">{paymentMethodLabel(seg._id)}</span>
             <span className="text-sm font-medium text-gray-900">
               {seg.percentage.toFixed(1)}%
             </span>
@@ -578,7 +583,7 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
       </div>
 
       {/* Payment Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Banknote className="h-5 w-5 text-green-600" />
@@ -592,6 +597,20 @@ export default function POSDashboard({ currency = 'PKR' }: POSDashboardProps) {
             <h4 className="font-semibold text-gray-800">Card Sales</h4>
           </div>
           <p className="text-3xl font-bold text-honey-700">{symbol}{stats.period.cardSales.toFixed(2)}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 className="h-5 w-5 text-purple-600" />
+            <h4 className="font-semibold text-gray-800">Bank (UBL)</h4>
+          </div>
+          <p className="text-3xl font-bold text-purple-700">{symbol}{(stats.period.bankSales ?? 0).toFixed(2)}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Smartphone className="h-5 w-5 text-rose-600" />
+            <h4 className="font-semibold text-gray-800">JazzCash</h4>
+          </div>
+          <p className="text-3xl font-bold text-rose-700">{symbol}{(stats.period.jazzcash ?? 0).toFixed(2)}</p>
         </div>
       </div>
 

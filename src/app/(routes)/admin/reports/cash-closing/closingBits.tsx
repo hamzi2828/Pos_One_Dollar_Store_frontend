@@ -13,21 +13,37 @@ export const dayString = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() 
 
 export type ReportRow = TillSession & { discountTotal?: number; discountBills?: number };
 
-/** Cashier vs system per till: cash (after the day's expenses), POS machine, bank; overall over / short. */
+/** Cashier vs system per till: cash (after the day's expenses), POS machine, Bank (UBL), JazzCash; overall over / short. */
 export function figures(r: ReportRow) {
   const e = r.expected;
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const sysCash = e ? r2(e.cashSales + e.cashReceivedOnCredit - e.cashRefunds - (e.expenses || 0)) : null;
   const sysCard = e?.card ?? null;
   const sysBank = e?.bankTransfer ?? null;
+  // Old tills (before JazzCash had its own bucket) have no expected.jazzcash: 0.
+  const sysJazz = e ? (e.jazzcash ?? 0) : null;
   const cash = r.dayCash ? r.dayCash.total : null;
   const card = r.cardTotal ?? null;
   const bank = r.bankTransferTotal ?? null;
-  // Over / short: the cash result (till + cash) + card and bank differences.
+  const jazz = r.jazzcashTotal ?? null;
+  // Over / short: the cash result (till + cash) + card, bank and JazzCash differences.
   let over: number | null = r.variance ?? null;
   if (over != null && card != null && sysCard != null) over += card - sysCard;
   if (over != null && bank != null && sysBank != null) over += bank - sysBank;
-  return { cash, sysCash, card, sysCard, bank, sysBank, expenses: e?.expenses || 0, discounts: r.discountTotal || 0, over: over == null ? null : r2(over) };
+  if (over != null && jazz != null && sysJazz != null) over += jazz - sysJazz;
+  return {
+    cash,
+    sysCash,
+    card,
+    sysCard,
+    bank,
+    sysBank,
+    jazz,
+    sysJazz,
+    expenses: e?.expenses || 0,
+    discounts: r.discountTotal || 0,
+    over: over == null ? null : r2(over),
+  };
 }
 
 export function Pair({ got, should }: { got: number | null; should: number | null }) {
@@ -46,7 +62,7 @@ const shopDay = (r: ReportRow) => {
 };
 
 type Fig = ReturnType<typeof figures>;
-export type FigKey = 'cash' | 'sysCash' | 'card' | 'sysCard' | 'bank' | 'sysBank' | 'expenses' | 'discounts' | 'over';
+export type FigKey = 'cash' | 'sysCash' | 'card' | 'sysCard' | 'bank' | 'sysBank' | 'jazz' | 'sysJazz' | 'expenses' | 'discounts' | 'over';
 export const addFig = (all: Fig[], k: FigKey) => all.reduce((t, f) => t + ((f[k] as number | null) || 0), 0);
 
 /** Every day with all its counters added together (owner, 2026-11-09). */
@@ -89,6 +105,9 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
       <td className={td}>
         <Pair got={addFig(figs, 'bank')} should={addFig(figs, 'sysBank')} />
       </td>
+      <td className={td}>
+        <Pair got={addFig(figs, 'jazz')} should={addFig(figs, 'sysJazz')} />
+      </td>
       <td className={`${td} text-gray-700`}>{addFig(figs, 'expenses') ? formatRs(addFig(figs, 'expenses')) : '—'}</td>
       <td className={`${td} text-rose-700`}>{addFig(figs, 'discounts') ? formatRs(addFig(figs, 'discounts')) : '—'}</td>
       <td className={`${td} ${bold ? 'font-semibold' : ''} ${varianceClass(addFig(figs, 'over'))}`}>{varianceLabel(addFig(figs, 'over'))}</td>
@@ -103,7 +122,8 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
             <th className="px-4 py-2 text-left font-semibold">Counters</th>
             <th className={th}>Cash</th>
             <th className={th}>POS</th>
-            <th className={th}>Bank</th>
+            <th className={th}>Bank (UBL)</th>
+            <th className={th}>JazzCash</th>
             <th className={th}>Expenses</th>
             <th className={th}>Discounts</th>
             <th className={th}>Over / short</th>

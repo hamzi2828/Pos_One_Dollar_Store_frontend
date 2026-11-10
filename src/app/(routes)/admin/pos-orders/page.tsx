@@ -20,6 +20,7 @@ import {
   Banknote,
   CreditCard,
   Building2,
+  Smartphone,
   Clock,
   AlertCircle,
   CheckCircle2,
@@ -38,13 +39,14 @@ import { useAccess } from '@/context/AccessContext';
 import EditBillModal, { type EditableBill } from '../reports/sales/EditBillModal';
 import { getCurrencySymbol } from '../pos/utils/currency';
 import { orderItemName } from '../pos/utils/receipt';
+import { paymentMethodLabel } from '../pos/utils/paymentMethods';
 import TablePagination from '@/components/admin/TablePagination';
 import { useServerPagination } from '@/helper/useServerPagination';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import { ActivityLogModal } from './logs/activityView';
 
 type StatusFilter = 'all' | 'completed' | 'pending' | 'refunded' | 'cancelled';
-type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer';
+type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer' | 'jazzcash';
 
 /** Today in shop time (Pakistan), YYYY-MM-DD. */
 const pkToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
@@ -280,7 +282,8 @@ export default function POSOrdersPage() {
             <option value="all">All payments</option>
             <option value="cash">Cash</option>
             <option value="card">Card</option>
-            <option value="bank_transfer">Bank Transfer</option>
+            <option value="bank_transfer">Bank (UBL)</option>
+            <option value="jazzcash">JazzCash</option>
           </SearchSelect>
 
           {(search || status !== 'all' || payment !== 'all' || range !== 'today') && (
@@ -408,7 +411,8 @@ function PaymentBadge({ method }: { method: string }) {
   const map: Record<string, { icon: React.ReactNode; label: string; className: string }> = {
     cash: { icon: <Banknote className="h-3 w-3" />, label: 'Cash', className: 'bg-green-50 text-green-700 border-green-200' },
     card: { icon: <CreditCard className="h-3 w-3" />, label: 'Card', className: 'bg-blue-50 text-blue-700 border-blue-200' },
-    bank_transfer: { icon: <Building2 className="h-3 w-3" />, label: 'Bank', className: 'bg-purple-50 text-purple-700 border-purple-200' },
+    bank_transfer: { icon: <Building2 className="h-3 w-3" />, label: 'Bank (UBL)', className: 'bg-purple-50 text-purple-700 border-purple-200' },
+    jazzcash: { icon: <Smartphone className="h-3 w-3" />, label: 'JazzCash', className: 'bg-rose-50 text-rose-700 border-rose-200' },
     split: { icon: <Receipt className="h-3 w-3" />, label: 'Split', className: 'bg-gray-50 text-gray-700 border-gray-200' },
   };
   const m = map[method] || map.split;
@@ -810,8 +814,8 @@ function OrderDetailModal({
                 {order.paymentHistory.map((p, i) => (
                   <div key={i} className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg text-sm">
                     <div>
-                      <div className="font-medium text-gray-900 capitalize">
-                        {p.paymentMethod.replace('_', ' ')}
+                      <div className="font-medium text-gray-900">
+                        {paymentMethodLabel(p.paymentMethod)}
                       </div>
                       <div className="text-[11px] text-gray-500">
                         {new Date(p.paidAt).toLocaleString()}
@@ -870,7 +874,7 @@ function AddPaymentModal({
 }) {
   const pending = order.pendingAmount || 0;
   const [amount, setAmount] = useState<string>(pending.toFixed(2));
-  const [method, setMethod] = useState<'cash' | 'card' | 'bank_transfer'>('cash');
+  const [method, setMethod] = useState<'cash' | 'card' | 'bank_transfer' | 'jazzcash'>('cash');
   const [note, setNote] = useState('');
   const [discount, setDiscount] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -986,7 +990,7 @@ function AddPaymentModal({
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Payment Method</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <MethodOption
                 label="Cash"
                 icon={<Banknote className="h-4 w-4" />}
@@ -1000,10 +1004,16 @@ function AddPaymentModal({
                 onClick={() => setMethod('card')}
               />
               <MethodOption
-                label="Bank"
+                label="Bank (UBL)"
                 icon={<Building2 className="h-4 w-4" />}
                 active={method === 'bank_transfer'}
                 onClick={() => setMethod('bank_transfer')}
+              />
+              <MethodOption
+                label="JazzCash"
+                icon={<Smartphone className="h-4 w-4" />}
+                active={method === 'jazzcash'}
+                onClick={() => setMethod('jazzcash')}
               />
             </div>
           </div>

@@ -23,12 +23,21 @@ export interface EditableBill {
 const METHODS: { value: BillPayMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'card', label: 'Card (POS machine)' },
-  { value: 'bank_transfer', label: 'Bank transfer' },
+  { value: 'bank_transfer', label: 'Bank (UBL)' },
+  { value: 'jazzcash', label: 'JazzCash' },
 ];
 
 /** Report method ('bank') -> API method. */
 const toApiMethod = (m: string): BillPayMethod | null =>
-  m === 'cash' ? 'cash' : m === 'card' ? 'card' : m === 'bank' || m === 'bank_transfer' ? 'bank_transfer' : null;
+  m === 'cash'
+    ? 'cash'
+    : m === 'card'
+      ? 'card'
+      : m === 'bank' || m === 'bank_transfer'
+        ? 'bank_transfer'
+        : m === 'jazzcash'
+          ? 'jazzcash'
+          : null;
 const labelOf = (m: string) => METHODS.find((x) => x.value === toApiMethod(m))?.label || m.replace('_', ' ');
 
 export default function EditBillModal({ bill, onClose, onSaved }: { bill: EditableBill; onClose: () => void; onSaved: () => void }) {
@@ -115,7 +124,7 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
 
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-900">Payment method</h3>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {METHODS.map((m) => (
               <label
                 key={m.value}

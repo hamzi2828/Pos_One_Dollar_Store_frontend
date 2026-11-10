@@ -13,6 +13,10 @@ export interface DashboardStats {
     avgOrderValue: number;
     cashSales: number;
     cardSales: number;
+    /** Bank (UBL) transfers. Missing on an old server. */
+    bankSales?: number;
+    /** JazzCash. Missing on an old server. */
+    jazzcash?: number;
     salesChange: string;
     ordersChange: string;
   };

@@ -504,6 +504,27 @@ export default function BankCheckPanel() {
                   bLabel="Cash deposited in the bank"
                   b={mi.cashDeposited || 0}
                 />
+                {mi.bankTransferSales != null && (
+                  <CompareBox
+                    title={`Bank (UBL) transfers${mi.bankTransferBills ? ` · ${mi.bankTransferBills} bills` : ''}`}
+                    aLabel="Bank (UBL) sales in the system"
+                    a={mi.bankTransferSales || 0}
+                    bLabel="Transfers the bank received"
+                    b={mi.transfersIn || 0}
+                  />
+                )}
+                {mi.jazzcashSales != null && (
+                  <div className="rounded-lg border border-rose-100 bg-rose-50/40 p-3 text-xs">
+                    <p className="mb-1 text-sm font-semibold text-gray-900">
+                      JazzCash{mi.jazzcashBills ? ` · ${mi.jazzcashBills} bills` : ''}
+                    </p>
+                    <div className="flex justify-between gap-2 text-gray-600">
+                      <span>JazzCash sales in the system</span>
+                      <span className="tabular-nums text-gray-900">{formatRs(mi.jazzcashSales || 0)}</span>
+                    </div>
+                    <p className="mt-1 border-t border-rose-100 pt-1 text-gray-500">Goes to the JazzCash account, not this bank. Not checked here.</p>
+                  </div>
+                )}
               </div>
               {mi.otherIn && mi.otherIn.length > 0 && (
                 <div className="mt-2 rounded-lg border border-gray-100">

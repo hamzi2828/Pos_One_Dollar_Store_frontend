@@ -180,7 +180,7 @@ export interface POSCustomer {
   source?: 'facebook' | 'tiktok' | 'instagram' | 'word-of-mouth' | '';
 }
 
-export type PaymentMethodType = 'cash' | 'card' | 'split' | 'bank_transfer';
+export type PaymentMethodType = 'cash' | 'card' | 'split' | 'bank_transfer' | 'jazzcash';
 
 export interface PaymentMethod {
   type: PaymentMethodType;

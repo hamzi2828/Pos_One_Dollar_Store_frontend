@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import { POSOrder } from '../types';
 import { Receipt, Clock, Eye, Image as ImageIcon, Printer, Loader2 } from 'lucide-react';
 import { getCurrencySymbol } from '../utils/currency';
+import { isTransferMethod } from '../utils/paymentMethods';
 import { printOrDispatchReceipt } from '../utils/printRouter';
 import type { PrintOnCounter } from '@/components/store/TillStatusBar';
 import WhatsAppBadge from './WhatsAppBadge';
@@ -68,12 +69,14 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
       card: 'bg-blue-100 text-blue-800',
       split: 'bg-purple-100 text-purple-800',
       bank_transfer: 'bg-purple-100 text-purple-800',
+      jazzcash: 'bg-rose-100 text-rose-800',
     };
     return badges[method] || 'bg-gray-100 text-gray-800';
   };
 
   const formatPaymentMethod = (method: string) => {
-    if (method === 'bank_transfer') return 'BANK';
+    if (method === 'bank_transfer') return 'BANK (UBL)';
+    if (method === 'jazzcash') return 'JAZZCASH';
     return method.toUpperCase();
   };
 
@@ -133,11 +136,11 @@ export default function SalesHistory({ orders, onViewReceipt, showDate = false, 
               <WhatsAppBadge status={order.whatsappStatus} compact />
             </div>
             <div className="flex items-center gap-1">
-              {order.paymentMethod === 'bank_transfer' && order.bankTransferScreenshot && (
+              {isTransferMethod(order.paymentMethod) && order.bankTransferScreenshot && (
                 <button
                   onClick={() => window.open(order.bankTransferScreenshot, '_blank')}
                   className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                  title="View Bank Transfer Screenshot"
+                  title={order.paymentMethod === 'jazzcash' ? 'View JazzCash screenshot' : 'View Bank (UBL) screenshot'}
                 >
                   <ImageIcon className="h-4 w-4" />
                 </button>

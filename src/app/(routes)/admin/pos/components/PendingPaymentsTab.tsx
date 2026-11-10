@@ -5,8 +5,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { POSOrder, PaymentMethodType } from '../types';
 import { getPendingOrders, addPaymentToOrder } from '../services/posOrderService';
 import { getCurrencySymbol } from '../utils/currency';
+import { paymentMethodLabel } from '../utils/paymentMethods';
 import MoneyInput from '@/components/ui/MoneyInput';
-import { Clock, User, CreditCard, Banknote, Building2, X, Loader2, Check, AlertCircle, RefreshCw, ChevronDown, ChevronUp, Receipt, Calendar, MessageSquare, Percent } from 'lucide-react';
+import { Clock, User, CreditCard, Banknote, Building2, Smartphone, X, Loader2, Check, AlertCircle, RefreshCw, ChevronDown, ChevronUp, Receipt, Calendar, MessageSquare, Percent } from 'lucide-react';
 
 interface PendingPaymentsTabProps {
   currency?: string;
@@ -98,23 +99,14 @@ export default function PendingPaymentsTab({
         return <CreditCard className="h-3 w-3 text-blue-600" />;
       case 'bank_transfer':
         return <Building2 className="h-3 w-3 text-purple-600" />;
+      case 'jazzcash':
+        return <Smartphone className="h-3 w-3 text-rose-600" />;
       default:
         return <Receipt className="h-3 w-3 text-gray-600" />;
     }
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    switch (method) {
-      case 'cash':
-        return 'Cash';
-      case 'card':
-        return 'Card';
-      case 'bank_transfer':
-        return 'Bank Transfer';
-      default:
-        return method;
-    }
-  };
+  const getPaymentMethodLabel = (method: string) => paymentMethodLabel(method);
 
   const toggleOrderExpanded = (orderId: string) => {
     setExpandedOrders(prev => {
@@ -578,7 +570,7 @@ export default function PendingPaymentsTab({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Payment Method
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('cash')}
@@ -613,7 +605,19 @@ export default function PendingPaymentsTab({
                     }`}
                   >
                     <Building2 className="h-5 w-5 mx-auto mb-1 text-gray-600" />
-                    <div className="text-xs font-medium">Bank</div>
+                    <div className="text-xs font-medium">Bank (UBL)</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('jazzcash')}
+                    className={`p-3 rounded-lg border-2 transition-colors ${
+                      paymentMethod === 'jazzcash'
+                        ? 'border-rose-500 bg-rose-50'
+                        : 'border-gray-200 hover:border-rose-300'
+                    }`}
+                  >
+                    <Smartphone className="h-5 w-5 mx-auto mb-1 text-gray-600" />
+                    <div className="text-xs font-medium">JazzCash</div>
                   </button>
                 </div>
               </div>

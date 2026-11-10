@@ -23,6 +23,7 @@ import {
   type DateFilter,
 } from '../services/reportsService';
 import { getCurrencySymbol } from '../../pos/utils/currency';
+import { paymentMethodLabel } from '../../pos/utils/paymentMethods';
 import TablePagination from '@/components/admin/TablePagination';
 import { useServerPagination } from '@/helper/useServerPagination';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -125,7 +126,8 @@ export default function SalesReportPage() {
       ['Pending', fmt(s.totalPending)],
       ['Cash', fmt(s.cashSales)],
       ['Card', fmt(s.cardSales)],
-      ['Bank', fmt(s.bankSales)],
+      ['Bank (UBL)', fmt(s.bankSales)],
+      ['JazzCash', fmt(s.jazzcash || 0)],
       ['Avg Order', fmt(s.avgOrderValue)],
       ['Items Sold', String(s.itemsSold)],
     ];
@@ -161,7 +163,7 @@ export default function SalesReportPage() {
         o.orderNumber,
         new Date(o.createdAt).toLocaleDateString(),
         name.substring(0, 20),
-        String(o.paymentMethod),
+        paymentMethodLabel(o.paymentMethod),
         o.paymentStatus,
         String(itemsOf(o)),
         o.costPrice > 0 ? fmt(o.costPrice) : '—',
@@ -266,11 +268,12 @@ export default function SalesReportPage() {
           </div>
 
           {/* How the sales were paid */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: 'Cash', value: data.summary.cashSales, cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
               { label: 'Card (POS machine)', value: data.summary.cardSales, cls: 'border-sky-200 bg-sky-50 text-sky-800' },
-              { label: 'Bank transfer', value: data.summary.bankSales, cls: 'border-violet-200 bg-violet-50 text-violet-800' },
+              { label: 'Bank (UBL)', value: data.summary.bankSales, cls: 'border-violet-200 bg-violet-50 text-violet-800' },
+              { label: 'JazzCash', value: data.summary.jazzcash || 0, cls: 'border-rose-200 bg-rose-50 text-rose-800' },
             ].map((m) => (
               <div key={m.label} className={`rounded-lg border p-3 ${m.cls}`}>
                 <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">{m.label}</div>
@@ -293,7 +296,8 @@ export default function SalesReportPage() {
                       <th className="px-3 py-2 text-right">Total sales</th>
                       <th className="px-3 py-2 text-right">Cash</th>
                       <th className="px-3 py-2 text-right">Card</th>
-                      <th className="px-3 py-2 text-right">Bank</th>
+                      <th className="px-3 py-2 text-right">Bank (UBL)</th>
+                      <th className="px-3 py-2 text-right">JazzCash</th>
                       <th className="px-3 py-2 text-right">Pending</th>
                       <th className="px-3 py-2 text-right">Items</th>
                       <th className="px-3 py-2 text-right">Cost</th>
@@ -320,6 +324,7 @@ export default function SalesReportPage() {
                         <td className="px-3 py-2 text-right tabular-nums text-emerald-800">{fmt(c.cash)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-sky-800">{fmt(c.card)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-violet-800">{fmt(c.bank)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-rose-800">{fmt(c.jazzcash || 0)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{fmt(c.pending)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{c.items}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmt(c.cost)}</td>
@@ -390,8 +395,8 @@ export default function SalesReportPage() {
                             {new Date(o.createdAt).toLocaleDateString()}
                           </td>
                           <td className="px-3 py-2">{name}</td>
-                          <td className="px-3 py-2 capitalize">
-                            {String(methodLabel).replace('_', ' ')}
+                          <td className="px-3 py-2">
+                            {paymentMethodLabel(String(methodLabel))}
                           </td>
                           <td className="px-3 py-2 capitalize">{o.paymentStatus}</td>
                           <td className="px-3 py-2 text-right">{itemsOf(o)}</td>

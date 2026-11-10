@@ -23,6 +23,7 @@ import {
 import { formatRs } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import type { AttentionItem, AttentionLevel, RecentBill, StockSnapshot, TillsNow, TopProduct } from '../dashboardService';
+import { paymentMethodLabel } from '../pos/utils/paymentMethods';
 
 /* ------------------------------------------------------------------ */
 /* Delta chip: direction icon + % (never colour alone)                  */
@@ -329,7 +330,7 @@ export function RecentBills({ bills, canOpen }: { bills: RecentBill[]; canOpen: 
                 <span className="ml-1.5 text-[11px] font-normal text-gray-400">{b.orderNumber}</span>
               </p>
               <p className="truncate text-[11px] text-gray-500">
-                {timeShort(b.createdAt)} · {b.items} item{b.items === 1 ? '' : 's'} · {b.paymentMethod}
+                {timeShort(b.createdAt)} · {b.items} item{b.items === 1 ? '' : 's'} · {paymentMethodLabel(b.paymentMethod)}
                 {b.cashierName ? ` · ${b.cashierName}` : ''}
               </p>
             </div>

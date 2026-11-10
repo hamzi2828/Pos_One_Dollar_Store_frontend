@@ -3,8 +3,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { PaymentMethodType, POSCart, POSCustomer, CustomerInfo } from '../types';
-import { X, CreditCard, Banknote, Building2, Upload, Loader2, Check, AlertCircle, User, Phone } from 'lucide-react';
+import { X, CreditCard, Banknote, Building2, Smartphone, Upload, Loader2, Check, AlertCircle, User, Phone } from 'lucide-react';
 import { uploadBankTransferScreenshot } from '../services/posUploadService';
+import { isTransferMethod } from '../utils/paymentMethods';
 import { getCurrencySymbol } from '../utils/currency';
 import MoneyInput from '@/components/ui/MoneyInput';
 
@@ -61,7 +62,9 @@ export default function PaymentModal({
   const cashAmount = parseFloat(cashReceived) || 0;
   const change = cashAmount - cart.total;
   // Partial payment: when paid amount is less than total (including 0)
-  const isPartialPayment = (paymentMethod === 'cash' || paymentMethod === 'bank_transfer') && cashAmount < cart.total;
+  // Bank (UBL) and JazzCash: customer sends the money; amount typed like cash.
+  const isTransfer = isTransferMethod(paymentMethod);
+  const isPartialPayment = (paymentMethod === 'cash' || isTransfer) && cashAmount < cart.total;
   const pendingAmount = isPartialPayment ? cart.total - cashAmount : 0;
 
   // For partial payments (including 0), require a customer to be selected
@@ -71,7 +74,7 @@ export default function PaymentModal({
 
   // Allow 0 payment if customer is selected (full pending)
   const isValidCash = paymentMethod === 'cash' && (cashAmount >= cart.total || !!canDoPartialPayment);
-  const isValidBankTransfer = paymentMethod === 'bank_transfer' && (cashAmount >= cart.total || !!canDoPartialPayment);
+  const isValidBankTransfer = isTransfer && (cashAmount >= cart.total || !!canDoPartialPayment);
   const isValidCard = paymentMethod === 'card';
   const canProceed = isValidCard || isValidCash || isValidBankTransfer;
 
@@ -83,7 +86,7 @@ export default function PaymentModal({
 
     try {
       let screenshotUrl: string | undefined;
-      if (paymentMethod === 'bank_transfer' && bankScreenshotFile && !offline) {
+      if (isTransfer && bankScreenshotFile && !offline) {
         try {
           const result = await uploadBankTransferScreenshot(bankScreenshotFile);
           screenshotUrl = result.url;
@@ -109,7 +112,7 @@ export default function PaymentModal({
 
       await onConfirm(
         paymentMethod,
-        (paymentMethod === 'cash' || paymentMethod === 'bank_transfer') ? cashAmount : undefined,
+        (paymentMethod === 'cash' || isTransfer) ? cashAmount : undefined,
         screenshotUrl,
         isPartialPayment,
         isPartialPayment ? cashAmount : undefined,
@@ -202,33 +205,43 @@ export default function PaymentModal({
           )}
 
           {/* Payment Methods */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* 4 buttons in one row: short labels so they fit on a phone too. */}
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
             <button
               onClick={() => setPaymentMethod('cash')}
-              className={`p-2 rounded-lg border-2 transition-colors ${
+              className={`px-1 py-1.5 sm:p-2 rounded-lg border-2 transition-colors ${
                 paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'
               }`}
             >
               <Banknote className="h-5 w-5 mx-auto text-gray-700" />
-              <div className="text-xs font-medium mt-1">Cash</div>
+              <div className="text-[11px] sm:text-xs font-medium mt-1 leading-tight">Cash</div>
             </button>
             <button
               onClick={() => setPaymentMethod('card')}
-              className={`p-2 rounded-lg border-2 transition-colors ${
+              className={`px-1 py-1.5 sm:p-2 rounded-lg border-2 transition-colors ${
                 paymentMethod === 'card' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
               }`}
             >
               <CreditCard className="h-5 w-5 mx-auto text-gray-700" />
-              <div className="text-xs font-medium mt-1">Card</div>
+              <div className="text-[11px] sm:text-xs font-medium mt-1 leading-tight">Card</div>
             </button>
             <button
               onClick={() => setPaymentMethod('bank_transfer')}
-              className={`p-2 rounded-lg border-2 transition-colors ${
+              className={`px-1 py-1.5 sm:p-2 rounded-lg border-2 transition-colors ${
                 paymentMethod === 'bank_transfer' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'
               }`}
             >
               <Building2 className="h-5 w-5 mx-auto text-gray-700" />
-              <div className="text-xs font-medium mt-1">Bank</div>
+              <div className="text-[11px] sm:text-xs font-medium mt-1 leading-tight">Bank (UBL)</div>
+            </button>
+            <button
+              onClick={() => setPaymentMethod('jazzcash')}
+              className={`px-1 py-1.5 sm:p-2 rounded-lg border-2 transition-colors ${
+                paymentMethod === 'jazzcash' ? 'border-rose-500 bg-rose-50' : 'border-gray-200 hover:border-rose-300'
+              }`}
+            >
+              <Smartphone className="h-5 w-5 mx-auto text-gray-700" />
+              <div className="text-[11px] sm:text-xs font-medium mt-1 leading-tight">JazzCash</div>
             </button>
           </div>
 
@@ -300,16 +313,23 @@ export default function PaymentModal({
             </div>
           )}
 
-          {/* Bank Transfer */}
-          {paymentMethod === 'bank_transfer' && (
+          {/* Bank (UBL) / JazzCash: same screen, own colour */}
+          {isTransfer && (
             <div className="space-y-3">
+              <p className="text-xs text-gray-600">
+                {paymentMethod === 'jazzcash'
+                  ? 'Customer sends the money to the shop JazzCash account.'
+                  : 'Customer sends the money to the shop UBL bank account.'}
+              </p>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">{symbol}</span>
                 <MoneyInput
                   value={cashReceived}
                   onValue={setCashReceived}
                   placeholder={cart.total.toFixed(2)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-lg"
+                  className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 text-lg ${
+                    paymentMethod === 'jazzcash' ? 'focus:ring-rose-500' : 'focus:ring-purple-500'
+                  }`}
                 />
               </div>
               <div className="grid grid-cols-5 gap-1.5">
@@ -321,11 +341,24 @@ export default function PaymentModal({
                     Full Pending
                   </button>
                 )}
-                <button onClick={() => setCashReceived(cart.total.toFixed(2))} className="py-1.5 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200">Exact</button>
+                <button
+                  onClick={() => setCashReceived(cart.total.toFixed(2))}
+                  className={`py-1.5 text-xs rounded ${
+                    paymentMethod === 'jazzcash' ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                >
+                  Exact
+                </button>
                 {[Math.ceil(cart.total / 10) * 10, Math.ceil(cart.total / 50) * 50, Math.ceil(cart.total / 100) * 100].slice(0, customer ? 2 : 3).map((amt) => (
                   <button key={amt} onClick={() => setCashReceived(amt.toString())} className="py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50">{symbol}{amt}</button>
                 ))}
               </div>
+              {cashAmount > cart.total && (
+                <div className="flex justify-between items-center bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <span className="text-sm text-green-700">Customer sent more. Give back in cash:</span>
+                  <span className="text-lg font-bold text-green-700">{symbol}{change.toFixed(2)}</span>
+                </div>
+              )}
               {cashAmount < cart.total && (
                 <div className={`rounded-lg px-3 py-2 ${customer ? 'bg-orange-50 border border-orange-200' : 'bg-red-50 border border-red-300'}`}>
                   <div className="flex justify-between items-center">
@@ -359,9 +392,13 @@ export default function PaymentModal({
                     <button onClick={() => setBankScreenshotFile(null)} className="text-red-500"><X className="h-3 w-3" /></button>
                   </div>
                 ) : (
-                  <label className="flex-1 flex items-center gap-2 border border-dashed border-purple-300 rounded px-3 py-1.5 cursor-pointer hover:bg-purple-50">
-                    <Upload className="h-4 w-4 text-purple-400" />
-                    <span className="text-xs text-purple-600">Screenshot (optional)</span>
+                  <label
+                    className={`flex-1 flex items-center gap-2 border border-dashed rounded px-3 py-1.5 cursor-pointer ${
+                      paymentMethod === 'jazzcash' ? 'border-rose-300 hover:bg-rose-50' : 'border-purple-300 hover:bg-purple-50'
+                    }`}
+                  >
+                    <Upload className={`h-4 w-4 ${paymentMethod === 'jazzcash' ? 'text-rose-400' : 'text-purple-400'}`} />
+                    <span className={`text-xs ${paymentMethod === 'jazzcash' ? 'text-rose-600' : 'text-purple-600'}`}>Screenshot (optional)</span>
                     <input type="file" accept="image/*" onChange={(e) => handleScreenshotSelect(e.target.files?.[0] || null)} className="hidden" />
                   </label>
                 )}
@@ -380,6 +417,8 @@ export default function PaymentModal({
                   ? 'bg-orange-600 text-white hover:bg-orange-700'
                   : paymentMethod === 'bank_transfer'
                   ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : paymentMethod === 'jazzcash'
+                  ? 'bg-rose-600 text-white hover:bg-rose-700'
                   : paymentMethod === 'cash'
                   ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-blue-600 text-white hover:bg-blue-700')

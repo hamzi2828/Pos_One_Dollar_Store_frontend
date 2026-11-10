@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { openCashDrawer, sendRawToReceiptPrinter } from './cashDrawer';
 import { buildEscPosReceipt } from './escposReceipt';
 import qrcode from 'qrcode-generator';
+import { isTransferMethod, paymentMethodLabel } from './paymentMethods';
 
 const esc = (v: unknown) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -34,7 +35,9 @@ function reviewQr(sizeMm: number): string {
   return `<div class="qr" style="width:${sizeMm}mm;height:${sizeMm}mm">${svg}</div>`;
 }
 
-export const paymentLabel = (m: string) => (m === 'bank_transfer' ? 'Bank Transfer' : m.charAt(0).toUpperCase() + m.slice(1));
+export const paymentLabel = (m: string) => paymentMethodLabel(m);
+/** "Cash:" for cash; "Received:" when the customer sent the money (Bank (UBL) / JazzCash). */
+export const receivedLabel = (m: string | undefined) => (isTransferMethod(m) ? 'Received:' : 'Cash:');
 
 export function buildReceiptHtml(order: POSOrder, storeName: string, symbol: string): string {
   const money = (n: number | undefined) => `${symbol}${(Number(n) || 0).toFixed(2)}`;
@@ -111,7 +114,7 @@ ${discountRows}${taxRows}
 </div>
 <div class="block">
 <div class="row"><span>Payment:</span><span>${esc(paymentLabel(order.paymentMethod))}</span></div>
-${order.cashAmount ? `<div class="row"><span>Cash:</span><span>${money(order.cashAmount)}</span></div>` : ''}
+${order.cashAmount ? `<div class="row"><span>${receivedLabel(order.paymentMethod)}</span><span>${money(order.cashAmount)}</span></div>` : ''}
 ${order.changeGiven ? `<div class="row"><span>Change:</span><span>${money(order.changeGiven)}</span></div>` : ''}
 ${pending}
 </div>

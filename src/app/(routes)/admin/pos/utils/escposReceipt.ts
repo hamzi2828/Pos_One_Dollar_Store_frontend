@@ -3,7 +3,7 @@
 // station when another counter sends its receipt here. The local print agent
 // sends the string as Windows-1252 bytes, so text is kept to plain ASCII.
 import { POSOrder } from '../types';
-import { GOOGLE_REVIEW_URL, SHOP, paymentLabel } from './receipt';
+import { GOOGLE_REVIEW_URL, SHOP, paymentLabel, receivedLabel } from './receipt';
 
 const WIDTH = 48;
 
@@ -129,7 +129,7 @@ export function buildEscPosReceipt(order: POSOrder, storeName: string, symbol: s
 
   // Payment
   out += row('Payment:', paymentLabel(order.paymentMethod || ''));
-  if (order.cashAmount) out += row('Cash:', money(order.cashAmount));
+  if (order.cashAmount) out += row(receivedLabel(order.paymentMethod), money(order.cashAmount));
   if (order.changeGiven) out += row('Change:', money(order.changeGiven));
   if ((order.pendingAmount || 0) > 0) {
     out += row('Paid', money(order.paidAmount));

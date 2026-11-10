@@ -28,10 +28,12 @@ function tillFigures(t: TillDetail) {
     sysCash: e ? r2(e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) : 0,
     sysCard: t.nonCash?.card ?? e?.card ?? 0,
     sysBank: t.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0,
+    sysJazz: t.nonCash?.jazzcash ?? e?.jazzcash ?? 0,
     expenses: e?.expenses || 0,
     cash: t.dayCash ? t.dayCash.total : null,
     card: t.cardTotal ?? null,
     bank: t.bankTransferTotal ?? null,
+    jazz: t.jazzcashTotal ?? null,
     discounts: (t.discounts || []).reduce((s, d) => s + d.discount, 0),
     cashSales: e?.cashSales || 0,
     credit: e?.cashReceivedOnCredit || 0,
@@ -39,6 +41,22 @@ function tillFigures(t: TillDetail) {
   };
 }
 type Figs = ReturnType<typeof tillFigures>;
+
+/** One row of the per-till table (the footer adds these up, so it always matches the rows). */
+function rowFigures(f: Figs) {
+  const given =
+    f.cash == null && f.card == null && f.bank == null && f.jazz == null ? null : (f.cash || 0) + (f.card || 0) + (f.bank || 0) + (f.jazz || 0);
+  const should = r2(f.sysCash + f.sysCard + f.sysBank + f.sysJazz - f.expenses);
+  return {
+    given,
+    should,
+    /** Sales over (+) / short (-); null = nothing written yet. */
+    salesDiff: given == null ? null : r2(given - should),
+    /** Change money over / short; null = drawer not counted. */
+    changeDiff: f.drawer == null ? null : r2(f.drawer - f.float),
+    totalDiff: given == null ? null : r2(given + (f.drawer ?? f.float) - (should + f.float)),
+  };
+}
 
 function Diff({ entered, system }: { entered: number | null; system: number | null }) {
   if (entered == null || system == null) return <span className="text-gray-400">—</span>;
@@ -129,7 +147,7 @@ function DayPage() {
 
   const figs = tills.map(tillFigures);
   const add = (k: keyof Figs) => r2(figs.reduce((t, f) => t + ((f[k] as number | null) || 0), 0));
-  const anyGiven = (k: 'cash' | 'card' | 'bank') => figs.some((f) => f[k] != null);
+  const anyGiven = (k: 'cash' | 'card' | 'bank' | 'jazz') => figs.some((f) => f[k] != null);
   const expensesAmt = add('expenses');
   const discountAmt = add('discounts');
   const rows: { label: string; entered: number | null; system: number; target?: number; hint?: string }[] = [
@@ -141,7 +159,8 @@ function DayPage() {
       hint: expensesAmt ? 'after expenses' : undefined,
     },
     { label: 'POS machine (card)', entered: anyGiven('card') ? add('card') : null, system: add('sysCard') },
-    { label: 'Bank transfer', entered: anyGiven('bank') ? add('bank') : null, system: add('sysBank') },
+    { label: 'Bank (UBL)', entered: anyGiven('bank') ? add('bank') : null, system: add('sysBank') },
+    { label: 'JazzCash', entered: anyGiven('jazz') ? add('jazz') : null, system: add('sysJazz') },
   ];
   const sum = (k: 'entered' | 'system') => r2(rows.reduce((t, r) => t + (r[k] || 0), 0));
   const anyEntered = rows.some((r) => r.entered != null);
@@ -150,6 +169,20 @@ function DayPage() {
   const floatAmt = add('float');
   const drawerAmt = r2(figs.reduce((t, f) => t + (f.drawer ?? f.float), 0));
   const anyDrawer = figs.some((f) => f.drawer != null);
+
+  // "All counters" row of the per-till table: the rows added up.
+  const tillRows = figs.map(rowFigures);
+  const sumOf = (vals: (number | null)[]) => (vals.some((v) => v != null) ? r2(vals.reduce<number>((t, v) => t + (v || 0), 0)) : null);
+  const foot = {
+    should: r2(tillRows.reduce((t, r) => t + r.should, 0)),
+    salesDiff: sumOf(tillRows.map((r) => r.salesDiff)),
+    changeDiff: sumOf(tillRows.map((r) => r.changeDiff)),
+    totalDiff: sumOf(tillRows.map((r) => r.totalDiff)),
+    // Change money of the counted drawers only (same as each row shows).
+    left: r2(figs.reduce((t, f) => t + (f.drawer ?? 0), 0)),
+    leftFloat: r2(figs.reduce((t, f) => t + (f.drawer != null ? f.float : 0), 0)),
+  };
+  const money = (v: number | null) => (v != null ? formatRs(v) : '—');
 
   // All cash notes handed over, every counter together.
   const notes: CashCount = { denominations: {}, total: 0 };
@@ -182,7 +215,8 @@ function DayPage() {
               <th className="px-4 py-2 text-left font-semibold">Opened → closed</th>
               <th className="px-4 py-2 text-right font-semibold">Cash gave</th>
               <th className="px-4 py-2 text-right font-semibold">Card</th>
-              <th className="px-4 py-2 text-right font-semibold">Bank</th>
+              <th className="px-4 py-2 text-right font-semibold">Bank (UBL)</th>
+              <th className="px-4 py-2 text-right font-semibold">JazzCash</th>
               <th className="px-4 py-2 text-right font-semibold">Expenses</th>
               <th className="px-4 py-2 text-right font-semibold">Should hand over</th>
               <th className="px-4 py-2 text-right font-semibold">Sales over / short</th>
@@ -193,8 +227,7 @@ function DayPage() {
           <tbody className="divide-y divide-gray-100">
             {tills.map((t, i) => {
               const f = figs[i];
-              const given = f.cash == null && f.card == null && f.bank == null ? null : (f.cash || 0) + (f.card || 0) + (f.bank || 0);
-              const should = r2(f.sysCash + f.sysCard + f.sysBank - f.expenses);
+              const { given, should } = tillRows[i];
               return (
                 <tr key={t._id} className="cursor-pointer hover:bg-gray-50" onClick={() => window.open(`/admin/till/${t._id}`, '_blank', 'noopener')}>
                   <td className="px-4 py-2 whitespace-nowrap">
@@ -210,6 +243,7 @@ function DayPage() {
                   <td className="px-4 py-2 text-right tabular-nums">{f.cash != null ? formatRs(f.cash) : '—'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{f.card != null ? formatRs(f.card) : '—'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{f.bank != null ? formatRs(f.bank) : '—'}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{f.jazz != null ? formatRs(f.jazz) : '—'}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-gray-700">{f.expenses ? `−${formatRs(f.expenses)}` : '—'}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{formatRs(should)}</td>
                   <td className="px-4 py-2 text-right text-xs tabular-nums">
@@ -226,6 +260,36 @@ function DayPage() {
               );
             })}
           </tbody>
+          <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+            <tr>
+              <td className="px-4 py-2 text-gray-900" colSpan={2}>
+                All counters
+                <span className="block text-[11px] font-normal text-gray-500">
+                  {tills.length} till{tills.length === 1 ? '' : 's'} added up
+                </span>
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('cash') ? formatRs(add('cash')) : '—'}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('card') ? formatRs(add('card')) : '—'}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('bank') ? formatRs(add('bank')) : '—'}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('jazz') ? formatRs(add('jazz')) : '—'}</td>
+              <td className="px-4 py-2 text-right tabular-nums text-gray-700">{expensesAmt ? `−${formatRs(expensesAmt)}` : '—'}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{money(foot.should)}</td>
+              <td className="px-4 py-2 text-right text-xs tabular-nums">
+                <Diff entered={foot.salesDiff} system={foot.salesDiff == null ? null : 0} />
+              </td>
+              <td className="px-4 py-2 text-right text-xs tabular-nums whitespace-nowrap">
+                {foot.changeDiff != null && (
+                  <span className="block font-normal text-gray-500">
+                    {formatRs(foot.left)} left · float {formatRs(foot.leftFloat)}
+                  </span>
+                )}
+                <Diff entered={foot.changeDiff} system={foot.changeDiff == null ? null : 0} />
+              </td>
+              <td className="px-4 py-2 text-right text-xs tabular-nums">
+                <Diff entered={foot.totalDiff} system={foot.totalDiff == null ? null : 0} />
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
