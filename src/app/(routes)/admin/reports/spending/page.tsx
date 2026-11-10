@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Wallet } from "lucide-react";
 import ReportsNav from "../components/ReportsNav";
 import FundsPanel from "./FundsPanel";
+import BankCheckPanel from "./BankCheckPanel";
 import { SearchSelect } from "@/components/ui/SearchSelect";
 import { useAccess } from "@/context/AccessContext";
 import { LoadingCard, NoAccessCard } from "@/components/admin/FormBits";
@@ -94,10 +95,18 @@ const METHOD: Record<string, string> = {
   other: "Other",
 };
 
-type Tab = "overview" | "funds" | "vendors" | "payments" | "trips" | "expenses";
+type Tab =
+  | "overview"
+  | "funds"
+  | "bank"
+  | "vendors"
+  | "payments"
+  | "trips"
+  | "expenses";
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "funds", label: "Money left" },
+  { key: "bank", label: "Bank check" },
   { key: "vendors", label: "Vendors" },
   { key: "payments", label: "Payments" },
   { key: "trips", label: "Trip costs" },
@@ -156,6 +165,9 @@ export default function SpendingReportPage() {
   const { can, loaded } = useAccess();
   const canView = can("report_expenses", "view");
   const canExport = can("report_expenses", "export");
+  const canBank = can("bank_check", "view");
+  // The bank check tab shows only with the bank_check permission.
+  const tabs = TABS.filter((t) => t.key !== "bank" || canBank);
   const today = pkToday();
   const list = useMemo(() => periods(today), [today]);
   // Default: the period today falls in.
@@ -167,7 +179,7 @@ export default function SpendingReportPage() {
   // Never ask past today.
   const to = period.to > today ? today : period.to;
   // Open tab, kept in the address (#vendors) so a refresh stays on it.
-  const [tab, setTab] = useState<Tab>("overview");
+  const [rawTab, setTab] = useState<Tab>("overview");
   useEffect(() => {
     const h = window.location.hash.slice(1) as Tab;
     if (TABS.some((t) => t.key === h)) setTab(h);
@@ -176,6 +188,10 @@ export default function SpendingReportPage() {
     setTab(t);
     window.history.replaceState(null, "", `#${t}`);
   };
+  // #bank without the permission falls back to the overview.
+  const tab = rawTab === "bank" && !canBank ? "overview" : rawTab;
+  // Tabs that do not use the period filter.
+  const own = tab === "funds" || tab === "bank";
 
   const r = useReport<SpendingData>(
     "/analytics/spending",
@@ -264,7 +280,7 @@ export default function SpendingReportPage() {
       <ReportsNav />
 
       <div className="flex gap-1 overflow-x-auto border-b border-gray-200">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -296,8 +312,9 @@ export default function SpendingReportPage() {
       </div>
 
       {tab === "funds" && <FundsPanel />}
+      {tab === "bank" && canBank && <BankCheckPanel />}
 
-      {tab !== "funds" && (
+      {!own && (
         <FilterBar>
           <SearchSelect
             value={key}
@@ -318,7 +335,7 @@ export default function SpendingReportPage() {
         </FilterBar>
       )}
 
-      {tab === "funds" ? null : r.error ? (
+      {own ? null : r.error ? (
         <ErrorState message={r.error} onRetry={r.reload} />
       ) : !d || !s ? (
         <LoadingBlock />

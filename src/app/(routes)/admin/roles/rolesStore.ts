@@ -120,6 +120,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'expenses', label: 'Expenses', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'assets', label: 'Assets', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'investments', label: 'Investment', actions: ['view', 'create', 'edit', 'delete', 'export'] },
+      { key: 'bank_check', label: 'Bank Check', actions: ['view', 'create', 'edit', 'delete'] },
     ],
   },
   {
