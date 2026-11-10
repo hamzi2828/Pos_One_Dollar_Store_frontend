@@ -6,6 +6,7 @@
 // posted as a ledger adjustment (we owe the vendor less), so nothing is pending.
 
 import React, { useEffect, useRef, useState } from 'react';
+import CounterSelect from '../../expenses/components/CounterSelect';
 import { HandCoins, Loader2, Check, ImagePlus, X } from 'lucide-react';
 import { apiErrorMessage } from '@/helper/access';
 import { formatRs } from '@/lib/storeApi';
@@ -32,6 +33,7 @@ export default function PaymentModal({
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [bankId, setBankId] = useState('');
+  const [counterId, setCounterId] = useState('');
   const [reference, setReference] = useState('');
   const [date, setDate] = useState(pkToday());
   const [notes, setNotes] = useState('');
@@ -68,6 +70,7 @@ export default function PaymentModal({
     if (!vendorId) return setError('Choose the vendor.');
     if (!Number.isFinite(value) || value <= 0) return setError('Enter the amount paid.');
     if (method === 'cheque' && !reference.trim()) return setError('Enter the cheque number.');
+    if (method === 'cash' && !counterId) return setError('Pick which counter paid it (Paid from Counter 1 / Counter 2).');
     lock.current = true;
     setSaving(true);
     setError(null);
@@ -77,6 +80,7 @@ export default function PaymentModal({
         amount: value,
         method,
         bankId: method === 'bank' || method === 'cheque' ? bankId || null : null,
+        counter: method === 'cash' ? counterId : null,
         reference: reference.trim(),
         date,
         notes: notes.trim(),
@@ -192,6 +196,7 @@ export default function PaymentModal({
           </div>
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {method === 'cash' && <CounterSelect value={counterId} onChange={setCounterId} disabled={saving} />}
           {(method === 'bank' || method === 'cheque') && (
             <Field label="From our bank account">
               <SearchSelect value={bankId} onChange={(e) => setBankId(e.target.value)} className={inputClass}>

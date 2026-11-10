@@ -182,6 +182,8 @@ export interface VendorPayment {
   method: PaymentMethod;
   methodLabel: string;
   bank: string | null;
+  counter?: string | null;
+  counterName?: string;
   bankName: string;
   reference: string;
   date: string;
@@ -492,6 +494,7 @@ export const vendorApi = {
     amount: number;
     method: PaymentMethod;
     bankId?: string | null;
+    counter?: string | null;
     reference?: string;
     date?: string;
     notes?: string;
@@ -502,6 +505,7 @@ export const vendorApi = {
     form.append('amount', String(body.amount));
     form.append('method', body.method);
     if (body.bankId) form.append('bankId', body.bankId);
+    if (body.counter) form.append('counter', body.counter);
     if (body.reference) form.append('reference', body.reference);
     if (body.date) form.append('date', body.date);
     if (body.notes) form.append('notes', body.notes);
@@ -514,12 +518,13 @@ export const vendorApi = {
   /** Change a payment; the server writes old -> new into its history. */
   async updatePayment(
     id: string,
-    body: { amount: number; method: PaymentMethod; bankId?: string; reference?: string; date?: string; notes?: string; reason?: string; removeAttachments?: string[]; photos?: File[] },
+    body: { amount: number; method: PaymentMethod; bankId?: string; counter?: string; reference?: string; date?: string; notes?: string; reason?: string; removeAttachments?: string[]; photos?: File[] },
   ) {
     const form = new FormData();
     form.append('amount', String(body.amount));
     form.append('method', body.method);
     form.append('bankId', body.bankId || '');
+    form.append('counter', body.counter || '');
     form.append('reference', body.reference || '');
     if (body.date) form.append('date', body.date);
     form.append('notes', body.notes || '');

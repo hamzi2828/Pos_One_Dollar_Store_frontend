@@ -3,6 +3,7 @@
 // Payments table (Payments page + vendor profile tab) with void action.
 
 import React, { useState } from 'react';
+import { CounterTag } from '../../expenses/components/CounterSelect';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Ban, HandCoins, Pencil } from 'lucide-react';
@@ -68,7 +69,7 @@ export default function PaymentsTable({
                     </td>
                   )}
                   <td className={tdClass}>
-                    <p>{p.methodLabel}</p>
+                    <p>{p.methodLabel}{p.counterName ? <CounterTag name={p.counterName} className="ml-1" /> : null}</p>
                     <p className="text-[11px] text-gray-500 max-w-[220px] truncate">
                       {[p.bankName, p.reference, p.notes].filter(Boolean).join(' · ')}
                     </p>

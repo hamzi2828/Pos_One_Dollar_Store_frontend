@@ -4,6 +4,7 @@
 // The server keeps every change in the payment's history (old -> new).
 
 import React, { useEffect, useRef, useState } from 'react';
+import CounterSelect from '../../expenses/components/CounterSelect';
 import { Pencil, Loader2, Check, ImagePlus, X, History } from 'lucide-react';
 import { apiErrorMessage } from '@/helper/access';
 import { formatRs, formatDate } from '@/lib/storeApi';
@@ -26,6 +27,7 @@ export default function EditPaymentModal({ paymentId, onClose, onSaved }: { paym
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [bankId, setBankId] = useState('');
+  const [counterId, setCounterId] = useState('');
   const [reference, setReference] = useState('');
   const [date, setDate] = useState(pkToday());
   const [notes, setNotes] = useState('');
@@ -46,6 +48,7 @@ export default function EditPaymentModal({ paymentId, onClose, onSaved }: { paym
         setAmount(String(x.amount));
         setMethod(x.method);
         setBankId(x.bank || '');
+        setCounterId(x.counter || '');
         setReference(x.reference || '');
         setDate(dayOf(x.date));
         setNotes(x.notes || '');
@@ -66,6 +69,7 @@ export default function EditPaymentModal({ paymentId, onClose, onSaved }: { paym
         amount: value,
         method,
         bankId: method === 'bank' || method === 'cheque' ? bankId || '' : '',
+        counter: method === 'cash' ? counterId : '',
         reference: reference.trim(),
         date,
         notes: notes.trim(),
@@ -131,6 +135,7 @@ export default function EditPaymentModal({ paymentId, onClose, onSaved }: { paym
             </div>
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {method === 'cash' && <CounterSelect value={counterId} onChange={setCounterId} disabled={saving} savedName={p?.counterName} />}
             {(method === 'bank' || method === 'cheque') && (
               <Field label="From our bank account">
                 <SearchSelect value={bankId} onChange={(e) => setBankId(e.target.value)} className={inputClass}>
