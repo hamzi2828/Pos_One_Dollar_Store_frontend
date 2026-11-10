@@ -20,7 +20,11 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 /** One till's figures, the same way the till page works them out. */
 function tillFigures(t: TillDetail) {
   const e = t.expected || t.liveExpected || null;
+  // Change money: opening float vs what was left in the drawer (the till page's "Till" box).
+  const drawer = t.drawerCount ?? (t.dayCash ? null : t.closingCount);
   return {
+    float: t.openingFloat?.total ?? e?.float ?? 0,
+    drawer: drawer ? drawer.total : null,
     sysCash: e ? r2(e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) : 0,
     sysCard: t.nonCash?.card ?? e?.card ?? 0,
     sysBank: t.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0,
@@ -142,6 +146,10 @@ function DayPage() {
   const sum = (k: 'entered' | 'system') => r2(rows.reduce((t, r) => t + (r[k] || 0), 0));
   const anyEntered = rows.some((r) => r.entered != null);
   const shouldGive = r2(sum('system') - expensesAmt);
+  // Change money, all counters (drawer not counted yet = as the float).
+  const floatAmt = add('float');
+  const drawerAmt = r2(figs.reduce((t, f) => t + (f.drawer ?? f.float), 0));
+  const anyDrawer = figs.some((f) => f.drawer != null);
 
   // All cash notes handed over, every counter together.
   const notes: CashCount = { denominations: {}, total: 0 };
@@ -177,7 +185,9 @@ function DayPage() {
               <th className="px-4 py-2 text-right font-semibold">Bank</th>
               <th className="px-4 py-2 text-right font-semibold">Expenses</th>
               <th className="px-4 py-2 text-right font-semibold">Should hand over</th>
-              <th className="px-4 py-2 text-right font-semibold">Over / short</th>
+              <th className="px-4 py-2 text-right font-semibold">Sales over / short</th>
+              <th className="px-4 py-2 text-right font-semibold">Change money</th>
+              <th className="px-4 py-2 text-right font-semibold">Total over / short</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -204,6 +214,13 @@ function DayPage() {
                   <td className="px-4 py-2 text-right tabular-nums">{formatRs(should)}</td>
                   <td className="px-4 py-2 text-right text-xs tabular-nums">
                     <Diff entered={given} system={should} />
+                  </td>
+                  <td className="px-4 py-2 text-right text-xs tabular-nums whitespace-nowrap">
+                    {f.drawer != null && <span className="block text-gray-500">{formatRs(f.drawer)} left · float {formatRs(f.float)}</span>}
+                    <Diff entered={f.drawer} system={f.float} />
+                  </td>
+                  <td className="px-4 py-2 text-right text-xs tabular-nums">
+                    <Diff entered={given == null ? null : r2(given + (f.drawer ?? f.float))} system={r2(should + f.float)} />
                   </td>
                 </tr>
               );
@@ -321,6 +338,28 @@ function DayPage() {
               <td className="py-2 text-right tabular-nums text-gray-900">{formatRs(shouldGive)}</td>
               <td className="py-2 pl-2 text-right text-xs tabular-nums">
                 {anyEntered ? <Diff entered={sum('entered')} system={shouldGive} /> : <span className="text-gray-400">—</span>}
+              </td>
+            </tr>
+            <tr>
+              <td className="py-1.5 pr-2 text-gray-700">
+                Change money (left in drawers vs opening float)
+                <span className="block text-[10px] text-gray-400">kept apart from sales, like on each till page</span>
+              </td>
+              <td className="py-1.5 text-right tabular-nums">{anyDrawer ? formatRs(drawerAmt) : '—'}</td>
+              <td className="py-1.5 text-right tabular-nums text-gray-600">{formatRs(floatAmt)}</td>
+              <td className="py-1.5 pl-2 text-right text-xs tabular-nums">
+                {anyDrawer ? <Diff entered={drawerAmt} system={floatAmt} /> : <span className="text-gray-400">—</span>}
+              </td>
+            </tr>
+            <tr className="border-t-2 border-gray-300 bg-honey-50 font-bold">
+              <td className="py-2 pr-2 text-gray-900">
+                = Total over / short
+                <span className="block text-[10px] font-normal text-gray-500">sales + change money (same as the Cash Closing list)</span>
+              </td>
+              <td className="py-2 text-right tabular-nums text-gray-900">{anyEntered ? formatRs(r2(sum('entered') + drawerAmt)) : '—'}</td>
+              <td className="py-2 text-right tabular-nums text-gray-900">{formatRs(r2(shouldGive + floatAmt))}</td>
+              <td className="py-2 pl-2 text-right text-xs tabular-nums">
+                {anyEntered ? <Diff entered={r2(sum('entered') + drawerAmt)} system={r2(shouldGive + floatAmt)} /> : <span className="text-gray-400">—</span>}
               </td>
             </tr>
           </tfoot>
