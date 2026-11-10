@@ -13,13 +13,14 @@ import { PAYMENT_METHODS, vendorApi, type BankOption, type PaymentMethod } from 
 import { needsBank } from './BillModal';
 import type { AllocationMethod, ChargeType, Costing, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import CounterSelect from '@/app/(routes)/admin/expenses/components/CounterSelect';
 
 // ---------------------------------------------------------------- trip costs
 
 const MAX_COST_FILES = 5;
 const NO_FILES: File[] = [];
 
-type CostEdit = { id: string; type: ChargeType; amount: string; note: string; date: string; builty: boolean; method: PaymentMethod; bankId: string };
+type CostEdit = { id: string; type: ChargeType; amount: string; note: string; date: string; builty: boolean; method: PaymentMethod; bankId: string; counterId: string; counterName: string };
 
 const asMethod = (m?: string): PaymentMethod => (PAYMENT_METHODS.some((x) => x.value === m) ? (m as PaymentMethod) : 'cash');
 
@@ -52,6 +53,7 @@ export function ChargesCard({
   const [files, setFiles] = useState<File[]>([]);
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [bankId, setBankId] = useState('');
+  const [counterId, setCounterId] = useState('');
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const lock = useRef(false);
@@ -69,8 +71,8 @@ export function ChargesCard({
     const b = banks.find((x) => x._id === id);
     return b ? `${b.name} (${String(b.accountNumber || '').slice(-4)})` : 'bank';
   };
-  const paidText = (m?: string, bank?: string | null) =>
-    !m || m === 'cash' ? 'Cash' : needsBank(m) ? `${PAYMENT_METHODS.find((x) => x.value === m)?.label || m} · ${bankName(bank)}` : PAYMENT_METHODS.find((x) => x.value === m)?.label || m;
+  const paidText = (m?: string, bank?: string | null, counterName?: string) =>
+    !m || m === 'cash' ? (counterName ? `Cash · ${counterName}` : 'Cash') : needsBank(m) ? `${PAYMENT_METHODS.find((x) => x.value === m)?.label || m} · ${bankName(bank)}` : PAYMENT_METHODS.find((x) => x.value === m)?.label || m;
 
   const bankPicker = (value: string, onPick: (v: string) => void) => (
     <SearchSelect value={value} onChange={(e) => onPick(e.target.value)} className={inputClass} aria-label="From our bank account">
@@ -102,7 +104,8 @@ export function ChargesCard({
   const add = async () => {
     if (!(toNum(amount) > 0)) return toast.error('Enter the amount');
     if (needsBank(method) && !bankId) return toast.error('Choose the bank it was paid from');
-    const pay = { method, ...(needsBank(method) ? { bankId } : {}) };
+    if (method === 'cash' && !counterId) return toast.error('Pick which counter paid it (Paid from)');
+    const pay = { method, ...(needsBank(method) ? { bankId } : {}), ...(method === 'cash' ? { counter: counterId } : {}) };
     const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), note: note.trim(), date, ...pay }, files), 'Could not add the cost.');
     if (ok) {
       setFiles([]);
@@ -121,6 +124,7 @@ export function ChargesCard({
       date: edit.date,
       method: edit.method,
       ...(needsBank(edit.method) ? { bankId: edit.bankId } : {}),
+      counter: edit.method === 'cash' ? edit.counterId : '',
       ...(edit.builty ? {} : { type: edit.type }),
     };
     const ok = await run(edit.id, () => purchasingApi.updateCharge(po._id, edit.id, body), 'Could not save the cost.');
@@ -152,7 +156,7 @@ export function ChargesCard({
           {po.charges.map((c) => {
             const photos = c.photos || [];
             const ownFiles = editable && c.source === 'manual';
-            const detail = [formatDate(c.date || c.createdAt), paidText(c.method, c.bank), c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
+            const detail = [formatDate(c.date || c.createdAt), paidText(c.method, c.bank, c.counterName), c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
             if (edit && edit.id === c._id) {
               return (
                 <li key={c._id} className="py-2 space-y-2">
@@ -202,6 +206,7 @@ export function ChargesCard({
                   </div>
                   <Chips options={PAYMENT_METHODS} value={edit.method} onChange={(m) => setEdit({ ...edit, method: m })} disabled={!!busy} />
                   {needsBank(edit.method) && bankPicker(edit.bankId, (v) => setEdit({ ...edit, bankId: v }))}
+                  {edit.method === 'cash' && <CounterSelect value={edit.counterId} onChange={(v) => setEdit({ ...edit, counterId: v })} disabled={!!busy} savedName={edit.counterName} />}
                   <div className="flex gap-2">
                     <button type="button" onClick={save} disabled={!!busy} className={`${primaryBtn} flex-1`}>
                       {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
@@ -249,7 +254,7 @@ export function ChargesCard({
                     <button
                       type="button"
                       onClick={() =>
-                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', date: dayOf(c.date || c.createdAt), builty: c.source === 'builty', method: asMethod(c.method), bankId: c.bank || '' })
+                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', date: dayOf(c.date || c.createdAt), builty: c.source === 'builty', method: asMethod(c.method), bankId: c.bank || '', counterId: c.counter || '', counterName: c.counterName || '' })
                       }
                       disabled={!!busy}
                       className="p-1.5 text-gray-400 hover:text-honey-700 disabled:opacity-50"
@@ -309,6 +314,7 @@ export function ChargesCard({
             <p className="text-[11px] font-medium text-gray-600">Paid by</p>
             <Chips options={PAYMENT_METHODS} value={method} onChange={setMethod} disabled={!!busy} />
             {needsBank(method) && bankPicker(bankId, setBankId)}
+            {method === 'cash' && <CounterSelect value={counterId} onChange={setCounterId} disabled={!!busy} />}
           </div>
           <div className="flex items-center gap-2">
             <PhotoPicker files={files} onChange={setFiles} max={MAX_COST_FILES} allowPdf compact label="Screenshot" />

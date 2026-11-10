@@ -66,6 +66,9 @@ export interface POCharge {
   /** How it was paid: cash comes off the till, bank is checked on the bank statement ('' = old row). */
   method?: string;
   bank?: string | null;
+  /** Cash only: which counter's drawer paid it (only that counter's till takes it off). */
+  counter?: string | null;
+  counterName?: string;
   /** Payment proof: screenshots / PDFs (max 5) */
   photos?: string[];
   source: 'manual' | 'builty';
