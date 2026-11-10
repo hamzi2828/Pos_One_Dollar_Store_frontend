@@ -139,9 +139,9 @@ export const purchasingApi = {
     body: { name: string; category: string; salePrice: number; piecesPerBox: number; qty?: number; boxes?: number; unitPrice: number },
   ) => storeApi.post<PurchaseOrder>(`${PO}/${id}/bills/${billId}/new-product`, body).then((r) => r.data),
 
-  addCharge: (id: string, body: { type: string; amount: number; note?: string; paidTo?: string; date?: string }, photos: File[] = []) =>
+  addCharge: (id: string, body: { type: string; amount: number; note?: string; paidTo?: string; date?: string; method?: string; bankId?: string }, photos: File[] = []) =>
     storeApi.upload<PurchaseOrder>(`${PO}/${id}/charges`, toForm(body, photos)).then((r) => r.data),
-  updateCharge: (id: string, chargeId: string, body: { type?: string; amount?: number; note?: string; date?: string; removePhotos?: string[] }, photos: File[] = []) =>
+  updateCharge: (id: string, chargeId: string, body: { type?: string; amount?: number; note?: string; date?: string; method?: string; bankId?: string; removePhotos?: string[] }, photos: File[] = []) =>
     storeApi.upload<PurchaseOrder>(`${PO}/${id}/charges/${chargeId}`, toForm(body, photos), 'put').then((r) => r.data),
   removeCharge: (id: string, chargeId: string) => storeApi.del<PurchaseOrder>(`${PO}/${id}/charges/${chargeId}`).then((r) => r.data),
 

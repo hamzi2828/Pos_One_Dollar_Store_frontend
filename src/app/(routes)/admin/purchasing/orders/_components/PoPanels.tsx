@@ -1,14 +1,16 @@
 'use client';
 
 // Purchase trip panels: trip costs, cost-per-piece preview (advanced), suggested items.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import MoneyInput from '@/components/ui/MoneyInput';
 import toast from 'react-hot-toast';
 import { AlertTriangle, Calculator, Check, Lightbulb, Loader2, Pencil, Plus, Trash2, Truck, X } from 'lucide-react';
 import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
-import { Card, PhotoPicker, PhotoStrip } from '../../_shared/ui';
+import { Card, Chips, PhotoPicker, PhotoStrip } from '../../_shared/ui';
+import { PAYMENT_METHODS, vendorApi, type BankOption, type PaymentMethod } from '@/app/(routes)/admin/vendors/services/vendorApi';
+import { needsBank } from './BillModal';
 import type { AllocationMethod, ChargeType, Costing, POMeta, ProductUnit, PurchaseOrder } from '../../_shared/types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
@@ -17,7 +19,9 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 const MAX_COST_FILES = 5;
 const NO_FILES: File[] = [];
 
-type CostEdit = { id: string; type: ChargeType; amount: string; note: string; date: string; builty: boolean };
+type CostEdit = { id: string; type: ChargeType; amount: string; note: string; date: string; builty: boolean; method: PaymentMethod; bankId: string };
+
+const asMethod = (m?: string): PaymentMethod => (PAYMENT_METHODS.some((x) => x.value === m) ? (m as PaymentMethod) : 'cash');
 
 /** Today in Pakistan as YYYY-MM-DD. */
 const pkToday = () => new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
@@ -46,9 +50,38 @@ export function ChargesCard({
   const [note, setNote] = useState('');
   const [date, setDate] = useState(pkToday);
   const [files, setFiles] = useState<File[]>([]);
+  const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [bankId, setBankId] = useState('');
+  const [banks, setBanks] = useState<BankOption[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const lock = useRef(false);
   const label = (t: string) => meta?.chargeTypes.find((c) => c.value === t)?.label || t.replace(/_/g, ' ');
+
+  useEffect(() => {
+    if (!editable) return;
+    vendorApi
+      .banks()
+      .then((b) => setBanks(b || []))
+      .catch(() => setBanks([]));
+  }, [editable]);
+
+  const bankName = (id?: string | null) => {
+    const b = banks.find((x) => x._id === id);
+    return b ? `${b.name} (${String(b.accountNumber || '').slice(-4)})` : 'bank';
+  };
+  const paidText = (m?: string, bank?: string | null) =>
+    !m || m === 'cash' ? 'Cash' : needsBank(m) ? `${PAYMENT_METHODS.find((x) => x.value === m)?.label || m} · ${bankName(bank)}` : PAYMENT_METHODS.find((x) => x.value === m)?.label || m;
+
+  const bankPicker = (value: string, onPick: (v: string) => void) => (
+    <SearchSelect value={value} onChange={(e) => onPick(e.target.value)} className={inputClass} aria-label="From our bank account">
+      <option value="">— Choose bank —</option>
+      {banks.map((b) => (
+        <option key={b._id} value={b._id}>
+          {b.name} · {b.accountTitle} ({String(b.accountNumber || '').slice(-4)})
+        </option>
+      ))}
+    </SearchSelect>
+  );
 
   const run = async (key: string, fn: () => Promise<PurchaseOrder>, fail: string) => {
     if (lock.current) return false;
@@ -68,7 +101,9 @@ export function ChargesCard({
 
   const add = async () => {
     if (!(toNum(amount) > 0)) return toast.error('Enter the amount');
-    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), note: note.trim(), date }, files), 'Could not add the cost.');
+    if (needsBank(method) && !bankId) return toast.error('Choose the bank it was paid from');
+    const pay = { method, ...(needsBank(method) ? { bankId } : {}) };
+    const ok = await run('add', () => purchasingApi.addCharge(po._id, { type, amount: toNum(amount), note: note.trim(), date, ...pay }, files), 'Could not add the cost.');
     if (ok) {
       setFiles([]);
       setAmount('');
@@ -79,7 +114,15 @@ export function ChargesCard({
   const save = async () => {
     if (!edit) return;
     if (!(toNum(edit.amount) > 0)) return toast.error('Enter the amount');
-    const body = { amount: toNum(edit.amount), note: edit.note.trim(), date: edit.date, ...(edit.builty ? {} : { type: edit.type }) };
+    if (needsBank(edit.method) && !edit.bankId) return toast.error('Choose the bank it was paid from');
+    const body = {
+      amount: toNum(edit.amount),
+      note: edit.note.trim(),
+      date: edit.date,
+      method: edit.method,
+      ...(needsBank(edit.method) ? { bankId: edit.bankId } : {}),
+      ...(edit.builty ? {} : { type: edit.type }),
+    };
     const ok = await run(edit.id, () => purchasingApi.updateCharge(po._id, edit.id, body), 'Could not save the cost.');
     if (ok) setEdit(null);
   };
@@ -109,7 +152,7 @@ export function ChargesCard({
           {po.charges.map((c) => {
             const photos = c.photos || [];
             const ownFiles = editable && c.source === 'manual';
-            const detail = [formatDate(c.date || c.createdAt), c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
+            const detail = [formatDate(c.date || c.createdAt), paidText(c.method, c.bank), c.paidTo && `Paid to ${c.paidTo}`, c.note].filter(Boolean).join(' · ');
             if (edit && edit.id === c._id) {
               return (
                 <li key={c._id} className="py-2 space-y-2">
@@ -157,6 +200,8 @@ export function ChargesCard({
                       className={inputClass}
                     />
                   </div>
+                  <Chips options={PAYMENT_METHODS} value={edit.method} onChange={(m) => setEdit({ ...edit, method: m })} disabled={!!busy} />
+                  {needsBank(edit.method) && bankPicker(edit.bankId, (v) => setEdit({ ...edit, bankId: v }))}
                   <div className="flex gap-2">
                     <button type="button" onClick={save} disabled={!!busy} className={`${primaryBtn} flex-1`}>
                       {busy === c._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
@@ -204,7 +249,7 @@ export function ChargesCard({
                     <button
                       type="button"
                       onClick={() =>
-                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', date: dayOf(c.date || c.createdAt), builty: c.source === 'builty' })
+                        setEdit({ id: c._id, type: c.type, amount: String(c.amount), note: c.note || '', date: dayOf(c.date || c.createdAt), builty: c.source === 'builty', method: asMethod(c.method), bankId: c.bank || '' })
                       }
                       disabled={!!busy}
                       className="p-1.5 text-gray-400 hover:text-honey-700 disabled:opacity-50"
@@ -259,6 +304,11 @@ export function ChargesCard({
               className={inputClass}
             />
             <input type="date" aria-label="Date" value={date} max={pkToday()} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[11px] font-medium text-gray-600">Paid by</p>
+            <Chips options={PAYMENT_METHODS} value={method} onChange={setMethod} disabled={!!busy} />
+            {needsBank(method) && bankPicker(bankId, setBankId)}
           </div>
           <div className="flex items-center gap-2">
             <PhotoPicker files={files} onChange={setFiles} max={MAX_COST_FILES} allowPdf compact label="Screenshot" />

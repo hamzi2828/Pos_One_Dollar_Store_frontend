@@ -63,6 +63,9 @@ export interface POCharge {
   date?: string | null;
   createdAt?: string;
   paidTo: string;
+  /** How it was paid: cash comes off the till, bank is checked on the bank statement ('' = old row). */
+  method?: string;
+  bank?: string | null;
   /** Payment proof: screenshots / PDFs (max 5) */
   photos?: string[];
   source: 'manual' | 'builty';
