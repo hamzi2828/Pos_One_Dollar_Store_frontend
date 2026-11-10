@@ -16,9 +16,9 @@ export default function JoinLinkModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Every open makes a fresh link to share; links shared before keep working.
+    // Owner, 2026-11-10: opening shows the same saved link (no new link each time).
     joinAdminApi
-      .regenerate()
+      .link()
       .then(setLink)
       .catch((e) => setError(apiErrorMessage(e, 'Could not load the join link.')))
       .finally(() => setLoading(false));
@@ -124,11 +124,16 @@ export default function JoinLinkModal({ onClose }: { onClose: () => void }) {
                 ) : (
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-xs text-gray-500">
-                      A new link is made every time you open this. {link.activeLinks && link.activeLinks > 1 ? `${link.activeLinks} links work now.` : ''} Shared one with the wrong person?
+                      The same link stays until you make a new one. {link.activeLinks && link.activeLinks > 1 ? `${link.activeLinks} links work now.` : ''} Shared one with the wrong person? Block older links.
                     </p>
-                    <button type="button" onClick={() => setConfirmNew(true)} className={secondaryBtn} disabled={busy}>
-                      <RefreshCw className="h-4 w-4" /> Block older links
-                    </button>
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      <button type="button" onClick={() => run(() => joinAdminApi.regenerate(), 'New link made')} className={secondaryBtn} disabled={busy}>
+                        <RefreshCw className="h-4 w-4" /> New link
+                      </button>
+                      <button type="button" onClick={() => setConfirmNew(true)} className={secondaryBtn} disabled={busy}>
+                        Block older links
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

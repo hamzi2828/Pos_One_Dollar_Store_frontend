@@ -10,7 +10,7 @@ export type PayType = 'monthly' | 'daily';
 export interface JoinLink {
   token: string;
   enabled: boolean;
-  /** Links that still work (every open makes a new one; old ones keep working). */
+  /** Links that still work (old ones keep working after "New link"). */
   activeLinks?: number;
 }
 
