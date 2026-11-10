@@ -7,9 +7,20 @@ import { login } from "../service/authService";
 import { setRole, setToken } from "@/helper/helper";
 import { accessCan, setStoredAccess } from "@/helper/access";
 
+/** Only same-site paths into the portal or admin panel (no "//evil.com"). */
+export function safeNext(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  if (!/^\/(portal|admin)(\/|\?|#|$)/.test(v)) return null;
+  if (v.includes("//") || v.includes("\\")) return null;
+  return v;
+}
+
 // Staff-only sign in. There is no registration or password reset here on
 // purpose — staff accounts are created by the shop admin.
-export const LoginForm: React.FC = () => {
+// `next`: where to go after sign in (from ?next=, see safeNext). `portal`: the
+// page was opened from the Employee Portal button.
+export const LoginForm: React.FC<{ next?: string | null; portal?: boolean }> = ({ next = null, portal = false }) => {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -43,15 +54,17 @@ export const LoginForm: React.FC = () => {
       // Role + permissions (refreshed by the admin layout via /me/access).
       setStoredAccess(res.access ?? null);
 
-      if (res.data?.role === "admin") {
+      const target = safeNext(next);
+      if (target && target.startsWith("/portal")) {
+        // Employee Portal: any login; the portal shows only their own record.
+        router.replace(target);
+      } else if (res.data?.role === "admin") {
         // Staff without the POS permission start on the dashboard instead.
         const canPos = !res.access || accessCan(res.access, "pos", "view");
-        router.replace(canPos ? "/admin/pos" : "/admin");
+        router.replace(target ?? (canPos ? "/admin/pos" : "/admin"));
       } else {
-        // Only admins have anywhere to go in a POS-only app.
-        setError("This account does not have admin access.");
-        submitLockRef.current = false;
-        setLoading(false);
+        // No admin access: the Employee Portal is the only place to go.
+        router.replace("/portal");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
@@ -63,8 +76,10 @@ export const LoginForm: React.FC = () => {
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-4" noValidate>
       <div className="text-center">
-        <h2 className="text-xl font-bold text-gray-900">Sign in</h2>
-        <p className="mt-1 text-xs text-gray-500">Enter your credentials to open the POS</p>
+        <h2 className="text-xl font-bold text-gray-900">{portal ? "Employee Portal" : "Sign in"}</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          {portal ? "Sign in to see your attendance and salary" : "Enter your credentials to open the POS"}
+        </p>
       </div>
 
       {error && (

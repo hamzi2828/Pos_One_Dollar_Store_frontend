@@ -9,7 +9,7 @@ import { clearAllAuth, getCurrentUser } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
 import { storeApi, formatDate } from '@/lib/storeApi';
-import { Bell, CheckCheck, Loader2 } from 'lucide-react';
+import { Bell, CheckCheck, IdCard, Loader2 } from 'lucide-react';
 
 interface AdminHeaderProps {
   isSidebarOpen: boolean;
@@ -271,6 +271,17 @@ export default function AdminHeader({ isSidebarOpen, onToggleSidebar }: AdminHea
             <p className="text-[11px] text-gray-500 truncate max-w-[180px]">{subtitle}</p>
           </div>
         </div>
+
+        {/* Every login can see its own attendance / salary in the Employee Portal. */}
+        <Link
+          href="/portal"
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-gray-600 rounded-md sm:rounded-lg border border-gray-200 hover:bg-honey-50 hover:border-honey-500/50 hover:text-gray-900 transition-colors duration-200"
+          title="My portal: my attendance, salary and money"
+          aria-label="My portal"
+        >
+          <IdCard className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+          <span className="hidden sm:inline text-xs sm:text-sm font-medium">My portal</span>
+        </Link>
 
         <button
           onClick={handleLogout}
