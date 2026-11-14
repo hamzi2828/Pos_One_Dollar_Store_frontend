@@ -1193,6 +1193,14 @@ function RefundModal({
 
   const submit = async () => {
     if (lock.current) return;
+    // Only a number in "Reason" on a full refund = most likely the amount of a part refund.
+    if (mode === 'full' && /^\s*\d+(\.\d+)?\s*$/.test(reason)) {
+      setMode('part');
+      setAmount(reason.trim());
+      setReason('');
+      toast(`"${reason.trim()}" looks like an amount: switched to Part refund. Check it and press again.`, { icon: '⚠️', duration: 6000 });
+      return;
+    }
     if (mode === 'part') {
       if (!(amt > 0)) return toast.error('Enter how much to give back');
       if (tooMuch) return toast.error(`At most ${symbol}${info?.refundable} can be refunded`);
@@ -1289,7 +1297,7 @@ function RefundModal({
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-60"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
-            {busy ? 'Refunding…' : mode === 'full' ? 'Refund order' : 'Give part refund'}
+            {busy ? 'Refunding…' : mode === 'full' ? `Refund all ${symbol}${order.total.toFixed(0)} + stock back` : 'Give part refund'}
           </button>
         </div>
       </div>

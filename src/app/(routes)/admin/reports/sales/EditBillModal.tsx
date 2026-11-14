@@ -270,7 +270,23 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
           <Field label="Reason (optional)">
             <input className={inputClass} value={refundReason} maxLength={300} disabled={closedBill || !!busy} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. customer returned the items" />
           </Field>
-          {refundMode === 'part' ? (
+          {refundMode === 'full' && /^\s*\d+(\.\d+)?\s*$/.test(refundReason) ? (
+            <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              &quot;{refundReason.trim()}&quot; looks like an amount.{' '}
+              <button
+                type="button"
+                className="font-semibold underline"
+                onClick={() => {
+                  setRefundMode('part');
+                  setPartAmt(refundReason.trim());
+                  setRefundReason('');
+                }}
+              >
+                Make it a part refund of {formatRs(Number(refundReason) || 0)}
+              </button>{' '}
+              or write a reason in words for a full refund.
+            </div>
+          ) : refundMode === 'part' ? (
             <button
               type="button"
               onClick={doPartRefund}
@@ -286,7 +302,7 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
               disabled={closedBill || !!busy}
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
             >
-              <Undo2 className="h-4 w-4" /> Refund bill
+              <Undo2 className="h-4 w-4" /> Refund all {formatRs(total)} + stock back
             </button>
           ) : (
             <div className="flex flex-wrap items-center gap-2 rounded-lg bg-red-50 px-3 py-2">
