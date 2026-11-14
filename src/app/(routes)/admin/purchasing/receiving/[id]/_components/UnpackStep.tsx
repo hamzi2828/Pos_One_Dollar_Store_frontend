@@ -926,6 +926,9 @@ function EntryForm({
   const [damaged, setDamaged] = useState('0');
   const [shelfId, setShelfId] = useState<string | null>(null);
   const [shelfQty, setShelfQty] = useState('');
+  // Pieces already in the shop (entered / stickered before): only put them under this bill.
+  const inStock = Math.max(0, Number(unit.stockTotal) || 0);
+  const [alreadyInStock, setAlreadyInStock] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lock = useRef(false);
@@ -954,7 +957,10 @@ function EntryForm({
     if (!Number.isInteger(n) || n < 1) return setError(pps > 1 ? `Enter the pieces you counted (${pps} or more).` : 'Enter how many pieces (1 or more).');
     if (!(c > 0)) return setError('Enter the cost price per piece.');
     if (!Number.isInteger(d) || d < 0 || d > n) return setError('Damaged pieces must be between 0 and the pieces entered.');
-    if (shelfNow) {
+    if (alreadyInStock && good * pps > inStock) {
+      return setError(`Only ${inStock} pcs are in stock. Turn off “Already in the shop” for the extra pieces.`);
+    }
+    if (shelfNow && !alreadyInStock) {
       if (!shelfId) return setError('Choose the shelf, or turn off “Put on a shelf now”.');
       if (!Number.isInteger(shelfN) || shelfN < 1 || shelfN > good) return setError(`Pieces for the shelf must be 1 to ${good}.`);
     }
@@ -970,10 +976,11 @@ function EntryForm({
         costPrice: c,
         damagedQty: d || undefined,
         ...(boxNo > 0 ? { boxNo } : {}),
-        ...(shelfNow && shelfId ? { shelfId, shelfQty: shelfN } : {}),
+        ...(shelfNow && shelfId && !alreadyInStock ? { shelfId, shelfQty: shelfN } : {}),
+        ...(alreadyInStock ? { alreadyInStock: true } : {}),
         requestId: requestId.current,
       });
-      if (shelfNow) invalidateShelfOptions();
+      if (shelfNow && !alreadyInStock) invalidateShelfOptions();
       onSaved(res);
     } catch (e) {
       const code = apiErrorCode(e);
@@ -1070,6 +1077,22 @@ function EntryForm({
           <p className="mt-1 text-[11px] text-gray-500">Damaged pieces are not put into stock; their money can be claimed back from the vendor at the end.</p>
         </Disclosure>
 
+        {inStock > 0 && (
+          <div className={`rounded-lg border p-3 ${alreadyInStock ? 'border-sky-300 bg-sky-50' : 'border-gray-200'}`}>
+            <Toggle
+              checked={alreadyInStock}
+              onChange={setAlreadyInStock}
+              label="Already in the shop"
+              hint={
+                alreadyInStock
+                  ? `These pieces are already in stock (${inStock} pcs, stickers printed). They only go under this vendor bill: stock stays ${inStock}.`
+                  : `${inStock} pcs are in stock already. Turn on if THESE are those pieces (entered / stickered before), so they are not added twice.`
+              }
+            />
+          </div>
+        )}
+
+        {!alreadyInStock && (
         <div className="rounded-lg border border-gray-200 p-3 space-y-3">
           <Toggle
             checked={shelfNow}
@@ -1096,6 +1119,7 @@ function EntryForm({
             </div>
           )}
         </div>
+        )}
 
         <ErrorBox message={error} />
         <div className="flex gap-2">
@@ -1104,7 +1128,9 @@ function EntryForm({
           </button>
           <button type="button" onClick={save} disabled={busy} aria-busy={busy} className={`${primaryBtn} flex-1 !py-3 text-base`}>
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-            {busy ? 'Saving…' : pps > 1 ? `Save ${Number.isInteger(good) ? good : 0} sales (${(Number.isInteger(good) ? good : 0) * pps} pcs)` : `Save ${good || ''} pcs`}
+            {busy
+              ? 'Saving…'
+              : `${pps > 1 ? `Save ${Number.isInteger(good) ? good : 0} sales (${(Number.isInteger(good) ? good : 0) * pps} pcs)` : `Save ${good || ''} pcs`}${alreadyInStock ? ' (already in shop)' : ''}`}
           </button>
         </div>
       </fieldset>
@@ -1160,7 +1186,7 @@ function SavedCard({
                 {e.damagedQty > 0 && <span className="text-red-600"> ({e.damagedQty} damaged)</span>}
               </p>
             )}
-            {e && <p className="text-xs text-gray-500">{e.shelved > 0 ? `${e.shelved} pcs put on the shelf.` : 'In the warehouse.'}</p>}
+            {e && <p className="text-xs text-gray-500">{e.alreadyInStock ? 'Already in the shop: put under this vendor, no stock added.' : e.shelved > 0 ? `${e.shelved} pcs put on the shelf.` : 'In the warehouse.'}</p>}
             {tagCode && (
               <p className="mt-1 text-xs text-gray-700">
                 Tag code <span className="font-mono font-semibold text-gray-900">#{tagCode}</span>

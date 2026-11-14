@@ -299,7 +299,7 @@ export default function EntriesList({
                     );
                   })()}
                   <p className="text-[11px] text-gray-500">
-                    {e.shelved > 0 ? `${e.shelved} on shelf` : 'In warehouse'}
+                    {e.alreadyInStock ? 'Already in the shop (no stock added)' : e.shelved > 0 ? `${e.shelved} on shelf` : 'In warehouse'}
                     {e.shelved > 0 && e.stockQty > e.shelved && `, ${e.stockQty - e.shelved} in warehouse`} · {e.createdByName || '—'} · {formatDate(e.createdAt, true)}
                   </p>
                 </div>

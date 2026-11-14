@@ -57,6 +57,8 @@ export interface EntryInput {
   boxNo?: number;
   /** fresh id per save: a resend with the same id never enters twice */
   requestId?: string;
+  /** pieces already in the shop: only put under this bill, no stock added */
+  alreadyInStock?: boolean;
 }
 
 export interface QuickProductInput {

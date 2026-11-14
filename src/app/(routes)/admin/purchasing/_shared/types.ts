@@ -435,6 +435,8 @@ export interface GRNEntry {
   line: string | null;
   movement: string | null;
   shelved: number;
+  /** pieces were already in the shop: this entry added no stock */
+  alreadyInStock?: boolean;
   createdBy?: string;
   createdByName: string;
   createdAt: string;
