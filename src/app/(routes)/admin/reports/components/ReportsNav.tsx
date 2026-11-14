@@ -13,7 +13,6 @@ import {
   Target,
   Calculator,
   Route,
-  PiggyBank,
   ArrowLeft,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,8 +34,7 @@ export const REPORTS: ReportLink[] = [
   { href: '/admin/reports/stock', label: 'Stock', icon: Boxes, perm: 'report_stock', about: 'Stock on hand and its value.', group: 'Stock' },
   { href: '/admin/reports/stock-timeline', label: 'Stock Timeline', icon: Route, perm: 'report_stock_movement', about: 'Every move of one item: in, sold, moved, damaged.', group: 'Stock' },
   { href: '/admin/reports/cash-closing', label: 'Cash Closing', icon: Calculator, perm: 'report_cash_closing', about: 'Each till: cash, POS, bank, expenses, over / short.', group: 'Money' },
-  { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: 'report_cash_in_hand', about: 'Cash taken in and paid out.', group: 'Money' },
-  { href: '/admin/reports/spending', label: 'Spending', icon: PiggyBank, perm: 'report_expenses', about: 'Bought, paid to vendors, money left (cash + bank).', group: 'Money' },
+  { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: ['report_cash_in_hand', 'report_expenses'], about: 'Money left (cash + bank), bought, paid to vendors, trip costs, expenses, bank check.', group: 'Money' },
   { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt, perm: 'report_expenses', about: 'Shop expenses by day, week or month.', group: 'Money' },
 ];
 
