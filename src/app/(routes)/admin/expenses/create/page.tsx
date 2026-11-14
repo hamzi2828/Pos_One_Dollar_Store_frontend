@@ -21,6 +21,18 @@ import { useAccess } from '@/context/AccessContext';
 const localDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/**
+ * Day an expense of an open till counts on: today; before 06:00 the day the till
+ * started (opened 11:00, expense at 00:30); a till opened at 22:00+ is the next day's.
+ */
+const tillExpenseDay = (openedAt: Date, now = new Date()) => {
+  const open = new Date(openedAt);
+  if (open.getHours() >= 22) open.setDate(open.getDate() + 1);
+  const openDay = localDay(open);
+  const today = localDay(now);
+  return now.getHours() < 6 && openDay < today ? openDay : today;
+};
+
 export default function CreateExpensePage() {
   const router = useRouter();
   // Cashier (till_expenses only): the expense goes on their open till, dated now.
@@ -65,8 +77,8 @@ export default function CreateExpensePage() {
         const session = open ? res.data?.session : null;
         const c = session?.counter;
         if (alive && c) setCounterId((v) => v || String(c));
-        // Added while my till is open = dated the day the till opened (even after midnight).
-        if (alive && session?.openedAt) setDate(localDay(new Date(session.openedAt)));
+        // Added while my till is open = that till's day (same rule as the server).
+        if (alive && session?.openedAt) setDate(tillExpenseDay(new Date(session.openedAt)));
         if (alive) setMyTill({ open, sessionNo: session?.sessionNo || '', counterName: session?.counterName || '' });
       })
       .catch(() => {
