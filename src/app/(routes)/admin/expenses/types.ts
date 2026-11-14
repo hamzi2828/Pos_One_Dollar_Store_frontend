@@ -36,6 +36,8 @@ export interface Expense {
   /** Added by a cashier while this till was open. */
   cashSession?: string | null;
   createdByName?: string;
+  /** Shown on the list only (e.g. a trip cost paid from a till): no total / till counts it. */
+  displayOnly?: boolean;
   reference: string;
   notes: string;
   receipt: string | null;
@@ -93,6 +95,7 @@ export interface RawExpense {
   refundBill?: RefundBill | null;
   cashSession?: string | null;
   createdByName?: string;
+  displayOnly?: boolean;
   reference?: string;
   notes?: string;
   receipt?: string | null;

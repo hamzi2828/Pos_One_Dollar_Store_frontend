@@ -167,6 +167,7 @@ const ExpensesPage = () => {
         posOrder: e.posOrder ? String(e.posOrder) : null,
         posOrderNumber: e.posOrderNumber || '',
         createdByName: e.createdByName || '',
+        displayOnly: !!e.displayOnly,
         reference: String(e.reference ?? ''),
         notes: String(e.notes ?? ''),
         receipt: e.receipt || null,
@@ -543,6 +544,11 @@ const ExpensesPage = () => {
                           Personal money{expense.loanNo ? ` · ${expense.loanNo}` : ''}
                         </a>
                       )}
+                      {expense.displayOnly && (
+                        <span className="mt-0.5 block text-[11px] font-medium text-sky-700" title="Already counted as a trip cost (till and goods cost). Shown here only; not added to totals.">
+                          Shown only · counted as trip cost
+                        </span>
+                      )}
                       {expense.posOrderNumber && (
                         <span className="mt-0.5 block text-[11px] font-medium text-emerald-700" title="Money given back on this bill">
                           Refund · {expense.posOrderNumber}
@@ -558,7 +564,7 @@ const ExpensesPage = () => {
                       {formatDate(expense.date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {!canToggleStatus ? (
+                      {!canToggleStatus || expense.displayOnly ? (
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${expense.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {expense.isActive ? 'Active' : 'Inactive'}
                         </span>
@@ -579,7 +585,7 @@ const ExpensesPage = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {canEdit && (
+                      {canEdit && !expense.displayOnly && (
                       <button
                         onClick={() => handleEdit(expense)}
                         disabled={togglingId === expense._id}
@@ -588,7 +594,7 @@ const ExpensesPage = () => {
                         <Edit2 className="h-4 w-4" />
                       </button>
                       )}
-                      {canDelete && (
+                      {canDelete && !expense.displayOnly && (
                       <button
                         onClick={() => handleDeleteClick(expense._id)}
                         disabled={togglingId === expense._id}
