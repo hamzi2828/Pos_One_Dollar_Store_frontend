@@ -33,6 +33,14 @@ const METHODS: { value: BillPayMethod; label: string }[] = [
   { value: 'card', label: 'Card (POS machine)' },
   { value: 'bank_transfer', label: 'Bank (UBL)' },
   { value: 'jazzcash', label: 'JazzCash' },
+  { value: 'split', label: 'Split' },
+];
+type PartMethod = 'cash' | 'card' | 'bank_transfer' | 'jazzcash';
+const PART_ROWS: { method: PartMethod; label: string }[] = [
+  { method: 'cash', label: 'Cash' },
+  { method: 'card', label: 'Card' },
+  { method: 'bank_transfer', label: 'Bank (UBL)' },
+  { method: 'jazzcash', label: 'JazzCash' },
 ];
 
 /** Report method ('bank') -> API method. */
@@ -45,7 +53,9 @@ const toApiMethod = (m: string): BillPayMethod | null =>
         ? 'bank_transfer'
         : m === 'jazzcash'
           ? 'jazzcash'
-          : null;
+          : m === 'split'
+            ? 'split'
+            : null;
 const labelOf = (m: string) => METHODS.find((x) => x.value === toApiMethod(m))?.label || m.replace('_', ' ');
 
 export default function EditBillModal({ bill, onClose, onSaved }: { bill: EditableBill; onClose: () => void; onSaved: () => void }) {
@@ -59,6 +69,16 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
   const [refundReason, setRefundReason] = useState('');
   const [confirmRefund, setConfirmRefund] = useState(false);
   const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash');
+  // Split: what each method paid (must add up to what was paid on the bill).
+  const paidOnBill = Math.round((Number(bill.total) - (Number(bill.pendingAmount) || 0)) * 100) / 100;
+  const [parts, setParts] = useState<Record<PartMethod, string>>({ cash: '', card: '', bank_transfer: '', jazzcash: '' });
+  const partList = PART_ROWS.map((r) => ({ method: r.method, amount: Math.round((Number(parts[r.method]) || 0) * 100) / 100 })).filter((p) => p.amount > 0);
+  const partSum = Math.round(partList.reduce((t, p) => t + p.amount, 0) * 100) / 100;
+  const splitOk = partList.length > 0 && Math.abs(partSum - paidOnBill) < 0.01;
+  const restInto = (m: PartMethod) => {
+    const others = partList.filter((p) => p.method !== m).reduce((t, p) => t + p.amount, 0);
+    setParts((prev) => ({ ...prev, [m]: String(Math.max(0, Math.round((paidOnBill - others) * 100) / 100)) }));
+  };
   // Part refund (money only, a Refund expense on the bill; stock stays).
   const [refundMode, setRefundMode] = useState<'full' | 'part'>('full');
   const [partAmt, setPartAmt] = useState('');
@@ -87,11 +107,15 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
   const back = Math.max(0, Math.round((n - Math.min(n, Number(bill.pendingAmount) || 0)) * 100) / 100);
 
   const saveMethod = async () => {
-    if (busy || closedBill || method === current) return;
+    if (busy || closedBill || (method === current && method !== 'split') || (method === 'split' && !splitOk)) return;
     setBusy('method');
     try {
-      await changeOrderPaymentMethod(bill._id, method, reason.trim() || undefined);
-      toast.success(`${bill.orderNumber}: now ${labelOf(method)}`);
+      await changeOrderPaymentMethod(bill._id, method, reason.trim() || undefined, method === 'split' ? partList : undefined);
+      toast.success(
+        method === 'split'
+          ? `${bill.orderNumber}: split ${partList.map((p) => `${PART_ROWS.find((r) => r.method === p.method)?.label} ${formatRs(p.amount)}`).join(' + ')}`
+          : `${bill.orderNumber}: now ${labelOf(method)}`
+      );
       onSaved();
       onClose();
     } catch (err) {
@@ -167,7 +191,7 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
 
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-900">Payment method</h3>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {METHODS.map((m) => (
               <label
                 key={m.value}
@@ -187,10 +211,44 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
               </label>
             ))}
           </div>
+          {method === 'split' && (
+            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+              <p className="text-xs text-gray-600">What each method paid. Must add up to {formatRs(paidOnBill)} (paid on this bill).</p>
+              {PART_ROWS.map((r) => (
+                <div key={r.method} className="flex items-center gap-2">
+                  <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-700">{r.label}</span>
+                  <MoneyInput
+                    className={inputClass}
+                    value={parts[r.method]}
+                    onValue={(val) => setParts((prev) => ({ ...prev, [r.method]: val }))}
+                    disabled={closedBill || !!busy}
+                    placeholder="0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => restInto(r.method)}
+                    disabled={closedBill || !!busy}
+                    className="flex-shrink-0 rounded border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                  >
+                    Rest
+                  </button>
+                </div>
+              ))}
+              <p className={`text-xs font-semibold ${splitOk ? 'text-green-700' : 'text-red-600'}`}>
+                {formatRs(partSum)} of {formatRs(paidOnBill)}
+                {splitOk ? ' · adds up' : partSum < paidOnBill ? ` · ${formatRs(paidOnBill - partSum)} left` : ` · ${formatRs(partSum - paidOnBill)} too much`}
+              </p>
+            </div>
+          )}
           <Field label="Reason (optional)">
             <input className={inputClass} value={reason} maxLength={200} disabled={closedBill || !!busy} onChange={(e) => setReason(e.target.value)} placeholder="e.g. wrong button pressed" />
           </Field>
-          <button type="button" className={primaryBtn} onClick={saveMethod} disabled={closedBill || !!busy || method === current}>
+          <button
+            type="button"
+            className={primaryBtn}
+            onClick={saveMethod}
+            disabled={closedBill || !!busy || (method === current && method !== 'split') || (method === 'split' && !splitOk)}
+          >
             {busy === 'method' && <Loader2 className="h-4 w-4 animate-spin" />}
             Save
           </button>
