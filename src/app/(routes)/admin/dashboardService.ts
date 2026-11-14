@@ -129,6 +129,8 @@ export interface DashboardData {
   generatedAt: string;
   kpis: Kpis & { refunds: { count: number; amount: number }; previous: Kpis };
   trend: TrendPoint[];
+  /** Hourly view: each hour's average over the 30 days before (working days only). */
+  hourAvg?: { days: number; from: string; to: string; hours: number[] } | null;
   hours: HourPoint[];
   payments: PaymentRow[];
   topProducts: TopProduct[];

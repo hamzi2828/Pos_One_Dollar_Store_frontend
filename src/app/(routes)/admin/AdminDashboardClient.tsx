@@ -151,7 +151,9 @@ export default function AdminDashboardClient() {
       const active = rows.filter((t) => t.bills > 0).map((t) => Number(t.key));
       const first = Math.min(9, ...(active.length ? active : [9]));
       let last = Math.max(22, ...(active.length ? active : [22]));
-      if (data.range.key === 'today') last = Math.min(last, shopHour());
+      // Today stops at this hour, unless the usual-hour line shows how the rest of the day normally goes.
+      const avgHours = (data.hourAvg?.hours || []).map((v, h) => (v > 0 ? h : -1)).filter((h) => h >= 0);
+      if (data.range.key === 'today') last = data.hourAvg?.days ? Math.max(Math.min(last, shopHour()), ...avgHours) : Math.min(last, shopHour());
       rows = rows.filter((t) => Number(t.key) >= first && Number(t.key) <= Math.max(first, last));
     }
     return rows.map((t) => ({
@@ -164,6 +166,11 @@ export default function AdminDashboardClient() {
       ],
     }));
   }, [data]);
+  // Each hour's 30-day average, one value per column of the hourly chart.
+  const hourLine = useMemo(() => {
+    if (!data || data.range.bucket !== 'hour' || !data.hourAvg || !data.hourAvg.days) return undefined;
+    return trendCols.map((c) => data.hourAvg!.hours[Number(c.key)] ?? 0);
+  }, [data, trendCols]);
 
   // Busy hours: trim to the hours the shop actually trades (first..last hour with bills), at least 9am–10pm.
   const hourCols = useMemo(() => {
@@ -383,8 +390,10 @@ export default function AdminDashboardClient() {
                     data={trendCols}
                     height={200}
                     ariaLabel="Sales over the period"
-                    showAverage
-                    averageLabel={data.range.bucket === 'hour' ? 'Avg / hour' : data.range.bucket === 'month' ? 'Avg / month' : 'Avg / day'}
+                    showAverage={!hourLine}
+                    averageLabel={data.range.bucket === 'month' ? 'Avg / month' : data.range.bucket === 'hour' ? 'Avg / hour' : 'Avg / day'}
+                    line={hourLine}
+                    lineLabel={`Usual (${data.hourAvg?.days || 0}-day avg)`}
                   />
                 )}
               </Card>

@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 export const SERIES = '#b77900';
 export const MUTED = '#d6d3d1'; // de-emphasised bars
 export const TRACK = '#f5f5f4'; // bar-list track
+export const LINE = '#0f766e'; // comparison line (teal: distinct from the gold columns)
 
 /** Rs 950 / Rs 12.5K / Rs 1.2M */
 export function compactRs(n: number): string {
@@ -54,6 +55,8 @@ export function ColumnChart({
   maxLabels = 8,
   showAverage = false,
   averageLabel = 'Avg',
+  line,
+  lineLabel = 'Usual',
 }: {
   data: Column[];
   height?: number;
@@ -66,11 +69,19 @@ export function ColumnChart({
   /** Dashed line at the average of the columns shown, labelled "Avg Rs X". */
   showAverage?: boolean;
   averageLabel?: string;
+  /** Comparison line, one value per column (e.g. each hour's 30-day average). */
+  line?: (number | null)[];
+  lineLabel?: string;
 }) {
   const [active, setActive] = useState<number | null>(null);
-  const max = useMemo(() => Math.max(0, ...data.map((d) => d.value)), [data]);
+  const lineVals = useMemo(() => (line && line.length === data.length ? line : null), [line, data.length]);
+  const max = useMemo(
+    () => Math.max(0, ...data.map((d) => d.value), ...(lineVals || []).map((v) => Number(v) || 0)),
+    [data, lineVals]
+  );
   const top = niceMax(max);
-  const peak = useMemo(() => (max > 0 ? data.findIndex((d) => d.value === max) : -1), [data, max]);
+  const colMax = useMemo(() => Math.max(0, ...data.map((d) => d.value)), [data]);
+  const peak = useMemo(() => (colMax > 0 ? data.findIndex((d) => d.value === colMax) : -1), [data, colMax]);
   // Show at most `maxLabels` x-labels so they never collide or get cut.
   const every = Math.max(1, Math.ceil(data.length / maxLabels));
   const empty = max <= 0;
@@ -120,6 +131,37 @@ export function ColumnChart({
               );
             })}
           </div>
+          {/* comparison line: one point per column (never catches the mouse) */}
+          {lineVals && !empty && (
+            <>
+              <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <polyline
+                  fill="none"
+                  stroke={LINE}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                  points={lineVals
+                    .map((v, i) => `${((i + 0.5) / lineVals.length) * 100},${100 - (Math.max(0, Number(v) || 0) / top) * 100}`)
+                    .join(' ')}
+                />
+              </svg>
+              {lineVals.map((v, i) => (
+                <span
+                  key={i}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute z-[6] h-2 w-2 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-white"
+                  style={{
+                    left: `${((i + 0.5) / lineVals.length) * 100}%`,
+                    bottom: `${(Math.max(0, Number(v) || 0) / top) * 100}%`,
+                    backgroundColor: LINE,
+                    transform: `translate(-50%, 50%) scale(${active === i ? 1.5 : 1})`,
+                  }}
+                />
+              ))}
+            </>
+          )}
           {/* average line (above the columns, never catches the mouse) */}
           {showAverage && !empty && avg > 0 && (
             <div className="pointer-events-none absolute left-0 right-0 z-[5]" style={{ bottom: `${avgPct}%` }} aria-hidden="true">
@@ -146,6 +188,11 @@ export function ColumnChart({
             >
               <p className="text-sm font-semibold whitespace-nowrap">{format(data[active].value)}</p>
               <p className="text-[11px] text-gray-300 whitespace-nowrap">{data[active].label}</p>
+              {lineVals && (
+                <p className="text-[11px] text-gray-300 whitespace-nowrap">
+                  <span className="font-medium" style={{ color: '#5eead4' }}>{format(Number(lineVals[active]) || 0)}</span> {lineLabel}
+                </p>
+              )}
               {data[active].extra?.map((x) => (
                 <p key={x.label} className="text-[11px] text-gray-300 whitespace-nowrap">
                   <span className="text-white font-medium">{x.value}</span> {x.label}
@@ -155,6 +202,16 @@ export function ColumnChart({
           )}
         </div>
       </div>
+      {lineVals && !empty && (
+        <div className="mt-1 flex items-center justify-end gap-3 pl-12 text-[11px] text-gray-500">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: SERIES }} /> This day
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-4 rounded" style={{ backgroundColor: LINE }} /> {lineLabel}
+          </span>
+        </div>
+      )}
       {/* x labels */}
       <div className="flex pl-12 mt-1.5 gap-[2px]">
         {data.map((d, i) => (
