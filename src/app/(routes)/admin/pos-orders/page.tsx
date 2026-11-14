@@ -2,6 +2,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import MoneyInput from '@/components/ui/MoneyInput';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -70,13 +71,48 @@ export default function POSOrdersPage() {
 
   const [orders, setOrders] = useState<POSOrder[]>([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('all');
-  const [payment, setPayment] = useState<PaymentFilter>('all');
+  // Filters live in the URL too, so a reload (or a shared link) keeps them.
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  const DAY = /^\d{4}-\d{2}-\d{2}$/;
+  const pickParam = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+    const v = sp.get(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
+  };
+  const [search, setSearch] = useState(() => sp.get('q') || '');
+  const [status, setStatus] = useState<StatusFilter>(() =>
+    pickParam<StatusFilter>('status', ['all', 'completed', 'pending', 'refunded', 'cancelled'], 'all')
+  );
+  const [payment, setPayment] = useState<PaymentFilter>(() =>
+    pickParam<PaymentFilter>('payment', ['all', 'cash', 'card', 'bank_transfer', 'jazzcash'], 'all')
+  );
   // Date: Today (default) / Custom (from - to) / All dates
-  const [range, setRange] = useState<'today' | 'custom' | 'all'>('today');
-  const [startDate, setStartDate] = useState<string>(() => pkToday());
-  const [endDate, setEndDate] = useState<string>(() => pkToday());
+  const [range, setRange] = useState<'today' | 'custom' | 'all'>(() => pickParam('range', ['today', 'custom', 'all'] as const, 'today'));
+  const [startDate, setStartDate] = useState<string>(() => {
+    const r = sp.get('range');
+    const v = sp.get('from') || '';
+    return r === 'all' ? '' : r === 'custom' && DAY.test(v) ? v : pkToday();
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const r = sp.get('range');
+    const v = sp.get('to') || '';
+    return r === 'all' ? '' : r === 'custom' && DAY.test(v) ? v : pkToday();
+  });
+  useEffect(() => {
+    const q = new URLSearchParams();
+    if (range !== 'today') q.set('range', range);
+    if (range === 'custom') {
+      if (startDate) q.set('from', startDate);
+      if (endDate) q.set('to', endDate);
+    }
+    if (status !== 'all') q.set('status', status);
+    if (payment !== 'all') q.set('payment', payment);
+    if (search.trim()) q.set('q', search.trim());
+    const next = q.toString();
+    if (next !== sp.toString()) router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, startDate, endDate, status, payment, search]);
   const pickRange = (r: 'today' | 'custom' | 'all') => {
     setRange(r);
     if (r === 'today') {
@@ -97,7 +133,7 @@ export default function POSOrdersPage() {
   const loadOrders = useCallback(() => setReloadTick((n) => n + 1), []);
 
   // Debounce search — every keystroke shouldn't hit the API.
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(() => (sp.get('q') || '').trim());
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(t);
