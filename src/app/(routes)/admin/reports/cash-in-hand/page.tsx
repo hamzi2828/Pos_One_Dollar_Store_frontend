@@ -9,6 +9,7 @@ import { Wallet } from "lucide-react";
 import ReportsNav from "../components/ReportsNav";
 import FundsPanel from "./FundsPanel";
 import BankCheckPanel from "./BankCheckPanel";
+import JazzCashPanel from "./JazzCashPanel";
 import { SearchSelect } from "@/components/ui/SearchSelect";
 import { useAccess } from "@/context/AccessContext";
 import { LoadingCard, NoAccessCard } from "@/components/admin/FormBits";
@@ -99,6 +100,7 @@ type Tab =
   | "overview"
   | "funds"
   | "bank"
+  | "jazzcash"
   | "vendors"
   | "payments"
   | "trips"
@@ -107,6 +109,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "funds", label: "Money left" },
   { key: "bank", label: "Bank check" },
+  { key: "jazzcash", label: "JazzCash" },
   { key: "vendors", label: "Vendors" },
   { key: "payments", label: "Payments" },
   { key: "trips", label: "Trip costs" },
@@ -335,7 +338,9 @@ export default function CashInHandPage() {
         </FilterBar>
       )}
 
-      {own ? null : r.error ? (
+      {tab === "jazzcash" && <JazzCashPanel from={period.from} to={to} />}
+
+      {own || tab === "jazzcash" ? null : r.error ? (
         <ErrorState message={r.error} onRetry={r.reload} />
       ) : !d || !s ? (
         <LoadingBlock />

@@ -10,7 +10,7 @@ export interface ExpenseCategoryItem {
   updatedAt: string;
 }
 
-export type PaymentMethod = 'Cash' | 'Bank Transfer';
+export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'JazzCash';
 
 export interface Expense {
   _id: string;
@@ -200,4 +200,5 @@ export const DEFAULT_EXPENSE_CATEGORIES: string[] = [
 // Keep for backward compatibility
 export const EXPENSE_CATEGORIES = DEFAULT_EXPENSE_CATEGORIES;
 
-export const PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Bank Transfer'];
+/** JazzCash = paid from the JazzCash wallet (never from a till). */
+export const PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Bank Transfer', 'JazzCash'];
