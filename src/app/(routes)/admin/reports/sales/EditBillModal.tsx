@@ -1,13 +1,21 @@
 'use client';
 
 // Edit a bill from the sales report: fix the payment method, give a discount after the sale, or refund it.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Pencil, Loader2, Undo2 } from 'lucide-react';
 import { Modal, Field, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { formatRs } from '@/lib/storeApi';
-import { changeOrderPaymentMethod, giveOrderDiscount, refundPOSOrder, type BillPayMethod } from '../../pos/services/posOrderService';
+import {
+  changeOrderPaymentMethod,
+  giveOrderDiscount,
+  refundPOSOrder,
+  getRefundInfo,
+  partialRefundPOSOrder,
+  type BillPayMethod,
+  type RefundInfo,
+} from '../../pos/services/posOrderService';
 import { RefundMethodPicker, type RefundMethod } from '../../pos/components/RefundMethodPicker';
 
 export interface EditableBill {
@@ -47,10 +55,30 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
   const [reason, setReason] = useState('');
   const [amt, setAmt] = useState('');
   const [discReason, setDiscReason] = useState('');
-  const [busy, setBusy] = useState<'method' | 'discount' | 'refund' | null>(null);
+  const [busy, setBusy] = useState<'method' | 'discount' | 'refund' | 'part' | null>(null);
   const [refundReason, setRefundReason] = useState('');
   const [confirmRefund, setConfirmRefund] = useState(false);
   const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash');
+  // Part refund (money only, a Refund expense on the bill; stock stays).
+  const [refundMode, setRefundMode] = useState<'full' | 'part'>('full');
+  const [partAmt, setPartAmt] = useState('');
+  const [refundInfo, setRefundInfo] = useState<RefundInfo | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getRefundInfo(bill._id)
+      .then((d) => {
+        if (!alive) return;
+        setRefundInfo(d);
+        if (d.refunded > 0) setRefundMode('part');
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [bill._id]);
+  const partTaken = !!refundInfo && refundInfo.refunded > 0;
+  const partN = Number(partAmt) || 0;
+  const partTooMuch = !!refundInfo && partN - refundInfo.refundable > 0.009;
 
   const total = Number(bill.total) || 0;
   const n = Number(amt) || 0;
@@ -99,6 +127,21 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not refund the bill');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doPartRefund = async () => {
+    if (busy || closedBill || !(partN > 0) || partTooMuch) return;
+    setBusy('part');
+    try {
+      await partialRefundPOSOrder(bill._id, partN, refundReason.trim() || undefined, refundMethod);
+      toast.success(`${formatRs(partN)} refunded on ${bill.orderNumber} (saved as a Refund expense)`);
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save the part refund');
     } finally {
       setBusy(null);
     }
@@ -177,14 +220,66 @@ export default function EditBillModal({ bill, onClose, onSaved }: { bill: Editab
 
         <section className="space-y-3 border-t border-gray-200 pt-4">
           <h3 className="text-sm font-semibold text-gray-900">Refund</h3>
-          <p className="text-xs text-gray-600">
-            The whole bill is refunded: all pieces go back into stock and the customer gets {formatRs(total - (Number(bill.pendingAmount) || 0))} back.
-          </p>
+          <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+            {(['full', 'part'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setRefundMode(m);
+                  setConfirmRefund(false);
+                }}
+                disabled={closedBill || !!busy || (m === 'full' && partTaken)}
+                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold disabled:opacity-50 ${
+                  refundMode === m ? 'bg-white text-amber-800 shadow' : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                {m === 'full' ? 'Full refund' : 'Part refund'}
+              </button>
+            ))}
+          </div>
+          {refundMode === 'full' ? (
+            <p className="text-xs text-gray-600">
+              The whole bill is refunded: all pieces go back into stock and the customer gets {formatRs(total - (Number(bill.pendingAmount) || 0))} back.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-gray-600">
+                Give back part of the money. Saved as a Refund expense on this bill; the stock stays as sold.
+              </p>
+              <Field label="Amount to give back (Rs)">
+                <MoneyInput
+                  className={inputClass}
+                  value={partAmt}
+                  onValue={setPartAmt}
+                  disabled={closedBill || !!busy}
+                  placeholder={refundInfo ? `Up to ${refundInfo.refundable}` : '0'}
+                />
+              </Field>
+              <p className={`text-xs ${partTooMuch ? 'text-red-600' : 'text-gray-500'}`}>
+                {refundInfo
+                  ? `Paid ${formatRs(refundInfo.paid)}${refundInfo.refunded ? ` · already refunded ${formatRs(refundInfo.refunded)}` : ''} · can refund up to ${formatRs(refundInfo.refundable)}`
+                  : 'Loading…'}
+              </p>
+            </>
+          )}
+          {partTaken && refundMode === 'part' && (
+            <p className="text-xs text-amber-700">Part of this bill was already refunded, so a full refund is not possible.</p>
+          )}
           <RefundMethodPicker value={refundMethod} onChange={setRefundMethod} disabled={closedBill || !!busy} />
           <Field label="Reason (optional)">
             <input className={inputClass} value={refundReason} maxLength={300} disabled={closedBill || !!busy} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. customer returned the items" />
           </Field>
-          {!confirmRefund ? (
+          {refundMode === 'part' ? (
+            <button
+              type="button"
+              onClick={doPartRefund}
+              disabled={closedBill || !!busy || !(partN > 0) || partTooMuch || !refundInfo}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+            >
+              {busy === 'part' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />} Give part refund
+            </button>
+          ) : !confirmRefund ? (
             <button
               type="button"
               onClick={() => setConfirmRefund(true)}

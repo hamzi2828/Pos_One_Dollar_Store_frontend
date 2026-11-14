@@ -184,7 +184,7 @@ export function QuickActions() {
     { label: 'Check in goods', href: '/admin/purchasing/receiving', icon: <PackageCheck className="h-4 w-4" />, show: can('goods_receiving', 'view') },
     { label: 'Send to shop', href: '/admin/inventory/putaway', icon: <PackageOpen className="h-4 w-4" />, show: can('stock_putaway', 'create') },
     { label: 'Report damage', href: '/admin/inventory/damages', icon: <PackageX className="h-4 w-4" />, show: can('damages', 'create') },
-    { label: 'Add expense', href: '/admin/expenses/create', icon: <Receipt className="h-4 w-4" />, show: can('expenses', 'create') },
+    { label: 'Add expense', href: '/admin/expenses/create', icon: <Receipt className="h-4 w-4" />, show: can(['expenses', 'till_expenses'], 'create') },
   ].filter((a) => a.show);
   if (!actions.length) return null;
   return (

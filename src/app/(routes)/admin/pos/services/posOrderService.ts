@@ -101,6 +101,43 @@ export async function refundPOSOrder(orderId: string, reason?: string, refundMet
   return json.data as POSOrder;
 }
 
+/** Paid / already part-refunded / left to refund on a bill. */
+export interface RefundInfo {
+  _id: string;
+  orderNumber: string;
+  total: number;
+  paid: number;
+  refunded: number;
+  refundable: number;
+  orderStatus: string;
+}
+
+export async function getRefundInfo(orderId: string): Promise<RefundInfo> {
+  if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
+  const res = await fetch(`${API_BASE_URL}/api/pos/orders/${orderId}/refund-info`, {
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+  });
+  if (!res.ok) throw await readError(res, 'Could not load the refund info');
+  return (await res.json()).data as RefundInfo;
+}
+
+/** Part refund: money only, stock stays. Saved as a "Refund" expense on the bill. */
+export async function partialRefundPOSOrder(
+  orderId: string,
+  amount: number,
+  reason?: string,
+  refundMethod: 'cash' | 'bank_transfer' | 'jazzcash' | 'card' = 'cash',
+): Promise<{ bill: RefundInfo }> {
+  if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
+  const res = await fetch(`${API_BASE_URL}/api/pos/orders/${orderId}/partial-refund`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    body: JSON.stringify({ amount, reason, refundMethod }),
+  });
+  if (!res.ok) throw await readError(res, 'Could not save the part refund');
+  return (await res.json()).data as { bill: RefundInfo };
+}
+
 /**
  * Create a POS order
  */

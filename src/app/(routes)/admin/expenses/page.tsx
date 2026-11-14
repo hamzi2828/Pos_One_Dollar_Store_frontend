@@ -14,15 +14,23 @@ const PkrIcon = ({ className }: { className?: string }) => (
 );
 import { expenseService } from './service/expenseService';
 import { CounterTag } from './components/CounterSelect';
-import type { Expense, RawExpense, ExpenseCategory, PaymentMethod, ExpenseSummary, ExpenseCategoryItem } from './types';
+import type { Expense, RawExpense, ExpenseCategory, PaymentMethod, ExpenseSummary, ExpenseCategoryItem, TillScope } from './types';
 import { receiptsOf } from './types';
 import ReceiptThumbs from '../vendors/components/ReceiptThumbs';
+import { useAccess } from '@/context/AccessContext';
 
 const expensesPerPage = 10;
 
 const ExpensesPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Cashier (till_expenses only): the server sends just their open till's expenses.
+  const { can } = useAccess();
+  const canDelete = can('expenses', 'delete');
+  const canToggleStatus = can('expenses', 'edit');
+  const canCreate = can(['expenses', 'till_expenses'], 'create');
+  const canEdit = can(['expenses', 'till_expenses'], 'edit');
+  const [tillScope, setTillScope] = useState<TillScope | null>(null);
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<ExpenseSummary | null>(null);
@@ -132,7 +140,7 @@ const ExpensesPage = () => {
       setLoading(true);
       setError(null);
       const { startDate, endDate } = computeServerDateRange();
-      const { items, pagination: pag } = await expenseService.getExpenses({
+      const { items, pagination: pag, tillScope: scope } = await expenseService.getExpenses({
         page: currentPage,
         limit: expensesPerPage,
         search: debouncedSearch.trim() || undefined,
@@ -156,6 +164,9 @@ const ExpensesPage = () => {
         investmentTitle: e.investmentTitle || '',
         fromPersonal: !!e.fromPersonal,
         loanNo: e.loanNo || '',
+        posOrder: e.posOrder ? String(e.posOrder) : null,
+        posOrderNumber: e.posOrderNumber || '',
+        createdByName: e.createdByName || '',
         reference: String(e.reference ?? ''),
         notes: String(e.notes ?? ''),
         receipt: e.receipt || null,
@@ -166,6 +177,7 @@ const ExpensesPage = () => {
       }));
       setExpenses(typed);
       setPagination(pag);
+      setTillScope(scope);
     } catch (e: unknown) {
       if ((e as { name?: string })?.name === 'CanceledError' || (e as { code?: string })?.code === 'ERR_CANCELED') return;
       console.error(e);
@@ -343,9 +355,12 @@ const ExpensesPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Expenses</h1>
-          <p className="mt-1 text-sm text-gray-500">Track and manage your business expenses</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {tillScope ? 'Expenses and refunds of your open till' : 'Track and manage your business expenses'}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!tillScope && (
           <SearchSelect
             value={dateRange}
             onChange={(e) => {
@@ -364,7 +379,8 @@ const ExpensesPage = () => {
             <option value="custom">Custom</option>
             <option value="all">All Time</option>
           </SearchSelect>
-          {dateRange === 'custom' && (
+          )}
+          {!tillScope && dateRange === 'custom' && (
             <>
               <input
                 type="date"
@@ -381,6 +397,7 @@ const ExpensesPage = () => {
               />
             </>
           )}
+          {canCreate && (!tillScope || tillScope.open) && (
           <Link
             href="/admin/expenses/create"
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-honey-500 text-gray-900 rounded-lg hover:bg-honey-600 transition-colors"
@@ -388,8 +405,26 @@ const ExpensesPage = () => {
             <Plus className="h-5 w-5" />
             Add Expense
           </Link>
+          )}
         </div>
       </div>
+
+      {/* Cashier: what this list shows */}
+      {tillScope && (
+        <div className={`rounded-lg border p-3 text-sm ${tillScope.open ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+          {tillScope.open ? (
+            <>
+              Showing the expenses of your open till <strong>{tillScope.sessionNo}</strong>
+              {tillScope.counterName ? ` (${tillScope.counterName})` : ''}. They are taken off this till&apos;s cash. When you close the till they leave
+              this list, and the next till starts empty.
+            </>
+          ) : (
+            <>
+              Your till is not open. <Link href="/admin/till" className="font-semibold underline">Open your till</Link> to add expenses or refunds.
+            </>
+          )}
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -508,6 +543,11 @@ const ExpensesPage = () => {
                           Personal money{expense.loanNo ? ` · ${expense.loanNo}` : ''}
                         </a>
                       )}
+                      {expense.posOrderNumber && (
+                        <span className="mt-0.5 block text-[11px] font-medium text-emerald-700" title="Money given back on this bill">
+                          Refund · {expense.posOrderNumber}
+                        </span>
+                      )}
                       {expense.investmentTitle && (
                         <a href="/admin/investments" className="mt-0.5 block text-[11px] font-medium text-honey-800 hover:underline" title="This expense pays the rest of an investment bill">
                           Investment: {expense.investmentTitle}
@@ -518,6 +558,11 @@ const ExpensesPage = () => {
                       {formatDate(expense.date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      {!canToggleStatus ? (
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${expense.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {expense.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      ) : (
                       <button
                         onClick={() => handleStatusToggle(expense._id, !expense.isActive)}
                         disabled={!!togglingId}
@@ -531,8 +576,10 @@ const ExpensesPage = () => {
                         {togglingId === expense._id && <Loader2 className="h-3 w-3 animate-spin" />}
                         {togglingId === expense._id ? 'Updating…' : expense.isActive ? 'Active' : 'Inactive'}
                       </button>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      {canEdit && (
                       <button
                         onClick={() => handleEdit(expense)}
                         disabled={togglingId === expense._id}
@@ -540,6 +587,8 @@ const ExpensesPage = () => {
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
+                      )}
+                      {canDelete && (
                       <button
                         onClick={() => handleDeleteClick(expense._id)}
                         disabled={togglingId === expense._id}
@@ -547,6 +596,7 @@ const ExpensesPage = () => {
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
+                      )}
                     </td>
                   </tr>
                 ))

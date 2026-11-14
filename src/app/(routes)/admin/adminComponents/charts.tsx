@@ -52,6 +52,8 @@ export function ColumnChart({
   ariaLabel,
   emptyText = 'No sales in this period yet',
   maxLabels = 8,
+  showAverage = false,
+  averageLabel = 'Avg',
 }: {
   data: Column[];
   height?: number;
@@ -61,6 +63,9 @@ export function ColumnChart({
   emptyText?: string;
   /** At most this many x-axis labels (narrow cards need fewer). */
   maxLabels?: number;
+  /** Dashed line at the average of the columns shown, labelled "Avg Rs X". */
+  showAverage?: boolean;
+  averageLabel?: string;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const max = useMemo(() => Math.max(0, ...data.map((d) => d.value)), [data]);
@@ -69,9 +74,15 @@ export function ColumnChart({
   // Show at most `maxLabels` x-labels so they never collide or get cut.
   const every = Math.max(1, Math.ceil(data.length / maxLabels));
   const empty = max <= 0;
+  const avg = useMemo(() => (data.length ? data.reduce((t, d) => t + (Number(d.value) || 0), 0) / data.length : 0), [data]);
+  const avgPct = top > 0 ? Math.min(100, (avg / top) * 100) : 0;
 
   return (
-    <div className="relative select-none" role="group" aria-label={ariaLabel}>
+    <div
+      className="relative select-none"
+      role="group"
+      aria-label={showAverage && !empty ? `${ariaLabel}. ${averageLabel} ${format(avg)}` : ariaLabel}
+    >
       <div className="flex">
         {/* y-axis ticks */}
         <div className="relative w-12 flex-shrink-0 text-[10px] text-gray-400 tabular-nums" style={{ height }}>
@@ -109,6 +120,15 @@ export function ColumnChart({
               );
             })}
           </div>
+          {/* average line (above the columns, never catches the mouse) */}
+          {showAverage && !empty && avg > 0 && (
+            <div className="pointer-events-none absolute left-0 right-0 z-[5]" style={{ bottom: `${avgPct}%` }} aria-hidden="true">
+              <div className="border-t-2 border-dashed border-gray-500/70" />
+              <span className="absolute right-0 -translate-y-full rounded bg-white/90 px-1 text-[10px] font-semibold text-gray-600 tabular-nums">
+                {averageLabel} {format(avg)}
+              </span>
+            </div>
+          )}
           {empty && (
             <div className="absolute inset-0 flex items-center justify-center">
               <p className="text-xs text-gray-400">{emptyText}</p>

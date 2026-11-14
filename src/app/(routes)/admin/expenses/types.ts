@@ -30,6 +30,12 @@ export interface Expense {
   /** Paid from personal money: linked loan. */
   fromPersonal?: boolean;
   loanNo?: string;
+  /** Category Refund: the POS bill the money went back on. */
+  posOrder?: string | null;
+  posOrderNumber?: string;
+  /** Added by a cashier while this till was open. */
+  cashSession?: string | null;
+  createdByName?: string;
   reference: string;
   notes: string;
   receipt: string | null;
@@ -81,6 +87,12 @@ export interface RawExpense {
   investmentTitle?: string;
   fromPersonal?: boolean;
   loanNo?: string;
+  posOrder?: string | null;
+  posOrderNumber?: string;
+  /** Detail call only: the refund's bill with what is left to refund. */
+  refundBill?: RefundBill | null;
+  cashSession?: string | null;
+  createdByName?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -104,6 +116,8 @@ export interface CreateExpenseData {
   /** Paid from personal money -> a loan from lenderId is added too. */
   fromPersonal?: boolean;
   lenderId?: string;
+  /** Category Refund: the POS bill refunded. */
+  posOrderId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -122,6 +136,40 @@ export interface UpdateExpenseData {
   notes?: string;
   receipt?: string | null;
   isActive?: boolean;
+}
+
+/** POS bill for a Refund expense (GET /expenses/refund-bills). */
+export interface RefundBill {
+  _id: string;
+  orderNumber: string;
+  offlineNumber?: string;
+  createdAt: string;
+  total: number;
+  /** Money taken on the bill. */
+  paid: number;
+  /** Already given back by Refund expenses. */
+  refunded: number;
+  /** Still possible to refund. */
+  refundable: number;
+  orderStatus: string;
+  paymentMethod: string;
+  customerName?: string;
+}
+
+/** Name of the category that refunds a POS bill. */
+export const REFUND_CATEGORY = 'Refund';
+export const isRefundCategory = (c: string | string[] | null | undefined) =>
+  (Array.isArray(c) ? c : String(c || '').split(',')).some((x) => x.trim().toLowerCase() === 'refund');
+
+/**
+ * Cashier view (permission till_expenses without expenses): only their open till.
+ * null = full access.
+ */
+export interface TillScope {
+  open: boolean;
+  sessionNo: string;
+  counterName: string;
+  openedAt: string | null;
 }
 
 export interface ExpenseSummary {

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getAuthHeader } from '@/helper/helper';
 import { cleanParams, EMPTY_PAGINATION, type PagedResponse, type BasePagingParams } from '@/helper/pagination';
-import type { Expense, CreateExpenseData, UpdateExpenseData, PaymentMethod } from '../types';
+import type { Expense, CreateExpenseData, UpdateExpenseData, PaymentMethod, RefundBill, TillScope } from '../types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -46,7 +46,7 @@ export interface ExpenseListParams extends BasePagingParams {
 }
 
 export const expenseService = {
-  async getExpenses(params: ExpenseListParams = {}, signal?: AbortSignal): Promise<PagedResponse<Expense>> {
+  async getExpenses(params: ExpenseListParams = {}, signal?: AbortSignal): Promise<PagedResponse<Expense> & { tillScope: TillScope | null }> {
     try {
       const response = await axios.get(`${API_BASE_URL}/expenses`, {
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -56,6 +56,7 @@ export const expenseService = {
       return {
         items: response.data?.data ?? [],
         pagination: response.data?.pagination ?? EMPTY_PAGINATION,
+        tillScope: response.data?.tillScope ?? null,
       };
     } catch (error) {
       if (axios.isCancel(error)) throw error;
@@ -78,6 +79,16 @@ export const expenseService = {
       console.error('Error fetching expense:', error);
       throw error;
     }
+  },
+
+  /** Bills whose number contains q (at least 3 characters) for a Refund expense. */
+  async searchRefundBills(q: string, signal?: AbortSignal): Promise<RefundBill[]> {
+    const response = await axios.get(`${API_BASE_URL}/expenses/refund-bills`, {
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      params: { q },
+      signal,
+    });
+    return response.data?.data ?? [];
   },
 
   // + / − adjustment of the amount (the amount itself is not edited).
@@ -135,6 +146,7 @@ export const expenseService = {
         formData.append('fromPersonal', 'true');
         if (expenseData.lenderId) formData.append('lenderId', expenseData.lenderId);
       }
+      if (expenseData.posOrderId) formData.append('posOrderId', expenseData.posOrderId);
       if (expenseData.reference) formData.append('reference', expenseData.reference);
       if (expenseData.notes) formData.append('notes', expenseData.notes);
       // Receipt images (up to 10)

@@ -59,7 +59,7 @@ const LANDING: [string, string][] = [
   ['vendors', '/admin/vendors'], ['stock_putaway', '/admin/inventory/putaway'], ['racks', '/admin/inventory/racks'],
   ['stock_movements', '/admin/inventory/movements'], ['damages', '/admin/inventory/damages'], ['shop_use', '/admin/inventory/shop-use'],
   ['stock_adjustments', '/admin/inventory/adjustments'], ['report_sales', '/admin/reports/sales'], ['report_stock', '/admin/reports/stock'],
-  ['customers', '/admin/users'], ['expenses', '/admin/expenses'], ['employees', '/admin/hr/employees'], ['attendance', '/admin/hr/attendance'],
+  ['customers', '/admin/users'], ['expenses', '/admin/expenses'], ['till_expenses', '/admin/expenses'], ['employees', '/admin/hr/employees'], ['attendance', '/admin/hr/attendance'],
   ['payroll', '/admin/hr/payroll'], ['staff', '/admin/staff'], ['roles', '/admin/roles'], ['notifications', '/admin/notifications'],
   ['desktop_download', '/admin/desktop-app'],
 ];
@@ -379,7 +379,13 @@ export default function AdminDashboardClient() {
                     </table>
                   </div>
                 ) : (
-                  <ColumnChart data={trendCols} height={200} ariaLabel="Sales over the period" />
+                  <ColumnChart
+                    data={trendCols}
+                    height={200}
+                    ariaLabel="Sales over the period"
+                    showAverage
+                    averageLabel={data.range.bucket === 'hour' ? 'Avg / hour' : data.range.bucket === 'month' ? 'Avg / month' : 'Avg / day'}
+                  />
                 )}
               </Card>
 

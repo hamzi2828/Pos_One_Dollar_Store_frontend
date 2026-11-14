@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, Receipt, FileText, CreditCard, X, Image as ImageIcon, Check, Plus, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { expenseService } from '../service/expenseService';
-import type { CreateExpenseData, PaymentMethod, ExpenseCategoryItem } from '../types';
-import { PAYMENT_METHODS } from '../types';
+import type { CreateExpenseData, PaymentMethod, ExpenseCategoryItem, RefundBill } from '../types';
+import { PAYMENT_METHODS, isRefundCategory } from '../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 import BankSelect from '../components/BankSelect';
@@ -15,9 +15,18 @@ import { tillApi } from '@/components/store/TillStatusBar';
 import InvestmentBillSelect from '../components/InvestmentBillSelect';
 import ReceiptsPicker from '../components/ReceiptsPicker';
 import LoanPersonPicker, { YesNo } from '@/components/finance/LoanPersonPicker';
+import RefundBillSelect from '../components/RefundBillSelect';
+import { useAccess } from '@/context/AccessContext';
+
+const localDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export default function CreateExpensePage() {
   const router = useRouter();
+  // Cashier (till_expenses only): the expense goes on their open till, dated now.
+  const { can } = useAccess();
+  const tillOnly = !can('expenses', 'create') && can('till_expenses', 'create');
+  const canManageCategories = can('expenses', 'create');
 
   // Categories from API (dynamic only)
   const [availableCategories, setAvailableCategories] = useState<ExpenseCategoryItem[]>([]);
@@ -38,21 +47,31 @@ export default function CreateExpensePage() {
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  // Local day (not UTC: after midnight UTC is still "yesterday" until 05:00 PKT).
+  const [date, setDate] = useState(() => localDay(new Date()));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [reference, setReference] = useState('');
   const [bankId, setBankId] = useState('');
   const [counterId, setCounterId] = useState('');
+  // My open till (null = still loading). The cashier can only add while it is open.
+  const [myTill, setMyTill] = useState<{ open: boolean; sessionNo: string; counterName: string } | null>(null);
   // Paid from: start with the counter of my open till (if any).
   useEffect(() => {
     let alive = true;
     tillApi
       .my()
       .then((res) => {
-        const c = res.data?.open ? res.data.session?.counter : null;
+        const open = !!res.data?.open;
+        const session = open ? res.data?.session : null;
+        const c = session?.counter;
         if (alive && c) setCounterId((v) => v || String(c));
+        // Added while my till is open = dated the day the till opened (even after midnight).
+        if (alive && session?.openedAt) setDate(localDay(new Date(session.openedAt)));
+        if (alive) setMyTill({ open, sessionNo: session?.sessionNo || '', counterName: session?.counterName || '' });
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setMyTill({ open: false, sessionNo: '', counterName: '' });
+      });
     return () => {
       alive = false;
     };
@@ -62,6 +81,9 @@ export default function CreateExpensePage() {
   const [lenderId, setLenderId] = useState('');
   const [lenderName, setLenderName] = useState('');
   const [notes, setNotes] = useState('');
+  // Category Refund: the bill the money goes back on.
+  const [refundBill, setRefundBill] = useState<RefundBill | null>(null);
+  const isRefund = isRefundCategory(selectedCategories);
 
   // Receipt / slip images (max 10)
   const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
@@ -208,11 +230,26 @@ export default function CreateExpensePage() {
       return;
     }
 
-    if (fromPersonal && !lenderId) {
+    if (isRefund) {
+      if (!refundBill) {
+        setError('Type the bill number and pick the bill for this refund');
+        return;
+      }
+      if (parseFloat(amount) - refundBill.refundable > 0.009) {
+        setError(`At most Rs ${refundBill.refundable} can be refunded on bill ${refundBill.orderNumber}`);
+        return;
+      }
+    }
+    if (tillOnly && !myTill?.open) {
+      setError('Open your till first. Expenses you add are taken off your till.');
+      return;
+    }
+    const personal = fromPersonal && !tillOnly && !isRefund;
+    if (personal && !lenderId) {
       setError('Pick whose personal money paid this expense');
       return;
     }
-    if (paymentMethod === 'Cash' && !fromPersonal && !counterId) {
+    if (!tillOnly && paymentMethod === 'Cash' && !personal && !counterId) {
       setError('Pick which counter paid it (Paid from Counter 1 / Counter 2).');
       return;
     }
@@ -224,13 +261,15 @@ export default function CreateExpensePage() {
         title: title.trim(),
         amount: parseFloat(amount),
         categories: selectedCategories,
-        date: date || undefined,
+        // Cashier: the server dates it now and uses their till's counter.
+        date: tillOnly ? undefined : date || undefined,
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId || undefined : undefined,
-        counter: paymentMethod === 'Cash' && !fromPersonal ? counterId || undefined : undefined,
-        investmentId: investmentId || undefined,
-        fromPersonal: fromPersonal || undefined,
-        lenderId: fromPersonal ? lenderId : undefined,
+        counter: !tillOnly && paymentMethod === 'Cash' && !personal ? counterId || undefined : undefined,
+        investmentId: !tillOnly && !isRefund ? investmentId || undefined : undefined,
+        fromPersonal: personal || undefined,
+        lenderId: personal ? lenderId : undefined,
+        posOrderId: isRefund && refundBill ? refundBill._id : undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
       };
@@ -247,6 +286,27 @@ export default function CreateExpensePage() {
     }
   };
 
+  // Cashier without an open till: nothing can be added.
+  if (tillOnly && myTill && !myTill.open) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/expenses" className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-900">Add New Expense</h1>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+          <p className="font-semibold">Your till is not open.</p>
+          <p className="mt-1">Open your till first. Expenses and refunds you add are taken off your till cash.</p>
+          <Link href="/admin/till" className="mt-3 inline-block rounded-lg bg-honey-500 px-4 py-2 font-medium text-gray-900 hover:bg-honey-600">
+            Go to Till
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -259,7 +319,11 @@ export default function CreateExpensePage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Add New Expense</h1>
-          <p className="mt-1 text-sm text-gray-500">Record a new business expense</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {tillOnly
+              ? `Taken off your till${myTill?.sessionNo ? ` ${myTill.sessionNo}` : ''}${myTill?.counterName ? ` (${myTill.counterName})` : ''}, dated today`
+              : 'Record a new business expense'}
+          </p>
         </div>
       </div>
 
@@ -294,28 +358,33 @@ export default function CreateExpensePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Amount <span className="text-red-500">*</span>
+                {isRefund ? 'Refund amount' : 'Amount'} <span className="text-red-500">*</span>
               </label>
               <MoneyInput
                 value={amount}
                 onValue={setAmount}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
-                placeholder="0.00"
+                placeholder={isRefund && refundBill ? `Up to ${refundBill.refundable}` : '0.00'}
                 disabled={loading}
               />
+              {isRefund && refundBill && Number(amount) - refundBill.refundable > 0.009 && (
+                <p className="mt-1 text-xs text-red-600">More than can be refunded on this bill (Rs {refundBill.refundable}).</p>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
-                disabled={loading}
-              />
-            </div>
+            {!tillOnly && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
+                  disabled={loading}
+                />
+              </div>
+            )}
 
             {/* Multi-select Categories */}
             <div className="md:col-span-2">
@@ -328,18 +397,20 @@ export default function CreateExpensePage() {
                     </span>
                   )}
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCategory(!showAddCategory)}
-                  className="text-sm text-honey-700 hover:text-red-700 flex items-center gap-1"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Category
-                </button>
+                {canManageCategories && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCategory(!showAddCategory)}
+                    className="text-sm text-honey-700 hover:text-red-700 flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Category
+                  </button>
+                )}
               </div>
 
               {/* Inline Add Category Form */}
-              {showAddCategory && (
+              {canManageCategories && showAddCategory && (
                 <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="flex gap-2">
                     <input
@@ -450,6 +521,7 @@ export default function CreateExpensePage() {
                           {isSelected && <Check className="h-3.5 w-3.5" />}
                           {category.name}
                         </button>
+                        {canManageCategories && !isRefundCategory(category.name) && (
                         <div className="hidden group-hover:flex items-center gap-0.5 ml-1 border-l border-gray-300 pl-1">
                           <button
                             type="button"
@@ -471,6 +543,7 @@ export default function CreateExpensePage() {
                             {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                           </button>
                         </div>
+                        )}
                       </div>
                     );
                   })}
@@ -496,6 +569,23 @@ export default function CreateExpensePage() {
                 </div>
               )}
             </div>
+
+            {/* Refund: which bill the money goes back on */}
+            {isRefund && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bill number <span className="text-red-500">*</span>
+                </label>
+                <RefundBillSelect
+                  value={refundBill}
+                  disabled={loading}
+                  onChange={(bill) => {
+                    setRefundBill(bill);
+                    if (bill && !title.trim()) setTitle(`Refund: ${bill.orderNumber}`);
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -525,7 +615,16 @@ export default function CreateExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
-            {paymentMethod === 'Cash' && !fromPersonal && <CounterSelect value={counterId} onChange={setCounterId} disabled={loading} />}
+            {paymentMethod === 'Cash' && tillOnly && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Paid from</label>
+                <p className="px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg">
+                  Your till{myTill?.counterName ? ` · ${myTill.counterName}` : ''}
+                </p>
+              </div>
+            )}
+            {paymentMethod === 'Cash' && !tillOnly && !(fromPersonal && !isRefund) && <CounterSelect value={counterId} onChange={setCounterId} disabled={loading} />}
+            {!tillOnly && !isRefund && (
             <div className="md:col-span-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -550,6 +649,8 @@ export default function CreateExpensePage() {
                 </div>
               )}
             </div>
+            )}
+            {!tillOnly && !isRefund && (
             <div className="md:col-span-2">
               <InvestmentBillSelect
                 value={investmentId}
@@ -563,6 +664,7 @@ export default function CreateExpensePage() {
                 }}
               />
             </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reference / Receipt Number

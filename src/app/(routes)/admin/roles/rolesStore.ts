@@ -39,6 +39,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'pos_orders', label: 'POS Orders', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'pos_gifts', label: 'POS Gifts', actions: ['view', 'create'] },
       { key: 'till', label: 'Till & Cash Closing', actions: ['view', 'create', 'edit'] },
+      { key: 'till_expenses', label: 'Till Expenses (own open till)', actions: ['view', 'create', 'edit'] },
       { key: 'till_verify', label: 'Verify Cash Closing', actions: ['view', 'edit', 'export'] },
       { key: 'sale_counters', label: 'Sale Counters', actions: ['view', 'create', 'edit', 'delete'] },
     ],

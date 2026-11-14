@@ -13,12 +13,16 @@ import BankSelect from '../../components/BankSelect';
 import CounterSelect from '../../components/CounterSelect';
 import InvestmentBillSelect from '../../components/InvestmentBillSelect';
 import ExpenseAdjustments from '../../components/ExpenseAdjustments';
-import type { ExpenseAdjustment } from '../../types';
+import type { ExpenseAdjustment, RefundBill } from '../../types';
+import { useAccess } from '@/context/AccessContext';
 
 export default function EditExpensePage() {
   const router = useRouter();
   const params = useParams();
   const expenseId = params.id as string;
+  // Cashier (till_expenses only): date, counter, investment bill and status stay as saved.
+  const { can } = useAccess();
+  const tillOnly = !can('expenses', 'edit') && can('till_expenses', 'edit');
 
   // Expense Info
   const [title, setTitle] = useState('');
@@ -36,6 +40,9 @@ export default function EditExpensePage() {
   const [linked, setLinked] = useState<{ id: string; title: string; mine: number } | null>(null);
   const [notes, setNotes] = useState('');
   const [isActive, setIsActive] = useState(true);
+  // Refund on a POS bill (fixed once saved). refundable = what is left besides this expense.
+  const [refundBill, setRefundBill] = useState<RefundBill | null>(null);
+  const [posOrderNumber, setPosOrderNumber] = useState('');
 
   // Receipt / slip images: saved ones, ones to remove on save, new files
   const [savedReceipts, setSavedReceipts] = useState<ExpenseReceipt[]>([]);
@@ -72,9 +79,13 @@ export default function EditExpensePage() {
         setNotes(data.notes || '');
         setIsActive(typeof data.isActive === 'boolean' ? data.isActive : true);
         setSavedReceipts(receiptsOf(data));
+        setPosOrderNumber(data.posOrder ? data.posOrderNumber || 'bill' : '');
+        setRefundBill(data.refundBill || null);
       } catch (err) {
         console.error('Error fetching expense:', err);
-        setError('Failed to load expense data');
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        // 404 for a cashier = not on their open till (closed tills leave their list).
+        setError(status === 404 ? 'Expense not found. Cashiers can only open expenses of their open till.' : 'Failed to load expense data');
       } finally {
         setFetching(false);
       }
@@ -111,14 +122,14 @@ export default function EditExpensePage() {
         title: title.trim(),
         amount: parseFloat(amount),
         category,
-        date: date || undefined,
+        date: tillOnly ? undefined : date || undefined,
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId : '',
-        counter: paymentMethod === 'Cash' ? counterId : '',
-        investmentId,
+        counter: tillOnly ? undefined : paymentMethod === 'Cash' ? counterId : '',
+        investmentId: tillOnly || posOrderNumber ? undefined : investmentId,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
-        isActive,
+        isActive: tillOnly ? undefined : isActive,
       };
 
       await expenseService.updateExpense(expenseId, expenseData, newFiles, removedUrls);
@@ -153,7 +164,7 @@ export default function EditExpensePage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Edit Expense</h1>
-          <p className="mt-1 text-sm text-gray-500">Update expense information</p>
+          <p className="mt-1 text-sm text-gray-500">{posOrderNumber ? `Refund on bill ${posOrderNumber}` : 'Update expense information'}</p>
         </div>
       </div>
 
@@ -200,6 +211,15 @@ export default function EditExpensePage() {
                   setAdjustments(next.adjustments);
                 }}
               />
+              {posOrderNumber && (
+                <p className="mt-1 text-xs text-emerald-800">
+                  Refund on bill <strong>{posOrderNumber}</strong>
+                  {refundBill
+                    ? ` · paid Rs ${refundBill.paid} · this refund can be at most Rs ${refundBill.refundable}`
+                    : ''}
+                  .
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -209,9 +229,10 @@ export default function EditExpensePage() {
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
-                disabled={loading}
+                disabled={loading || !!posOrderNumber}
               >
-                {EXPENSE_CATEGORIES.map((cat) => (
+                {/* The saved category is always in the list (e.g. Refund). */}
+                {(category && !EXPENSE_CATEGORIES.includes(category) ? [category, ...EXPENSE_CATEGORIES] : EXPENSE_CATEGORIES).map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -227,9 +248,10 @@ export default function EditExpensePage() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
-                disabled={loading}
+                disabled={loading || tillOnly}
               />
             </div>
+            {!tillOnly && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Status
@@ -244,6 +266,7 @@ export default function EditExpensePage() {
                 <option value="inactive">Inactive</option>
               </SearchSelect>
             </div>
+            )}
           </div>
         </div>
 
@@ -273,7 +296,14 @@ export default function EditExpensePage() {
               </SearchSelect>
             </div>
             {paymentMethod === 'Bank Transfer' && <BankSelect value={bankId} onChange={setBankId} disabled={loading} />}
-            {paymentMethod === 'Cash' && <CounterSelect value={counterId} onChange={setCounterId} savedName={counterName} disabled={loading} />}
+            {paymentMethod === 'Cash' && tillOnly && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Paid from</label>
+                <p className="px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg">Your till{counterName ? ` · ${counterName}` : ''}</p>
+              </div>
+            )}
+            {paymentMethod === 'Cash' && !tillOnly && <CounterSelect value={counterId} onChange={setCounterId} savedName={counterName} disabled={loading} />}
+            {!tillOnly && !posOrderNumber && (
             <div className="md:col-span-2">
               <InvestmentBillSelect value={investmentId} current={linked} disabled={loading} onChange={(id) => setInvestmentId(id)} />
               {linked && (
@@ -282,6 +312,7 @@ export default function EditExpensePage() {
                 </Link>
               )}
             </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Reference / Receipt Number

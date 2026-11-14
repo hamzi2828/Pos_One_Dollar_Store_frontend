@@ -32,7 +32,7 @@ import {
   ScrollText,
 } from 'lucide-react';
 import { POSOrder, PaymentMethodType } from '../pos/types';
-import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder } from '../pos/services/posOrderService';
+import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder, getRefundInfo, partialRefundPOSOrder, type RefundInfo } from '../pos/services/posOrderService';
 import { RefundMethodPicker, type RefundMethod } from '../pos/components/RefundMethodPicker';
 import WhatsAppBadge from '../pos/components/WhatsAppBadge';
 import { useAccess } from '@/context/AccessContext';
@@ -386,6 +386,11 @@ export default function POSOrdersPage() {
             setRefunding(null);
             setOrders((prev) => prev.map((o) => (o._id === updated._id ? { ...o, ...updated } : o)));
             toast.success('Order refunded — stock is back');
+          }}
+          onPartDone={(amt) => {
+            setRefunding(null);
+            toast.success(`${symbol}${amt} refunded (saved as a Refund expense on the bill)`);
+            setReloadTick((t) => t + 1);
           }}
         />
       )}
@@ -1089,22 +1094,58 @@ function RefundModal({
   symbol,
   onClose,
   onDone,
+  onPartDone,
 }: {
   order: POSOrder;
   symbol: string;
   onClose: () => void;
   onDone: (updated: POSOrder) => void;
+  /** Part refund saved (money only, a Refund expense on the bill). */
+  onPartDone: (amount: number) => void;
 }) {
+  // full = whole bill back + every piece back into stock; part = some money back only.
+  const [mode, setMode] = useState<'full' | 'part'>('full');
   const [reason, setReason] = useState('');
   const [method, setMethod] = useState<RefundMethod>('cash');
+  const [amount, setAmount] = useState('');
+  const [info, setInfo] = useState<RefundInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
+
+  // Paid / already part-refunded / left: limits the part refund, blocks a full one after parts.
+  useEffect(() => {
+    let alive = true;
+    getRefundInfo(order._id)
+      .then((d) => {
+        if (!alive) return;
+        setInfo(d);
+        if (d.refunded > 0) setMode('part');
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [order._id]);
+
+  const partTaken = !!info && info.refunded > 0;
+  const amt = Number(amount) || 0;
+  const tooMuch = !!info && amt - info.refundable > 0.009;
+
   const submit = async () => {
     if (lock.current) return;
+    if (mode === 'part') {
+      if (!(amt > 0)) return toast.error('Enter how much to give back');
+      if (tooMuch) return toast.error(`At most ${symbol}${info?.refundable} can be refunded`);
+    }
     lock.current = true;
     setBusy(true);
     try {
-      onDone(await refundPOSOrder(order._id, reason.trim() || undefined, method));
+      if (mode === 'full') {
+        onDone(await refundPOSOrder(order._id, reason.trim() || undefined, method));
+      } else {
+        await partialRefundPOSOrder(order._id, amt, reason.trim() || undefined, method);
+        onPartDone(amt);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not refund');
     } finally {
@@ -1112,6 +1153,8 @@ function RefundModal({
       setBusy(false);
     }
   };
+  const tab = (active: boolean) =>
+    `flex-1 rounded-md px-3 py-1.5 text-sm font-semibold ${active ? 'bg-white text-amber-800 shadow' : 'text-gray-600 hover:text-gray-800'} disabled:opacity-50`;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -1119,32 +1162,74 @@ function RefundModal({
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Undo2 className="h-5 w-5 text-amber-600" /> Refund {order.orderNumber}
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {symbol}
-            {order.total.toFixed(2)} · every piece goes back into stock (shown in the stock ledger).
-          </p>
-        </div>
-        <div className="p-4">
-          <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            disabled={busy}
-            placeholder="e.g. customer changed mind, broken item"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-            autoFocus
-          />
-          <div className="mt-3">
-            <RefundMethodPicker value={method} onChange={setMethod} disabled={busy} />
+          <div className="mt-3 flex gap-1 rounded-lg bg-gray-100 p-1">
+            <button type="button" className={tab(mode === 'full')} onClick={() => setMode('full')} disabled={busy || partTaken}>
+              Full refund
+            </button>
+            <button type="button" className={tab(mode === 'part')} onClick={() => setMode('part')} disabled={busy}>
+              Part refund
+            </button>
           </div>
+          <p className="text-xs text-gray-500 mt-2">
+            {mode === 'full' ? (
+              <>
+                {symbol}
+                {order.total.toFixed(2)} · every piece goes back into stock (shown in the stock ledger).
+              </>
+            ) : (
+              <>Give back part of the money. Saved as a Refund expense on this bill; the stock stays as sold.</>
+            )}
+          </p>
+          {partTaken && (
+            <p className="mt-1 text-xs text-amber-700">
+              {symbol}
+              {info?.refunded} already refunded on this bill, so only a part refund is possible.
+            </p>
+          )}
+        </div>
+        <div className="p-4 space-y-3">
+          {mode === 'part' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Amount to give back</label>
+              <MoneyInput
+                value={amount}
+                onValue={setAmount}
+                disabled={busy}
+                placeholder={info ? `Up to ${info.refundable}` : '0'}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+              />
+              <p className={`mt-1 text-[11px] ${tooMuch ? 'text-red-600' : 'text-gray-500'}`}>
+                {info
+                  ? `Paid ${symbol}${info.paid}${info.refunded ? ` · already refunded ${symbol}${info.refunded}` : ''} · can refund up to ${symbol}${info.refundable}`
+                  : 'Loading…'}
+              </p>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Reason (optional)</label>
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={busy}
+              placeholder="e.g. customer changed mind, broken item"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+              autoFocus
+            />
+          </div>
+          <RefundMethodPicker value={method} onChange={setMethod} disabled={busy} />
         </div>
         <div className="flex justify-end gap-2 p-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
           <button onClick={onClose} disabled={busy} className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-60">
             Cancel
           </button>
-          <button onClick={submit} disabled={busy} aria-busy={busy} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-60">
+          <button
+            onClick={submit}
+            disabled={busy || (mode === 'part' && (tooMuch || !info))}
+            aria-busy={busy}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded hover:bg-amber-700 disabled:opacity-60"
+          >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
-            {busy ? 'Refunding…' : 'Refund order'}
+            {busy ? 'Refunding…' : mode === 'full' ? 'Refund order' : 'Give part refund'}
           </button>
         </div>
       </div>
