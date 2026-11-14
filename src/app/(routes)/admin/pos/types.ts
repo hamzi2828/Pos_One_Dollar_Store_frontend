@@ -194,6 +194,13 @@ export interface PaymentMethod {
 export type PaymentStatusType = 'completed' | 'pending' | 'partial' | 'refunded' | 'full';
 
 // Payment History Entry
+/** One part of a split payment (any mix of cash / card / Bank (UBL) / JazzCash). */
+export type SplitMethod = 'cash' | 'card' | 'bank_transfer' | 'jazzcash';
+export interface SplitPart {
+  method: SplitMethod;
+  amount: number;
+}
+
 export interface PaymentHistoryEntry {
   _id?: string;
   amount: number;
@@ -269,6 +276,8 @@ export interface POSOrderData {
   // Partial Payment Fields
   isPartialPayment?: boolean;
   paidAmount?: number;
+  /** paymentMethod 'split': what each method paid (cash may be more: change). */
+  splits?: SplitPart[];
   /** Server-priced fields (the server ignores client prices / totals). */
   manualDiscount?: ManualDiscount | null;
   taxIds?: string[];

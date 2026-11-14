@@ -114,7 +114,12 @@ ${discountRows}${taxRows}
 </div>
 <div class="block">
 <div class="row"><span>Payment:</span><span>${esc(paymentLabel(order.paymentMethod))}</span></div>
-${order.cashAmount ? `<div class="row"><span>${receivedLabel(order.paymentMethod)}</span><span>${money(order.cashAmount)}</span></div>` : ''}
+${order.paymentMethod === 'split' && (order.paymentHistory || []).length
+  ? (order.paymentHistory || [])
+      .filter((p) => Number(p.amount) > 0)
+      .map((p) => `<div class="row"><span>${esc(paymentLabel(p.paymentMethod))}:</span><span>${money(p.paymentMethod === 'cash' && order.cashAmount ? order.cashAmount : p.amount)}</span></div>`)
+      .join('')
+  : order.cashAmount ? `<div class="row"><span>${receivedLabel(order.paymentMethod)}</span><span>${money(order.cashAmount)}</span></div>` : ''}
 ${order.changeGiven ? `<div class="row"><span>Change:</span><span>${money(order.changeGiven)}</span></div>` : ''}
 ${pending}
 </div>

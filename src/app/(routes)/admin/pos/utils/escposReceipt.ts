@@ -129,7 +129,13 @@ export function buildEscPosReceipt(order: POSOrder, storeName: string, symbol: s
 
   // Payment
   out += row('Payment:', paymentLabel(order.paymentMethod || ''));
-  if (order.cashAmount) out += row(receivedLabel(order.paymentMethod), money(order.cashAmount));
+  if (order.paymentMethod === 'split' && (order.paymentHistory || []).length) {
+    // Split bill: one line per method (cash shows what was handed over; change below).
+    for (const p of order.paymentHistory || []) {
+      if (!(Number(p.amount) > 0)) continue;
+      out += row(`${paymentLabel(p.paymentMethod)}:`, money(p.paymentMethod === 'cash' && order.cashAmount ? order.cashAmount : p.amount));
+    }
+  } else if (order.cashAmount) out += row(receivedLabel(order.paymentMethod), money(order.cashAmount));
   if (order.changeGiven) out += row('Change:', money(order.changeGiven));
   if ((order.pendingAmount || 0) > 0) {
     out += row('Paid', money(order.paidAmount));

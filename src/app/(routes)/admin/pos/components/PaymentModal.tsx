@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { PaymentMethodType, POSCart, POSCustomer, CustomerInfo } from '../types';
-import { X, CreditCard, Banknote, Building2, Smartphone, Upload, Loader2, Check, AlertCircle, User, Phone } from 'lucide-react';
+import { PaymentMethodType, POSCart, POSCustomer, CustomerInfo, SplitMethod, SplitPart } from '../types';
+import { X, CreditCard, Banknote, Building2, Smartphone, Upload, Loader2, Check, AlertCircle, User, Phone, Split } from 'lucide-react';
 import { uploadBankTransferScreenshot } from '../services/posUploadService';
 import { isTransferMethod } from '../utils/paymentMethods';
 import { getCurrencySymbol } from '../utils/currency';
@@ -20,7 +20,8 @@ interface PaymentModalProps {
     bankTransferScreenshot?: string,
     isPartialPayment?: boolean,
     paidAmount?: number,
-    customerInfo?: CustomerInfo
+    customerInfo?: CustomerInfo,
+    splits?: SplitPart[]
   ) => void | Promise<void>;
   currency?: string;
   /** Payment is being saved by the page (keeps the window locked). */
@@ -48,14 +49,22 @@ export default function PaymentModal({
   const confirmLock = useRef(false);
   const [bankScreenshotFile, setBankScreenshotFile] = useState<File | null>(null);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  // Split: amount per method (typed).
+  const EMPTY_SPLIT: Record<SplitMethod, string> = { cash: '', card: '', bank_transfer: '', jazzcash: '' };
+  const [splitAmounts, setSplitAmounts] = useState<Record<SplitMethod, string>>(EMPTY_SPLIT);
 
   useEffect(() => {
     if (isOpen) {
       setCashReceived('');
       setBankScreenshotFile(null);
       setScreenshotError(null);
+      setSplitAmounts({ cash: '', card: '', bank_transfer: '', jazzcash: '' });
     }
   }, [isOpen]);
+  // No split without internet (the offline sale keeps cash + card only).
+  useEffect(() => {
+    if (offline && paymentMethod === 'split') setPaymentMethod('cash');
+  }, [offline, paymentMethod]);
 
   if (!isOpen) return null;
 
@@ -64,8 +73,28 @@ export default function PaymentModal({
   // Partial payment: when paid amount is less than total (including 0)
   // Bank (UBL) and JazzCash: customer sends the money; amount typed like cash.
   const isTransfer = isTransferMethod(paymentMethod);
-  const isPartialPayment = (paymentMethod === 'cash' || isTransfer) && cashAmount < cart.total;
-  const pendingAmount = isPartialPayment ? cart.total - cashAmount : 0;
+  const isSplit = paymentMethod === 'split';
+  // Split sums: more than the bill only in cash (change); less = part payment.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const SPLIT_ROWS: { method: SplitMethod; label: string; icon: React.ReactNode; ring: string }[] = [
+    { method: 'cash', label: 'Cash', icon: <Banknote className="h-4 w-4 text-green-600" />, ring: 'focus:ring-green-500' },
+    { method: 'card', label: 'Card', icon: <CreditCard className="h-4 w-4 text-blue-600" />, ring: 'focus:ring-blue-500' },
+    { method: 'bank_transfer', label: 'Bank (UBL)', icon: <Building2 className="h-4 w-4 text-purple-600" />, ring: 'focus:ring-purple-500' },
+    { method: 'jazzcash', label: 'JazzCash', icon: <Smartphone className="h-4 w-4 text-rose-600" />, ring: 'focus:ring-rose-500' },
+  ];
+  const splitParts: SplitPart[] = SPLIT_ROWS.map((r) => ({ method: r.method, amount: r2(parseFloat(splitAmounts[r.method]) || 0) })).filter((p) => p.amount > 0);
+  const splitSum = r2(splitParts.reduce((t, p) => t + p.amount, 0));
+  const splitLeft = r2(Math.max(0, cart.total - splitSum));
+  const splitOver = r2(Math.max(0, splitSum - cart.total));
+  const splitCash = splitParts.find((p) => p.method === 'cash')?.amount || 0;
+  const splitOverOk = splitOver === 0 || splitCash >= splitOver; // extra only as cash change
+  const splitHasTransfer = splitParts.some((p) => p.method === 'bank_transfer' || p.method === 'jazzcash');
+  const isPartialPayment = isSplit ? splitLeft > 0 : (paymentMethod === 'cash' || isTransfer) && cashAmount < cart.total;
+  const pendingAmount = isSplit ? splitLeft : isPartialPayment ? cart.total - cashAmount : 0;
+  const fillRest = (m: SplitMethod) => {
+    const others = r2(splitParts.filter((p) => p.method !== m).reduce((t, p) => t + p.amount, 0));
+    setSplitAmounts((prev) => ({ ...prev, [m]: String(r2(Math.max(0, cart.total - others))) }));
+  };
 
   // For partial payments (including 0), require a customer to be selected
   // (a saved customer: a name typed while offline has no account to owe on).
@@ -76,7 +105,8 @@ export default function PaymentModal({
   const isValidCash = paymentMethod === 'cash' && (cashAmount >= cart.total || !!canDoPartialPayment);
   const isValidBankTransfer = isTransfer && (cashAmount >= cart.total || !!canDoPartialPayment);
   const isValidCard = paymentMethod === 'card';
-  const canProceed = isValidCard || isValidCash || isValidBankTransfer;
+  const isValidSplit = isSplit && splitParts.length > 0 && splitOverOk && (splitLeft === 0 || !!knownCustomer) && !offline;
+  const canProceed = isValidCard || isValidCash || isValidBankTransfer || isValidSplit;
 
   const handleConfirm = async () => {
     if (!canProceed || confirmLock.current) return;
@@ -86,7 +116,7 @@ export default function PaymentModal({
 
     try {
       let screenshotUrl: string | undefined;
-      if (isTransfer && bankScreenshotFile && !offline) {
+      if ((isTransfer || (isSplit && splitHasTransfer)) && bankScreenshotFile && !offline) {
         try {
           const result = await uploadBankTransferScreenshot(bankScreenshotFile);
           screenshotUrl = result.url;
@@ -112,11 +142,12 @@ export default function PaymentModal({
 
       await onConfirm(
         paymentMethod,
-        (paymentMethod === 'cash' || isTransfer) ? cashAmount : undefined,
+        isSplit ? splitCash || undefined : (paymentMethod === 'cash' || isTransfer) ? cashAmount : undefined,
         screenshotUrl,
         isPartialPayment,
-        isPartialPayment ? cashAmount : undefined,
-        customerInfo
+        isPartialPayment ? (isSplit ? splitSum : cashAmount) : undefined,
+        customerInfo,
+        isSplit ? splitParts : undefined
       );
     } finally {
       confirmLock.current = false;
@@ -205,8 +236,8 @@ export default function PaymentModal({
           )}
 
           {/* Payment Methods */}
-          {/* 4 buttons in one row: short labels so they fit on a phone too. */}
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+          {/* 5 buttons in one row: short labels so they fit on a phone too. */}
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
             <button
               onClick={() => setPaymentMethod('cash')}
               className={`px-1 py-1.5 sm:p-2 rounded-lg border-2 transition-colors ${
@@ -243,7 +274,104 @@ export default function PaymentModal({
               <Smartphone className="h-5 w-5 mx-auto text-gray-700" />
               <div className="text-[11px] sm:text-xs font-medium mt-1 leading-tight">JazzCash</div>
             </button>
+            <button
+              onClick={() => setPaymentMethod('split')}
+              disabled={offline}
+              title={offline ? 'Split needs internet' : 'Pay part in cash, card, bank or JazzCash'}
+              className={`px-1 py-1.5 sm:p-2 rounded-lg border-2 transition-colors disabled:opacity-40 ${
+                paymentMethod === 'split' ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-amber-300'
+              }`}
+            >
+              <Split className="h-5 w-5 mx-auto text-gray-700" />
+              <div className="text-[11px] sm:text-xs font-medium mt-1 leading-tight">Split</div>
+            </button>
           </div>
+
+          {/* Split: any mix of cash / card / bank / JazzCash */}
+          {isSplit && (
+            <div className="space-y-2">
+              {SPLIT_ROWS.map((r) => (
+                <div key={r.method} className="flex items-center gap-2">
+                  <span className="flex w-28 flex-shrink-0 items-center gap-1.5 text-sm font-medium text-gray-700">
+                    {r.icon}
+                    {r.label}
+                  </span>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">{symbol}</span>
+                    <MoneyInput
+                      value={splitAmounts[r.method]}
+                      onValue={(v) => setSplitAmounts((prev) => ({ ...prev, [r.method]: v }))}
+                      placeholder="0"
+                      className={`w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 ${r.ring}`}
+                      autoFocus={r.method === 'cash'}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fillRest(r.method)}
+                    className="flex-shrink-0 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    title={`Put the rest of the bill on ${r.label}`}
+                  >
+                    Rest
+                  </button>
+                </div>
+              ))}
+              <div
+                className={`rounded-lg border px-3 py-2 text-sm ${
+                  !splitOverOk
+                    ? 'border-red-300 bg-red-50 text-red-700'
+                    : splitLeft > 0
+                    ? knownCustomer
+                      ? 'border-orange-200 bg-orange-50 text-orange-700'
+                      : 'border-red-300 bg-red-50 text-red-700'
+                    : 'border-green-200 bg-green-50 text-green-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span>
+                    Paid {symbol}
+                    {splitSum.toFixed(2)} of {symbol}
+                    {cart.total.toFixed(2)}
+                  </span>
+                  <span className="font-bold">
+                    {!splitOverOk
+                      ? `${symbol}${splitOver.toFixed(2)} too much`
+                      : splitLeft > 0
+                      ? `Left: ${symbol}${splitLeft.toFixed(2)}`
+                      : splitOver > 0
+                      ? `Change: ${symbol}${splitOver.toFixed(2)}`
+                      : 'Exact'}
+                  </span>
+                </div>
+                {!splitOverOk && <p className="mt-1 text-xs">Only cash can be more than the bill (the rest is given back as change).</p>}
+                {splitOverOk && splitLeft > 0 && (
+                  <p className="mt-1 text-xs">
+                    {knownCustomer
+                      ? `Pending ${symbol}${splitLeft.toFixed(2)} saved under ${knownCustomer.firstName} ${knownCustomer.lastName}`
+                      : 'Add the rest, or pick a saved customer to leave it pending.'}
+                  </p>
+                )}
+              </div>
+              {splitHasTransfer && !offline && (
+                <div className="flex items-center gap-2">
+                  {bankScreenshotFile ? (
+                    <div className="flex-1 flex items-center gap-2 bg-green-50 border border-green-200 rounded px-2 py-1.5">
+                      <Check className="h-4 w-4 text-green-500" />
+                      <span className="text-xs text-green-700 truncate flex-1">{bankScreenshotFile.name}</span>
+                      <button onClick={() => setBankScreenshotFile(null)} className="text-red-500"><X className="h-3 w-3" /></button>
+                    </div>
+                  ) : (
+                    <label className="flex-1 flex items-center gap-2 border border-dashed border-purple-300 rounded px-3 py-1.5 cursor-pointer hover:bg-purple-50">
+                      <Upload className="h-4 w-4 text-purple-400" />
+                      <span className="text-xs text-purple-600">Bank / JazzCash screenshot (optional)</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleScreenshotSelect(e.target.files?.[0] || null)} className="hidden" />
+                    </label>
+                  )}
+                </div>
+              )}
+              {screenshotError && isSplit && <p className="text-xs text-red-600">{screenshotError}</p>}
+            </div>
+          )}
 
           {/* Cash Payment */}
           {paymentMethod === 'cash' && (
@@ -419,6 +547,8 @@ export default function PaymentModal({
                   ? 'bg-purple-600 text-white hover:bg-purple-700'
                   : paymentMethod === 'jazzcash'
                   ? 'bg-rose-600 text-white hover:bg-rose-700'
+                  : paymentMethod === 'split'
+                  ? 'bg-amber-600 text-white hover:bg-amber-700'
                   : paymentMethod === 'cash'
                   ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-blue-600 text-white hover:bg-blue-700')
@@ -431,7 +561,9 @@ export default function PaymentModal({
                 Processing payment… please wait
               </span>
             ) : isPartialPayment ? (
-              `Pay ${symbol}${cashAmount.toFixed(0)} (Pending: ${symbol}${pendingAmount.toFixed(0)})`
+              `Pay ${symbol}${(isSplit ? splitSum : cashAmount).toFixed(0)} (Pending: ${symbol}${pendingAmount.toFixed(0)})`
+            ) : isSplit ? (
+              `Complete split payment`
             ) : paymentMethod === 'card' ? (
               'Process Card Payment'
             ) : (

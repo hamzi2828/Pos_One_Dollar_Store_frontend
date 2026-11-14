@@ -13,7 +13,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { POSProduct, POSCart, CartItem, POSCustomer, POSVariant, PaymentMethodType, POSOrderData, POSOrder, POSTax, CustomerInfo, CartQuote, ManualDiscount } from './types';
+import { POSProduct, POSCart, CartItem, POSCustomer, POSVariant, PaymentMethodType, POSOrderData, POSOrder, POSTax, CustomerInfo, CartQuote, ManualDiscount, SplitPart } from './types';
 import ProductSearch from './components/ProductSearch';
 import ProductGrid from './components/ProductGrid';
 import CartPanel from './components/CartPanel';
@@ -847,9 +847,14 @@ export default function POSPage() {
     bankTransferScreenshot?: string,
     isPartialPayment?: boolean,
     paidAmount?: number,
-    customerInfo?: CustomerInfo
+    customerInfo?: CustomerInfo,
+    splits?: SplitPart[]
   ) => {
     // One payment at a time: a double click must never create two orders.
+    if (paymentMethod === 'split' && (offlineModeRef.current || quote?.offline)) {
+      toast.error('Split payment needs internet. Take one method, or wait for the connection.');
+      return;
+    }
     if (payLock.current || !quote) return;
     payLock.current = true;
     setPaying(true);
@@ -857,8 +862,9 @@ export default function POSPage() {
     // copy if the online call is lost, so the server never counts it twice.
     const clientId = uuid();
     {
-      const amount = isPartialPayment ? paidAmount ?? 0 : cashAmount ?? quote.total;
-      log('pay_submit', `Pay pressed: ${paymentMethodLabel(paymentMethod)} Rs ${Number(amount).toLocaleString('en-PK')}`, {
+      const amount = isPartialPayment ? paidAmount ?? 0 : splits ? quote.total : cashAmount ?? quote.total;
+      const parts = splits ? ` (${splits.map((s) => `${paymentMethodLabel(s.method)} ${s.amount}`).join(', ')})` : '';
+      log('pay_submit', `Pay pressed: ${paymentMethodLabel(paymentMethod)} Rs ${Number(amount).toLocaleString('en-PK')}${parts}`, {
         method: paymentMethod,
         amount,
         partial: isPartialPayment || undefined,
@@ -945,11 +951,12 @@ export default function POSPage() {
         taxIds: selectedTaxIds,
         expectedTotal: total,
         paymentMethod,
-        cashAmount: paymentMethod === 'cash' || isTransferMethod(paymentMethod) ? cashAmount : undefined,
+        cashAmount: paymentMethod === 'cash' || isTransferMethod(paymentMethod) || paymentMethod === 'split' ? cashAmount : undefined,
         cardAmount: paymentMethod === 'card' ? total : undefined,
         change: cashAmount && (paymentMethod === 'cash' || isTransferMethod(paymentMethod)) ? cashAmount - total : undefined,
-        // Proof screenshot: same field for Bank (UBL) and JazzCash.
-        bankTransferScreenshot: isTransferMethod(paymentMethod) ? bankTransferScreenshot : undefined,
+        // Proof screenshot: same field for Bank (UBL) and JazzCash (also the bank / JazzCash part of a split).
+        bankTransferScreenshot: isTransferMethod(paymentMethod) || paymentMethod === 'split' ? bankTransferScreenshot : undefined,
+        splits: paymentMethod === 'split' ? splits : undefined,
         isPOS: true,
         isPartialPayment,
         paidAmount: isPartialPayment ? paidAmount : undefined,
