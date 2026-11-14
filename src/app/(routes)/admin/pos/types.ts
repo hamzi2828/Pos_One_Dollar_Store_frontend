@@ -322,6 +322,8 @@ export interface POSOrder {
   cogs?: number;
   giftCost?: number;
   profit?: number;
+  /** Part refunds given on this bill (Refund expenses); the bill stays as sold. */
+  refundedAmount?: number;
   whatsappStatus?: WhatsAppStatus;
   cashier?: {
     _id: string;

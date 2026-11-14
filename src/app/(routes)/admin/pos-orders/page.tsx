@@ -429,8 +429,16 @@ function PaymentBadge({ method }: { method: string }) {
   );
 }
 
-function StatusBadge({ paymentStatus, orderStatus }: { paymentStatus?: string; orderStatus?: string }) {
+function StatusBadge({ paymentStatus, orderStatus, refunded = 0 }: { paymentStatus?: string; orderStatus?: string; refunded?: number }) {
   const s = paymentStatus || orderStatus || 'completed';
+  // Part of the money given back (Refund expense on the bill), not the whole bill.
+  if (refunded > 0 && s !== 'refunded' && orderStatus !== 'refunded' && orderStatus !== 'cancelled') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200 text-xs font-medium">
+        <Undo2 className="h-3 w-3" /> Partly refunded
+      </span>
+    );
+  }
   if (s === 'completed' || s === 'full') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-medium">
@@ -553,8 +561,24 @@ function OrderRow({
         <PaymentBadge method={order.paymentMethod} />
       </td>
       <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">
-        {symbol}
-        {order.total.toFixed(2)}
+        {(order.refundedAmount || 0) > 0 ? (
+          <>
+            <span className="text-gray-400 line-through font-normal mr-1.5">
+              {symbol}
+              {order.total.toFixed(2)}
+            </span>
+            {symbol}
+            {Math.max(0, order.total - (order.refundedAmount || 0)).toFixed(2)}
+            <div className="text-[11px] text-amber-700 font-medium">
+              {symbol}{(order.refundedAmount || 0).toFixed(2)} refunded
+            </div>
+          </>
+        ) : (
+          <>
+            {symbol}
+            {order.total.toFixed(2)}
+          </>
+        )}
         {order.pendingAmount && order.pendingAmount > 0 ? (
           <div className="text-[11px] text-orange-600 font-medium">
             {symbol}{order.pendingAmount.toFixed(2)} pending
@@ -563,7 +587,7 @@ function OrderRow({
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col items-start gap-1">
-          <StatusBadge paymentStatus={order.paymentStatus} orderStatus={order.orderStatus} />
+          <StatusBadge paymentStatus={order.paymentStatus} orderStatus={order.orderStatus} refunded={order.refundedAmount || 0} />
           <WhatsAppBadge status={order.whatsappStatus} compact />
         </div>
       </td>
