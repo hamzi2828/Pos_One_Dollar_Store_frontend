@@ -66,7 +66,7 @@ export default function SalaryToDate() {
                   <th className={thClass}>Employee</th>
                   <th className={`${thClass} text-right`}>Salary</th>
                   <th className={`${thClass} text-right`}>Days so far</th>
-                  <th className={`${thClass} text-right`}>Absent / late</th>
+                  <th className={`${thClass} text-right`} title="Only approved absent / late cuts. Pending ones wait in Advances → Deductions.">Absent / late (approved)</th>
                   <th className={`${thClass} text-right`} title="Approved overtime at the normal hourly rate. Reject it in Fix before payroll if needed.">Overtime</th>
                   {dblAfter > 0 && (
                     <th className={`${thClass} text-right`} title={`Approved overtime worked past ${dblAfter} hours in one day is paid at ${dblRate}× the hourly rate.`}>
@@ -198,7 +198,7 @@ export default function SalaryToDate() {
             ))}
           </div>
           <p className="px-4 py-2 text-[11px] text-gray-500 border-t border-gray-100">
-            Worked out from attendance up to today. Overtime counts only once approved.{dblAfter > 0 ? ` Hours past ${dblAfter} h in one day are paid at ${dblRate}× the hourly rate.` : ''} The final figure is made when you run payroll for the month.
+            Worked out from attendance up to today. Overtime and absent / late cuts count only once approved (pending cuts are in Deductions).{dblAfter > 0 ? ` Hours past ${dblAfter} h in one day are paid at ${dblRate}× the hourly rate.` : ''} The final figure is made when you run payroll for the month.
           </p>
         </>
       )}

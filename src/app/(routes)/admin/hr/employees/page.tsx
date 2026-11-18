@@ -250,6 +250,7 @@ export default function EmployeesPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                     <tr>
+                      <th className="text-left font-medium pl-4 pr-1 py-2.5 w-12">Sr #</th>
                       <th className="text-left font-medium px-4 py-2.5">Employee</th>
                       <th className="text-left font-medium px-4 py-2.5">Designation</th>
                       <th className="text-left font-medium px-4 py-2.5">Joined</th>
@@ -259,8 +260,9 @@ export default function EmployeesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {rows.map((e) => (
+                    {rows.map((e, i) => (
                       <tr key={e._id} onClick={() => router.push(`/admin/hr/employees/${e._id}`)} className="hover:bg-honey-50/40 cursor-pointer">
+                        <td className="pl-4 pr-1 py-2.5 text-gray-500 tabular-nums">{((meta?.page || page) - 1) * 25 + i + 1}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-3">
                             <Avatar url={e.photo} name={e.name} />
@@ -269,6 +271,7 @@ export default function EmployeesPage() {
                                 {e.name}
                               </Link>
                               <p className="text-xs text-gray-500 font-mono">{e.employeeCode || '—'}</p>
+                              {e.email && <p className="text-xs text-gray-500 truncate max-w-[220px]">{e.email}</p>}
                             </div>
                           </div>
                         </td>
@@ -294,8 +297,9 @@ export default function EmployeesPage() {
 
               {/* Mobile cards */}
               <div className="md:hidden space-y-2">
-                {rows.map((e) => (
+                {rows.map((e, i) => (
                   <Link key={e._id} href={`/admin/hr/employees/${e._id}`} className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 p-3 shadow-sm active:bg-gray-50">
+                    <span className="w-5 text-xs text-gray-400 tabular-nums">{((meta?.page || page) - 1) * 25 + i + 1}</span>
                     <Avatar url={e.photo} name={e.name} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
@@ -305,6 +309,7 @@ export default function EmployeesPage() {
                       <p className="text-xs text-gray-500 truncate">
                         <span className="font-mono">{e.employeeCode}</span> · {e.designation || e.position || 'No designation'}
                       </p>
+                      {e.email && <p className="text-xs text-gray-500 truncate">{e.email}</p>}
                       {e.phone && (
                         <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                           <Phone className="h-3 w-3" /> {e.phone}

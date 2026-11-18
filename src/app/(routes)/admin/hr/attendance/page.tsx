@@ -8,22 +8,19 @@
 // Links from Payroll: ?view=corrections|overtime&month=YYYY-MM&employee=<id>
 // open "Fix before payroll" filtered; ?view=month highlights the employee.
 import { useEffect, useState } from 'react';
-import { CalendarDays, Clock3, ListChecks, Wallet } from 'lucide-react';
+import { CalendarDays, Clock3, ListChecks } from 'lucide-react';
 import { NoAccessCard } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
 import TodayTab from './components/TodayTab';
 import MonthTab from './components/MonthTab';
 import ExceptionsTab from './components/ExceptionsTab';
-import SalaryToDate from '../payroll/_shared/SalaryToDate';
 import { DesktopNote } from './components/AttendanceBits';
 import { readAttendanceLink, type AttendanceLink } from './services/attendanceApi';
 
-type Tab = 'today' | 'month' | 'salary' | 'fix';
+type Tab = 'today' | 'month' | 'fix';
 const TABS: { key: Tab; label: string; Icon: typeof Clock3 }[] = [
   { key: 'today', label: 'Today', Icon: Clock3 },
   { key: 'month', label: 'Month', Icon: CalendarDays },
-  // Salary earned so far this month (owner, 2026-11-08); needs payroll view.
-  { key: 'salary', label: 'Salary so far', Icon: Wallet },
   { key: 'fix', label: 'Fix before payroll', Icon: ListChecks },
 ];
 
@@ -32,8 +29,8 @@ export default function AttendancePage() {
   const canView = can('attendance', 'view');
   const canEdit = can('attendance', 'edit');
   const canExport = can('attendance', 'export');
-  const canPayroll = can('payroll', 'view');
-  const tabs = TABS.filter((t) => t.key !== 'salary' || canPayroll);
+  // Salary so far moved out (owner, 2026-11-17): it lives in Payroll.
+  const tabs = TABS;
   const [tab, setTab] = useState<Tab>('today');
   // The link this page was opened with (read once in the browser, then tabs mount).
   const [link, setLink] = useState<AttendanceLink | null>(null);
@@ -41,7 +38,7 @@ export default function AttendancePage() {
   useEffect(() => {
     const l = readAttendanceLink(window.location.search, window.location.hash);
     setLink(l);
-    setTab(l.tab);
+    setTab(l.tab === 'salary' ? 'today' : l.tab);
   }, []);
   // Switching tabs by hand drops the Payroll filter and keeps the tab in the hash.
   const pick = (t: Tab) => {
@@ -89,7 +86,6 @@ export default function AttendancePage() {
 
         {link && tab === 'today' && <TodayTab canEdit={canEdit} />}
         {link && tab === 'month' && <MonthTab canEdit={canEdit} canExport={canExport} initialMonth={link.month} highlightEmployee={link.employeeId} />}
-        {link && tab === 'salary' && canPayroll && <SalaryToDate />}
         {link && tab === 'fix' && <ExceptionsTab canEdit={canEdit} initialMonth={link.month} focus={link.focus} employeeId={link.employeeId} />}
       </div>
     </div>

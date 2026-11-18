@@ -23,7 +23,7 @@ export interface ReportLink {
   icon: LucideIcon;
   perm: string | string[];
   about: string;
-  group: 'Sales' | 'Stock' | 'Money';
+  group: 'Sales' | 'Stock' | 'Money' | 'Financial Statements';
 }
 
 export const REPORTS: ReportLink[] = [

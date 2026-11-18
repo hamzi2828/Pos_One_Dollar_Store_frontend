@@ -6,7 +6,9 @@ import { API_URL, storeApi, type PageMeta } from '@/lib/storeApi';
 
 export type RunStatus = 'draft' | 'approved' | 'paid';
 export type PayMethod = 'cash' | 'bank' | 'easypaisa' | 'jazzcash';
-export type DeductionType = 'till_shortage' | 'damage' | 'other';
+// absent / half_day / late: made by the server from attendance each month
+// (pending until approved). Staff can only hand-add 'damage' | 'other'.
+export type DeductionType = 'till_shortage' | 'damage' | 'other' | 'absent' | 'half_day' | 'late';
 export type DeductionStatus = 'pending' | 'approved' | 'waived' | 'applied';
 export type AdvanceStatus = 'open' | 'recovered' | 'cancelled';
 
@@ -53,6 +55,7 @@ export interface AttendanceSnapshot {
   overtimeMinutesApproved: number;
   overtimeMinutesPending: number;
   overtimeMinutesPaid: number;
+  overtimeMinutesDouble?: number;
   overtimeMinutesOffDay: number;
   upcomingDays: number;
   notEmployedDays: number;

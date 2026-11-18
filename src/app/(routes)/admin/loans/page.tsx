@@ -70,6 +70,9 @@ export default function LoansPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [status, setStatus] = useState<'all' | 'open' | 'paid'>('all');
   const [search, setSearch] = useState('');
+  // Person filter (owner 2026-11-17): one lender's loans and totals.
+  const [person, setPerson] = useState('');
+  const [lenders, setLenders] = useState<{ name: string; loans: number; left: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -78,16 +81,17 @@ export default function LoansPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await storeApi.get<Loan[]>('/loans', { status: status === 'all' ? undefined : status, search: search.trim() || undefined });
+      const r = await storeApi.get<Loan[]>('/loans', { status: status === 'all' ? undefined : status, search: search.trim() || undefined, lender: person || undefined });
       setRows(r.data || []);
       setSummary((r.meta?.summary as Summary | undefined) || null);
+      setLenders((r.meta?.lenders as { name: string; loans: number; left: number }[] | undefined) || []);
       setError(null);
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not load the loans.'));
     } finally {
       setLoading(false);
     }
-  }, [status, search]);
+  }, [status, search, person]);
 
   useEffect(() => {
     if (!canView) return;
@@ -135,6 +139,16 @@ export default function LoansPage() {
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search lender, loan no or note…" className={`${inputClass} pl-9`} />
+        </div>
+        <div className="sm:w-56">
+          <SearchSelect value={person} onChange={(e) => setPerson(e.target.value)} className={inputClass} aria-label="Person">
+            <option value="">All people</option>
+            {lenders.map((p) => (
+              <option key={p.name.toLowerCase()} value={p.name}>
+                {p.name} · {p.loans} loan{p.loans === 1 ? '' : 's'} · Rs {p.left.toLocaleString('en-PK')} left
+              </option>
+            ))}
+          </SearchSelect>
         </div>
         <div className="sm:w-48">
           <SearchSelect value={status} onChange={(e) => setStatus(e.target.value as 'all' | 'open' | 'paid')} className={inputClass}>

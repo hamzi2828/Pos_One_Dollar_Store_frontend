@@ -66,6 +66,12 @@ export interface JwtBasePayload {
     return getUserFromToken(token);
   }
   
+  /** Token from the Employee Portal email-code sign in (opens only /portal). */
+  export function isPortalToken(token: string | null = getAuthToken()): boolean {
+    if (!token) return false;
+    return decodeJwt<{ kind?: string }>(token)?.kind === 'portal';
+  }
+
   export function isAuthenticated(): boolean {
     return !!getCurrentUser();
   }

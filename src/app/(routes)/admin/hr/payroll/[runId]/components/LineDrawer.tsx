@@ -179,6 +179,7 @@ export default function LineDrawer({
               <Fact label="Offs / holidays" value={`${a.offDays} / ${a.holidayDays}`} />
               <Fact label="OT paid" value={hoursText(a.overtimeMinutesPaid)} />
               <Fact label="OT waiting" value={hoursText(a.overtimeMinutesPending)} warn={a.overtimeMinutesPending > 0} />
+              <Fact label="OT after 12 h" value={hoursText(a.overtimeMinutesDouble || 0)} />
               <Fact label="No check-out" value={a.pendingCorrections} warn={a.pendingCorrections > 0} />
               {a.notEmployedDays > 0 && <Fact label="Not employed" value={`${a.notEmployedDays} days`} />}
             </div>

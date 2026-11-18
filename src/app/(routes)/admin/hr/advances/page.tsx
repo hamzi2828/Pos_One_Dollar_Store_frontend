@@ -39,7 +39,18 @@ const DED_TYPE = [
   ['till_shortage', 'Till shortage'],
   ['damage', 'Damage'],
   ['other', 'Other'],
+  ['absent', 'Absent'],
+  ['half_day', 'Half days'],
+  ['late', 'Late'],
 ] as const;
+
+/** Badge colour per deduction type. */
+const DED_BADGE: Record<string, string> = {
+  till_shortage: 'bg-gray-900 text-honey-400',
+  absent: 'bg-red-100 text-red-800',
+  half_day: 'bg-rose-100 text-rose-800',
+  late: 'bg-amber-100 text-amber-800',
+};
 
 function Filter<T extends string>({ value, options, onChange, label }: { value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; label: string }) {
   return (
@@ -358,6 +369,7 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
           }}
         />
       </div>
+      <p className="text-xs text-gray-500 mb-3">Absent, half-day and late cuts wait here for approval. They are only taken from pay once approved; waive them to never cut.</p>
 
       {loading && !rows.length ? (
         <LoadingCard text="Loading deductions…" />
@@ -383,7 +395,7 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-semibold text-gray-900">{d.employeeName}</span>
-                              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${d.type === 'till_shortage' ? 'bg-gray-900 text-honey-400' : 'bg-gray-100 text-gray-700'}`}>
+                              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${DED_BADGE[d.type] || 'bg-gray-100 text-gray-700'}`}>
                                 {d.typeLabel}
                               </span>
                               <StatusChip status={d.status} />
@@ -685,7 +697,7 @@ function AdvancesPageInner() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <PageHeader
-          title="Advances, deductions & tips"
+          title="Staff Ledger"
           subtitle="Advances and deductions are taken from salary by payroll. Tips are a gift: they go to expenses, not cut from salary."
           actions={
             <>

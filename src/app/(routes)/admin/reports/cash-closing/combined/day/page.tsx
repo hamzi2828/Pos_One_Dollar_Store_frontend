@@ -6,57 +6,18 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { AlertCircle, Layers, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { AlertCircle, FileDown, Layers, Loader2 } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
-import { LoadingCard, NoAccessCard, primaryBtn } from '@/components/admin/FormBits';
+import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+import { tillFigures, rowFigures, type TillFigs as Figs } from '../../../../till/components/tillPdf';
 import { formatTime, type CashCount } from '@/components/store/TillStatusBar';
 import { CountTable, StatusBadge, type TillDetail } from '../../../../till/components/tillUi';
 import { CounterTag } from '../../../../expenses/components/CounterSelect';
 import { dayLabel } from '../../closingBits';
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
-
-/** One till's figures, the same way the till page works them out. */
-function tillFigures(t: TillDetail) {
-  const e = t.expected || t.liveExpected || null;
-  // Change money: opening float vs what was left in the drawer (the till page's "Till" box).
-  const drawer = t.drawerCount ?? (t.dayCash ? null : t.closingCount);
-  return {
-    float: t.openingFloat?.total ?? e?.float ?? 0,
-    drawer: drawer ? drawer.total : null,
-    sysCash: e ? r2(e.cashSales + e.cashReceivedOnCredit - e.cashRefunds) : 0,
-    sysCard: t.nonCash?.card ?? e?.card ?? 0,
-    sysBank: t.nonCash?.bank_transfer ?? e?.bankTransfer ?? 0,
-    sysJazz: t.nonCash?.jazzcash ?? e?.jazzcash ?? 0,
-    expenses: e?.expenses || 0,
-    cash: t.dayCash ? t.dayCash.total : null,
-    card: t.cardTotal ?? null,
-    bank: t.bankTransferTotal ?? null,
-    jazz: t.jazzcashTotal ?? null,
-    discounts: (t.discounts || []).reduce((s, d) => s + d.discount, 0),
-    cashSales: e?.cashSales || 0,
-    credit: e?.cashReceivedOnCredit || 0,
-    refunds: e?.cashRefunds || 0,
-  };
-}
-type Figs = ReturnType<typeof tillFigures>;
-
-/** One row of the per-till table (the footer adds these up, so it always matches the rows). */
-function rowFigures(f: Figs) {
-  const given =
-    f.cash == null && f.card == null && f.bank == null && f.jazz == null ? null : (f.cash || 0) + (f.card || 0) + (f.bank || 0) + (f.jazz || 0);
-  const should = r2(f.sysCash + f.sysCard + f.sysBank + f.sysJazz - f.expenses);
-  return {
-    given,
-    should,
-    /** Sales over (+) / short (-); null = nothing written yet. */
-    salesDiff: given == null ? null : r2(given - should),
-    /** Change money over / short; null = drawer not counted. */
-    changeDiff: f.drawer == null ? null : r2(f.drawer - f.float),
-    totalDiff: given == null ? null : r2(given + (f.drawer ?? f.float) - (should + f.float)),
-  };
-}
 
 function Diff({ entered, system }: { entered: number | null; system: number | null }) {
   if (entered == null || system == null) return <span className="text-gray-400">—</span>;
@@ -80,6 +41,20 @@ function DayPage() {
     .join(',');
   const [tills, setTills] = useState<TillDetail[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const downloadPdf = async () => {
+    if (!tills || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const { downloadCombinedDayPdf } = await import('../../../../till/components/tillPdf');
+      await downloadCombinedDayPdf(tills, dayLabel(day), day);
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not make the PDF.'));
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -112,8 +87,8 @@ function DayPage() {
 
   const shell = (body: ReactNode) => (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
-        <div className="flex items-center gap-3">
+      <div className="w-full space-y-4 p-3 sm:p-6">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-honey-100 text-honey-800">
             <Layers className="h-5 w-5" />
           </span>
@@ -121,6 +96,12 @@ function DayPage() {
             <h1 className="text-xl font-bold text-gray-900">{dayLabel(day)} — all counters together</h1>
             <p className="text-sm text-gray-500">{tills ? tills.map((t) => t.counterName || 'No counter').join(' + ') : 'Loading…'}</p>
           </div>
+          {tills && (
+            <button type="button" onClick={downloadPdf} disabled={pdfBusy} className={`${secondaryBtn} ml-auto`}>
+              {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+              Download PDF
+            </button>
+          )}
         </div>
         {body}
       </div>
@@ -208,20 +189,20 @@ function DayPage() {
     <>
       {/* Each counter */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="w-full text-sm">
           <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 text-left font-semibold">Till</th>
-              <th className="px-4 py-2 text-left font-semibold">Opened → closed</th>
-              <th className="px-4 py-2 text-right font-semibold">Cash gave</th>
-              <th className="px-4 py-2 text-right font-semibold">Card</th>
-              <th className="px-4 py-2 text-right font-semibold">Bank (UBL)</th>
-              <th className="px-4 py-2 text-right font-semibold">JazzCash</th>
-              <th className="px-4 py-2 text-right font-semibold">Expenses</th>
-              <th className="px-4 py-2 text-right font-semibold">Should hand over</th>
-              <th className="px-4 py-2 text-right font-semibold">Sales over / short</th>
-              <th className="px-4 py-2 text-right font-semibold">Change money</th>
-              <th className="px-4 py-2 text-right font-semibold">Total over / short</th>
+              <th className="px-2.5 py-2 text-left font-semibold align-bottom">Till</th>
+              <th className="px-2.5 py-2 text-left font-semibold align-bottom">Opened → closed</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Cash gave</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Card</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Bank (UBL)</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">JazzCash</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Expenses</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Should hand over</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Sales over / short</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Change money</th>
+              <th className="px-2.5 py-2 text-right font-semibold align-bottom">Total over / short</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -230,30 +211,30 @@ function DayPage() {
               const { given, should } = tillRows[i];
               return (
                 <tr key={t._id} className="cursor-pointer hover:bg-gray-50" onClick={() => window.open(`/admin/till/${t._id}`, '_blank', 'noopener')}>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <span className="font-medium text-gray-900">{t.sessionNo}</span> <StatusBadge status={t.status} />
+                  <td className="px-2.5 py-2">
+                    <span className="font-medium text-gray-900 whitespace-nowrap">{t.sessionNo}</span> <StatusBadge status={t.status} />
                     <span className="block text-xs text-gray-500">
                       {t.counterName || 'No counter'} · {t.cashierName}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">
+                  <td className="px-2.5 py-2 text-xs text-gray-600">
                     {formatDate(t.openedAt, true)}
-                    {t.closedAt ? ` → ${formatTime(t.closedAt)}` : ''}
+                    {t.closedAt && <span className="block">→ {formatTime(t.closedAt)}</span>}
                   </td>
-                  <td className="px-4 py-2 text-right tabular-nums">{f.cash != null ? formatRs(f.cash) : '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{f.card != null ? formatRs(f.card) : '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{f.bank != null ? formatRs(f.bank) : '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{f.jazz != null ? formatRs(f.jazz) : '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-gray-700">{f.expenses ? `−${formatRs(f.expenses)}` : '—'}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{formatRs(should)}</td>
-                  <td className="px-4 py-2 text-right text-xs tabular-nums">
+                  <td className="px-2.5 py-2 text-right tabular-nums">{f.cash != null ? formatRs(f.cash) : '—'}</td>
+                  <td className="px-2.5 py-2 text-right tabular-nums">{f.card != null ? formatRs(f.card) : '—'}</td>
+                  <td className="px-2.5 py-2 text-right tabular-nums">{f.bank != null ? formatRs(f.bank) : '—'}</td>
+                  <td className="px-2.5 py-2 text-right tabular-nums">{f.jazz != null ? formatRs(f.jazz) : '—'}</td>
+                  <td className="px-2.5 py-2 text-right tabular-nums text-gray-700">{f.expenses ? `−${formatRs(f.expenses)}` : '—'}</td>
+                  <td className="px-2.5 py-2 text-right tabular-nums">{formatRs(should)}</td>
+                  <td className="px-2.5 py-2 text-right text-xs tabular-nums">
                     <Diff entered={given} system={should} />
                   </td>
-                  <td className="px-4 py-2 text-right text-xs tabular-nums whitespace-nowrap">
+                  <td className="px-2.5 py-2 text-right text-xs tabular-nums">
                     {f.drawer != null && <span className="block text-gray-500">{formatRs(f.drawer)} left · float {formatRs(f.float)}</span>}
                     <Diff entered={f.drawer} system={f.float} />
                   </td>
-                  <td className="px-4 py-2 text-right text-xs tabular-nums">
+                  <td className="px-2.5 py-2 text-right text-xs tabular-nums">
                     <Diff entered={given == null ? null : r2(given + (f.drawer ?? f.float))} system={r2(should + f.float)} />
                   </td>
                 </tr>
@@ -262,22 +243,22 @@ function DayPage() {
           </tbody>
           <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-bold">
             <tr>
-              <td className="px-4 py-2 text-gray-900" colSpan={2}>
+              <td className="px-2.5 py-2 text-gray-900" colSpan={2}>
                 All counters
                 <span className="block text-[11px] font-normal text-gray-500">
                   {tills.length} till{tills.length === 1 ? '' : 's'} added up
                 </span>
               </td>
-              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('cash') ? formatRs(add('cash')) : '—'}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('card') ? formatRs(add('card')) : '—'}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('bank') ? formatRs(add('bank')) : '—'}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{anyGiven('jazz') ? formatRs(add('jazz')) : '—'}</td>
-              <td className="px-4 py-2 text-right tabular-nums text-gray-700">{expensesAmt ? `−${formatRs(expensesAmt)}` : '—'}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{money(foot.should)}</td>
-              <td className="px-4 py-2 text-right text-xs tabular-nums">
+              <td className="px-2.5 py-2 text-right tabular-nums">{anyGiven('cash') ? formatRs(add('cash')) : '—'}</td>
+              <td className="px-2.5 py-2 text-right tabular-nums">{anyGiven('card') ? formatRs(add('card')) : '—'}</td>
+              <td className="px-2.5 py-2 text-right tabular-nums">{anyGiven('bank') ? formatRs(add('bank')) : '—'}</td>
+              <td className="px-2.5 py-2 text-right tabular-nums">{anyGiven('jazz') ? formatRs(add('jazz')) : '—'}</td>
+              <td className="px-2.5 py-2 text-right tabular-nums text-gray-700">{expensesAmt ? `−${formatRs(expensesAmt)}` : '—'}</td>
+              <td className="px-2.5 py-2 text-right tabular-nums">{money(foot.should)}</td>
+              <td className="px-2.5 py-2 text-right text-xs tabular-nums">
                 <Diff entered={foot.salesDiff} system={foot.salesDiff == null ? null : 0} />
               </td>
-              <td className="px-4 py-2 text-right text-xs tabular-nums whitespace-nowrap">
+              <td className="px-2.5 py-2 text-right text-xs tabular-nums">
                 {foot.changeDiff != null && (
                   <span className="block font-normal text-gray-500">
                     {formatRs(foot.left)} left · float {formatRs(foot.leftFloat)}
@@ -285,7 +266,7 @@ function DayPage() {
                 )}
                 <Diff entered={foot.changeDiff} system={foot.changeDiff == null ? null : 0} />
               </td>
-              <td className="px-4 py-2 text-right text-xs tabular-nums">
+              <td className="px-2.5 py-2 text-right text-xs tabular-nums">
                 <Diff entered={foot.totalDiff} system={foot.totalDiff == null ? null : 0} />
               </td>
             </tr>

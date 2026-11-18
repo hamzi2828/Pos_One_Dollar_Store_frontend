@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import axios from 'axios';
+import { getAuthHeader } from '@/helper/helper';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, Loader2, AlertCircle, Receipt } from 'lucide-react';
@@ -48,6 +50,27 @@ const ExpensesPage = () => {
   );
   const [customStartDate, setCustomStartDate] = useState<string>(searchParams.get('startDate') || '');
   const [customEndDate, setCustomEndDate] = useState<string>(searchParams.get('endDate') || '');
+
+  // Counter + amount range filters (owner 2026-11-17).
+  const [counterFilter, setCounterFilter] = useState<string>('all');
+  const [counters, setCounters] = useState<{ _id: string; name: string }[]>([]);
+  const [minAmount, setMinAmount] = useState<string>('');
+  const [maxAmount, setMaxAmount] = useState<string>('');
+  const [debouncedMin, setDebouncedMin] = useState<string>('');
+  const [debouncedMax, setDebouncedMax] = useState<string>('');
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedMin(minAmount.trim());
+      setDebouncedMax(maxAmount.trim());
+    }, 400);
+    return () => clearTimeout(t);
+  }, [minAmount, maxAmount]);
+  useEffect(() => {
+    axios
+      .get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/expenses/counters`, { headers: getAuthHeader() })
+      .then((r) => setCounters((r.data?.data || []).map((c: { _id: string; name: string }) => ({ _id: String(c._id), name: c.name }))))
+      .catch(() => setCounters([]));
+  }, []);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pagination, setPagination] = useState<Pagination>(EMPTY_PAGINATION);
@@ -103,7 +126,7 @@ const ExpensesPage = () => {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter, categoryFilter, dateRange, customStartDate, customEndDate]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter, categoryFilter, dateRange, customStartDate, customEndDate, counterFilter, debouncedMin, debouncedMax]);
 
   // Server-side date range (monthly/daily/weekly/custom). Returns ISO strings.
   const computeServerDateRange = useCallback((): { startDate?: string; endDate?: string } => {
@@ -148,6 +171,9 @@ const ExpensesPage = () => {
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
         startDate,
         endDate,
+        counter: counterFilter !== 'all' ? counterFilter : undefined,
+        minAmount: debouncedMin !== '' && Number(debouncedMin) >= 0 ? Number(debouncedMin) : undefined,
+        maxAmount: debouncedMax !== '' && Number(debouncedMax) >= 0 ? Number(debouncedMax) : undefined,
       }, controller.signal);
 
       const typed: Expense[] = items.map((e: RawExpense) => ({
@@ -186,7 +212,7 @@ const ExpensesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, debouncedSearch, statusFilter, categoryFilter, computeServerDateRange]);
+  }, [currentPage, debouncedSearch, statusFilter, categoryFilter, computeServerDateRange, counterFilter, debouncedMin, debouncedMax]);
 
   // Server-side summary scoped to same date range (isActive only, per backend)
   const fetchSummary = useCallback(async () => {
@@ -381,6 +407,47 @@ const ExpensesPage = () => {
             <option value="all">All Time</option>
           </SearchSelect>
           )}
+          {!tillScope && (
+            <SearchSelect
+              value={counterFilter}
+              onChange={(e) => setCounterFilter(e.target.value)}
+              aria-label="Counter"
+              className="px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500"
+            >
+              <option value="all">All counters</option>
+              {counters.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="none">No counter</option>
+            </SearchSelect>
+          )}
+          {!tillScope && (
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                placeholder="Rs from"
+                aria-label="Amount from"
+                className="w-24 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500"
+              />
+              <span className="text-gray-400">–</span>
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                placeholder="Rs to"
+                aria-label="Amount to"
+                className="w-24 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500"
+              />
+            </div>
+          )}
           {!tillScope && dateRange === 'custom' && (
             <>
               <input
@@ -555,7 +622,7 @@ const ExpensesPage = () => {
                         </span>
                       )}
                       {expense.investmentTitle && (
-                        <a href="/admin/investments" className="mt-0.5 block text-[11px] font-medium text-honey-800 hover:underline" title="This expense pays the rest of an investment bill">
+                        <a href="/admin/financial-statements#investments" className="mt-0.5 block text-[11px] font-medium text-honey-800 hover:underline" title="This expense pays the rest of an investment bill">
                           Investment: {expense.investmentTitle}
                         </a>
                       )}

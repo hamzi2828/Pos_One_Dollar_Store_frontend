@@ -75,6 +75,8 @@ export interface BoardRow {
   outSource: PunchSource | null;
   /** Latest time correction: shown as "Corrected by X: reason". */
   lastCorrection: { at: string; byName: string; reason: string; field: string } | null;
+  /** Employee's own reason for being late (written in the portal). */
+  lateNote?: { text: string; at: string | null } | null;
   inNow: boolean;
   onBreak?: boolean;
   status: AttendanceStatus;

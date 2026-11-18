@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { IdCard } from "lucide-react";
 import { Wordmark } from "@/components/ui/wordmark";
 import { LoginForm, safeNext } from "./components/LoginForm";
+import { PortalOtpForm } from "./components/PortalOtpForm";
 
 // Staff sign-in, styled like the shop sign: lit letters on a black fascia.
 const AuthPage: React.FC = () => {
@@ -30,13 +31,21 @@ const AuthPage: React.FC = () => {
           <h1>
             <Wordmark className="text-4xl sm:text-5xl" />
           </h1>
-          <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-            {portal ? "Employee Portal" : "Point of Sale"}
-          </p>
+          {portal ? (
+            <div className="mt-5 flex flex-col items-center">
+              <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-ink shadow-lg shadow-brand-yellow/20">
+                <IdCard className="h-6 w-6" />
+              </span>
+              <p className="text-3xl font-black uppercase tracking-wide text-brand-yellow sm:text-4xl">Employee Portal</p>
+              <p className="mt-1.5 text-sm text-white/70">Your attendance, salary and payslips</p>
+            </div>
+          ) : (
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">Point of Sale</p>
+          )}
         </div>
 
         <div className="w-full rounded-xl bg-white p-5 shadow-2xl shadow-black/40 sm:p-6">
-          <LoginForm next={next} portal={portal} />
+          {portal ? <PortalOtpForm next={next} /> : <LoginForm next={next} />}
         </div>
 
         {portal ? (
@@ -57,12 +66,14 @@ const AuthPage: React.FC = () => {
         )}
         <p className="mt-3 text-center text-[11px] text-white/40">
           {portal
-            ? "See your attendance, salary and bonuses. Use the login the shop admin gave you."
+            ? "Only employees with Active status can sign in. Wrong or missing email? Ask the shop admin."
             : "Staff: see your attendance and salary in the Employee Portal."}
         </p>
-        <p className="mt-4 text-center text-xs text-white/40">
-          Staff accounts are created by the shop admin.
-        </p>
+        {!portal && (
+          <p className="mt-4 text-center text-xs text-white/40">
+            Staff accounts are created by the shop admin.
+          </p>
+        )}
       </main>
 
       {/* Thin lit strip, like the LED line under the sign */}

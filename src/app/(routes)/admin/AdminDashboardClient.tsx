@@ -11,7 +11,6 @@ import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { dashboardService, RANGE_OPTIONS, type DashboardData, type RangeKey } from './dashboardService';
 import { BarList, ColumnChart, Sparkline, compactRs } from './adminComponents/charts';
 import {
-  AttentionGrid,
   Card,
   CardLink,
   Delta,
@@ -336,7 +335,7 @@ export default function AdminDashboardClient() {
             ]}
           />
 
-          <AttentionGrid items={data.attention} />
+          {/* "Needs your attention" panel removed (owner, 2026-11-17) */}
 
           {/* Main grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">

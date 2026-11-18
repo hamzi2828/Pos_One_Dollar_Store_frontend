@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, Receipt, FileText, CreditCard, X, Image as ImageIcon, Check, Plus, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { expenseService } from '../service/expenseService';
-import type { CreateExpenseData, PaymentMethod, ExpenseCategoryItem, RefundBill } from '../types';
-import { PAYMENT_METHODS, isRefundCategory } from '../types';
+import type { CreateExpenseData, PaymentMethod, ExpenseCategoryItem, RefundBill, LoanOption, PartnerOption } from '../types';
+import { PAYMENT_METHODS, isRefundCategory, isLoanRepayCategory, isPartnerDrawCategory } from '../types';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import MoneyInput from '@/components/ui/MoneyInput';
 import BankSelect from '../components/BankSelect';
@@ -96,6 +96,39 @@ export default function CreateExpensePage() {
   // Category Refund: the bill the money goes back on.
   const [refundBill, setRefundBill] = useState<RefundBill | null>(null);
   const isRefund = isRefundCategory(selectedCategories);
+  // Category Loan Repayment: which loan is paid back (not a shop expense).
+  const isLoanRepay = isLoanRepayCategory(selectedCategories);
+  const [loanId, setLoanId] = useState('');
+  const [loanOptions, setLoanOptions] = useState<LoanOption[] | null>(null);
+  const pickedLoan = (loanOptions || []).find((l) => l._id === loanId) || null;
+  useEffect(() => {
+    if (!isLoanRepay || loanOptions) return;
+    expenseService
+      .getLoanOptions()
+      .then(setLoanOptions)
+      .catch(() => setLoanOptions([]));
+  }, [isLoanRepay, loanOptions]);
+  // Category Profit Distribution: which partner took the money (not a shop expense).
+  const isPartnerDraw = isPartnerDrawCategory(selectedCategories);
+  const [partnerId, setPartnerId] = useState('');
+  const [partnerOptions, setPartnerOptions] = useState<PartnerOption[] | null>(null);
+  useEffect(() => {
+    if (!isPartnerDraw || partnerOptions) return;
+    expenseService
+      .getPartnerOptions()
+      .then(setPartnerOptions)
+      .catch(() => setPartnerOptions([]));
+  }, [isPartnerDraw, partnerOptions]);
+  // Opened from Financial Statements → Partners "Take profit": ?category=Profit Distribution&partner=<id>.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const cat = q.get('category');
+    const pid = q.get('partner');
+    if (cat) setSelectedCategories([cat]);
+    if (pid && /^[a-f\d]{24}$/i.test(pid)) setPartnerId(pid);
+  }, []);
+  // Refund / loan repayment / profit distribution: no investment bill, no personal money.
+  const linked = isRefund || isLoanRepay || isPartnerDraw;
 
   // Receipt / slip images (max 10)
   const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
@@ -252,11 +285,25 @@ export default function CreateExpensePage() {
         return;
       }
     }
+    if (isPartnerDraw && !partnerId) {
+      setError('Pick which partner took the money');
+      return;
+    }
+    if (isLoanRepay) {
+      if (!pickedLoan) {
+        setError('Pick which loan is being paid back');
+        return;
+      }
+      if (parseFloat(amount) - pickedLoan.left > 0.009) {
+        setError(`Only Rs ${pickedLoan.left} is left to pay on ${pickedLoan.loanNo}`);
+        return;
+      }
+    }
     if (tillOnly && !myTill?.open) {
       setError('Open your till first. Expenses you add are taken off your till.');
       return;
     }
-    const personal = fromPersonal && !tillOnly && !isRefund;
+    const personal = fromPersonal && !tillOnly && !linked;
     if (personal && !lenderId) {
       setError('Pick whose personal money paid this expense');
       return;
@@ -278,10 +325,12 @@ export default function CreateExpensePage() {
         paymentMethod,
         bankId: paymentMethod === 'Bank Transfer' ? bankId || undefined : undefined,
         counter: !tillOnly && paymentMethod === 'Cash' && !personal ? counterId || undefined : undefined,
-        investmentId: !tillOnly && !isRefund ? investmentId || undefined : undefined,
+        investmentId: !tillOnly && !linked ? investmentId || undefined : undefined,
         fromPersonal: personal || undefined,
         lenderId: personal ? lenderId : undefined,
         posOrderId: isRefund && refundBill ? refundBill._id : undefined,
+        loanId: isLoanRepay && pickedLoan ? pickedLoan._id : undefined,
+        partnerId: isPartnerDraw ? partnerId || undefined : undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
       };
@@ -533,7 +582,7 @@ export default function CreateExpensePage() {
                           {isSelected && <Check className="h-3.5 w-3.5" />}
                           {category.name}
                         </button>
-                        {canManageCategories && !isRefundCategory(category.name) && (
+                        {canManageCategories && !isRefundCategory(category.name) && !isLoanRepayCategory(category.name) && !isPartnerDrawCategory(category.name) && (
                         <div className="hidden group-hover:flex items-center gap-0.5 ml-1 border-l border-gray-300 pl-1">
                           <button
                             type="button"
@@ -581,6 +630,64 @@ export default function CreateExpensePage() {
                 </div>
               )}
             </div>
+
+            {/* Profit distribution: which partner took the money */}
+            {isPartnerDraw && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Partner who took the money <span className="text-red-500">*</span>
+                </label>
+                <SearchSelect
+                  value={partnerId}
+                  disabled={loading || partnerOptions === null}
+                  onChange={(e) => {
+                    setPartnerId(e.target.value);
+                    const pt = (partnerOptions || []).find((x) => x._id === e.target.value);
+                    if (pt && !title.trim()) setTitle(`Taken by ${pt.name}`);
+                  }}
+                  className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500/30 focus:border-honey-500"
+                >
+                  <option value="">{partnerOptions === null ? 'Loading partners…' : 'Pick the partner'}</option>
+                  {(partnerOptions || []).map((pt) => (
+                    <option key={pt._id} value={pt._id}>
+                      {pt.name}{pt.sharePercent ? ` · ${pt.sharePercent}%` : ''}
+                    </option>
+                  ))}
+                </SearchSelect>
+                <p className="mt-1 text-xs text-gray-500">
+                  The money comes off the till / bank as normal. It is not a shop expense: it comes off this partner&apos;s share (Financial Statements → Partners).
+                </p>
+              </div>
+            )}
+
+            {/* Loan repayment: which loan is paid back */}
+            {isLoanRepay && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Loan being paid back <span className="text-red-500">*</span>
+                </label>
+                <SearchSelect
+                  value={loanId}
+                  disabled={loading || loanOptions === null}
+                  onChange={(e) => {
+                    setLoanId(e.target.value);
+                    const l = (loanOptions || []).find((x) => x._id === e.target.value);
+                    if (l && !title.trim()) setTitle(`Loan paid back to ${l.lenderName} (${l.loanNo})`);
+                  }}
+                  className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-honey-500/30 focus:border-honey-500"
+                >
+                  <option value="">{loanOptions === null ? 'Loading loans…' : loanOptions.length ? 'Pick the loan' : 'No open loans'}</option>
+                  {(loanOptions || []).map((l) => (
+                    <option key={l._id} value={l._id}>
+                      {l.loanNo} · {l.lenderName} · Rs {l.left.toLocaleString('en-PK')} left of {l.amount.toLocaleString('en-PK')}
+                    </option>
+                  ))}
+                </SearchSelect>
+                <p className="mt-1 text-xs text-gray-500">
+                  The money comes off the till / bank as normal and the loan&apos;s balance goes down. It is not counted as a shop expense in profit.
+                </p>
+              </div>
+            )}
 
             {/* Refund: which bill the money goes back on */}
             {isRefund && (
@@ -635,8 +742,8 @@ export default function CreateExpensePage() {
                 </p>
               </div>
             )}
-            {paymentMethod === 'Cash' && !tillOnly && !(fromPersonal && !isRefund) && <CounterSelect value={counterId} onChange={setCounterId} disabled={loading} />}
-            {!tillOnly && !isRefund && (
+            {paymentMethod === 'Cash' && !tillOnly && !(fromPersonal && !linked) && <CounterSelect value={counterId} onChange={setCounterId} disabled={loading} />}
+            {!tillOnly && !linked && (
             <div className="md:col-span-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -662,7 +769,7 @@ export default function CreateExpensePage() {
               )}
             </div>
             )}
-            {!tillOnly && !isRefund && (
+            {!tillOnly && !linked && (
             <div className="md:col-span-2">
               <InvestmentBillSelect
                 value={investmentId}

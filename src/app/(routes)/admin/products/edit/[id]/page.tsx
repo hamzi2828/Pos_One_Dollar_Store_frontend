@@ -96,7 +96,6 @@ const EditProductPage = () => {
         categories={categories.filter((c) => c.active)}
         colorOptions={colorOptions}
         sizeOptions={sizeOptions}
-        onManageAttributes={() => router.push('/admin/products/attributes')}
         onCancel={() => router.push('/admin/products')}
         onSuccess={() => {
           toast.success('Product updated successfully');

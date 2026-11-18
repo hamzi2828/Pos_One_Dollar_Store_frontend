@@ -93,7 +93,6 @@ const CreateProductPage = () => {
         categories={categories.filter((c) => c.active)}
         colorOptions={colorOptions}
         sizeOptions={sizeOptions}
-        onManageAttributes={() => router.push('/admin/products/attributes')}
         onSuccess={(created) => {
           // Next step: print stickers for the new product
           router.push(created?.id ? `/admin/products/stickers/${created.id}?new=1` : '/admin/products');

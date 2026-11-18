@@ -43,6 +43,8 @@ export interface ExpenseListParams extends BasePagingParams {
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
+  /** Counter id, or 'none' = not from a counter. */
+  counter?: string;
 }
 
 export const expenseService = {
@@ -79,6 +81,22 @@ export const expenseService = {
       console.error('Error fetching expense:', error);
       throw error;
     }
+  },
+
+  /** Partners for a Profit Distribution expense. */
+  async getPartnerOptions(): Promise<import('../types').PartnerOption[]> {
+    const response = await axios.get(`${API_BASE_URL}/expenses/partner-options`, {
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    });
+    return response.data?.data ?? [];
+  },
+
+  /** Open loans for a Loan Repayment expense. */
+  async getLoanOptions(): Promise<import('../types').LoanOption[]> {
+    const response = await axios.get(`${API_BASE_URL}/expenses/loan-options`, {
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    });
+    return response.data?.data ?? [];
   },
 
   /** Bills whose number contains q (at least 3 characters) for a Refund expense. */
@@ -147,6 +165,8 @@ export const expenseService = {
         if (expenseData.lenderId) formData.append('lenderId', expenseData.lenderId);
       }
       if (expenseData.posOrderId) formData.append('posOrderId', expenseData.posOrderId);
+      if (expenseData.loanId) formData.append('loanId', expenseData.loanId);
+      if (expenseData.partnerId) formData.append('partnerId', expenseData.partnerId);
       if (expenseData.reference) formData.append('reference', expenseData.reference);
       if (expenseData.notes) formData.append('notes', expenseData.notes);
       // Receipt images (up to 10)

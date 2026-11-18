@@ -82,6 +82,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'report_expenses', label: 'Expenses', actions: ['view', 'export'] },
       { key: 'report_receivables', label: 'Receivables', actions: ['view', 'export'] },
       { key: 'report_cash_in_hand', label: 'Cash in Hand', actions: ['view', 'export'] },
+      { key: 'report_financial_statements', label: 'Financial Statements', actions: ['view', 'export'] },
       { key: 'report_demand', label: 'Demand List', actions: ['view', 'edit', 'export'] },
       { key: 'report_trends', label: 'Sales Trends', actions: ['view', 'export'] },
       { key: 'report_slow_moving', label: 'Slow Moving', actions: ['view', 'edit', 'export'] },

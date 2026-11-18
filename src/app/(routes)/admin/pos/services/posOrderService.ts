@@ -237,6 +237,29 @@ export async function getPOSOrders(
 }
 
 /**
+ * Cashier bill lookup: no search -> own last 5 bills; search (4+ characters) -> at most 5 bills.
+ */
+export async function lookupPOSOrders(search: string, signal?: AbortSignal): Promise<POSOrder[]> {
+  if (!API_BASE_URL) {
+    throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
+  }
+  const q = search.trim();
+  const url = `${API_BASE_URL}/api/pos/orders/lookup${q ? `?search=${encodeURIComponent(q)}` : ''}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
+    cache: 'no-store',
+    signal,
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: 'Failed to search bills' }));
+    throw new Error(error.message || 'Failed to search bills');
+  }
+  const response = await res.json();
+  return response.data || [];
+}
+
+/**
  * Get order by ID
  */
 export async function getOrderById(orderId: string): Promise<POSOrder | null> {
@@ -367,4 +390,39 @@ export async function addPaymentToOrder(
     throw new Error('Invalid response from server');
   }
   return response.data;
+}
+
+/** One change made to a bill after the sale (payment method / split, refund, part refund, discount). */
+export interface BillSnapshot {
+  paymentMethod: string;
+  payments: { method: string; amount: number }[];
+  total: number;
+  discount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  refunded: number;
+  orderStatus: string;
+  paymentStatus: string;
+  refundMethod?: string | null;
+  stockBack?: boolean;
+}
+export interface BillEditEntry {
+  at: string;
+  byName: string;
+  byRole?: string;
+  action: 'payment_method' | 'refund' | 'partial_refund' | 'discount';
+  summary: string;
+  reason?: string;
+  before: BillSnapshot | null;
+  after: BillSnapshot | null;
+}
+
+/** Edit history of a bill, newest first. */
+export async function getOrderEditLog(orderId: string): Promise<BillEditEntry[]> {
+  if (!API_BASE_URL) throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
+  const res = await fetch(`${API_BASE_URL}/api/pos/orders/${orderId}/edit-log`, {
+    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+  });
+  if (!res.ok) throw await readError(res, 'Could not load the edit history');
+  return ((await res.json()).data || []) as BillEditEntry[];
 }

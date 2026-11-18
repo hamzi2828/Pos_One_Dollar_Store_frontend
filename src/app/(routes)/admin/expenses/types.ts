@@ -121,6 +121,10 @@ export interface CreateExpenseData {
   lenderId?: string;
   /** Category Refund: the POS bill refunded. */
   posOrderId?: string;
+  /** Category Loan Repayment: the loan paid back. */
+  loanId?: string;
+  /** Category Profit Distribution: the partner who took the money. */
+  partnerId?: string;
   reference?: string;
   notes?: string;
   receipt?: string | null;
@@ -163,6 +167,33 @@ export interface RefundBill {
 export const REFUND_CATEGORY = 'Refund';
 export const isRefundCategory = (c: string | string[] | null | undefined) =>
   (Array.isArray(c) ? c : String(c || '').split(',')).some((x) => x.trim().toLowerCase() === 'refund');
+
+/** Category "Loan Repayment": pays back a loan (not a shop expense). */
+export const LOAN_REPAY_CATEGORY = 'Loan Repayment';
+export const isLoanRepayCategory = (c: string | string[] | null | undefined) =>
+  (Array.isArray(c) ? c : String(c || '').split(',')).some((x) => x.trim().toLowerCase() === 'loan repayment');
+
+/** Category "Profit Distribution": money a partner takes out (not a shop expense). */
+export const isPartnerDrawCategory = (c: string | string[] | null | undefined) =>
+  (Array.isArray(c) ? c : String(c || '').split(',')).some((x) => x.trim().toLowerCase() === 'profit distribution');
+
+/** Partner for a Profit Distribution expense (GET /expenses/partner-options). */
+export interface PartnerOption {
+  _id: string;
+  name: string;
+  sharePercent: number;
+}
+
+/** Open loan for a Loan Repayment expense (GET /expenses/loan-options). */
+export interface LoanOption {
+  _id: string;
+  loanNo: string;
+  lenderName: string;
+  amount: number;
+  paid: number;
+  left: number;
+  date: string;
+}
 
 /**
  * Cashier view (permission till_expenses without expenses): only their open till.

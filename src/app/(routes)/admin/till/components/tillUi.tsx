@@ -6,7 +6,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
-import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, Clock, Receipt, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Lock, ShieldCheck, ShieldAlert, Clock, Receipt, Trash2, FileDown } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { useAccess } from '@/context/AccessContext';
@@ -121,6 +121,7 @@ const ACTION_LABEL: Record<string, string> = {
   verify: 'Verified',
   dispute: 'Disputed',
   deleted: 'Deleted',
+  reopened: 'Reopened',
 };
 
 export function CountTable({ count }: { count: CashCount | null }) {
@@ -152,7 +153,22 @@ export function SessionDetailModal({ id, onClose, onChanged, asPage = false }: {
   const [busy, setBusy] = useState<'verify' | 'dispute' | 'delete' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [tab, setTab] = useState<'overview' | 'bills'>('overview');
+  const [pdfBusy, setPdfBusy] = useState(false);
   const lockRef = useRef(false);
+
+  const downloadPdf = async () => {
+    if (!data || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const pdf = await import('./tillPdf');
+      await (tab === 'bills' ? pdf.downloadTillBillsPdf(data) : pdf.downloadTillOverviewPdf(data));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not make the PDF.'));
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -280,6 +296,37 @@ Reason (optional):`);
               {data.lateOpen && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Late open</span>}
               {data.lateClose && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Late close</span>}
             </div>
+
+            {/* Tabs */}
+            <div className="flex flex-wrap items-end justify-between gap-2 border-b border-gray-200">
+              <div className="flex gap-1">
+                {(
+                  [
+                    ['overview', 'Overview'],
+                    ['bills', `Bills in this till (${data.bills.length})`],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setTab(k)}
+                    className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+                      tab === k ? 'border-honey-600 text-honey-800' : 'border-transparent text-gray-500 hover:text-gray-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={downloadPdf} disabled={pdfBusy} className={`${secondaryBtn} mb-1.5 !py-1.5 !text-xs`}>
+                {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                Download PDF
+              </button>
+            </div>
+
+            <div className="space-y-5">
+            {tab === 'overview' && (
+            <div className="space-y-5">
 
             {/* Till (float) and sales, kept apart */}
             {(() => {
@@ -570,7 +617,11 @@ Reason (optional):`);
               );
             })()}
 
+            </div>
+            )}
+
             {/* Bills */}
+            {tab === 'bills' && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Bills in this till ({data.bills.length})</p>
               {data.bills.length === 0 ? (
@@ -617,9 +668,10 @@ Reason (optional):`);
                 </div>
               )}
             </div>
+            )}
 
             {/* History */}
-            {!!data.history?.length && (
+            {tab === 'overview' && !!data.history?.length && (
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase mb-2">History</p>
                 <ul className="space-y-1 text-xs text-gray-600">
@@ -634,6 +686,7 @@ Reason (optional):`);
                 </ul>
               </div>
             )}
+            </div>
 
             {canReview && (
               <Field label="Note" hint="Required to dispute. The cashier is told the result and sees this note.">

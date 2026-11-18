@@ -11,6 +11,9 @@ const DEDUCTION_WORD: Record<string, string> = {
   till_shortage: 'Till short',
   damage: 'Damage',
   other: 'Other',
+  absent: 'Absent',
+  half_day: 'Half days',
+  late: 'Late',
 };
 
 const METHOD_WORD: Record<string, string> = {

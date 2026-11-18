@@ -13,6 +13,7 @@ import {
   Check,
   Edit2,
   FileSignature,
+  MonitorSmartphone,
   FileText,
   History,
   Landmark,
@@ -66,6 +67,8 @@ export default function EmployeeProfilePage() {
   const { can } = useAccess();
   const canView = can('employees', 'view');
   const canEdit = can('employees', 'edit');
+  // Portal preview shows salary, so it needs payroll view too (server checks the same).
+  const canPortal = can('employees', 'view') && can('payroll', 'view');
   const canDelete = can('employees', 'delete');
 
   const [emp, setEmp] = useState<Employee | null>(null);
@@ -219,6 +222,11 @@ export default function EmployeeProfilePage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {canPortal && (
+                <a href={`/portal?as=${emp._id}`} target="_blank" rel="noopener" className={secondaryBtn} title="See exactly what this employee sees in the Employee Portal">
+                  <MonitorSmartphone className="h-4 w-4" /> View portal
+                </a>
+              )}
               {canEdit && (
                 <Link href={`/admin/hr/employees/${emp._id}/contract`} className={primaryBtn}>
                   <FileSignature className="h-4 w-4" /> Contract letter

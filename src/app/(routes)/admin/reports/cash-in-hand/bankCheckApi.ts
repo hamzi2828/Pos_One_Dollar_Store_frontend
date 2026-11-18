@@ -151,7 +151,7 @@ export function matchHref(m?: LineMatch | null): string | null {
   if (s.includes('vendor')) return '/admin/vendors/payments';
   if (s.includes('expense') && m.id) return `/admin/expenses/edit/${m.id}`;
   if (s.includes('loan')) return '/admin/loans';
-  if (s.includes('invest')) return '/admin/investments';
+  if (s.includes('invest')) return '/admin/financial-statements#investments';
   if (s.includes('advance')) return '/admin/hr/advances';
   if (s.includes('payroll')) return '/admin/hr/payroll';
   if (s.includes('purchase') || s.includes('trip') || s.includes('po')) return '/admin/purchasing/orders';

@@ -5,10 +5,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { CalendarDays, Home, LayoutDashboard, Loader2, LogOut, UserRound, Wallet, Banknote, UserX } from 'lucide-react';
+import { endPreview, previewAs } from './_lib/portalApi';
+import { CalendarDays, Home, LayoutDashboard, Loader2, LogOut, UserRound, Banknote, Coins, UserX } from 'lucide-react';
 import { Wordmark } from '@/components/ui/wordmark';
 import { AccessProvider, useAccess } from '@/context/AccessContext';
-import { clearAllAuth, getAuthToken, getRole, isAuthenticated } from '@/helper/helper';
+import { clearAllAuth, getAuthToken, getRole, isAuthenticated, isPortalToken } from '@/helper/helper';
+import axios from 'axios';
 import { apiErrorMessage } from '@/lib/storeApi';
 import { Avatar } from '@/app/(routes)/admin/hr/attendance/components/AttendanceBits';
 import { NO_EMPLOYEE_MESSAGE, isNoEmployee, portalApi, type PortalProfile } from './_lib/portalApi';
@@ -17,9 +19,9 @@ import { ErrorCard, Loading, PortalContext, cardClass } from './_lib/PortalBits'
 const TABS = [
   { href: '/portal', label: 'Home', Icon: Home },
   { href: '/portal/attendance', label: 'Attendance', Icon: CalendarDays },
-  { href: '/portal/salary', label: 'Salary', Icon: Banknote },
-  { href: '/portal/money', label: 'Money', Icon: Wallet },
-  { href: '/portal/details', label: 'My details', Icon: UserRound },
+  { href: '/portal/cuts', label: 'Cuts / Tips', Icon: Coins },
+  { href: '/portal/salary', label: 'Payslips', Icon: Banknote },
+  { href: '/portal/details', label: 'Me', Icon: UserRound },
 ];
 
 const isActive = (path: string, href: string) => (href === '/portal' ? path === '/portal' : path === href || path.startsWith(`${href}/`));
@@ -42,12 +44,18 @@ function PortalShell({ children }: { children: React.ReactNode }) {
       setProfile(res.data);
       setNoEmployee(false);
     } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 401) {
+        // Token expired / employee no longer active: back to sign in.
+        clearAllAuth();
+        router.replace('/authentication?next=/portal');
+        return;
+      }
       if (isNoEmployee(e)) setNoEmployee(true);
       else setError(apiErrorMessage(e, 'Could not load your details. Check the internet and try again.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     load();
@@ -70,18 +78,41 @@ function PortalShell({ children }: { children: React.ReactNode }) {
     role === 'admin' &&
     (!access || access.isSuperAdmin || Object.values(access.permissions || {}).some((list) => Array.isArray(list) && list.length > 0));
 
+  // Admin preview of someone else's portal (opened from the employee page).
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  useEffect(() => {
+    setPreviewId(previewAs());
+  }, []);
+  const exitPreview = () => {
+    const id = previewId;
+    endPreview();
+    router.replace(id ? `/admin/hr/employees/${id}` : '/admin');
+  };
+
   const emp = profile?.employee;
   const name = emp?.name || `${access?.user?.firstName || ''} ${access?.user?.lastName || ''}`.trim() || 'Employee';
   const ctx = useMemo(() => (profile ? { profile, reload: load } : null), [profile, load]);
 
   return (
     <div className="min-h-screen bg-gray-100 print:bg-white">
+      {previewId && (
+        <div className="print:hidden bg-amber-400 text-gray-900 text-xs sm:text-sm">
+          <div className="mx-auto max-w-3xl px-3 sm:px-4 py-2 flex items-center justify-between gap-2">
+            <span>
+              Admin view: you are seeing <b>{profile?.employee?.name || 'this employee'}</b>&apos;s portal (read only).
+            </span>
+            <button type="button" onClick={exitPreview} className="rounded-md bg-gray-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-gray-800">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
       <header className="print:hidden sticky top-0 z-30 bg-brand-ink text-white shadow">
         <div className="mx-auto max-w-3xl px-3 sm:px-4 h-14 flex items-center gap-3">
           <Link href="/portal" className="flex-shrink-0" aria-label="Employee Portal home">
             <Wordmark className="text-xl" />
           </Link>
-          <span className="hidden sm:inline text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50">Employee Portal</span>
+          <span className="hidden sm:inline text-sm font-bold uppercase tracking-[0.15em] text-brand-yellow">Employee Portal</span>
           <div className="ml-auto flex items-center gap-2 min-w-0">
             {hasAdmin && (
               <Link
@@ -202,6 +233,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }, [router, pathname]);
 
   if (!ready) return null;
+
+  // Email-code sign in: portal only, no staff permissions to load (/me/access).
+  if (isPortalToken()) return <PortalShell>{children}</PortalShell>;
 
   return (
     <AccessProvider>

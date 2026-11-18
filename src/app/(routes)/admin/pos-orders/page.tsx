@@ -33,7 +33,7 @@ import {
   ScrollText,
 } from 'lucide-react';
 import { POSOrder, PaymentMethodType } from '../pos/types';
-import { getPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder, getRefundInfo, partialRefundPOSOrder, type RefundInfo } from '../pos/services/posOrderService';
+import { getPOSOrders, lookupPOSOrders, deletePOSOrder, addPaymentToOrder, refundPOSOrder, getRefundInfo, partialRefundPOSOrder, type RefundInfo } from '../pos/services/posOrderService';
 import { RefundMethodPicker, type RefundMethod } from '../pos/components/RefundMethodPicker';
 import WhatsAppBadge from '../pos/components/WhatsAppBadge';
 import { useAccess } from '@/context/AccessContext';
@@ -53,13 +53,208 @@ type PaymentFilter = 'all' | 'cash' | 'card' | 'bank_transfer' | 'jazzcash';
 const pkToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
 
 export default function POSOrdersPage() {
+  const { can } = useAccess();
+  // Plain cashier (no sales-figure permission): bill lookup only (owner 2026-11-17).
+  const fullList = can(['pos_orders', 'dashboard', 'till_verify'], 'view');
+  return fullList ? <FullOrdersPage /> : <CashierBillLookup />;
+}
+
+/** Order row -> what the Edit bill window needs. */
+const editableOf = (o: POSOrder): EditableBill => ({
+  _id: o._id,
+  orderNumber: o.orderNumber,
+  total: Number(o.total) || 0,
+  pendingAmount: Number(o.pendingAmount) || 0,
+  paymentMethod: String(o.paymentMethod || ''),
+  paymentStatus: String(o.paymentStatus || ''),
+  orderStatus: String(o.orderStatus || ''),
+  customerName:
+    o.customerInfo?.name || (o.customer ? `${o.customer.firstName} ${o.customer.lastName ?? ''}`.trim() : 'Walk-in'),
+  createdAt: o.createdAt ? String(o.createdAt) : undefined,
+});
+
+const LOOKUP_MIN = 4;
+
+/** Cashier view: own last 5 bills; search needs 4+ characters and shows at most 5 bills. No totals, no list. */
+function CashierBillLookup() {
+  const symbol = getCurrencySymbol('PKR');
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [orders, setOrders] = useState<POSOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [viewing, setViewing] = useState<POSOrder | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+  // Owner 2026-11-18: cashier may fix the payment / split and refund a bill (pos_bill_edit).
+  const { can } = useAccess();
+  const canEditBill = can(['pos_orders', 'pos_bill_edit'], 'edit');
+  const [editing, setEditing] = useState<{ bill: EditableBill; tab: 'payment' | 'refund' } | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const typed = debounced.replace(/\s/g, '').length;
+  const tooShort = typed > 0 && typed < LOOKUP_MIN;
+
+  useEffect(() => {
+    if (tooShort) {
+      setOrders([]);
+      return;
+    }
+    const ctl = new AbortController();
+    setLoading(true);
+    lookupPOSOrders(debounced, ctl.signal)
+      .then(setOrders)
+      .catch((err) => {
+        if ((err as Error).name === 'AbortError') return;
+        toast.error((err as Error).message || 'Failed to search bills');
+      })
+      .finally(() => setLoading(false));
+    return () => ctl.abort();
+  }, [debounced, tooShort, reloadTick]);
+
+  const rowPerms: RowPerms = { seeCost: false, pay: false, refund: canEditBill, remove: false, logs: false };
+  const noop = () => {};
+
+  return (
+    <div className="space-y-3 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 flex items-center gap-2">
+            <Receipt className="h-6 w-6 text-honey-700" />
+            Find a bill
+          </h1>
+          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
+            Your last 5 bills are shown. To find another bill, search with at least {LOOKUP_MIN} characters.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setReloadTick((n) => n + 1)}
+            disabled={loading || tooShort}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <Link
+            href="/admin/pos"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-900 bg-honey-500 rounded-lg hover:bg-honey-600"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            Open POS
+          </Link>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Bill #, customer name, phone or total (at least 4 characters)"
+            className="w-full pl-9 pr-9 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
+            autoFocus
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {tooShort && (
+          <p className="mt-2 text-xs text-amber-700">
+            Type {LOOKUP_MIN - typed} more character{LOOKUP_MIN - typed === 1 ? '' : 's'} to search.
+          </p>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-gray-100 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          {debounced && !tooShort ? 'Search results (up to 5)' : 'Your last 5 bills'}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
+                <th className="px-4 py-3 font-medium">Order #</th>
+                <th className="px-4 py-3 font-medium">Customer</th>
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Items</th>
+                <th className="px-4 py-3 font-medium">Payment</th>
+                <th className="px-4 py-3 font-medium text-right">Total</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                    Searching...
+                  </td>
+                </tr>
+              ) : orders.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <Receipt className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                    <div className="text-gray-500 text-sm">
+                      {tooShort ? `Type at least ${LOOKUP_MIN} characters to search` : debounced ? 'No bill found' : 'No bills yet'}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                orders.map((o) => (
+                  <OrderRow
+                    key={o._id}
+                    order={o}
+                    symbol={symbol}
+                    perms={rowPerms}
+                    onView={() => setViewing(o)}
+                    onLog={noop}
+                    onDelete={noop}
+                    onPay={noop}
+                    onRefund={() => setEditing({ bill: editableOf(o), tab: 'refund' })}
+                    onEdit={() => setEditing({ bill: editableOf(o), tab: 'payment' })}
+                    deleting={false}
+                    anyDeleting={false}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {viewing && <OrderDetailModal order={viewing} symbol={symbol} seeCost={false} onClose={() => setViewing(null)} />}
+      {editing && (
+        <EditBillModal
+          bill={editing.bill}
+          initialTab={editing.tab}
+          allowDiscount={can('pos_orders', 'edit')}
+          onClose={() => setEditing(null)}
+          onSaved={() => setReloadTick((t) => t + 1)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FullOrdersPage() {
   const currency = 'PKR';
   const symbol = getCurrencySymbol(currency);
   const { can } = useAccess();
   const perms = {
     seeCost: can('dashboard', 'view'),
     pay: can(['pos', 'pos_orders'], 'edit'),
-    refund: can('pos_orders', 'edit'),
+    refund: can(['pos_orders', 'pos_bill_edit'], 'edit'),
     remove: can('pos_orders', 'delete'),
     logs: can('pos_orders', 'view'),
   };
@@ -258,7 +453,7 @@ export default function POSOrdersPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by order #, customer name, phone..."
+              placeholder="Search by order #, customer, phone or total (e.g. 1250)"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-honey-500 focus:border-honey-500"
             />
           </div>
@@ -376,17 +571,7 @@ export default function POSOrdersPage() {
                     onDelete={() => handleDelete(o._id)}
                     onPay={() => setPaying(o)}
                     onRefund={() => setRefunding(o)}
-                    onEdit={() =>
-                      setEditing({
-                        _id: o._id,
-                        orderNumber: o.orderNumber,
-                        total: Number(o.total) || 0,
-                        pendingAmount: Number(o.pendingAmount) || 0,
-                        paymentMethod: String(o.paymentMethod || ''),
-                        paymentStatus: String(o.paymentStatus || ''),
-                        orderStatus: String(o.orderStatus || ''),
-                      })
-                    }
+                    onEdit={() => setEditing(editableOf(o))}
                     deleting={deletingId === o._id}
                     anyDeleting={!!deletingId}
                   />
@@ -412,7 +597,14 @@ export default function POSOrdersPage() {
       {logOf && (
         <ActivityLogModal orderId={logOf._id} title={`Log · ${logOf.orderNumber}`} onClose={() => setLogOf(null)} />
       )}
-      {editing && <EditBillModal bill={editing} onClose={() => setEditing(null)} onSaved={() => setReloadTick((t) => t + 1)} />}
+      {editing && (
+        <EditBillModal
+          bill={editing}
+          allowDiscount={can('pos_orders', 'edit')}
+          onClose={() => setEditing(null)}
+          onSaved={() => setReloadTick((t) => t + 1)}
+        />
+      )}
       {refunding && (
         <RefundModal
           order={refunding}

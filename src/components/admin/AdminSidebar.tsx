@@ -18,7 +18,6 @@ import {
   ClipboardList,
   BarChart3,
   Layers,
-  Palette,
   Briefcase,
   Wallet,
   Building2,
@@ -45,7 +44,6 @@ import {
   Footprints,
   Target,
   Calculator,
-  Percent,
   Contact,
   UsersRound,
   CalendarClock,
@@ -58,6 +56,7 @@ import {
   MessageCircle,
   Route,
   MonitorDown,
+  Scale,
 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
@@ -73,6 +72,8 @@ interface MenuItem {
   perm?: string | string[];
   /** Only the super admin sees it. */
   superOnly?: boolean;
+  /** Hidden when the user has any of these permissions ('view'). */
+  hideIf?: string | string[];
 }
 
 interface AdminSidebarProps {
@@ -167,8 +168,9 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   const mainMenuItems: MenuItem[] = [
     { name: 'Dashboard', path: '/admin', icon: <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'dashboard' },
     { name: 'POS', path: '/admin/pos', icon: <Store className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'pos' },
-    { name: 'POS Orders', path: '/admin/pos-orders', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'pos_orders' },
-    { name: 'Till & Cash Closing', path: '/admin/till', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['till', 'till_verify'] },
+    { name: 'POS Orders', path: '/admin/pos-orders', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['pos_orders', 'pos'] }, // cashier (pos only): bill lookup, last 5
+    // Owner 2026-11-17: admins use Reports -> Cash Closing; only the cashier keeps "My Till".
+    { name: 'My Till', path: '/admin/till', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'till', hideIf: 'till_verify' },
   ];
 
   // Reports Section — all business analytics reports in one place.
@@ -188,9 +190,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   const productMenuItems: MenuItem[] = [
     { name: 'Products', path: '/admin/products', icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'products' },
     { name: 'Categories', path: '/admin/products/categories', icon: <Layers className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_categories' },
-    { name: 'Attributes', path: '/admin/products/attributes', icon: <Palette className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'product_attributes' },
     { name: 'Stock', path: '/admin/products/stock', icon: <Boxes className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['product_stock', 'stock_receive'] },
-    { name: 'Discount Rules', path: '/admin/products/discounts', icon: <Percent className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'discounts' },
   ];
 
   // Purchasing & Vendors — purchase trips (buy from many vendors), receive goods (check boxes, unpack, tags), vendor ledger.
@@ -221,10 +221,10 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
 
   // Finance Section
   const financeMenuItems: MenuItem[] = [
+    { name: 'Financial Statements', path: '/admin/financial-statements', icon: <Scale className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['report_financial_statements', 'investments'] },
     { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'banks' },
     { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['expenses', 'till_expenses'] },
     { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
-    { name: 'Investment', path: '/admin/investments', icon: <PiggyBank className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'investments' },
     { name: 'Loans', path: '/admin/loans', icon: <HandCoins className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'loans' },
   ];
 
@@ -234,7 +234,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Shifts & Roster', path: '/admin/hr/roster', icon: <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'shifts' },
     { name: 'Attendance', path: '/admin/hr/attendance', icon: <Clock3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'attendance' },
     { name: 'Payroll', path: '/admin/hr/payroll', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
-    { name: 'Advances, Deductions & Tips', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
+    { name: 'Staff Ledger', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
     { name: 'HR Policies', path: '/admin/hr/policies', icon: <ScrollText className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'hr_policies' },
     { name: 'Category Staff', path: '/admin/hr/category-staff', icon: <UsersRound className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'category_assignments' },
   ];
@@ -380,7 +380,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
               const q = sidebarSearch.toLowerCase().trim();
               // Hide what this login may not open (super admin sees everything).
               const allowed = (item: MenuItem) =>
-                item.superOnly ? isSuperAdmin || !access : !item.perm || can(item.perm, 'view');
+                (item.superOnly ? isSuperAdmin || !access : !item.perm || can(item.perm, 'view')) && !(item.hideIf && access && can(item.hideIf, 'view'));
               const filterItems = (items: MenuItem[]) =>
                 items.filter(allowed).filter((item) => !q || item.name.toLowerCase().includes(q));
 

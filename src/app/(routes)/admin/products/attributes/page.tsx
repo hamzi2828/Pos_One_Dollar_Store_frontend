@@ -1,9 +1,13 @@
-'use client';
+"use client";
 
-import ColorsSizesTab from '../components/ColorsSizesTab';
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-const AttributesPage = () => {
-  return <ColorsSizesTab />;
-};
-
-export default AttributesPage;
+// Attributes page (colors/sizes) hidden from the admin panel; redirect to the products list. Backend data is untouched.
+export default function AttributesPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/admin/products");
+  }, [router]);
+  return null;
+}

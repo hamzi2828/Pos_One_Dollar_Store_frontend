@@ -245,6 +245,16 @@ export default function DayModal({
                 Shift {clock(day.plan.start)} · grace {day.graceMinutes ?? 0} min · checked in {clock(day.checkIn)}
               </p>
             )}
+            {day.lateMinutes > 0 && (
+              <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${day.lateNote ? 'border-gray-200 bg-gray-50 text-gray-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                <p className="font-semibold">Employee&apos;s reason for being late</p>
+                {day.lateNote ? (
+                  <p className="mt-1 whitespace-pre-wrap">{day.lateNote.text}</p>
+                ) : (
+                  <p className="mt-1">Not written yet (the employee writes it in the portal).</p>
+                )}
+              </div>
+            )}
           </div>
           {noShift && (
             <div className="flex items-start gap-2 px-3 py-2 text-xs bg-blue-50 border border-blue-200 rounded-lg text-blue-900">

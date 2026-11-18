@@ -18,7 +18,9 @@ import ReportsNav from '../components/ReportsNav';
 import { usePdfExport } from '../components/usePdfExport';
 import {
   fetchSalesSummary,
+  fetchSalesTills,
   rangeFromFilter,
+  type SalesTill,
   type SalesSummaryReport,
   type DateFilter,
 } from '../services/reportsService';
@@ -51,6 +53,50 @@ export default function SalesReportPage() {
   const [editBill, setEditBill] = useState<EditableBill | null>(null);
 
   const range = useMemo(() => rangeFromFilter(filter, customStart, customEnd), [filter, customStart, customEnd]);
+  // Till pickers (owner 2026-11-17): one dropdown per counter; pick a till on one or both
+  // counters (sale from one closing to the next). mode 'date' = the old date filter.
+  const [mode, setMode] = useState<'till' | 'date'>('till');
+  const [tills, setTills] = useState<{ current: string[]; tills: SalesTill[] } | null>(null);
+  // counter name -> till id ('' = counter not included)
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const ctl = new AbortController();
+    fetchSalesTills(ctl.signal)
+      .then((d) => {
+        setTills(d);
+        const init: Record<string, string> = {};
+        d.tills.filter((t) => d.current.includes(t._id)).forEach((t) => (init[t.counterName || 'No counter'] = t._id));
+        setPicks(init);
+      })
+      .catch((err) => {
+        if ((err as Error).name === 'AbortError') return;
+        setMode('date'); // no tills list: fall back to dates
+      });
+    return () => ctl.abort();
+  }, []);
+  const counterNames = useMemo(
+    () => [...new Set((tills?.tills || []).map((t) => t.counterName || 'No counter'))].sort((a, b) => a.localeCompare(b)),
+    [tills]
+  );
+  const sessions = useMemo(() => {
+    if (mode === 'date') return null;
+    if (!tills) return undefined; // still loading
+    return counterNames.map((c) => picks[c]).filter(Boolean) as string[];
+  }, [mode, tills, picks, counterNames]);
+  const tillText = (t: SalesTill, withCounter = true) => {
+    const d = (v: string) =>
+      new Date(v).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' });
+    return `${t.sessionNo}${withCounter ? ` · ${t.counterName}` : ''} · ${t.cashierName} · ${d(t.openedAt)} → ${t.closedAt ? d(t.closedAt) : 'open'}`;
+  };
+  const viewLabel =
+    sessions && tills
+      ? sessions.length
+        ? tills.tills
+            .filter((t) => sessions.includes(t._id))
+            .map((t) => `${t.sessionNo} (${t.counterName})`)
+            .join(' + ')
+        : 'Pick a till'
+      : range?.label ?? '';
   const pg = useServerPagination(25);
   const [reloadTick, setReloadTick] = useState(0);
   const load = useCallback(() => setReloadTick((n) => n + 1), []);
@@ -64,17 +110,22 @@ export default function SalesReportPage() {
   useEffect(() => {
     pg.resetToFirstPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, customStart, customEnd]);
+  }, [filter, customStart, customEnd, mode, picks]);
 
   useEffect(() => {
-    if (!range) return;
+    if (!range || sessions === undefined) return;
+    if (sessions && sessions.length === 0) {
+      setData(null);
+      pg.setTotal(0);
+      return;
+    }
     const ctl = new AbortController();
     inFlightRef.current += 1;
     setLoading(true);
     fetchSalesSummary(
       range.start,
       range.end,
-      { page: pg.page, limit: pg.pageSize, source: 'pos' },
+      { page: pg.page, limit: pg.pageSize, source: 'pos', sessions: sessions || undefined },
       ctl.signal,
     )
       .then(({ data: d, pagination }) => {
@@ -91,7 +142,7 @@ export default function SalesReportPage() {
       });
     return () => ctl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, pg.page, pg.pageSize, reloadTick]);
+  }, [range, sessions, pg.page, pg.pageSize, reloadTick]);
 
   const fmt = (n: number) => `${symbol}${(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
@@ -111,7 +162,7 @@ export default function SalesReportPage() {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(107, 114, 128);
     y += 6;
-    doc.text(`Period: ${range?.label ?? ''}`, margin, y);
+    doc.text(`Period: ${viewLabel}`, margin, y);
     y += 8;
     doc.setTextColor(0);
     doc.setFontSize(10);
@@ -176,7 +227,7 @@ export default function SalesReportPage() {
       });
       y += 5;
     });
-    doc.save(`POS_Sales_${range?.label.replace(/\s|\//g, '_')}.pdf`);
+    doc.save(`POS_Sales_${viewLabel.replace(/[^\w-]+/g, '_').slice(0, 80)}.pdf`);
   };
   const pdfExport = usePdfExport(handleDownloadPdf);
 
@@ -221,6 +272,38 @@ export default function SalesReportPage() {
       <ReportsNav />
 
       <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-center gap-3">
+        <SearchSelect
+          value={mode}
+          onChange={(e) => setMode(e.target.value as 'till' | 'date')}
+          aria-label="View by"
+          className="px-3 py-2 text-sm border border-gray-200 rounded-lg"
+        >
+          <option value="till">By till</option>
+          <option value="date">By date</option>
+        </SearchSelect>
+        {mode === 'till' &&
+          counterNames.map((c) => (
+            <label key={c} className="flex items-center gap-1.5 text-sm text-gray-600 max-w-full">
+              <span className="font-medium whitespace-nowrap">{c}</span>
+              <SearchSelect
+                value={picks[c] || ''}
+                onChange={(e) => setPicks((p) => ({ ...p, [c]: e.target.value }))}
+                aria-label={`${c} till`}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-lg max-w-full"
+              >
+                <option value="">Not included</option>
+                {(tills?.tills || [])
+                  .filter((t) => (t.counterName || 'No counter') === c)
+                  .map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {tillText(t, false)}
+                    </option>
+                  ))}
+              </SearchSelect>
+            </label>
+          ))}
+        {mode === 'date' && (
+          <>
         <Calendar className="h-4 w-4 text-gray-500" />
         <SearchSelect
           value={filter}
@@ -240,8 +323,10 @@ export default function SalesReportPage() {
             <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg" />
           </>
         )}
+          </>
+        )}
         <span className="ml-auto text-sm text-gray-500">
-          {range?.label ?? 'Pick a range'}
+          {viewLabel || 'Pick a range'}
         </span>
       </div>
 
@@ -453,6 +538,10 @@ export default function SalesReportPage() {
             />
           </div>
         </>
+      ) : sessions && sessions.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 py-12 text-center text-sm text-gray-500">
+          Pick a till on Counter 1, Counter 2 or both.
+        </div>
       ) : null}
       {editBill && <EditBillModal bill={editBill} onClose={() => setEditBill(null)} onSaved={load} />}
     </div>

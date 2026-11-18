@@ -11,8 +11,11 @@ import { storeApi, apiErrorMessage, formatRs, formatDate, API_URL, type PageMeta
 import { getAuthHeader } from '@/helper/helper';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+
+const filterLabel = 'block mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500';
 import ReportsNav from '../components/ReportsNav';
 import { formatTime } from '@/components/store/TillStatusBar';
+import OpenCounters from '../../till/components/OpenCounters';
 import { SessionDetailModal, StatusBadge, varianceClass, varianceLabel } from '../../till/components/tillUi';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import { dayString, figures, Pair, addFig, type FigKey, type ReportRow } from './closingBits';
@@ -167,7 +170,16 @@ export default function CashClosingReportPage() {
             </h1>
             <p className="mt-0.5 text-xs sm:text-sm text-gray-500">Counted cash vs expected cash for every closed till. The opening float is not sales.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/admin/reports/cash-closing/combined?${new URLSearchParams(Object.fromEntries(Object.entries({ from, to, status }).filter(([, v]) => v))).toString()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={secondaryBtn}
+              title="All counters added together, day by day (opens in a new tab)"
+            >
+              <Layers className="h-4 w-4" /> All counters combined
+            </a>
             <button type="button" onClick={load} disabled={loading} className={secondaryBtn} aria-label="Refresh">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -179,50 +191,54 @@ export default function CashClosingReportPage() {
           </div>
         </div>
 
+        {/* Live cash in each open counter (moved here from /admin/till, owner 2026-11-17). */}
+        {canOpenDetail && <OpenCounters refreshKey={rows.length + (meta?.total || 0)} onOpen={setDetailId} />}
+
         {/* Filters */}
-        <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 grid grid-cols-2 md:grid-cols-6 gap-2 sm:gap-3">
-          <input type="date" value={from} onChange={(e) => setFilter(setFrom)(e.target.value)} className={inputClass} aria-label="From" />
-          <input type="date" value={to} onChange={(e) => setFilter(setTo)(e.target.value)} className={inputClass} aria-label="To" />
-          <div className="flex gap-1.5">
-            <div className="flex-1 min-w-0">
-              <SearchSelect value={counter} onChange={(e) => setFilter(setCounter)(e.target.value)} className={inputClass} aria-label="Counter">
-                <option value="">All counters</option>
-                {counters.map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name}
-                  </option>
-                ))}
-              </SearchSelect>
-            </div>
-            <a
-              href={`/admin/reports/cash-closing/combined?${new URLSearchParams(Object.fromEntries(Object.entries({ from, to, status }).filter(([, v]) => v))).toString()}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${secondaryBtn} !px-2.5 shrink-0`}
-              title="All counters added together, day by day (opens in a new tab)"
-              aria-label="Show all counters together"
-            >
-              <Layers className="h-4 w-4" /> Combined
-            </a>
+        <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-x-3 gap-y-3">
+          <label className="block min-w-0 lg:col-span-2">
+            <span className={filterLabel}>From</span>
+            <input type="date" value={from} onChange={(e) => setFilter(setFrom)(e.target.value)} className={inputClass} />
+          </label>
+          <label className="block min-w-0 lg:col-span-2">
+            <span className={filterLabel}>To</span>
+            <input type="date" value={to} onChange={(e) => setFilter(setTo)(e.target.value)} className={inputClass} />
+          </label>
+          <div className="min-w-0 lg:col-span-3">
+            <span className={filterLabel}>Counter</span>
+            <SearchSelect value={counter} onChange={(e) => setFilter(setCounter)(e.target.value)} className={inputClass} aria-label="Counter">
+              <option value="">All counters</option>
+              {counters.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name}
+                </option>
+              ))}
+            </SearchSelect>
           </div>
-          <SearchSelect value={status} onChange={(e) => setFilter(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
-            <option value="">All closed</option>
-            <option value="closed">To verify</option>
-            <option value="verified">Verified</option>
-            <option value="disputed">Disputed</option>
-          </SearchSelect>
-          <div className="relative col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              value={search}
-              onChange={(e) => {
-                setPage(1);
-                setSearch(e.target.value);
-              }}
-              placeholder="Cashier, counter or till no…"
-              className={`${inputClass} pl-9`}
-            />
+          <div className="min-w-0 lg:col-span-2">
+            <span className={filterLabel}>Status</span>
+            <SearchSelect value={status} onChange={(e) => setFilter(setStatus)(e.target.value)} className={inputClass} aria-label="Status">
+              <option value="">All closed</option>
+              <option value="closed">To verify</option>
+              <option value="verified">Verified</option>
+              <option value="disputed">Disputed</option>
+            </SearchSelect>
           </div>
+          <label className="block min-w-0 col-span-2 md:col-span-4 lg:col-span-3">
+            <span className={filterLabel}>Search</span>
+            <span className="relative block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+                placeholder="Cashier, counter or till no…"
+                className={`${inputClass} pl-9`}
+              />
+            </span>
+          </label>
         </div>
 
         {/* Totals */}
@@ -292,7 +308,6 @@ export default function CashClosingReportPage() {
                   <th className="px-4 py-2 text-right font-semibold">Expenses</th>
                   <th className="px-4 py-2 text-right font-semibold">Discounts</th>
                   <th className="px-4 py-2 text-right font-semibold">Over / short</th>
-                  <th className="px-4 py-2 text-left font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -303,7 +318,10 @@ export default function CashClosingReportPage() {
                     className={canOpenDetail ? 'cursor-pointer hover:bg-gray-50' : ''}
                   >
                     <td className="px-4 py-2 whitespace-nowrap">
-                      <span className="font-medium text-gray-900">{r.sessionNo}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{r.sessionNo}</span>
+                        <StatusBadge status={r.status} />
+                      </span>
                       <span className="block text-xs text-gray-500">{r.counterName || 'No counter'}</span>
                     </td>
                     <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{r.cashierName}</td>
@@ -336,9 +354,6 @@ export default function CashClosingReportPage() {
                         </>
                       );
                     })()}
-                    <td className="px-4 py-2">
-                      <StatusBadge status={r.status} />
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -367,7 +382,6 @@ export default function CashClosingReportPage() {
                         <td className="px-4 py-2 text-right tabular-nums">{formatRs(add('expenses'))}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-rose-700">{formatRs(add('discounts'))}</td>
                         <td className={`px-4 py-2 text-right whitespace-nowrap ${varianceClass(add('over'))}`}>{varianceLabel(add('over'))}</td>
-                        <td />
                       </tr>
                     </tfoot>
                   );

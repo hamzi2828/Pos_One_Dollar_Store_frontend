@@ -307,7 +307,7 @@ export default function EditExpensePage() {
             <div className="md:col-span-2">
               <InvestmentBillSelect value={investmentId} current={linked} disabled={loading} onChange={(id) => setInvestmentId(id)} />
               {linked && (
-                <Link href="/admin/investments" className="mt-1 inline-block text-xs font-medium text-honey-800 hover:underline">
+                <Link href="/admin/financial-statements#investments" className="mt-1 inline-block text-xs font-medium text-honey-800 hover:underline">
                   Open investments → {linked.title}
                 </Link>
               )}

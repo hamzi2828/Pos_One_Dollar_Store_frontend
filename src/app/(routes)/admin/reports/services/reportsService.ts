@@ -310,14 +310,30 @@ export function fetchCostAnalysis(startDate: string, endDate: string, signal?: A
 export function fetchSalesSummary(
   startDate: string,
   endDate: string,
-  opts: { page?: number; limit?: number; source?: 'pos' } = {},
+  opts: { page?: number; limit?: number; source?: 'pos'; sessions?: string[] } = {},
   signal?: AbortSignal,
 ) {
   const p: Record<string, string> = { startDate, endDate };
   if (opts.page) p.page = String(opts.page);
   if (opts.limit) p.limit = String(opts.limit);
   if (opts.source) p.source = opts.source;
+  // Tills picked: their bills (open -> close), the dates are ignored.
+  if (opts.sessions?.length) p.sessions = opts.sessions.join(',');
   return requestWithPagination<SalesSummaryReport>('/api/reports/sales-summary', p, signal);
+}
+
+export interface SalesTill {
+  _id: string;
+  sessionNo: string;
+  counterName: string;
+  cashierName: string;
+  status: string;
+  openedAt: string;
+  closedAt: string | null;
+}
+/** Tills for the sales report picker; current = latest till of each counter. */
+export function fetchSalesTills(signal?: AbortSignal) {
+  return request<{ current: string[]; tills: SalesTill[] }>('/api/reports/sales-tills', {}, signal);
 }
 export function fetchLabourRevenue(
   startDate: string,

@@ -103,6 +103,25 @@ export interface PortalProfile {
   lastPayslip: LastPayslip | null;
   openAdvanceBalance: number;
   tipsThisMonth: number;
+  /** This month's money in plain words (null on an old server or when it could not be worked out). */
+  pay?: PortalPay | null;
+}
+
+export interface PortalPay {
+  month: string;
+  salary: number;
+  earned: number;
+  payableNow: number;
+  overtime: {
+    normalMinutes: number;
+    normalAmount: number;
+    doubleMinutes: number;
+    doubleAmount: number;
+    doubleAfterHours: number;
+    waitingMinutes: number;
+  };
+  deductions: { id: string; type: string; label: string; amount: number; date: string; note: string; status: 'pending' | 'approved' | 'applied' | 'waived' }[];
+  tips: { amount: number; day: string; toSalary: boolean; note: string }[];
 }
 
 export interface PortalDay {
@@ -117,6 +136,9 @@ export interface PortalDay {
   overtimeMinutes: number;
   overtimeApproved?: boolean;
   lateExcused?: boolean;
+  /** Employee's own reason for being late (at least 100 words). */
+  lateNote?: string;
+  lateNoteAt?: string | null;
 }
 
 export interface PortalAttendance {
@@ -209,13 +231,50 @@ export interface PortalMoney {
 
 /* ---------------- calls ---------------- */
 
-export const portalApi = {
-  profile: () => storeApi.get<PortalProfile>('/me/portal/profile'),
-  attendance: (month?: string) => storeApi.get<PortalAttendance>('/me/portal/attendance', { month }),
-  payslips: () => storeApi.get<{ payslips: PayslipRow[] }>('/me/portal/payslips'),
-  payslip: (runId: string) => storeApi.get<PayslipDetail>(`/me/portal/payslips/${encodeURIComponent(runId)}`),
-  money: () => storeApi.get<PortalMoney>('/me/portal/money'),
+/* ---------------- admin preview (/portal?as=<employeeId>) ---------------- */
+const PREVIEW_KEY = 'portal_preview_as';
+/** Employee id an admin is previewing in this tab (null = own portal). */
+export function previewAs(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const q = new URLSearchParams(window.location.search).get('as');
+    if (q && /^[a-f\d]{24}$/i.test(q)) {
+      sessionStorage.setItem(PREVIEW_KEY, q);
+      return q;
+    }
+    return sessionStorage.getItem(PREVIEW_KEY);
+  } catch {
+    return null;
+  }
+}
+export function endPreview() {
+  try {
+    sessionStorage.removeItem(PREVIEW_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+const asParam = () => {
+  const as = previewAs();
+  return as ? { as } : {};
 };
+
+export const portalApi = {
+  profile: () => storeApi.get<PortalProfile>('/me/portal/profile', asParam()),
+  attendance: (month?: string) => storeApi.get<PortalAttendance>('/me/portal/attendance', { month, ...asParam() }),
+  payslips: () => storeApi.get<{ payslips: PayslipRow[] }>('/me/portal/payslips', asParam()),
+  payslip: (runId: string) => storeApi.get<PayslipDetail>(`/me/portal/payslips/${encodeURIComponent(runId)}`, asParam()),
+  money: () => storeApi.get<PortalMoney>('/me/portal/money', asParam()),
+  saveLateNote: (date: string, text: string) =>
+    storeApi.put<{ date: string; lateNote: string; lateNoteAt: string; words: number }>(`/me/portal/attendance/${encodeURIComponent(date)}/late-note`, { text }),
+};
+
+/** Words in a text (same count as the server). */
+export const wordCount = (t: string) => (String(t || '').trim().match(/\S+/g) || []).length;
+export const LATE_NOTE_MIN_WORDS = 100;
+/** A late day the employee still has to explain. */
+export const needsLateNote = (d: { lateMinutes: number; lateNote?: string; status: string; lateExcused?: boolean }) =>
+  d.lateMinutes > 0 && !d.lateExcused && !d.lateNote && d.status !== 'upcoming';
 
 /** True when the server says this login has no employee record (404). */
 export const isNoEmployee = (e: unknown) => axios.isAxiosError(e) && e.response?.status === 404;
