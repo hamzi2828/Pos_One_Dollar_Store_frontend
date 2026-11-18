@@ -110,10 +110,11 @@ const money = (n: number | null | undefined) => (n == null ? '-' : formatRs(n));
 const neg = (n: number) => (n ? `- ${formatRs(n)}` : '-');
 
 /** "OK" / "Short Rs 7,100" / "Over Rs 50" as a coloured cell. */
-function diffCell(d: number | null): Cell {
+function diffCell(d: number | null, short = false): Cell {
   if (d == null) return { text: '-', color: C.faint };
   if (Math.abs(d) < 1) return { text: 'OK', bold: true, color: C.green };
-  return { text: `${d < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(d))}`, bold: true, color: d < 0 ? C.red : C.amber };
+  const amt = short ? Math.abs(d).toLocaleString('en-PK', { maximumFractionDigits: 2 }) : formatRs(Math.abs(d));
+  return { text: `${d < 0 ? 'Short' : 'Over'} ${amt}`, bold: true, color: d < 0 ? C.red : C.amber };
 }
 function diffCard(label: string, d: number | null, sub?: string): Card {
   if (d == null) return { label, value: '-', sub: sub || 'not written yet' };
@@ -219,9 +220,9 @@ class Report {
   }
 
   /** Big summary boxes in one row. */
-  cards(cards: Card[]) {
+  cards(cards: Card[], compact = false) {
     const { pdf, m } = this;
-    const h = 17;
+    const h = compact ? 13.5 : 17;
     this.ensure(h + 4);
     const gap = 3;
     const w = (this.inner - gap * (cards.length - 1)) / cards.length;
@@ -233,21 +234,22 @@ class Report {
       this.fill(bg);
       this.stroke(tone === 'plain' ? C.line : fg, 0.3);
       pdf.roundedRect(x, this.y, w, h, 1.5, 1.5, 'FD');
-      this.font(7, false, C.muted);
-      this.text(c.label.toUpperCase(), x + 3, this.y + 5);
-      this.font(13, true, fg);
-      this.text(c.value, x + 3, this.y + 10.5);
+      this.font(compact ? 6.5 : 7, false, C.muted);
+      this.text(c.label.toUpperCase(), x + 3, this.y + (compact ? 4.2 : 5));
+      this.font(compact ? 11 : 13, true, fg);
+      this.text(c.value, x + 3, this.y + (compact ? 8.8 : 10.5));
       if (c.sub) {
-        this.font(7, false, C.muted);
-        this.text(c.sub, x + 3, this.y + 14.5);
+        this.font(compact ? 6.5 : 7, false, C.muted);
+        this.text(c.sub, x + 3, this.y + (compact ? 12 : 14.5));
       }
     });
-    this.y += h + 6;
+    this.y += h + (compact ? 5 : 6);
   }
 
-  section(title: string, right?: string) {
-    this.ensure(16);
-    this.font(9, true, C.ink);
+  section(title: string, right?: string, big = false) {
+    // Room for the title + a table header + a row, so a title never sits alone at the page end.
+    this.ensure(26);
+    this.font(big ? 11 : 9, true, C.ink);
     this.text(title.toUpperCase(), this.m, this.y);
     if (right) {
       this.font(9, true, C.ink);
@@ -255,7 +257,7 @@ class Report {
     }
     this.y += 1.8;
     this.fill(C.honey);
-    this.pdf.rect(this.m, this.y, 14, 0.8, 'F');
+    this.pdf.rect(this.m, this.y, big ? 20 : 14, big ? 1.1 : 0.8, 'F');
     this.y += 3.5;
   }
 
@@ -289,11 +291,74 @@ class Report {
    * Table with a grey header, zebra rows and wrapping cells. Breaks across pages
    * (header repeated). `foot` rows are bold on a tinted band.
    */
-  table(cols: Col[], rows: Cell[][], { foot = [], x = this.m, width = this.inner, size = 8.5 }: { foot?: Cell[][]; x?: number; width?: number; size?: number } = {}) {
+  table(
+    cols: Col[],
+    rows: Cell[][],
+    {
+      foot = [],
+      x = this.m,
+      width = this.inner,
+      size = 8.5,
+      pad = 2,
+      groups,
+      groupFill,
+    }: {
+      foot?: Cell[][];
+      x?: number;
+      width?: number;
+      size?: number;
+      pad?: number;
+      /** Group labels drawn above the header, each spanning `span` columns ('' = no label). */
+      groups?: { label: string; span: number }[];
+      /** Background of the labelled group cells (default grey). */
+      groupFill?: RGB;
+    } = {}
+  ) {
     const { pdf } = this;
     const total = cols.reduce((t, c) => t + c.w, 0);
     const ws = cols.map((c) => (c.w / total) * width);
-    const pad = 2;
+    // Edges of labelled groups: thin vertical lines there split the table into blocks.
+    const groupX: { x: number; w: number; label: string }[] = [];
+    const edges = new Set<number>();
+    if (groups) {
+      let ci = 0;
+      let gx = x;
+      for (const g of groups) {
+        const gw = ws.slice(ci, ci + g.span).reduce((t, w) => t + w, 0);
+        groupX.push({ x: gx, w: gw, label: g.label });
+        if (g.label) {
+          if (gx > x + 0.1) edges.add(gx);
+          if (gx + gw < x + width - 0.1) edges.add(gx + gw);
+        }
+        gx += gw;
+        ci += g.span;
+      }
+    }
+    const edgeLines = (top: number, h: number) => {
+      if (!edges.size) return;
+      this.stroke(C.line, 0.2);
+      edges.forEach((ex) => pdf.line(ex, top, ex, top + h));
+    };
+    const drawGroups = () => {
+      if (!groups) return;
+      const fs = size - 1.2;
+      const h = fs * 0.42 + 2.6;
+      this.fill(C.head);
+      pdf.rect(x, this.y, width, h, 'F');
+      groupX.forEach((g) => {
+        if (!g.label) return;
+        if (groupFill) {
+          this.fill(groupFill);
+          pdf.rect(g.x, this.y, g.w, h, 'F');
+        }
+        this.font(fs, true, C.ink);
+        this.text(g.label.toUpperCase(), g.x + g.w / 2, this.y + 2 + fs * 0.42 * 0.8, { align: 'center' });
+        this.stroke(C.faint, 0.2);
+        pdf.line(g.x + 1.5, this.y + h, g.x + g.w - 1.5, this.y + h);
+      });
+      edgeLines(this.y, h);
+      this.y += h;
+    };
 
     const cellText = (c: Cell) => (typeof c === 'string' ? c : c.text);
     // Wraps to the column; a line break in the text starts a new line.
@@ -309,6 +374,7 @@ class Report {
       const { lines, h, flh } = measure(r, kind);
       if (kind !== 'head' && this.y + h > this.bottom) {
         this.newPage();
+        drawGroups();
         drawRow(cols.map((c) => c.header), 'head', false);
       }
       if (kind === 'head') {
@@ -331,12 +397,14 @@ class Report {
         lines[i].forEach((l, li) => this.text(l, tx, this.y + 2.2 + flh * (li + 0.8), { align }));
         cx += ws[i];
       });
+      edgeLines(this.y, h);
       this.y += h;
       this.stroke(kind === 'foot' ? C.faint : C.line, kind === 'foot' ? 0.3 : 0.15);
       pdf.line(x, this.y, x + width, this.y);
     };
 
-    this.ensure(measure(cols.map((c) => c.header), 'head').h + measure(rows[0] || foot[0] || [], 'body').h + 2);
+    this.ensure(measure(cols.map((c) => c.header), 'head').h + measure(rows[0] || foot[0] || [], 'body').h + (groups ? 6 : 2));
+    drawGroups();
     drawRow(cols.map((c) => c.header), 'head', false);
     rows.forEach((r, i) => drawRow(r, 'body', i % 2 === 1));
     foot.forEach((r) => drawRow(r, 'foot', false));
@@ -496,7 +564,7 @@ function methodTable(rep: Report, f: Omit<TillFigs, 'drawerCount'>) {
 
 type Expense = NonNullable<TillDetail['expenses']>[number] & { tillCounter?: string };
 
-function expensesTable(rep: Report, exp: Expense[], withTill: boolean) {
+function expensesTable(rep: Report, exp: Expense[], withTill: boolean, size = 8.5) {
   const money = exp.filter((x) => !x.shopUse);
   const total = r2(money.reduce((t, x) => t + x.amount, 0));
   rep.section(`Expenses, payments & trip costs (${money.length})`, `- ${formatRs(total)}`);
@@ -523,11 +591,11 @@ function expensesTable(rep: Report, exp: Expense[], withTill: boolean) {
       x.shopUse ? 'Shop use (no money)' : x.paymentMethod || '-',
       x.shopUse ? { text: formatRs(x.amount), color: C.faint } : formatRs(x.amount),
     ]),
-    { foot: [['', '', 'Total paid out', ...(withTill ? [''] : []), '', `- ${formatRs(total)}`]] }
+    { size, foot: [['', '', 'Total paid out', ...(withTill ? [''] : []), '', `- ${formatRs(total)}`]] }
   );
 }
 
-function discountsTable(rep: Report, disc: NonNullable<TillDetail['discounts']>) {
+function discountsTable(rep: Report, disc: NonNullable<TillDetail['discounts']>, size = 8.5) {
   if (!disc.length) return;
   const total = r2(disc.reduce((t, d) => t + d.discount, 0));
   rep.section(`Discounts given (${disc.length} ${disc.length === 1 ? 'bill' : 'bills'})`, `- ${formatRs(total)}`);
@@ -541,7 +609,7 @@ function discountsTable(rep: Report, disc: NonNullable<TillDetail['discounts']>)
       { header: 'Paid', w: 1.8, align: 'right' },
     ],
     disc.map((d) => [d.orderNumber, pk(d.createdAt, false), d.reason || '-', formatRs(d.subtotal), { text: `- ${formatRs(d.discount)}`, color: C.red }, formatRs(d.total)]),
-    { foot: [['Total', '', '', '', `- ${formatRs(total)}`, '']] }
+    { size, foot: [['Total', '', '', '', `- ${formatRs(total)}`, '']] }
   );
 }
 
@@ -710,77 +778,106 @@ export async function downloadCombinedDayPdf(tills: TillDetail[], dayLabel: stri
     { label: 'Should hand over', value: formatRs(foot.should) },
     { label: 'Handed over', value: money(foot.given) },
     diffCard('Total over / short', foot.totalDiff, 'sales + change money'),
-  ]);
+  ], true);
 
-  rep.section('Each counter');
+  // One table: what the system sold, expenses, what should come back, what the cashier gave, over / short.
+  const shortTime = (d: string | null | undefined) =>
+    d
+      ? `${new Date(d).toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'short' })} ${new Date(d).toLocaleTimeString('en-PK', { timeZone: 'Asia/Karachi', hour: 'numeric', minute: '2-digit' })}`
+      : 'open';
+  // Plain numbers (the title says Rs) so the bigger font still fits.
+  const num = (n: number | null | undefined) => (n == null ? '-' : r2(n).toLocaleString('en-PK', { maximumFractionDigits: 2 }));
+  const less = (n: number) => (n ? `- ${num(n)}` : '-');
+  const sumGiven = (k: 'cash' | 'card' | 'bank' | 'jazz') => (any(k) ? num(add(k)) : '-');
+  const amt = { w: 1.45, align: 'right' as const };
+  rep.section('Each counter', 'Amounts in Rs', true);
   rep.table(
     [
-      { header: 'Till', w: 3.2 },
-      { header: 'Opened - closed', w: 3.3 },
-      { header: 'Cash gave', w: 1.8, align: 'right' },
-      { header: 'Card', w: 1.6, align: 'right' },
-      { header: 'Bank (UBL)', w: 1.6, align: 'right' },
-      { header: 'JazzCash', w: 1.6, align: 'right' },
-      { header: 'Expenses', w: 1.8, align: 'right' },
-      { header: 'Should hand over', w: 2, align: 'right' },
-      { header: 'Sales over / short', w: 2.1, align: 'right' },
-      { header: 'Change money', w: 2.1, align: 'right' },
-      { header: 'Total over / short', w: 2.1, align: 'right' },
+      { header: 'Counter / till', w: 3.6 },
+      { header: 'Cash', ...amt },
+      { header: 'Card', ...amt },
+      { header: 'Bank (UBL)', ...amt },
+      { header: 'Jazz Cash', ...amt },
+      { header: 'Expenses', w: 1.6, align: 'right' },
+      { header: 'Should hand over', w: 1.8, align: 'right' },
+      { header: 'Cash', ...amt },
+      { header: 'Card', ...amt },
+      { header: 'Bank (UBL)', ...amt },
+      { header: 'Jazz Cash', ...amt },
+      { header: 'Sales', w: 1.9, align: 'right' },
+      { header: 'Change money', w: 1.5, align: 'right' },
+      { header: 'Total', w: 1.9, align: 'right' },
     ],
     tills.map((t, i) => {
       const f = figs[i];
       const r = rows[i];
       return [
-        `${t.sessionNo}\n${t.counterName || 'No counter'} · ${t.cashierName}`,
-        `${pk(t.openedAt)}\nto ${t.closedAt ? pk(t.closedAt) : 'open'}`,
-        money(f.cash),
-        money(f.card),
-        money(f.bank),
-        money(f.jazz),
-        neg(f.expenses),
-        formatRs(r.should),
-        diffCell(r.salesDiff),
-        f.drawer == null ? { text: '-', color: C.faint } : diffCell(r.changeDiff),
-        diffCell(r.totalDiff),
+        `${t.counterName || 'No counter'} · ${t.cashierName}
+${t.sessionNo}
+From ${shortTime(t.openedAt)}
+To ${t.closedAt ? shortTime(t.closedAt) : 'still open'}`,
+        num(f.sysCash),
+        num(f.sysCard),
+        num(f.sysBank),
+        num(f.sysJazz),
+        less(f.expenses),
+        { text: num(r.should), bold: true },
+        num(f.cash),
+        num(f.card),
+        num(f.bank),
+        num(f.jazz),
+        diffCell(r.salesDiff, true),
+        f.drawer == null ? { text: '-', color: C.faint } : diffCell(r.changeDiff, true),
+        diffCell(r.totalDiff, true),
       ];
     }),
     {
+      size: 8.5,
+      pad: 1.6,
+      groupFill: C.honey,
+      groups: [
+        { label: '', span: 1 },
+        { label: 'Sales (system)', span: 4 },
+        { label: '', span: 2 },
+        { label: 'Cashier gave', span: 4 },
+        { label: 'Over / short', span: 3 },
+      ],
       foot: [
         [
           `All counters (${tills.length} tills)`,
-          '',
-          any('cash') ? formatRs(add('cash')) : '-',
-          any('card') ? formatRs(add('card')) : '-',
-          any('bank') ? formatRs(add('bank')) : '-',
-          any('jazz') ? formatRs(add('jazz')) : '-',
-          neg(add('expenses')),
-          formatRs(foot.should),
-          diffCell(foot.salesDiff),
-          diffCell(foot.changeDiff),
-          diffCell(foot.totalDiff),
+          num(add('sysCash')),
+          num(add('sysCard')),
+          num(add('sysBank')),
+          num(add('sysJazz')),
+          less(add('expenses')),
+          num(foot.should),
+          sumGiven('cash'),
+          sumGiven('card'),
+          sumGiven('bank'),
+          sumGiven('jazz'),
+          diffCell(foot.salesDiff, true),
+          diffCell(foot.changeDiff, true),
+          diffCell(foot.totalDiff, true),
         ],
       ],
     }
   );
-
-  rep.section('Sales of the day · all counters');
-  methodTable(rep, {
-    float: add('float'),
-    drawer: figs.some((f) => f.drawer != null) ? r2(figs.reduce((t, f) => t + (f.drawer ?? f.float), 0)) : null,
-    sysCash: add('sysCash'),
-    sysCard: add('sysCard'),
-    sysBank: add('sysBank'),
-    sysJazz: add('sysJazz'),
-    expenses: add('expenses'),
-    cash: any('cash') ? add('cash') : null,
-    card: any('card') ? add('card') : null,
-    bank: any('bank') ? add('bank') : null,
-    jazz: any('jazz') ? add('jazz') : null,
-    discounts: add('discounts'),
-    cashSales: add('cashSales'),
-    credit: add('credit'),
-    refunds: add('refunds'),
-  });
+  {
+    const cashSales = add('cashSales');
+    const credit = add('credit');
+    const refunds = add('refunds');
+    const expenses = add('expenses');
+    const discounts = add('discounts');
+    const parts = [`Cash should be = cash sales ${formatRs(cashSales)}`];
+    if (credit > 0) parts.push(`+ credit received ${formatRs(credit)}`);
+    if (refunds > 0) parts.push(`- refunds ${formatRs(refunds)}`);
+    if (expenses > 0) parts.push(`- expenses, payments & trip costs ${formatRs(expenses)}`);
+    parts.push(`= ${formatRs(r2(add('sysCash') - expenses))}.`);
+    if (discounts > 0) parts.push(`Sales are after discounts of ${formatRs(discounts)}.`);
+    rep.y -= 3.5;
+    rep.note(parts.join(' '), C.muted, 7.5);
+    rep.gap(4);
+  }
 
   // Cash notes: one column per counter + all.
   const withNotes = tills.filter((t) => t.dayCash && Object.keys(t.dayCash.denominations || {}).length);
@@ -800,18 +897,16 @@ export async function downloadCombinedDayPdf(tills: TillDetail[], dayLabel: stri
         return;
       }
       const cnt = (t: TillDetail, v: number) => Number(t.dayCash?.denominations?.[String(v)] || 0);
+      // One row per counter, one column per note.
+      const all = (v: number) => withNotes.reduce((s, t) => s + cnt(t, v), 0);
       rep.table(
         [
-          { header: 'Note', w: 2 },
-          ...withNotes.map((t) => ({ header: t.counterName || t.sessionNo, w: 1.6, align: 'right' as const })),
-          { header: 'All', w: 1.4, align: 'right' as const },
-          { header: 'Amount', w: 2.2, align: 'right' as const },
+          { header: 'Counter', w: 2.2 },
+          ...dens.map((v) => ({ header: v.toLocaleString('en-PK'), w: 1.2, align: 'right' as const })),
+          { header: 'Total', w: 2.4, align: 'right' as const },
         ],
-        dens.map((v) => {
-          const all = withNotes.reduce((s, t) => s + cnt(t, v), 0);
-          return [formatRs(v), ...withNotes.map((t) => (cnt(t, v) ? `x ${cnt(t, v)}` : '-')), `x ${all}`, formatRs(v * all)];
-        }),
-        { x, width: w, size: 8, foot: [['Total', ...withNotes.map((t) => formatRs(t.dayCash?.total || 0)), '', formatRs(notesTotal)]] }
+        withNotes.map((t) => [t.counterName || t.sessionNo, ...dens.map((v) => (cnt(t, v) ? `x ${cnt(t, v)}` : '-')), formatRs(t.dayCash?.total || 0)]),
+        { x, width: w, size: 8, foot: [['All', ...dens.map((v) => `x ${all(v)}`), formatRs(notesTotal)]] }
       );
     },
     (x, w) => {
@@ -824,7 +919,7 @@ export async function downloadCombinedDayPdf(tills: TillDetail[], dayLabel: stri
           { header: 'Result', w: 2.4, align: 'right' },
         ],
         tills.map((t, i) => [t.counterName || t.sessionNo, formatRs(figs[i].float), money(figs[i].drawer), diffCell(rows[i].changeDiff)]),
-        { x, width: w, foot: [['All', formatRs(floatAmt), formatRs(drawerAmt), diffCell(foot.changeDiff)]] }
+        { x, width: w, size: 8, foot: [['All', formatRs(floatAmt), formatRs(drawerAmt), diffCell(foot.changeDiff)]] }
       );
     }
   );
@@ -833,8 +928,8 @@ export async function downloadCombinedDayPdf(tills: TillDetail[], dayLabel: stri
   const exp: Expense[] = tills.flatMap((t) =>
     (t.expenses || []).filter((x) => (seen.has(x._id) ? false : (seen.add(x._id), true))).map((x) => ({ ...x, tillCounter: t.counterName || '' }))
   );
-  expensesTable(rep, exp, true);
-  discountsTable(rep, tills.flatMap((t) => t.discounts || []));
+  expensesTable(rep, exp, true, 7.5);
+  discountsTable(rep, tills.flatMap((t) => t.discounts || []), 7.5);
 
   rep.signatures([...tills.map((t) => `${t.counterName || t.sessionNo} cashier (${t.cashierName})`), 'Checked by']);
   rep.finish(`cash-closing-all-counters-${day}`);

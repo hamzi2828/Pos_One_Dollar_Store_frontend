@@ -13,7 +13,7 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 import { LoadingCard, NoAccessCard } from '@/components/admin/FormBits';
 import {
   ActivityTimeline,
-  CartStatusBadge,
+  CartPath,
   getActivity,
   listActivity,
   timeOf,
@@ -244,30 +244,28 @@ export default function POSLogsPage() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
                 <th className="px-4 py-3 font-medium">Started</th>
-                <th className="px-4 py-3 font-medium">Cashier</th>
-                <th className="px-4 py-3 font-medium">Counter</th>
-                <th className="px-4 py-3 font-medium text-right">Items</th>
+                <th className="px-4 py-3 font-medium">Cashier · Counter · Items</th>
                 <th className="px-4 py-3 font-medium text-right">Total</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Status (start → end)</th>
                 <th className="px-4 py-3 font-medium text-right">Events</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
                     Loading logs...
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-red-600">
+                  <td colSpan={5} className="px-4 py-12 text-center text-red-600">
                     {error}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
+                  <td colSpan={5} className="px-4 py-12 text-center">
                     <ScrollText className="h-10 w-10 text-gray-300 mx-auto mb-2" />
                     <div className="text-gray-500 text-sm">No logs for these filters</div>
                   </td>
@@ -288,18 +286,21 @@ export default function POSLogsPage() {
                             </span>
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-700">{r.userName || '—'}</td>
-                        <td className="px-4 py-3 text-gray-700">{r.counterName || r.deviceName || '—'}</td>
-                        <td className="px-4 py-3 text-right text-gray-700">{r.itemCount ?? 0}</td>
+                        <td className="px-4 py-3">
+                          <span className="block text-gray-900">{r.userName || '—'}</span>
+                          <span className="block text-[11px] text-gray-500 whitespace-nowrap">
+                            {r.counterName || r.deviceName || '—'} · {r.itemCount ?? 0} {(r.itemCount ?? 0) === 1 ? 'item' : 'items'}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">{formatRs(r.total)}</td>
                         <td className="px-4 py-3">
-                          <CartStatusBadge cart={r} />
+                          <CartPath cart={r} />
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600">{r.eventCount ?? '—'}</td>
                       </tr>
                       {open && (
                         <tr className="bg-gray-50/60">
-                          <td colSpan={7} className="px-6 py-3">
+                          <td colSpan={5} className="px-6 py-3">
                             {detail === 'loading' || !detail ? (
                               <div className="flex items-center gap-2 text-sm text-gray-500">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Loading events…

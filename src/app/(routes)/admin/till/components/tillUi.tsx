@@ -124,14 +124,14 @@ const ACTION_LABEL: Record<string, string> = {
   reopened: 'Reopened',
 };
 
-export function CountTable({ count }: { count: CashCount | null }) {
+export function CountTable({ count, gridClass = 'grid-cols-2 sm:grid-cols-3' }: { count: CashCount | null; gridClass?: string }) {
   const rows = Object.entries(count?.denominations || {})
     .map(([v, c]) => [Number(v), Number(c)] as const)
     .filter(([, c]) => c > 0)
     .sort((a, b) => b[0] - a[0]);
   if (!rows.length) return <p className="text-xs text-gray-500">Nothing counted</p>;
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-600">
+    <div className={`grid ${gridClass} gap-x-4 gap-y-1 text-xs text-gray-600`}>
       {rows.map(([v, c]) => (
         <span key={v} className="tabular-nums">
           Rs {v.toLocaleString('en-PK')} × {c} = <strong className="text-gray-800">{formatRs(v * c)}</strong>
@@ -362,28 +362,45 @@ Reason (optional):`);
                 return <span className={`font-semibold ${d < 0 ? 'text-red-600' : 'text-amber-700'}`}>{d < 0 ? 'Short' : 'Over'} {formatRs(Math.abs(d))}</span>;
               };
               return (
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-                  {/* Till */}
-                  <div className="rounded-lg border border-gray-200 p-3 lg:col-span-2">
-                    <p className="mb-2 text-xs font-semibold uppercase text-gray-500">Till (change money)</p>
-                    <dl className="space-y-1 text-sm">
-                      <Row label="Opening float" value={formatRs(floatAmt)} />
-                      <Row label="Left in the drawer" value={drawer ? formatRs(drawer.total) : isOpen ? 'Open' : '—'} strong />
-                    </dl>
-                    {drawerDiff != null && (
-                      <p className={`mt-1 text-sm font-semibold ${Math.abs(drawerDiff) < 1 ? 'text-green-600' : drawerDiff < 0 ? 'text-red-600' : 'text-amber-700'}`}>
-                        {Math.abs(drawerDiff) < 1 ? 'Float is complete' : `${drawerDiff < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(drawerDiff))}`}
-                      </p>
-                    )}
+                <div className="space-y-3">
+                  {/* Till: one compact strip */}
+                  <div className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 lg:flex-row lg:items-center">
+                    <div className="shrink-0">
+                      <p className="mb-1.5 text-xs font-semibold uppercase text-gray-500">Till (change money)</p>
+                      <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+                        <div>
+                          <p className="text-[11px] text-gray-500">Opening float</p>
+                          <p className="text-base font-semibold tabular-nums text-gray-800">{formatRs(floatAmt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-gray-500">Left in the drawer</p>
+                          <p className="text-base font-bold tabular-nums text-gray-900">{drawer ? formatRs(drawer.total) : isOpen ? 'Open' : '—'}</p>
+                        </div>
+                        {drawerDiff != null && (
+                          <span
+                            className={`mb-0.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                              Math.abs(drawerDiff) < 1
+                                ? 'border-green-200 bg-green-50 text-green-700'
+                                : drawerDiff < 0
+                                  ? 'border-red-200 bg-red-50 text-red-700'
+                                  : 'border-amber-200 bg-amber-50 text-amber-700'
+                            }`}
+                          >
+                            {Math.abs(drawerDiff) < 1 ? '✓ Float is complete' : `${drawerDiff < 0 ? 'Short' : 'Over'} ${formatRs(Math.abs(drawerDiff))}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     {drawer && (
-                      <div className="mt-2">
-                        <CountTable count={drawer} />
+                      <div className="min-w-0 flex-1 border-t border-gray-100 pt-2 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                        <p className="mb-1 text-[11px] font-semibold uppercase text-gray-500">Notes left in the drawer</p>
+                        <CountTable count={drawer} gridClass="grid-cols-2 sm:grid-cols-3" />
                       </div>
                     )}
                   </div>
 
                   {/* Sales */}
-                  <div className="rounded-lg border border-gray-200 p-3 lg:col-span-3">
+                  <div className="rounded-lg border border-gray-200 p-3">
                     <p className="mb-2 text-xs font-semibold uppercase text-gray-500">{isOpen ? 'Sales so far' : 'Sales of the day'}</p>
                     <table className="w-full text-sm">
                       <thead className="text-[11px] text-gray-500">
@@ -727,11 +744,3 @@ Reason (optional):`);
   );
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className={strong ? 'font-semibold text-gray-900' : 'text-gray-600'}>{label}</dt>
-      <dd className={`tabular-nums ${strong ? 'font-bold text-gray-900' : 'text-gray-800'}`}>{value}</dd>
-    </div>
-  );
-}

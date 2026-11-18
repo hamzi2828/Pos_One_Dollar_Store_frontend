@@ -705,7 +705,7 @@ export default function POSPage() {
       const customerName = customer ? `${customer.firstName} ${customer.lastName}` : undefined;
       // Only the manual discount is saved (rules are applied again on retrieve).
       const manualAmount = quote?.manualDiscount || 0;
-      await holdCart(
+      const held = await holdCart(
         {
           ...pricedCart,
           discount: manualAmount,
@@ -715,7 +715,11 @@ export default function POSPage() {
         },
         customerName
       );
-      log('hold', `Order held${customerName ? ` for ${customerName}` : ''}`, customerName ? { customer: customerName } : undefined);
+      // heldId links this cart to the one that brings it back (POS Logs path).
+      log('hold', `Order held${customerName ? ` for ${customerName}` : ''}`, {
+        ...(customerName ? { customer: customerName } : {}),
+        ...(held?.id ? { heldId: held.id } : {}),
+      });
       await loadHeldCarts();
       resetSale();
       toast.success('Order held successfully');

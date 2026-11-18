@@ -63,6 +63,18 @@ export default function BankCheckPanel() {
   const [opening, setOpening] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [rechecking, setRechecking] = useState(false);
+  // Date filter: narrows the earlier statements and the open statement's lines.
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const inRange = (v?: string | null) => {
+    const d = day(v);
+    if (!d) return !startDate && !endDate;
+    return (!startDate || d >= startDate) && (!endDate || d <= endDate);
+  };
+  // A statement shows when its checked dates overlap the chosen range.
+  const overlaps = (s: BankStatement) =>
+    (!startDate || !s.checkTo || day(s.checkTo) >= startDate) && (!endDate || !s.checkFrom || day(s.checkFrom) <= endDate);
+  const dateFiltered = !!(startDate || endDate);
 
   // Upload flow
   const fileRef = useRef<HTMLInputElement>(null);
@@ -226,15 +238,16 @@ export default function BankCheckPanel() {
   };
 
   // Result numbers (from the lines, so manual decisions show at once)
-  const lines = detail?.lines || [];
+  const lines = (detail?.lines || []).filter((l) => inRange(l.date));
   const sum = (st: LineStatus) => {
     const ls = lines.filter((l) => lineStatus(l) === st);
     return { n: ls.length, rs: ls.reduce((t, l) => t + (Number(l.amount) || 0), 0) };
   };
   const shown = filter === 'all' ? lines : lines.filter((l) => lineStatus(l) === filter);
   const st = detail?.statement;
-  const notOn = detail?.notOnStatement || st?.notOnStatement || [];
+  const notOn = (detail?.notOnStatement || st?.notOnStatement || []).filter((n) => inRange(n.date));
   const mi = detail?.moneyIn || st?.moneyIn;
+  const shownList = list ? list.filter(overlaps) : null;
 
   return (
     <div className="space-y-4">
@@ -264,6 +277,47 @@ export default function BankCheckPanel() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Date filter */}
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Start date
+          <input
+            type="date"
+            className={inputClass}
+            value={startDate}
+            max={endDate || undefined}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          End date
+          <input
+            type="date"
+            className={inputClass}
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </label>
+        {dateFiltered && (
+          <button
+            type="button"
+            className={secondaryBtn}
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+          >
+            Clear
+          </button>
+        )}
+        <p className="text-[11px] text-gray-500 sm:ml-auto">
+          {dateFiltered
+            ? `Showing ${startDate ? formatDate(startDate) : 'start'} – ${endDate ? formatDate(endDate) : 'today'}`
+            : 'All dates'}
+        </p>
       </div>
 
       {/* Result */}
@@ -488,7 +542,10 @@ export default function BankCheckPanel() {
           {/* Money in */}
           {mi && (
             <div>
-              <h4 className="mb-2 text-sm font-semibold text-gray-900">Money in check</h4>
+              <h4 className="mb-2 text-sm font-semibold text-gray-900">
+                Money in check
+                {dateFiltered ? <span className="ml-1 text-[11px] font-normal text-gray-500">(whole checked period, not the date filter)</span> : null}
+              </h4>
               <div className="grid gap-2 sm:grid-cols-2">
                 <CompareBox
                   title="Card sales"
@@ -559,12 +616,14 @@ export default function BankCheckPanel() {
           <div className="p-4">
             <ErrorBox message={listError} />
           </div>
-        ) : !list ? (
+        ) : !list || !shownList ? (
           <div className="flex items-center gap-2 p-4 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         ) : list.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">No statement uploaded yet.</p>
+        ) : shownList.length === 0 ? (
+          <p className="p-4 text-sm text-gray-500">No statement in these dates.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[820px] w-full text-sm">
@@ -580,7 +639,7 @@ export default function BankCheckPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {list.map((s) => (
+                {shownList.map((s) => (
                   <tr key={s._id} className={detail?.statement._id === s._id ? 'bg-honey-50/50' : ''}>
                     <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">{s.statementNo}</td>
                     <td className="px-3 py-2 text-gray-700">{bankName(s.bank)}</td>

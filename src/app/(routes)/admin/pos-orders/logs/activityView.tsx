@@ -32,6 +32,82 @@ export interface ActivityCart {
   orderNumber?: string;
   order?: string | { _id: string } | null;
   eventCount?: number;
+  /** The bill's steps start to end, across hold / retrieve (list only). */
+  path?: PathStep[];
+}
+
+export interface PathStep {
+  cartId: string;
+  kind: string; // start | items | remove | discount | pay | pay_cancel | hold | retrieve | completed | failed | cleared | open
+  label: string;
+  at: string;
+  by?: string;
+  counter?: string;
+  orderNumber?: string;
+  orderId?: string;
+  /** Part of this row's own cart (false = the earlier / later cart of the same bill). */
+  current?: boolean;
+}
+
+const STEP_COLOR: Record<string, string> = {
+  start: 'bg-gray-100 text-gray-700 border-gray-200',
+  items: 'bg-sky-50 text-sky-800 border-sky-200',
+  remove: 'bg-red-50 text-red-700 border-red-200',
+  discount: 'bg-purple-50 text-purple-700 border-purple-200',
+  pay: 'bg-honey-50 text-honey-800 border-honey-200',
+  pay_cancel: 'bg-orange-50 text-orange-700 border-orange-200',
+  hold: 'bg-blue-100 text-blue-800 border-blue-300',
+  retrieve: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+  completed: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  failed: 'bg-red-100 text-red-800 border-red-300',
+  cleared: 'bg-red-100 text-red-800 border-red-300',
+  open: 'bg-amber-50 text-amber-800 border-amber-200',
+};
+
+/** Scanned → Held → Retrieved (Counter 2) → Added → Paid → Completed. Faded = another cart of the same bill. */
+export function CartPath({ cart }: { cart: ActivityCart }) {
+  const path = cart.path || [];
+  if (!path.length) return <CartStatusBadge cart={cart} />;
+  // Who / which counter: shown at the start and whenever it changes.
+  let lastWho = '';
+  return (
+    <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5 max-w-[560px]">
+      {path.map((s, i) => {
+        const who = s.by ? `${s.by}${s.counter ? ` · ${s.counter}` : ''}` : '';
+        const showWho = !!who && who !== lastWho;
+        if (who) lastWho = who;
+        const chip = (
+          <span
+            className={`inline-flex flex-col rounded border px-1.5 py-0.5 text-[11px] leading-tight ${STEP_COLOR[s.kind] || STEP_COLOR.start} ${
+              s.current === false ? 'opacity-50' : ''
+            }`}
+            title={`${new Date(s.at).toLocaleString('en-GB')}${who ? ` · ${who}` : ''}`}
+          >
+            <span className="font-medium whitespace-nowrap">
+              {s.label}
+              {s.kind === 'completed' && s.orderNumber ? ` #${s.orderNumber.slice(-4)}` : ''}
+            </span>
+            <span className="whitespace-nowrap text-[10px] opacity-75">
+              {timeOf(s.at).slice(0, 5)}
+              {showWho ? ` · ${who}` : ''}
+            </span>
+          </span>
+        );
+        return (
+          <span key={i} className="inline-flex items-center gap-1">
+            {i > 0 && <span className="text-gray-300">→</span>}
+            {s.kind === 'completed' && s.orderId ? (
+              <Link href={`/admin/pos/invoice/${s.orderId}`} target="_blank" onClick={(e) => e.stopPropagation()} className="hover:opacity-80">
+                {chip}
+              </Link>
+            ) : (
+              chip
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 export interface ActivityDetail extends ActivityCart {

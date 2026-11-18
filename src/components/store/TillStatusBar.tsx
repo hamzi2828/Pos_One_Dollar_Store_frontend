@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Banknote, Loader2, Lock, LockOpen, RefreshCw, AlertTriangle, Coins } from 'lucide-react';
+import { Banknote, Loader2, Lock, LockOpen, RefreshCw, AlertTriangle, Coins, ChevronLeft, ChevronRight } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { Modal, Field, ErrorBox, HelpBox, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
@@ -520,17 +520,28 @@ export function CloseTillModal({
     }
   };
 
+  const cardN = Math.max(0, Number(card) || 0);
+  const bankN = Math.max(0, Number(bank) || 0);
+  const jazzN = Math.max(0, Number(jazz) || 0);
+  const floatAmt = session.openingFloat?.total || 0;
+  const [step, setStep] = useState(0);
+  const steps = [
+    { label: 'Till cash', hint: 'left in drawer', amount: tillCash },
+    { label: "Day's cash", hint: 'handed over', amount: day },
+    { label: 'Card / Bank / JazzCash', hint: 'not cash', amount: cardN + bankN + jazzN },
+    { label: 'Check & submit', hint: 'review', amount: null as number | null },
+  ];
+  const last = steps.length - 1;
+  // The common mistake: all the day's cash typed into the till (drawer) box.
+  const warnings: string[] = [];
+  if (tillCash > floatAmt + 1000 && day === 0)
+    warnings.push(
+      `Till cash is ${formatRs(tillCash)} but the float was only ${formatRs(floatAmt)}, and day's cash is empty. Did you put the day's cash in the till box by mistake?`,
+    );
+  if (day === 0 && tillCash <= floatAmt + 1000) warnings.push("Day's cash is empty. Write it in step 2 if you took sales cash out of the drawer.");
+
   const submit = async () => {
     if (lockRef.current) return;
-    const cardN = Math.max(0, Number(card) || 0);
-    const bankN = Math.max(0, Number(bank) || 0);
-    const jazzN = Math.max(0, Number(jazz) || 0);
-    if (
-      !window.confirm(
-        `Cash: till ${formatRs(tillCash)} + day ${formatRs(day)} = ${formatRs(total)}\nPOS machine: ${formatRs(cardN)}\nBank (UBL): ${formatRs(bankN)}\nJazzCash: ${formatRs(jazzN)}\n\nSubmit the report and close the till? After this you cannot change it, and new sales go to the next till.`,
-      )
-    )
-      return;
     lockRef.current = true;
     setBusy('submit');
     setError(null);
@@ -558,83 +569,163 @@ export function CloseTillModal({
       wide
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={!!busy} className={secondaryBtn}>
-            Cancel
-          </button>
           {onSaved && (
-            <button type="button" onClick={save} disabled={!!busy} className={secondaryBtn}>
+            <button type="button" onClick={save} disabled={!!busy} className={`${secondaryBtn} sm:mr-auto`}>
               {busy === 'save' && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save (not submitted)
+              Save for later
             </button>
           )}
-          <button type="button" onClick={submit} disabled={!!busy} className={primaryBtn}>
-            {busy === 'submit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-            Submit report · {formatRs(total)}
-          </button>
+          {step > 0 ? (
+            <button type="button" onClick={() => setStep(step - 1)} disabled={!!busy} className={secondaryBtn}>
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+          ) : (
+            <button type="button" onClick={onClose} disabled={!!busy} className={secondaryBtn}>
+              Cancel
+            </button>
+          )}
+          {step < last ? (
+            <button type="button" onClick={() => setStep(step + 1)} disabled={!!busy} className={primaryBtn}>
+              Next: {steps[step + 1].label} <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <button type="button" onClick={submit} disabled={!!busy} className={primaryBtn}>
+              {busy === 'submit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+              Submit & close till
+            </button>
+          )}
         </>
       }
     >
       <div className="space-y-4">
-        <div>
-          <p className="mb-1.5 text-sm font-semibold text-gray-900">1. Till cash</p>
-          <HelpBox>Count the cash left in the drawer (with the float), note by note.</HelpBox>
-          {startFrom && (
-            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-800">
-              {startFrom === 'draft' ? 'Filled from your saved report.' : 'Filled with the notes the till was opened with.'} Change only what is different.
-              <button type="button" className="underline text-gray-600 hover:text-gray-900" disabled={!!busy} onClick={() => setCounts({})}>
-                Clear all
-              </button>
+        {/* Tabs: tap any step, each shows its amount */}
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          {steps.map((s, i) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => setStep(i)}
+              disabled={!!busy}
+              className={`rounded-lg border px-2.5 py-1.5 text-left transition ${
+                step === i ? 'border-honey-500 bg-honey-50 ring-1 ring-honey-400' : 'border-gray-200 bg-white hover:bg-gray-50'
+              }`}
+            >
+              <span className="block text-[11px] font-semibold text-gray-500">
+                {i + 1}. {s.label}
+              </span>
+              <span className={`block text-sm tabular-nums ${s.amount == null ? 'text-gray-500' : 'font-bold text-gray-900'}`}>
+                {s.amount == null ? (warnings.length ? `⚠ ${warnings.length} to check` : '✓ ready') : formatRs(s.amount)}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {step === 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-700">
+              Count only the <strong>change money left in the drawer</strong> for tomorrow
+              {floatAmt > 0 ? (
+                <>
+                  {' '}
+                  (float was <strong>{formatRs(floatAmt)}</strong>)
+                </>
+              ) : (
+                ' (float was Rs 0, so this is usually 0)'
+              )}
+              . Sales cash goes in step 2.
             </p>
-          )}
-          <div className="mt-2">
+            {startFrom && (
+              <p className="flex flex-wrap items-center gap-2 text-xs text-amber-800">
+                {startFrom === 'draft' ? 'Filled from your saved report.' : 'Filled with the opening notes.'} Change only what is different.
+                <button type="button" className="underline text-gray-600 hover:text-gray-900" disabled={!!busy} onClick={() => setCounts({})}>
+                  Clear all
+                </button>
+              </p>
+            )}
             <DenominationCounter denominations={denoms} counts={counts} onChange={setCounts} disabled={!!busy} />
           </div>
-        </div>
-        <div className="rounded-lg border border-honey-300 bg-honey-50/60 p-3">
-          <p className="mb-1 text-sm font-semibold text-gray-900">2. Total cash of the day</p>
-          <p className="mb-2 text-xs text-gray-600">The sales cash you took out of the drawer (handed over). Count it note by note, or write the total amount.</p>
-          <div className="rounded-lg bg-white p-2.5 ring-1 ring-gray-200">
+        )}
+
+        {step === 1 && (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-700">
+              Count the <strong>sales cash you take out</strong> and hand over. Note by note, or just write the total.
+            </p>
             <DenominationCounter denominations={denoms} counts={dayCounts} onChange={setDayCounts} disabled={!!busy} />
+            <Field label={dayNotesTotal > 0 ? 'Total (from the notes above)' : 'Or write the total'}>
+              <MoneyInput
+                value={dayNotesTotal > 0 ? String(dayNotesTotal) : dayCash}
+                onValue={setDayCash}
+                disabled={!!busy || dayNotesTotal > 0}
+                className={`${inputClass} text-right text-lg font-semibold tabular-nums`}
+                placeholder="e.g. 738150"
+              />
+            </Field>
           </div>
-          <Field label={dayNotesTotal > 0 ? 'Total (from the notes above)' : 'Or write the total'}>
-            <MoneyInput
-              value={dayNotesTotal > 0 ? String(dayNotesTotal) : dayCash}
-              onValue={setDayCash}
-              disabled={!!busy || dayNotesTotal > 0}
-              className={`${inputClass} text-right text-lg font-semibold tabular-nums`}
-              placeholder="e.g. 738150"
-            />
-          </Field>
-          <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-gray-200">
-            <span className="text-gray-600">
-              Till {formatRs(tillCash)} + day {formatRs(day)}
-            </span>
-            <strong className="tabular-nums text-gray-900">= {formatRs(total)}</strong>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-700">Payments that did not come as cash. The system figure is filled in; change it only if your slip says different.</p>
+            {(
+              [
+                ['POS machine (card)', "Total on the card machine's day slip", card, setCard, nonCash?.card],
+                ['Bank (UBL)', 'Sent to the UBL account today', bank, setBank, nonCash?.bankTransfer],
+                ['JazzCash', 'Sent to the JazzCash account today', jazz, setJazz, nonCash?.jazzcash],
+              ] as const
+            ).map(([label, help, value, set, sys]) => (
+              <div key={label} className="flex flex-col gap-1 rounded-lg border border-gray-200 p-2.5 sm:flex-row sm:items-center sm:gap-3">
+                <div className="sm:w-56">
+                  <p className="text-sm font-semibold text-gray-900">{label}</p>
+                  <p className="text-[11px] text-gray-500">{help}</p>
+                </div>
+                <div className="flex-1">
+                  <MoneyInput value={value} onValue={set} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
+                  <SystemHint value={sys} current={value} onUse={(v) => set(v)} />
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-sky-200 bg-sky-50/60 p-3">
-            <p className="mb-1 text-sm font-semibold text-gray-900">3. POS machine (card)</p>
-            <p className="mb-2 text-xs text-gray-600">Total on the card machine&apos;s day slip.</p>
-            <MoneyInput value={card} onValue={setCard} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
-            <SystemHint value={nonCash?.card} current={card} onUse={(v) => setCard(v)} />
+        )}
+
+        {step === last && (
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-lg border border-gray-200 text-sm">
+              {(
+                [
+                  ['Till cash (left in drawer)', tillCash, 0],
+                  ["Day's cash (handed over)", day, 1],
+                  ['POS machine (card)', cardN, 2],
+                  ['Bank (UBL)', bankN, 2],
+                  ['JazzCash', jazzN, 2],
+                ] as const
+              ).map(([label, amt, go]) => (
+                <div key={label} className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 py-2 last:border-0">
+                  <span className="text-gray-700">{label}</span>
+                  <span className="flex items-center gap-3">
+                    <strong className="tabular-nums text-gray-900">{formatRs(amt)}</strong>
+                    <button type="button" onClick={() => setStep(go)} disabled={!!busy} className="text-xs text-honey-700 underline hover:text-honey-900">
+                      edit
+                    </button>
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between bg-gray-900 px-3 py-2.5 text-white">
+                <span>Total cash (till + day)</span>
+                <strong className="text-lg tabular-nums">{formatRs(total)}</strong>
+              </div>
+            </div>
+            {warnings.map((w) => (
+              <p key={w} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {w}
+              </p>
+            ))}
+            <Field label="Note (optional)">
+              <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={!!busy} className={inputClass} placeholder="e.g. Rs 500 paid to the delivery boy" />
+            </Field>
+            <p className="text-[11px] text-gray-500">After you submit, you cannot change it. New sales go to the next till.</p>
           </div>
-          <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
-            <p className="mb-1 text-sm font-semibold text-gray-900">4. Bank (UBL)</p>
-            <p className="mb-2 text-xs text-gray-600">Total sent to the UBL bank account today.</p>
-            <MoneyInput value={bank} onValue={setBank} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
-            <SystemHint value={nonCash?.bankTransfer} current={bank} onUse={(v) => setBank(v)} />
-          </div>
-          <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3">
-            <p className="mb-1 text-sm font-semibold text-gray-900">5. JazzCash</p>
-            <p className="mb-2 text-xs text-gray-600">Total sent to the JazzCash account today.</p>
-            <MoneyInput value={jazz} onValue={setJazz} disabled={!!busy} className={`${inputClass} text-right font-semibold tabular-nums`} placeholder="0" />
-            <SystemHint value={nonCash?.jazzcash} current={jazz} onUse={(v) => setJazz(v)} />
-          </div>
-        </div>
-        <Field label="Note (optional)">
-          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} disabled={!!busy} className={inputClass} placeholder="e.g. Rs 500 paid to the delivery boy" />
-        </Field>
+        )}
         <ErrorBox message={error} />
       </div>
     </Modal>
