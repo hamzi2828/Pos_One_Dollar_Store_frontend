@@ -6,6 +6,7 @@ type RemotePattern = NonNullable<NonNullable<NextConfig["images"]>["remotePatter
 // from Vercel Blob storage.
 const remotePatterns: RemotePattern[] = [
   { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+  { protocol: "https", hostname: "media.dollarandco.org" }, // S3 (SeaweedFS on Coolify)
   { protocol: "http", hostname: "localhost", port: "3001", pathname: "/uploads/**" },
   { protocol: "http", hostname: "localhost", port: "4000", pathname: "/uploads/**" },
   { protocol: "http", hostname: "localhost", port: "5000", pathname: "/uploads/**" },
