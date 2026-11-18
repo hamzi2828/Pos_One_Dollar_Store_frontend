@@ -9,15 +9,16 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, Download, Fingerprint, MonitorDown, Printer, RefreshCw, ScanBarcode, ShoppingCart, Tag } from 'lucide-react';
 import { storeApi } from '@/lib/storeApi';
 
-const FILE = '/downloads/DollarCoPos-Setup.exe';
-const VERSION = '1.6.3';
-const BUILT = '9 Nov 2026';
+const DL = 'https://media.dollarandco.org/dollarandco/downloads'; // S3 on Coolify
+const FILE = `${DL}/DollarCoPos-Setup.exe`;
+const VERSION = '1.7.0';
+const BUILT = '19 Nov 2026';
 const SIZE = '3.8 MB';
-const DRIVER_FILE = '/downloads/SecuGen-Fingerprint-Driver.zip';
+const DRIVER_FILE = `${DL}/SecuGen-Fingerprint-Driver.zip`;
 const DRIVER_SIZE = '45 MB';
-const PRINTER_FILE = '/downloads/SpeedX-Receipt-Driver.zip';
+const PRINTER_FILE = `${DL}/SpeedX-Receipt-Driver.zip`;
 const PRINTER_SIZE = '8.1 MB';
-const LABEL_FILE = '/downloads/Xprinter-Label-Driver.zip';
+const LABEL_FILE = `${DL}/Xprinter-Label-Driver.zip`;
 const LABEL_SIZE = '85 MB';
 
 interface DeviceRow {
