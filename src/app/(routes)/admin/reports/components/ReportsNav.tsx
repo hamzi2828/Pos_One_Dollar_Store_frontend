@@ -14,6 +14,7 @@ import {
   Calculator,
   Route,
   ArrowLeft,
+  Truck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -35,6 +36,7 @@ export const REPORTS: ReportLink[] = [
   { href: '/admin/reports/stock-timeline', label: 'Stock Timeline', icon: Route, perm: 'report_stock_movement', about: 'Every move of one item: in, sold, moved, damaged.', group: 'Stock' },
   { href: '/admin/reports/cash-closing', label: 'Cash Closing', icon: Calculator, perm: 'report_cash_closing', about: 'Each till: cash, POS, bank, expenses, over / short.', group: 'Money' },
   { href: '/admin/reports/cash-in-hand', label: 'Cash in Hand', icon: Wallet, perm: ['report_cash_in_hand', 'report_expenses'], about: 'Money left (cash + bank), bought, paid to vendors, trip costs, expenses, bank check.', group: 'Money' },
+  { href: '/admin/reports/vendor-goods', label: 'Goods by Vendor', icon: Truck, perm: ['report_financial_statements', 'report_vendor_payments'], about: 'Goods sold at vendor price per vendor, and what was paid to each.', group: 'Money' },
   { href: '/admin/reports/expenses', label: 'Expenses', icon: Receipt, perm: 'report_expenses', about: 'Shop expenses by day, week or month.', group: 'Money' },
 ];
 
