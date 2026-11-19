@@ -53,6 +53,8 @@ interface IncomeNumbers {
   netMargin: number | null;
   /** Per counter (current period; missing on an old server). */
   byCounter?: { counter: string; netSales: number; cost: number; grossProfit: number; itemsSold: number }[] | null;
+  /** Trip costs of the goods sold, by charge type (car rent, builty, loading ...). */
+  tripByType?: { type: string; label: string; amount: number }[] | null;
   /** Goods (vendor price) sold per vendor + paid to that vendor in the period. */
   byVendor?: { vendorId: string | null; name: string; goodsCost: number; qty: number; paid: number; payments: number }[] | null;
 }
@@ -246,6 +248,7 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
       ? [
           { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true },
           { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: "Share of trip costs in the goods sold" },
+          ...(c.tripByType || []).map((t) => ({ label: `    · ${t.label}`, amount: -t.amount, indent: true, hint: "part of the trip costs above" })),
           { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
         ]
       : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: "Landed cost: price + trip costs" }]),
