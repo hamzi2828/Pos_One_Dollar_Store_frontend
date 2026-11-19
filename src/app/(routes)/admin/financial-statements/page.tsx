@@ -260,10 +260,10 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
             indent: true,
             hint: perPiece(c.itemsSold, t.amount),
           })),
-          { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
+          { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind, hint: perPiece(c.itemsSold, c.costOfGoods) },
         ]
-      : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: "Landed cost: price + trip costs" }]),
-    { label: `Gross profit · margin ${pctText(c.grossMargin)}`, amount: c.grossProfit, prev: p?.grossProfit, kind: "sub" },
+      : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: `Landed cost: price + trip costs · ${perPiece(c.itemsSold, c.costOfGoods)}` }]),
+    { label: `Gross profit · margin ${pctText(c.grossMargin)}`, amount: c.grossProfit, prev: p?.grossProfit, kind: "sub", hint: perPiece(c.itemsSold, c.grossProfit) },
     { label: "Operating expenses", kind: "head" },
     ...cats.map((cat) => ({ label: cat, amount: -(curExp.get(cat) || 0), prev: p ? -(prevExp.get(cat) || 0) : undefined, indent: true })),
     { label: "Total expenses", amount: -c.totalExpenses, prev: p ? -p.totalExpenses : undefined, kind: "sub" as RowKind },
