@@ -246,21 +246,7 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     { label: "Net sales", amount: c.netSales, prev: p?.netSales, kind: "sub" },
     ...(c.goodsCost !== undefined && c.tripCost !== undefined
       ? [
-          // Goods (vendor price) as a heading with each vendor under it, then its total (owner 2026-11-20).
-          ...((c.byVendor || []).some((v) => v.goodsCost !== 0)
-            ? [
-                { label: "Goods (vendor price)", kind: "head" as RowKind },
-                ...(c.byVendor || [])
-                  .filter((v) => v.goodsCost !== 0)
-                  .map((v) => ({
-                    label: `· ${v.name}`,
-                    amount: -v.goodsCost,
-                    indent: true,
-                    hint: `${Math.round(v.qty)} pieces · ${v.paid ? `paid ${formatRs(v.paid)} in this period` : "nothing paid in this period"}`,
-                  })),
-                { label: "Total goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, kind: "sub" as RowKind },
-              ]
-            : [{ label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true }]),
+          { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true },
           { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: "Share of trip costs in the goods sold" },
           { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
         ]
