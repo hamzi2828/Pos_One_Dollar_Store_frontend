@@ -4,7 +4,6 @@ import { Montserrat } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import ClientLayout from "@/components/ClientLayout";
 import DynamicFavicon from "@/components/DynamicFavicon";
-import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const montserrat = Montserrat({
@@ -56,7 +55,8 @@ export default function RootLayout({
           <DynamicFavicon />
           <ClientLayout>{children}</ClientLayout>
         </Suspense>
-        <Analytics />
+        {/* No Vercel Analytics: the app runs on Coolify, where its script
+            (/_vercel/insights/script.js) is a 404 — one wasted request per load. */}
       </body>
     </html>
   );

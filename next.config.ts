@@ -30,7 +30,10 @@ try {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The deploy this build belongs to (compared with /build-id by the POS).
-  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || "dev" },
+  // Coolify gives the commit as SOURCE_COMMIT ("Include Source Commit in
+  // Build" must be on for it to reach the build); without it this is "dev"
+  // and the POS simply does not auto-reload, as before.
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || "dev" },
   output: "standalone",
   images: {
     remotePatterns,
@@ -45,7 +48,15 @@ const nextConfig: NextConfig = {
   },
   // POS offline app: the service worker must always be checked for updates.
   async headers() {
+    // Files in public/ (logo, icons) keep their names when changed, so they
+    // are not "immutable" like /_next/static; one day is enough to spare a
+    // request per page load on the slow shop link (Next sends max-age=0).
+    const publicFile = [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }];
     return [
+      { source: "/images/:path*", headers: publicFile },
+      { source: "/icons/:path*", headers: publicFile },
+      { source: "/favicon.ico", headers: publicFile },
+      { source: "/apple-touch-icon.png", headers: publicFile },
       {
         source: "/sw.js",
         headers: [

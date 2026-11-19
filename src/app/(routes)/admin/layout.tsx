@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminHeader from '@/components/admin/AdminHeader';
 import AdminSidebar from '@/components/admin/AdminSidebar';
+import LoadingShell from '@/components/LoadingShell';
 import { getAuthToken, getRole, isAuthenticated } from '@/helper/helper';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { AccessProvider } from '@/context/AccessContext';
@@ -71,8 +72,10 @@ export default function AdminLayout({
     setReady(true);
   }, [router]);
 
-  // Avoid rendering admin UI until checks pass (prevents flicker on redirect)
-  if (!ready) return null;
+  // Avoid rendering admin UI until checks pass (prevents flicker on redirect).
+  // The loading screen is also what the server HTML contains, so a slow
+  // connection shows it at once instead of a white page while scripts load.
+  if (!ready) return <LoadingShell />;
 
   return (
     <AccessProvider>
