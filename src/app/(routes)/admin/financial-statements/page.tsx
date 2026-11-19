@@ -553,63 +553,6 @@ function IncomeView({ d }: { d: IncomeData }) {
           </div>
         </Card>
       )}
-      {c.byVendor && c.byVendor.length > 0 && (
-        <Card title="Goods (vendor price) by vendor" subtitle="What was sold from each vendor at vendor price, and what was paid to them in this period">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-100">
-                  <th className="text-left font-medium px-3 sm:px-4 py-2">Vendor</th>
-                  <th className="text-right font-medium px-3 py-2">Pieces sold</th>
-                  <th className="text-right font-medium px-3 py-2">Goods sold (vendor price)</th>
-                  <th className="text-right font-medium px-3 py-2">Paid to vendor</th>
-                  <th className="text-right font-medium px-3 sm:px-4 py-2">Paid − goods sold</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {c.byVendor.map((v) => {
-                  const diff = Math.round((v.paid - v.goodsCost) * 100) / 100;
-                  return (
-                    <tr key={v.vendorId || "none"}>
-                      <td className="px-3 sm:px-4 py-2 font-medium text-gray-900">
-                        {v.vendorId ? (
-                          <a href={`/admin/vendors/${v.vendorId}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                            {v.name}
-                          </a>
-                        ) : (
-                          <span className="text-gray-500">{v.name}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-gray-600">{v.qty ? v.qty.toLocaleString("en-PK") : "—"}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{v.goodsCost ? formatRs(v.goodsCost) : "—"}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {v.paid ? formatRs(v.paid) : "—"}
-                        {v.payments > 0 && <span className="block text-[10px] text-gray-400">{v.payments} payment{v.payments === 1 ? "" : "s"}</span>}
-                      </td>
-                      <td className={`px-3 sm:px-4 py-2 text-right tabular-nums text-xs ${diff > 0 ? "text-emerald-700" : diff < 0 ? "text-amber-700" : "text-gray-400"}`}>
-                        {diff === 0 ? "—" : `${diff > 0 ? "+" : "−"}${formatRs(Math.abs(diff))}`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="border-t-2 border-gray-200 font-semibold">
-                <tr>
-                  <td className="px-3 sm:px-4 py-2">All vendors ({c.byVendor.filter((v) => v.vendorId).length})</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{c.byVendor.reduce((t, v) => t + v.qty, 0).toLocaleString("en-PK")}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatRs(c.byVendor.reduce((t, v) => t + v.goodsCost, 0))}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatRs(c.byVendor.reduce((t, v) => t + v.paid, 0))}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <p className="px-3 sm:px-4 pb-3 pt-1 text-[11px] text-gray-500">
-            Payments are for everything bought from the vendor (also stock not sold yet, and older bills), so they do not have to match the goods sold. A piece&apos;s
-            vendor is the stock code it was sold with, else the product&apos;s latest goods receipt.
-          </p>
-        </Card>
-      )}
       <Note>
         Sales tax collected ({formatRs(c.taxCollected)}) is not income — it is owed to FBR and shows on the Balance Sheet. Trip costs are inside the
         cost of goods, so they are not counted again as expenses.
