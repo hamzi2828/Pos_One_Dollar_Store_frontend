@@ -14,6 +14,10 @@ const DEDUCTION_WORD: Record<string, string> = {
   absent: 'Absent',
   half_day: 'Half days',
   late: 'Late',
+  missing_item: 'Missing item',
+  staff_purchase: 'Goods taken',
+  fine: 'Fine',
+  uniform: 'Uniform / ID card',
 };
 
 const METHOD_WORD: Record<string, string> = {

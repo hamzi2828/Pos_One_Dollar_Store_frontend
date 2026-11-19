@@ -235,7 +235,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Shifts & Roster', path: '/admin/hr/roster', icon: <CalendarClock className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'shifts' },
     { name: 'Attendance', path: '/admin/hr/attendance', icon: <Clock3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['attendance', 'attendance_month'] },
     { name: 'Payroll', path: '/admin/hr/payroll', icon: <Banknote className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
-    { name: 'Staff Ledger', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'payroll' },
+    { name: 'Staff Ledger', path: '/admin/hr/advances', icon: <WalletCards className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['payroll', 'payroll_own_deductions'] },
     { name: 'HR Policies', path: '/admin/hr/policies', icon: <ScrollText className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'hr_policies' },
     { name: 'Category Staff', path: '/admin/hr/category-staff', icon: <UsersRound className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'category_assignments' },
   ];

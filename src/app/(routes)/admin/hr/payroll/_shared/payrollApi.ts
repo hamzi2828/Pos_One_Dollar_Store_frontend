@@ -7,8 +7,26 @@ import { API_URL, storeApi, type PageMeta } from '@/lib/storeApi';
 export type RunStatus = 'draft' | 'approved' | 'paid';
 export type PayMethod = 'cash' | 'bank' | 'easypaisa' | 'jazzcash';
 // absent / half_day / late: made by the server from attendance each month
-// (pending until approved). Staff can only hand-add 'damage' | 'other'.
-export type DeductionType = 'till_shortage' | 'damage' | 'other' | 'absent' | 'half_day' | 'late';
+// (pending until approved). Staff can only hand-add the MANUAL_DEDUCTION_TYPES.
+export type DeductionType = 'till_shortage' | 'damage' | 'other' | 'absent' | 'half_day' | 'late' | 'missing_item' | 'staff_purchase' | 'fine' | 'uniform';
+/** Types a person can add by hand (the rest come from cash closing / attendance). */
+export type ManualDeductionType = 'damage' | 'missing_item' | 'staff_purchase' | 'fine' | 'uniform' | 'other';
+export const MANUAL_DEDUCTION_TYPES: [ManualDeductionType, string][] = [
+  ['damage', 'Damage'],
+  ['missing_item', 'Missing / lost item'],
+  ['staff_purchase', 'Goods taken by staff'],
+  ['fine', 'Fine / rule break'],
+  ['uniform', 'Uniform / ID card'],
+  ['other', 'Other'],
+];
+/** Every type, in tab order (Deductions tab). */
+export const DEDUCTION_TYPE_TABS: [DeductionType, string][] = [
+  ['till_shortage', 'Till shortage'],
+  ['absent', 'Absent'],
+  ['half_day', 'Half days'],
+  ['late', 'Late'],
+  ...MANUAL_DEDUCTION_TYPES,
+];
 export type DeductionStatus = 'pending' | 'approved' | 'waived' | 'applied';
 export type AdvanceStatus = 'open' | 'recovered' | 'cancelled';
 
@@ -263,6 +281,20 @@ export interface PayrollDeduction {
   status: DeductionStatus;
   appliedMonth: string;
   link: string;
+  /** Who added it ('System' for till shortages / attendance cuts). */
+  addedByName?: string;
+  decidedByName?: string;
+  /** Added by the signed-in user. */
+  mine?: boolean;
+  /** The signed-in user may approve / waive it (own-only users: only their own). */
+  canDecide?: boolean;
+}
+
+export interface DeductionTypeCount {
+  key: DeductionType;
+  label: string;
+  count: number;
+  amount: number;
 }
 
 export type DeductionSummary = Record<'pending' | 'approved' | 'applied' | 'waived' | 'listed', { count: number; amount: number }>;
@@ -375,7 +407,7 @@ export const payrollApi = {
 
   deductions: (params: DayRangeParams & { status?: string; type?: string; employee?: string; page?: number; limit?: number }) =>
     storeApi.get<PayrollDeduction[]>('/payroll-deductions', params),
-  addDeduction: (body: { employeeId: string; type: 'damage' | 'other'; amount: number; date: string; note: string; approveNow: boolean }) =>
+  addDeduction: (body: { employeeId: string; type: ManualDeductionType; amount: number; date: string; note: string; approveNow: boolean }) =>
     storeApi.post<PayrollDeduction>('/payroll-deductions', body),
   approveDeduction: (id: string, amount?: number) => storeApi.post<PayrollDeduction>(`/payroll-deductions/${id}/approve`, amount ? { amount } : {}),
   waiveDeduction: (id: string, note: string) => storeApi.post<PayrollDeduction>(`/payroll-deductions/${id}/waive`, { note }),

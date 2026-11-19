@@ -12,7 +12,15 @@ import { LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from 
 import TablePagination from '@/components/admin/TablePagination';
 import { useAccess } from '@/context/AccessContext';
 import { apiErrorMessage, formatDate, formatRs, type PageMeta } from '@/lib/storeApi';
-import { METHOD_LABEL, payrollApi, type DayTotal, type DeductionSummary, type PayrollDeduction, type SalaryAdvance, type StaffTip, type TipListMeta } from '../payroll/_shared/payrollApi';
+import {
+  DEDUCTION_TYPE_TABS,
+  METHOD_LABEL,
+  payrollApi,
+  type DayTotal,
+  type DeductionSummary,
+  type DeductionType,
+  type DeductionTypeCount,
+  type PayrollDeduction, type SalaryAdvance, type StaffTip, type TipListMeta } from '../payroll/_shared/payrollApi';
 import { ErrorCard, PageHeader, StatTile, StatusChip, cardClass, tdClass, thClass } from '../payroll/_shared/PayrollBits';
 import { AddDeductionModal, ApproveDeductionModal, CancelAdvanceModal, GiveAdvanceModal, WaiveDeductionModal } from './components/AdvanceModals';
 import { DailyTotalsCard, DayBand, RangeFilter, dayTotalOf, groupByDay, makeRange, rangeParams, rangeText, type DayRange } from './components/DayBreakdown';
@@ -27,22 +35,15 @@ const ADV_STATUS = [
   ['cancelled', 'Cancelled'],
   ['all', 'All'],
 ] as const;
+// Owner 2026-11-19: "Approved (to cut)" and "Cut from pay" are one choice.
 const DED_STATUS = [
   ['pending', 'Waiting approval'],
-  ['approved', 'Approved (to cut)'],
-  ['applied', 'Cut from pay'],
+  ['approved,applied', 'Approved'],
   ['waived', 'Waived'],
   ['all', 'All'],
 ] as const;
-const DED_TYPE = [
-  ['all', 'All types'],
-  ['till_shortage', 'Till shortage'],
-  ['damage', 'Damage'],
-  ['other', 'Other'],
-  ['absent', 'Absent'],
-  ['half_day', 'Half days'],
-  ['late', 'Late'],
-] as const;
+type DedStatus = (typeof DED_STATUS)[number][0];
+const dedStatusOf = (s: string): DedStatus => (s === 'approved' || s === 'applied' ? 'approved,applied' : (DED_STATUS.find(([k]) => k === s)?.[0] || 'pending'));
 
 /** Badge colour per deduction type. */
 const DED_BADGE: Record<string, string> = {
@@ -296,13 +297,12 @@ function AdvancesTab({ canCreate, canEdit, reloadKey }: { canCreate: boolean; ca
 /* ------------------------------ Deductions ------------------------------ */
 
 function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean; reloadKey: number; initialStatus: string }) {
-  const initial = (DED_STATUS.find(([k]) => k === initialStatus)?.[0] || 'pending') as (typeof DED_STATUS)[number][0];
-  const [status, setStatus] = useState(initial);
-  const [type, setType] = useState<(typeof DED_TYPE)[number][0]>('all');
+  const [status, setStatus] = useState<DedStatus>(() => dedStatusOf(initialStatus));
+  const [type, setType] = useState<'all' | DeductionType>('all');
   const [range, setRange] = useState<DayRange>(() => makeRange('all'));
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<PayrollDeduction[]>([]);
-  const [meta, setMeta] = useState<(PageMeta & { summary?: DeductionSummary; byDay?: DayTotal[] }) | null>(null);
+  const [meta, setMeta] = useState<(PageMeta & { summary?: DeductionSummary; byDay?: DayTotal[]; byType?: DeductionTypeCount[]; ownOnly?: boolean }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState<PayrollDeduction | null>(null);
@@ -333,14 +333,49 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
     setWaiving(null);
     load();
   };
+  const typeCount = (k: string) => meta?.byType?.find((t) => t.key === k)?.count ?? 0;
+  const allCount = (meta?.byType || []).reduce((n, t) => n + t.count, 0);
+  const typeTabs: ['all' | DeductionType, string][] = [['all', 'All'], ...DEDUCTION_TYPE_TABS];
 
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      {meta?.ownOnly && (
+        <p className="text-xs text-honey-900 bg-honey-50 border border-honey-200 rounded-lg px-3 py-2 mb-3">Showing only the deductions you added.</p>
+      )}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
         <StatTile label="Waiting approval" value={s ? formatRs(s.pending.amount) : '—'} hint={s ? `${s.pending.count} item(s)` : undefined} tone={s && s.pending.count ? 'warn' : undefined} />
-        <StatTile label="Approved, to cut" value={s ? formatRs(s.approved.amount) : '—'} hint={s ? `${s.approved.count} item(s)` : undefined} />
-        <StatTile label="Cut from pay" value={s ? formatRs(s.applied.amount) : '—'} hint={s ? `${s.applied.count} item(s)` : undefined} tone="good" />
+        <StatTile
+          label="Approved"
+          value={s ? formatRs(s.approved.amount + s.applied.amount) : '—'}
+          hint={s ? `${s.approved.count + s.applied.count} item(s) · ${formatRs(s.applied.amount)} already cut from pay` : undefined}
+          tone="good"
+        />
         <StatTile label="Waived" value={s ? formatRs(s.waived.amount) : '—'} hint={s ? `${s.waived.count} item(s)` : undefined} />
+      </div>
+      {/* Type tabs: All first, then each type with its count (owner 2026-11-19). */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3" role="tablist" aria-label="Deduction type">
+        {typeTabs.map(([k, label]) => {
+          const n = k === 'all' ? allCount : typeCount(k);
+          const on = type === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => {
+                setType(k);
+                setPage(1);
+              }}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
+                on ? 'bg-honey-500 border-honey-500 text-gray-900' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+              <span className={`text-[11px] tabular-nums px-1.5 rounded-full ${on ? 'bg-white/60' : 'bg-gray-100 text-gray-500'}`}>{n}</span>
+            </button>
+          );
+        })}
       </div>
       <div className="flex flex-wrap gap-2 mb-3">
         <Filter
@@ -349,15 +384,6 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
           label="Status"
           onChange={(v) => {
             setStatus(v);
-            setPage(1);
-          }}
-        />
-        <Filter
-          value={type}
-          options={DED_TYPE}
-          label="Type"
-          onChange={(v) => {
-            setType(v);
             setPage(1);
           }}
         />
@@ -415,12 +441,18 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
                                 </>
                               )}
                               {d.appliedMonth && ` · cut in ${d.appliedMonth}`}
+                              {d.addedByName && (
+                                <>
+                                  {' · '}Added by <b className="font-medium text-gray-800">{d.mine ? `${d.addedByName} (you)` : d.addedByName}</b>
+                                </>
+                              )}
+                              {d.decidedByName && d.status !== 'pending' && ` · ${d.status === 'waived' ? 'waived' : 'approved'} by ${d.decidedByName}`}
                             </p>
                             {d.note && <p className="text-xs text-gray-500 mt-0.5 break-words">{d.note}</p>}
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-3">
                             <span className="text-base font-semibold tabular-nums text-red-700">{formatRs(d.amount)}</span>
-                            {canEdit && (d.status === 'pending' || d.status === 'approved') && (
+                            {(d.canDecide ?? canEdit) && (d.status === 'pending' || d.status === 'approved') && (
                               <div className="flex items-center gap-1.5">
                                 {d.status === 'pending' && (
                                   <button
@@ -672,7 +704,12 @@ function AdvancesPageInner() {
   const canCreate = can('payroll', 'create');
   const canEdit = can('payroll', 'edit');
   const canDelete = can('payroll', 'delete');
-  const [tab, setTab] = useState<Tab>(() => TABS.find((t) => t === params.get('tab')) || 'advances');
+  // "Deductions: add & approve own only" (Manager): the server limits the list and approvals to their own.
+  const ownView = can('payroll_own_deductions', 'view') || can('payroll_own_deductions', 'create') || can('payroll_own_deductions', 'edit');
+  const onlyDeductions = !canView && ownView; // no payroll access: just the Deductions tab
+  const canAddDeduction = canCreate || can('payroll_own_deductions', 'create');
+  const canApproveDeduction = canEdit || can('payroll_own_deductions', 'edit');
+  const [tab, setTab] = useState<Tab>(() => (onlyDeductions ? 'deductions' : TABS.find((t) => t === params.get('tab')) || 'advances'));
   const [modal, setModal] = useState<null | 'advance' | 'deduction' | 'tip'>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -685,7 +722,7 @@ function AdvancesPageInner() {
     setReloadKey((k) => k + 1);
   };
 
-  if (!canView) {
+  if (!canView && !ownView) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <NoAccessCard />
@@ -701,9 +738,16 @@ function AdvancesPageInner() {
           subtitle="Advances and deductions are taken from salary by payroll. Tips are a gift: they go to expenses, not cut from salary."
           actions={
             <>
-              <Link href="/admin/hr/payroll" className={secondaryBtn}>
-                <Banknote className="h-4 w-4" /> Payroll
-              </Link>
+              {canView && (
+                <Link href="/admin/hr/payroll" className={secondaryBtn}>
+                  <Banknote className="h-4 w-4" /> Payroll
+                </Link>
+              )}
+              {tab === 'deductions' && canAddDeduction && !canCreate && (
+                <button type="button" onClick={() => setModal('deduction')} className={primaryBtn}>
+                  <MinusCircle className="h-4 w-4" /> Add deduction
+                </button>
+              )}
               {canCreate &&
                 (tab === 'advances' ? (
                   <button type="button" onClick={() => setModal('advance')} className={primaryBtn}>
@@ -729,7 +773,9 @@ function AdvancesPageInner() {
               ['deductions', 'Deductions', <MinusCircle key="d" className="h-4 w-4" />],
               ['tips', 'Tips', <Gift key="t" className="h-4 w-4" />],
             ] as [Tab, string, React.ReactNode][]
-          ).map(([k, label, icon]) => (
+          )
+            .filter(([k]) => !onlyDeductions || k === 'deductions')
+            .map(([k, label, icon]) => (
             <button
               key={k}
               type="button"
@@ -747,14 +793,14 @@ function AdvancesPageInner() {
         {tab === 'advances' ? (
           <AdvancesTab canCreate={canCreate} canEdit={canEdit} reloadKey={reloadKey} />
         ) : tab === 'deductions' ? (
-          <DeductionsTab canEdit={canEdit} reloadKey={reloadKey} initialStatus={params.get('status') || 'pending'} />
+          <DeductionsTab canEdit={canApproveDeduction} reloadKey={reloadKey} initialStatus={params.get('status') || 'pending'} />
         ) : (
           <TipsTab canCreate={canCreate} canDelete={canDelete} reloadKey={reloadKey} onGive={() => setModal('tip')} />
         )}
       </div>
 
       {modal === 'advance' && <GiveAdvanceModal onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'deduction' && <AddDeductionModal canApprove={canEdit} onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'deduction' && <AddDeductionModal canApprove={canApproveDeduction}onClose={() => setModal(null)} onDone={done} />}
       {modal === 'tip' && <GiveTipModal onClose={() => setModal(null)} onDone={done} />}
     </div>
   );

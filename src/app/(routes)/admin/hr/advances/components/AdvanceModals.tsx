@@ -9,9 +9,11 @@ import { ErrorBox, Field, Modal, Toggle, inputClass, primaryBtn, secondaryBtn } 
 import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import MoneyInput from '@/components/ui/MoneyInput';
 import {
+  MANUAL_DEDUCTION_TYPES,
   METHODS,
   METHOD_LABEL,
   payrollApi,
+  type ManualDeductionType,
   todayPKT,
   type PayMethod,
   type PayrollDeduction,
@@ -149,7 +151,7 @@ export function GiveAdvanceModal({ onClose, onDone }: { onClose: () => void; onD
 export function AddDeductionModal({ canApprove, onClose, onDone }: { canApprove: boolean; onClose: () => void; onDone: (d: PayrollDeduction) => void }) {
   const { busy, error, setError, run } = useSubmit();
   const [staff, setStaff] = useState<StaffOption | null>(null);
-  const [type, setType] = useState<'damage' | 'other'>('damage');
+  const [type, setType] = useState<ManualDeductionType>('damage');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayPKT());
   const [note, setNote] = useState('');
@@ -182,9 +184,12 @@ export function AddDeductionModal({ canApprove, onClose, onDone }: { canApprove:
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Type" required>
-            <SearchSelect value={type} onChange={(e) => setType(e.target.value as 'damage' | 'other')} className={inputClass}>
-              <option value="damage">Damage</option>
-              <option value="other">Other</option>
+            <SearchSelect value={type} onChange={(e) => setType(e.target.value as ManualDeductionType)} className={inputClass}>
+              {MANUAL_DEDUCTION_TYPES.map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
             </SearchSelect>
           </Field>
           <Field label="Amount (Rs)" required>
