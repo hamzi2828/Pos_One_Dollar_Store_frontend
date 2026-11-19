@@ -13,7 +13,7 @@ export type DeductionType = 'till_shortage' | 'damage' | 'other' | 'absent' | 'h
 // 'damage' covers damage AND missing / lost items (owner 2026-11-19; old 'missing_item' rows count here too).
 export type ManualDeductionType = 'damage' | 'fine' | 'uniform' | 'other';
 export const MANUAL_DEDUCTION_TYPES: [ManualDeductionType, string][] = [
-  ['damage', 'Damage / missing item'],
+  ['damage', 'Damage'],
   ['fine', 'Fine / rule break'],
   ['uniform', 'Uniform / ID card'],
   ['other', 'Other'],
