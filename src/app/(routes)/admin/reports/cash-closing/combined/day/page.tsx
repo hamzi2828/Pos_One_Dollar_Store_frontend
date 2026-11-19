@@ -7,10 +7,15 @@
 import { Fragment, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { AlertCircle, FileDown, Layers, Loader2 } from 'lucide-react';
+import { AlertCircle, Check, FileDown, Layers, Loader2, Pencil, X } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
+
+// Card machine settlement of the day (owner 2026-11-20): the total the POS machine
+// settled, typed by the admin. When set, it is used as "Cashiers gave" for card,
+// so the totals below show over / short against the system card sales.
+type CardSettlement = { day: string; amount: number; note: string; byName: string; at: string } | null;
 import { tillFigures, rowFigures, type TillFigs as Figs } from '../../../../till/components/tillPdf';
 import { formatTime, type CashCount } from '@/components/store/TillStatusBar';
 import { CountTable, StatusBadge, type TillDetail } from '../../../../till/components/tillUi';
@@ -42,6 +47,28 @@ function DayPage() {
   const [tills, setTills] = useState<TillDetail[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const canEdit = can('till_verify', 'edit');
+  const [settlement, setSettlement] = useState<CardSettlement>(null);
+  const [editCard, setEditCard] = useState(false);
+  const [cardDraft, setCardDraft] = useState('');
+  const [cardSaving, setCardSaving] = useState(false);
+
+  const saveSettlement = async () => {
+    if (cardSaving) return;
+    const raw = cardDraft.replace(/[,\s]/g, '');
+    if (raw !== '' && !(Number(raw) >= 0)) return toast.error('Enter a valid amount.');
+    setCardSaving(true);
+    try {
+      const r = await storeApi.put<CardSettlement>('/till-sessions/card-settlement', { day, amount: raw === '' ? null : Number(raw) });
+      setSettlement(r.data ?? null);
+      setEditCard(false);
+      toast.success(raw === '' ? 'Card settlement removed' : 'Card settlement saved');
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'Could not save.'));
+    } finally {
+      setCardSaving(false);
+    }
+  };
 
   const downloadPdf = async () => {
     if (!tills || pdfBusy) return;
@@ -67,10 +94,16 @@ function DayPage() {
       );
       list.sort((a, b) => (a.counterName || '').localeCompare(b.counterName || '') || String(a.openedAt).localeCompare(String(b.openedAt)));
       setTills(list);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        storeApi
+          .get<CardSettlement>(`/till-sessions/card-settlement?day=${day}`)
+          .then((r) => setSettlement(r.data ?? null))
+          .catch(() => setSettlement(null));
+      }
     } catch (e) {
       setError(apiErrorMessage(e, 'Could not load the tills.'));
     }
-  }, [idKey]);
+  }, [idKey, day]);
 
   useEffect(() => {
     if (canView && idKey) load();
@@ -139,7 +172,11 @@ function DayPage() {
       target: r2(add('sysCash') - expensesAmt),
       hint: expensesAmt ? 'after expenses' : undefined,
     },
-    { label: 'POS machine (card)', entered: anyGiven('card') ? add('card') : null, system: add('sysCard') },
+    {
+      label: 'POS machine (card)',
+      entered: settlement ? settlement.amount : anyGiven('card') ? add('card') : null,
+      system: add('sysCard'),
+    },
     { label: 'Bank (UBL)', entered: anyGiven('bank') ? add('bank') : null, system: add('sysBank') },
     { label: 'JazzCash', entered: anyGiven('jazz') ? add('jazz') : null, system: add('sysJazz') },
   ];
@@ -290,8 +327,56 @@ function DayPage() {
             {rows.map((r) => (
               <Fragment key={r.label}>
                 <tr>
-                  <td className="py-1.5 pr-2 text-gray-700">{r.label}</td>
-                  <td className="py-1.5 text-right tabular-nums">{r.entered != null ? formatRs(r.entered) : '—'}</td>
+                  <td className="py-1.5 pr-2 text-gray-700">
+                    {r.label}
+                    {r.label === 'POS machine (card)' && settlement && (
+                      <span className="block text-[10px] text-gray-400">
+                        machine settlement{settlement.byName ? ` · by ${settlement.byName}` : ''} · cashiers said{' '}
+                        {anyGiven('card') ? formatRs(add('card')) : '—'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-right tabular-nums">
+                    {r.label === 'POS machine (card)' && editCard ? (
+                      <span className="inline-flex items-center gap-1">
+                        <input
+                          autoFocus
+                          inputMode="decimal"
+                          value={cardDraft}
+                          onChange={(e) => setCardDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveSettlement();
+                            if (e.key === 'Escape') setEditCard(false);
+                          }}
+                          placeholder="Machine total"
+                          className="w-28 rounded-md border border-gray-300 px-2 py-1 text-right text-sm focus:border-honey-500 focus:outline-none"
+                        />
+                        <button type="button" onClick={saveSettlement} disabled={cardSaving} title="Save" className="rounded p-1 text-green-700 hover:bg-green-50">
+                          {cardSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        </button>
+                        <button type="button" onClick={() => setEditCard(false)} title="Cancel" className="rounded p-1 text-gray-500 hover:bg-gray-100">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        {r.entered != null ? formatRs(r.entered) : '—'}
+                        {r.label === 'POS machine (card)' && canEdit && (
+                          <button
+                            type="button"
+                            title="Enter the POS machine settlement (leave empty to use what the cashiers entered)"
+                            onClick={() => {
+                              setCardDraft(settlement ? String(settlement.amount) : '');
+                              setEditCard(true);
+                            }}
+                            className="rounded p-1 text-gray-400 hover:bg-honey-50 hover:text-honey-800"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-1.5 text-right tabular-nums text-gray-600">{formatRs(r.system)}</td>
                   <td className="py-1.5 pl-2 text-right text-xs tabular-nums">
                     <Diff entered={r.entered} system={r.target !== undefined ? r.target : r.system} />
