@@ -88,19 +88,28 @@ export const dayLabel = (d: string) =>
   d ? new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
 
-/** Every day, all counters added together. */
-export function ByDayTable({ rows }: { rows: ReportRow[] }) {
+/**
+ * Every day, all counters added together. `settlements` (day -> POS machine settlement,
+ * typed on the day page) replaces the cashiers' card for that day; the difference
+ * goes into the day's over / short (owner 2026-11-20).
+ */
+export function ByDayTable({ rows, settlements = {} }: { rows: ReportRow[]; settlements?: Record<string, number> }) {
   const days = byDay(rows);
   const allFigs = days.flatMap((d) => d.figs);
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  // Machine settlement minus what the cashiers entered for card, per day.
+  const cardAdj = (day: string, figs: Fig[]) => (settlements[day] != null ? r2(settlements[day] - addFig(figs, 'card')) : 0);
+  const allAdj = r2(days.reduce((t, d) => t + cardAdj(d.day, d.figs), 0));
   const th = 'px-4 py-2 text-right font-semibold';
   const td = 'px-4 py-2 text-right tabular-nums whitespace-nowrap';
-  const cells = (figs: Fig[], bold = true) => (
+  const cells = (figs: Fig[], bold = true, adj = 0, machine = false) => (
     <>
       <td className={td}>
         <Pair got={addFig(figs, 'cash')} should={addFig(figs, 'sysCash')} />
       </td>
       <td className={td}>
-        <Pair got={addFig(figs, 'card')} should={addFig(figs, 'sysCard')} />
+        <Pair got={r2(addFig(figs, 'card') + adj)} should={addFig(figs, 'sysCard')} />
+        {machine && <span className="block text-[10px] text-honey-800">machine settlement</span>}
       </td>
       <td className={td}>
         <Pair got={addFig(figs, 'bank')} should={addFig(figs, 'sysBank')} />
@@ -110,7 +119,7 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
       </td>
       <td className={`${td} text-gray-700`}>{addFig(figs, 'expenses') ? formatRs(addFig(figs, 'expenses')) : '—'}</td>
       <td className={`${td} text-rose-700`}>{addFig(figs, 'discounts') ? formatRs(addFig(figs, 'discounts')) : '—'}</td>
-      <td className={`${td} ${bold ? 'font-semibold' : ''} ${varianceClass(addFig(figs, 'over'))}`}>{varianceLabel(addFig(figs, 'over'))}</td>
+      <td className={`${td} ${bold ? 'font-semibold' : ''} ${varianceClass(r2(addFig(figs, 'over') + adj))}`}>{varianceLabel(r2(addFig(figs, 'over') + adj))}</td>
     </>
   );
   return (
@@ -140,7 +149,7 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
                   {d.tills} till{d.tills === 1 ? '' : 's'}
                 </span>
               </td>
-              {cells(d.figs)}
+              {cells(d.figs, true, cardAdj(d.day, d.figs), settlements[d.day] != null)}
               <td className="px-4 py-2 text-right">
                 <a
                   href={`/admin/reports/cash-closing/combined/day?day=${d.day}&ids=${d.ids.join(',')}`}
@@ -160,7 +169,7 @@ export function ByDayTable({ rows }: { rows: ReportRow[] }) {
               <td className="px-4 py-2" colSpan={2}>
                 Total ({days.length} days)
               </td>
-              {cells(allFigs, false)}
+              {cells(allFigs, false, allAdj)}
               <td />
             </tr>
           </tfoot>

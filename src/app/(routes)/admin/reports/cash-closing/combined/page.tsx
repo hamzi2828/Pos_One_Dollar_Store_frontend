@@ -11,7 +11,7 @@ import { storeApi, apiErrorMessage } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard, inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import { SearchSelect } from '@/components/ui/SearchSelect';
-import { ByDayTable, dayString, type ReportRow } from '../closingBits';
+import { ByDayTable, byDay, dayString, type ReportRow } from '../closingBits';
 
 function CombinedPage() {
   const { can, loaded } = useAccess();
@@ -23,6 +23,7 @@ function CombinedPage() {
   const [to, setTo] = useState(() => sp.get('to') || dayString(today));
   const [status, setStatus] = useState(() => sp.get('status') || '');
   const [rows, setRows] = useState<ReportRow[]>([]);
+  const [settlements, setSettlements] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reqRef = useRef(0);
@@ -41,6 +42,17 @@ function CombinedPage() {
         if (page >= pages) break;
       }
       if (id === reqRef.current) setRows(all);
+      // POS machine settlement of each day in the list (typed on the day page).
+      const dayKeys = [...new Set(byDay(all).map((d) => d.day))].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+      const got = await Promise.all(
+        dayKeys.map((d) =>
+          storeApi
+            .get<{ amount: number } | null>(`/till-sessions/card-settlement?day=${d}`)
+            .then((r) => [d, r.data ? r.data.amount : null] as const)
+            .catch(() => [d, null] as const)
+        )
+      );
+      if (id === reqRef.current) setSettlements(Object.fromEntries(got.filter(([, a]) => a != null)) as Record<string, number>);
     } catch (e) {
       if (id === reqRef.current) setError(apiErrorMessage(e, 'Could not load the report.'));
     } finally {
@@ -109,7 +121,7 @@ function CombinedPage() {
           <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 text-center py-12 text-sm text-gray-500">No closed tills in this period.</div>
         ) : (
           <div className={loading ? 'opacity-60' : ''}>
-            <ByDayTable rows={rows} />
+            <ByDayTable rows={rows} settlements={settlements} />
           </div>
         )}
       </div>

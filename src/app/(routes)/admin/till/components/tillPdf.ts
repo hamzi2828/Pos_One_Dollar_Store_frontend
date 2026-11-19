@@ -751,18 +751,27 @@ export async function downloadTillBillsPdf(t: TillDetail) {
 
 /* -------------------------------------------------------- all counters */
 
-export async function downloadCombinedDayPdf(tills: TillDetail[], dayLabel: string, day: string) {
+export async function downloadCombinedDayPdf(
+  tills: TillDetail[],
+  dayLabel: string,
+  day: string,
+  // POS machine settlement of the day (typed by the admin): replaces the cashiers' card in the totals.
+  cardSettlement?: { amount: number; byName?: string } | null
+) {
   const figs = tills.map(tillFigures);
   const rows = figs.map(rowFigures);
   const add = (k: keyof Omit<TillFigs, 'drawerCount'>) => r2(figs.reduce((t, f) => t + ((f[k] as number | null) || 0), 0));
   const any = (k: 'cash' | 'card' | 'bank' | 'jazz') => figs.some((f) => f[k] != null);
   const sumOf = (vals: (number | null)[]) => (vals.some((v) => v != null) ? r2(vals.reduce<number>((t, v) => t + (v || 0), 0)) : null);
+  // Machine settlement minus what the cashiers entered for card: added to the day totals.
+  const cardAdj = cardSettlement ? r2(cardSettlement.amount - add('card')) : 0;
+  const plusAdj = (v: number | null) => (cardSettlement ? r2((v || 0) + cardAdj) : v);
   const foot = {
-    given: sumOf(rows.map((r) => r.given)),
+    given: plusAdj(sumOf(rows.map((r) => r.given))),
     should: r2(rows.reduce((t, r) => t + r.should, 0)),
-    salesDiff: sumOf(rows.map((r) => r.salesDiff)),
+    salesDiff: plusAdj(sumOf(rows.map((r) => r.salesDiff))),
     changeDiff: sumOf(rows.map((r) => r.changeDiff)),
-    totalDiff: sumOf(rows.map((r) => r.totalDiff)),
+    totalDiff: plusAdj(sumOf(rows.map((r) => r.totalDiff))),
   };
 
   const rep = await newReport('landscape', `Cash closing · all counters · ${dayLabel}`);
@@ -852,7 +861,7 @@ To ${t.closedAt ? shortTime(t.closedAt) : 'still open'}`,
           less(add('expenses')),
           num(foot.should),
           sumGiven('cash'),
-          sumGiven('card'),
+          cardSettlement ? `${num(cardSettlement.amount)}*` : sumGiven('card'),
           sumGiven('bank'),
           sumGiven('jazz'),
           diffCell(foot.salesDiff, true),
@@ -874,6 +883,11 @@ To ${t.closedAt ? shortTime(t.closedAt) : 'still open'}`,
     if (expenses > 0) parts.push(`- expenses, payments & trip costs ${formatRs(expenses)}`);
     parts.push(`= ${formatRs(r2(add('sysCash') - expenses))}.`);
     if (discounts > 0) parts.push(`Sales are after discounts of ${formatRs(discounts)}.`);
+    if (cardSettlement) {
+      parts.push(
+        `* Card = POS machine settlement ${formatRs(cardSettlement.amount)}${cardSettlement.byName ? ` (entered by ${cardSettlement.byName})` : ''}; cashiers entered ${formatRs(add('card'))} (${cardAdj >= 0 ? '+' : '-'}${formatRs(Math.abs(cardAdj))}, in the All counters totals).`
+      );
+    }
     rep.y -= 3.5;
     rep.note(parts.join(' '), C.muted, 7.5);
     rep.gap(4);

@@ -104,7 +104,7 @@ function DayPage() {
     setPdfBusy(true);
     try {
       const { downloadCombinedDayPdf } = await import('../../../../till/components/tillPdf');
-      await downloadCombinedDayPdf(tills, dayLabel(day), day);
+      await downloadCombinedDayPdf(tills, dayLabel(day), day, settlement);
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not make the PDF.'));
     } finally {
