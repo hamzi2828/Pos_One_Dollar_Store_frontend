@@ -36,6 +36,8 @@ export default function StockReportPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [threshold, setThreshold] = useState<number>(10);
   const [search, setSearch] = useState('');
+  // Products list or units per category (owner 2026-11-20).
+  const [view, setView] = useState<'products' | 'category'>('products');
   const [data, setData] = useState<StockReport | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -196,7 +198,11 @@ export default function StockReportPage() {
       )}
 
       <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-3">
+          <FilterBtn label="Products" active={view === 'products'} onClick={() => setView('products')} />
+          <FilterBtn label="By category" active={view === 'category'} onClick={() => setView('category')} />
+        </div>
+        <div className={`flex items-center gap-1 ${view === 'category' ? 'hidden' : ''}`}>
           <FilterBtn label="All" active={filter === 'all'} onClick={() => setFilter('all')} />
           <FilterBtn label="Low Stock" active={filter === 'low'} onClick={() => setFilter('low')} />
           <FilterBtn label="Out of Stock" active={filter === 'out'} onClick={() => setFilter('out')} />
@@ -222,7 +228,68 @@ export default function StockReportPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {view === 'category' && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Category</th>
+                  <th className="px-3 py-2 text-right">Products</th>
+                  <th className="px-3 py-2 text-right">Units</th>
+                  <th className="px-3 py-2 text-right">In / low / out</th>
+                  <th className="px-3 py-2 text-right">Value at cost</th>
+                  <th className="px-3 py-2 text-right">Value at sale price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loading && !data ? (
+                  <tr><td colSpan={6} className="px-3 py-12 text-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" /></td></tr>
+                ) : !data?.byCategory?.length ? (
+                  <tr><td colSpan={6} className="px-3 py-12 text-center text-gray-400">No categories (the server may still be updating — refresh in a minute)</td></tr>
+                ) : (
+                  data.byCategory.map((c) => (
+                    <tr
+                      key={c.category}
+                      className="cursor-pointer hover:bg-gray-50"
+                      title="Show the products of this category"
+                      onClick={() => {
+                        setSearch(c.category === 'Uncategorized' ? '' : c.category);
+                        setFilter('all');
+                        setView('products');
+                      }}
+                    >
+                      <td className="px-3 py-2 font-medium text-gray-900">{c.category}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-600">{c.products}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold">{c.units.toLocaleString('en-PK')}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs">
+                        <span className="text-emerald-700">{c.inStock}</span> / <span className="text-orange-700">{c.lowStock}</span> /{' '}
+                        <span className="text-red-700">{c.outOfStock}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmt(c.costValue)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmt(c.saleValue)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              {!!data?.byCategory?.length && (
+                <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+                  <tr>
+                    <td className="px-3 py-2">All categories ({data.byCategory.length})</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{data.byCategory.reduce((t, c) => t + c.products, 0)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{data.byCategory.reduce((t, c) => t + c.units, 0).toLocaleString('en-PK')}</td>
+                    <td />
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(data.byCategory.reduce((t, c) => t + c.costValue, 0))}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmt(data.byCategory.reduce((t, c) => t + c.saleValue, 0))}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className={`bg-white rounded-lg border border-gray-200 overflow-hidden ${view === 'category' ? 'hidden' : ''}`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">

@@ -162,6 +162,17 @@ export interface StockReport {
     totalInventoryValue: number;
     threshold: number;
   };
+  /** Units per category (missing on an old server). Search applies, the stock filter does not. */
+  byCategory?: Array<{
+    category: string;
+    products: number;
+    units: number;
+    inStock: number;
+    lowStock: number;
+    outOfStock: number;
+    costValue: number;
+    saleValue: number;
+  }>;
   products: Array<{
     _id: string;
     name: string;
