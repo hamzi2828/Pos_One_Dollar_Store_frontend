@@ -247,6 +247,15 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     ...(c.goodsCost !== undefined && c.tripCost !== undefined
       ? [
           { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true },
+          // Each vendor's goods sold (adds up to the line above) + what was paid to them (owner 2026-11-20).
+          ...(c.byVendor || [])
+            .filter((v) => v.goodsCost !== 0)
+            .map((v) => ({
+              label: `    · ${v.name}`,
+              amount: -v.goodsCost,
+              indent: true,
+              hint: v.paid ? `paid ${formatRs(v.paid)} in this period` : "nothing paid in this period",
+            })),
           { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: "Share of trip costs in the goods sold" },
           ...(c.tripByType || []).map((t) => ({ label: `    · ${t.label}`, amount: -t.amount, indent: true, hint: "part of the trip costs above" })),
           { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
