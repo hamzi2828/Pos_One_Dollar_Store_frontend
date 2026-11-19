@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+.next
+out
+tsconfig.tsbuildinfo
+npm-debug.log*
+.env
+.env.*
+.claude
+.vercel

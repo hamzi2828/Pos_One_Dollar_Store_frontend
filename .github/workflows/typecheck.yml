@@ -1,0 +1,21 @@
+# Type check on every push (the Coolify build skips it to deploy faster).
+# A red X here = a type error went live; fix it in the next commit.
+name: typecheck
+
+on:
+  push:
+    branches: [main, coolify]
+  pull_request:
+
+jobs:
+  tsc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit -p .

@@ -43,6 +43,11 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Faster deploys: the type check runs on GitHub Actions
+  // (.github/workflows/typecheck.yml), not in the Coolify build.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },
