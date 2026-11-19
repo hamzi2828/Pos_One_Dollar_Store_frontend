@@ -57,6 +57,7 @@ import {
   Route,
   MonitorDown,
   Scale,
+  Gauge,
 } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { describeAccess } from '@/helper/access';
@@ -249,6 +250,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
   // System Settings Section
   const systemMenuItems: MenuItem[] = [
     { name: 'Activity Log', path: '/admin/activity-log', icon: <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'activity_log' },
+    { name: 'Connection & speed', path: '/admin/performance', icon: <Gauge className="w-4 h-4 sm:w-5 sm:h-5" />, superOnly: true },
     { name: 'Settings', path: '/admin/settings', icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'settings' },
     { name: 'Notifications', path: '/admin/notifications', icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'notifications' },
     { name: 'WhatsApp', path: '/admin/whatsapp', icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'whatsapp' },
