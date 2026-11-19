@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 export function GET() {
   return Response.json(
-    { id: process.env.VERCEL_GIT_COMMIT_SHA || 'dev' },
+    { id: process.env.VERCEL_GIT_COMMIT_SHA || process.env.SOURCE_COMMIT || 'dev' },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }
