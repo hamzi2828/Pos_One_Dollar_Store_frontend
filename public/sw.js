@@ -1,7 +1,8 @@
 /* DOLLAR & Co POS service worker (hand-written, no libraries).
  *
  * Goal: the POS screen (/admin/pos) opens and works with no internet.
- *  - Pages under /admin/pos: network first, cached copy when offline.
+ *  - Pages under /admin/pos: network first, cached copy when offline or
+ *    when the network has not answered within 4 s (slow / stalled link).
  *  - /_next/static/*: cache first (file names change with every build).
  *  - Images: stale-while-revalidate.
  *  - API calls (/api, the backend host) and anything else: never cached,
@@ -39,16 +40,33 @@ const isPosPage = (url) => url.pathname === POS_PATH || url.pathname.startsWith(
 /** Only a real, good page goes in the cache (not a redirect to sign-in). */
 const cacheablePage = (res) => res && res.ok && res.type === 'basic' && !res.redirected;
 
-async function pageNetworkFirst(request, url) {
+// A slow or stalled connection: after this long, open the saved copy of the
+// page instead of a white screen. The network answer still updates the saved
+// copy in the background, and the page checks /build-id for a newer version.
+const PAGE_TIMEOUT_MS = 4000;
+
+async function pageNetworkFirst(event, request, url) {
   const cache = await caches.open(PAGE_CACHE);
   // One copy per path (the ?tab=... query does not change the HTML).
   const key = url.origin + url.pathname;
+  const network = fetch(request);
+  // Save the answer in the background (the clone is taken before the page uses
+  // the body); the worker stays alive until it is saved.
+  event.waitUntil(
+    network.then((res) => (cacheablePage(res) ? cache.put(key, res.clone()) : undefined)).catch(() => undefined)
+  );
+  const hit = await cache.match(key, { ignoreVary: true });
   try {
-    const res = await fetch(request);
-    if (cacheablePage(res)) await cache.put(key, res.clone());
-    return res;
+    if (!hit) return await network;
+    // A saved copy exists: wait for the network only for a short time.
+    let timer;
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(null), PAGE_TIMEOUT_MS);
+    });
+    const res = await Promise.race([network, timeout]);
+    clearTimeout(timer);
+    return res || hit;
   } catch (err) {
-    const hit = await cache.match(key, { ignoreVary: true });
     if (hit) return hit;
     // Another POS page (e.g. an invoice) never opened before: say so plainly.
     return new Response(
@@ -115,7 +133,7 @@ self.addEventListener('fetch', (event) => {
   if (sameOrigin && url.pathname.startsWith('/api')) return;
 
   if (request.mode === 'navigate') {
-    if (sameOrigin && isPosPage(url)) event.respondWith(pageNetworkFirst(request, url));
+    if (sameOrigin && isPosPage(url)) event.respondWith(pageNetworkFirst(event, request, url));
     return;
   }
 
