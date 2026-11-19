@@ -192,6 +192,8 @@ export async function getPOSOrders(
   page: number;
   limit: number;
   summary?: { totalOrders: number; totalSales: number; totalPaid: number; totalPending: number };
+  /** Set when this user sees only the latest bills (permission pos_orders_recent_only). active = no search, list cut. */
+  recentOnly?: { limit: number; active: boolean };
 }> {
   if (!API_BASE_URL) {
     throw new Error("Missing NEXT_PUBLIC_BACKEND_URL");
@@ -233,6 +235,7 @@ export async function getPOSOrders(
     page: pg.page ?? 1,
     limit: pg.limit ?? (limit || 25),
     summary: response.summary,
+    recentOnly: response.recentOnly,
   };
 }
 

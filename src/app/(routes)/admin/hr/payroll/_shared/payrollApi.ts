@@ -10,11 +10,10 @@ export type PayMethod = 'cash' | 'bank' | 'easypaisa' | 'jazzcash';
 // (pending until approved). Staff can only hand-add the MANUAL_DEDUCTION_TYPES.
 export type DeductionType = 'till_shortage' | 'damage' | 'other' | 'absent' | 'half_day' | 'late' | 'missing_item' | 'staff_purchase' | 'fine' | 'uniform';
 /** Types a person can add by hand (the rest come from cash closing / attendance). */
-export type ManualDeductionType = 'damage' | 'missing_item' | 'staff_purchase' | 'fine' | 'uniform' | 'other';
+// 'damage' covers damage AND missing / lost items (owner 2026-11-19; old 'missing_item' rows count here too).
+export type ManualDeductionType = 'damage' | 'fine' | 'uniform' | 'other';
 export const MANUAL_DEDUCTION_TYPES: [ManualDeductionType, string][] = [
-  ['damage', 'Damage'],
-  ['missing_item', 'Missing / lost item'],
-  ['staff_purchase', 'Goods taken by staff'],
+  ['damage', 'Damage / missing item'],
   ['fine', 'Fine / rule break'],
   ['uniform', 'Uniform / ID card'],
   ['other', 'Other'],

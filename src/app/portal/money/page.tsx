@@ -9,12 +9,12 @@ import { humanize, moneyStatus, portalApi, type PortalMoney } from '../_lib/port
 
 const DEDUCTION_WORD: Record<string, string> = {
   till_shortage: 'Till short',
-  damage: 'Damage',
+  damage: 'Damage / missing item',
   other: 'Other',
   absent: 'Absent',
   half_day: 'Half days',
   late: 'Late',
-  missing_item: 'Missing item',
+  missing_item: 'Damage / missing item',
   staff_purchase: 'Goods taken',
   fine: 'Fine',
   uniform: 'Uniform / ID card',

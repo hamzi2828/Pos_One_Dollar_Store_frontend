@@ -327,6 +327,9 @@ function FullOrdersPage() {
   const [reloadTick, setReloadTick] = useState(0);
   const loadOrders = useCallback(() => setReloadTick((n) => n + 1), []);
 
+  // Manager (pos_orders_recent_only): server sends only the last few bills unless searching.
+  const [recentOnly, setRecentOnly] = useState<{ limit: number; active: boolean } | null>(null);
+
   // Debounce search — every keystroke shouldn't hit the API.
   const [debouncedSearch, setDebouncedSearch] = useState(() => (sp.get('q') || '').trim());
   useEffect(() => {
@@ -357,6 +360,7 @@ function FullOrdersPage() {
       .then((resp) => {
         setOrders(resp.orders);
         pg.setTotal(resp.total);
+        setRecentOnly(resp.recentOnly || null);
       })
       .catch((err) => {
         if ((err as Error).name === 'AbortError') return;
@@ -440,6 +444,12 @@ function FullOrdersPage() {
           </Link>
         </div>
       </div>
+
+      {recentOnly?.active && (
+        <p className="text-sm text-honey-900 bg-honey-50 border border-honey-200 rounded-lg px-3 py-2">
+          Only the last {recentOnly.limit} bills are shown. To find an older bill, search by order #, customer, phone or total.
+        </p>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 space-y-3">
