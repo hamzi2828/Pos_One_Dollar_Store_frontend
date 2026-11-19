@@ -1,18 +1,23 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { IdCard } from "lucide-react";
 import { Wordmark } from "@/components/ui/wordmark";
+import { isPortalHost } from "@/lib/portalHost";
 import { LoginForm, safeNext } from "./components/LoginForm";
 import { PortalOtpForm } from "./components/PortalOtpForm";
 
 // Staff sign-in, styled like the shop sign: lit letters on a black fascia.
 const AuthPage: React.FC = () => {
-  const next = safeNext(useSearchParams()?.get("next"));
-  // Opened from the "Employee Portal" button (or a /portal link).
-  const portal = !!next && next.startsWith("/portal");
+  const asked = safeNext(useSearchParams()?.get("next"));
+  // employee.dollarandco.org: only the Employee Portal sign-in, never the POS login.
+  const [portalHost, setPortalHost] = useState(false);
+  useEffect(() => setPortalHost(isPortalHost()), []);
+  const next = portalHost && !(asked && asked.startsWith("/portal")) ? "/portal" : asked;
+  // Opened from the "Employee Portal" button (or a /portal link), or on the employee address.
+  const portal = portalHost || (!!next && next.startsWith("/portal"));
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-brand-ink">
@@ -48,7 +53,7 @@ const AuthPage: React.FC = () => {
           {portal ? <PortalOtpForm next={next} /> : <LoginForm next={next} />}
         </div>
 
-        {portal ? (
+        {portalHost ? null : portal ? (
           <Link
             href="/authentication"
             className="mt-5 text-center text-xs font-medium text-white/60 underline-offset-2 hover:text-white hover:underline"

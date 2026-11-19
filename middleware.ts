@@ -18,21 +18,27 @@ export function middleware(req: NextRequest) {
   const isPortal = pathname === '/portal' || pathname.startsWith('/portal/');
 
   if (portalHost(req)) {
-    // Home page -> the portal.
-    if (pathname === '/') {
+    // Only the portal and its sign-in live on this address.
+    if (pathname === '/authentication') {
+      // Always the employee sign-in (next must be a /portal page), never the POS login.
+      const nextParam = req.nextUrl.searchParams.get('next') || '';
+      if (!nextParam.startsWith('/portal')) {
+        const url = req.nextUrl.clone();
+        url.search = '';
+        url.searchParams.set('next', '/portal');
+        return NextResponse.redirect(url);
+      }
+      return NextResponse.next();
+    }
+    // The admin panel (and the POS inside it) stays on the main address.
+    if (isAdmin) return NextResponse.redirect(`${MAIN_SITE}${pathname}${search}`);
+    // Home page and every other page -> the portal.
+    if (!isPortal) {
       const url = req.nextUrl.clone();
       url.pathname = '/portal';
       url.search = '';
       return NextResponse.redirect(url);
     }
-    // Sign-in page on the portal address always signs in to the portal.
-    if (pathname === '/authentication' && !req.nextUrl.searchParams.get('next')) {
-      const url = req.nextUrl.clone();
-      url.searchParams.set('next', '/portal');
-      return NextResponse.redirect(url);
-    }
-    // The admin panel is not on this address.
-    if (isAdmin) return NextResponse.redirect(`${MAIN_SITE}${pathname}${search}`);
   }
 
   if (!isAdmin && !isPortal) return NextResponse.next();
@@ -65,6 +71,9 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // '/' and '/authentication' only matter on the portal address (see portalHost).
-  matcher: ['/', '/authentication', '/admin', '/admin/:path*', '/portal', '/portal/:path*'],
+  // Every page (not Next.js files or static files like .png / .js): on the portal
+  // address any page other than the portal is redirected. On the main address only
+  // /admin and /portal are checked, as before.
+  // /build-id is the app's "is there a new version" check (src/app/build-id/route.ts).
+  matcher: ['/((?!_next/|build-id|favicon\\.ico|.*\\.[a-zA-Z0-9]+$).*)'],
 };

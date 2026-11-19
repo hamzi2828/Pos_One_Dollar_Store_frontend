@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { endPreview, previewAs } from './_lib/portalApi';
 import { CalendarDays, Home, LayoutDashboard, Loader2, LogOut, UserRound, Banknote, Coins, UserX } from 'lucide-react';
 import { Wordmark } from '@/components/ui/wordmark';
+import { isPortalHost } from '@/lib/portalHost';
 import { AccessProvider, useAccess } from '@/context/AccessContext';
 import { clearAllAuth, getAuthToken, getRole, isAuthenticated, isPortalToken } from '@/helper/helper';
 import axios from 'axios';
@@ -74,6 +75,9 @@ function PortalShell({ children }: { children: React.ReactNode }) {
 
   // "Admin panel" only for logins that can open something there.
   const role = getRole();
+  // employee.dollarandco.org: portal only, no link to the admin panel.
+  const [onPortalHost, setOnPortalHost] = useState(false);
+  useEffect(() => setOnPortalHost(isPortalHost()), []);
   const hasAdmin =
     role === 'admin' &&
     (!access || access.isSuperAdmin || Object.values(access.permissions || {}).some((list) => Array.isArray(list) && list.length > 0));
@@ -114,7 +118,7 @@ function PortalShell({ children }: { children: React.ReactNode }) {
           </Link>
           <span className="hidden sm:inline text-sm font-bold uppercase tracking-[0.15em] text-brand-yellow">Employee Portal</span>
           <div className="ml-auto flex items-center gap-2 min-w-0">
-            {hasAdmin && (
+            {hasAdmin && !onPortalHost && (
               <Link
                 href="/admin"
                 className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
@@ -172,7 +176,7 @@ function PortalShell({ children }: { children: React.ReactNode }) {
             <UserX className="h-10 w-10 text-gray-300 mx-auto mb-3" />
             <h1 className="text-base font-semibold text-gray-900">No employee record</h1>
             <p className="mt-1 text-sm text-gray-600">{NO_EMPLOYEE_MESSAGE}</p>
-            {hasAdmin && (
+            {hasAdmin && !onPortalHost && (
               <Link href="/admin" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-honey-700 hover:underline">
                 <LayoutDashboard className="h-4 w-4" /> Go to the admin panel
               </Link>
