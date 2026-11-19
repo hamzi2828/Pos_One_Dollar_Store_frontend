@@ -247,17 +247,7 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     ...(c.goodsCost !== undefined && c.tripCost !== undefined
       ? [
           { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true },
-          // Each vendor's goods sold (adds up to the line above) + what was paid to them (owner 2026-11-20).
-          ...(c.byVendor || [])
-            .filter((v) => v.goodsCost !== 0)
-            .map((v) => ({
-              label: `    · ${v.name}`,
-              amount: -v.goodsCost,
-              indent: true,
-              hint: v.paid ? `paid ${formatRs(v.paid)} in this period` : "nothing paid in this period",
-            })),
           { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: "Share of trip costs in the goods sold" },
-          ...(c.tripByType || []).map((t) => ({ label: `    · ${t.label}`, amount: -t.amount, indent: true, hint: "part of the trip costs above" })),
           { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
         ]
       : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: "Landed cost: price + trip costs" }]),
@@ -292,6 +282,28 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     { label: "Stock count differences", amount: -c.stockCount, prev: p ? -p.stockCount : undefined, indent: true },
     { label: "Depreciation of assets", amount: -c.depreciation, prev: p ? -p.depreciation : undefined, indent: true },
     { label: `Net profit · margin ${pctText(c.netMargin)}`, amount: c.netProfit, prev: p?.netProfit, kind: "total" as RowKind },
+    // Details at the bottom (owner 2026-11-20): they explain lines above, they are not taken off again.
+    ...((c.byVendor || []).some((v) => v.goodsCost !== 0)
+      ? [
+          { label: "Goods (vendor price) by vendor — detail of the line above", kind: "head" as RowKind },
+          ...(c.byVendor || [])
+            .filter((v) => v.goodsCost !== 0)
+            .map((v) => ({
+              label: v.name,
+              amount: v.goodsCost,
+              indent: true,
+              hint: `${Math.round(v.qty)} pieces · ${v.paid ? `paid ${formatRs(v.paid)} in this period` : "nothing paid in this period"}`,
+            })),
+          { label: "Total goods (vendor price)", amount: Math.round((c.byVendor || []).reduce((t, v) => t + v.goodsCost, 0) * 100) / 100, kind: "sub" as RowKind },
+        ]
+      : []),
+    ...((c.tripByType || []).length
+      ? [
+          { label: "Trip costs by type — detail of the line above", kind: "head" as RowKind },
+          ...(c.tripByType || []).map((t) => ({ label: t.label, amount: t.amount, indent: true })),
+          { label: "Total trip costs", amount: Math.round((c.tripByType || []).reduce((t, x) => t + x.amount, 0) * 100) / 100, kind: "sub" as RowKind },
+        ]
+      : []),
   ];
 }
 
