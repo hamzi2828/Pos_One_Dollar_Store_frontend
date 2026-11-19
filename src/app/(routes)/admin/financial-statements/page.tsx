@@ -254,6 +254,12 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
       ? [
           { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true, hint: perPiece(c.itemsSold, c.goodsCost ?? 0) },
           { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: `Share of trip costs in the goods sold · ${perPiece(c.itemsSold, c.tripCost ?? 0)}` },
+          ...(c.tripByType || []).map((t) => ({
+            label: `    · ${t.label}`,
+            amount: -t.amount,
+            indent: true,
+            hint: perPiece(c.itemsSold, t.amount),
+          })),
           { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
         ]
       : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: "Landed cost: price + trip costs" }]),
@@ -267,14 +273,6 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     { label: "Stock count differences", amount: -c.stockCount, prev: p ? -p.stockCount : undefined, indent: true },
     { label: "Depreciation of assets", amount: -c.depreciation, prev: p ? -p.depreciation : undefined, indent: true },
     { label: `Net profit · margin ${pctText(c.netMargin)}`, amount: c.netProfit, prev: p?.netProfit, kind: "total" as RowKind },
-    // Details at the bottom (owner 2026-11-20): they explain lines above, they are not taken off again.
-    ...((c.tripByType || []).length
-      ? [
-          { label: "Trip costs by type — detail of the line above", kind: "head" as RowKind },
-          ...(c.tripByType || []).map((t) => ({ label: t.label, amount: t.amount, indent: true })),
-          { label: "Total trip costs", amount: Math.round((c.tripByType || []).reduce((t, x) => t + x.amount, 0) * 100) / 100, kind: "sub" as RowKind },
-        ]
-      : []),
   ];
 }
 
