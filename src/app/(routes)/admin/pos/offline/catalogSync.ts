@@ -9,7 +9,8 @@ import { accessCan, type AccessInfo } from '@/helper/access';
 import type { POSCustomer, POSProduct, POSVariant } from '../types';
 import type { ScanMatch } from '../services/posProductService';
 import { idbGet, idbPut } from './db';
-import { isNetworkError, isOnline, reportNetworkFailure, reportNetworkOk } from './connectivity';
+import { fetchWithTimeout, isNetworkError, isOnline, reportNetworkFailure, reportNetworkOk } from './connectivity';
+import { failureKind, perfEvent, serverMsFrom } from './perfLog';
 import type { CatalogProduct, CatalogSnapshot } from './types';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
@@ -173,17 +174,35 @@ export async function syncCatalog(): Promise<boolean> {
   syncing = true;
   emit();
   try {
-    const res = await fetch(`${BACKEND_URL}/api/pos/offline/catalog`, {
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-      cache: 'no-store',
-    });
+    const t0 = performance.now();
+    let res: Response;
+    try {
+      // 90 s limit: a stalled download must not block the next refresh forever.
+      res = await fetchWithTimeout(`${BACKEND_URL}/api/pos/offline/catalog`, {
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        cache: 'no-store',
+      }, 90_000);
+    } catch (e) {
+      perfEvent({ kind: 'catalog', ms: performance.now() - t0, ok: false, outcome: failureKind(e), path: '/api/pos/offline/catalog' });
+      throw e;
+    }
     if (res.status === 502 || res.status === 503 || res.status === 504) throw Object.assign(new Error('Server not reachable'), { status: res.status });
     reportNetworkOk();
     if (!res.ok) {
       lastError = res.status === 403 ? 'No permission to download the offline catalogue' : `Catalogue download failed (${res.status})`;
       return false;
     }
-    const body = await res.json();
+    const text = await res.text();
+    perfEvent({
+      kind: 'catalog',
+      ms: performance.now() - t0,
+      serverMs: serverMsFrom(res),
+      ok: true,
+      outcome: 'ok',
+      path: '/api/pos/offline/catalog',
+      detail: { kb: Math.round(text.length / 1024) },
+    });
+    const body = JSON.parse(text);
     const data = (body?.data || null) as CatalogSnapshot | null;
     if (!data || !Array.isArray(data.products)) {
       lastError = 'Catalogue download was empty';

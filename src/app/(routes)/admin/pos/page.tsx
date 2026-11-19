@@ -40,6 +40,7 @@ import { decodeJwt, getAuthHeader, getAuthToken, type UserPayload } from '@/help
 import { useAccess } from '@/context/AccessContext';
 import OfflineBadge from './offline/OfflineBadge';
 import { useOfflineStatus } from './offline/useOfflineStatus';
+import { perfEvent, startPerfLogging } from './offline/perfLog';
 import { canSellOffline, getCatalogSnapshot, loadCatalog, lookupCatalogCode, searchCatalog } from './offline/catalogSync';
 import { isNetworkError, reportNetworkFailure, reportNetworkOk } from './offline/connectivity';
 import { isTypedCustomer, priceCartOffline, saveOfflineSale } from './offline/offlineSale';
@@ -85,6 +86,8 @@ export default function POSPage() {
   // ---------- offline selling
   const offlineEnabled = canSellOffline(access);
   const offline = useOfflineStatus(offlineEnabled);
+  // Speed log of this counter (page load, scans, pings) -> /admin/performance.
+  useEffect(() => startPerfLogging(), []);
   const offlineMode = offline.offlineMode;
   const offlineModeRef = useRef(offlineMode);
   offlineModeRef.current = offlineMode;
@@ -482,8 +485,10 @@ export default function POSPage() {
         reportNetworkFailure();
         if (offlineEnabledRef.current) {
           await loadCatalog();
+          perfEvent({ kind: 'scan_fallback', ok: true, outcome: 'fallback' });
           return lookupCatalogCode(code);
         }
+        perfEvent({ kind: 'scan_fallback', ok: false, outcome: 'no_offline_permission' });
       }
       throw e;
     }
