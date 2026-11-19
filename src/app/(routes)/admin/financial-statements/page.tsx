@@ -252,15 +252,24 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     { label: "Net sales", amount: c.netSales, prev: p?.netSales, kind: "sub" },
     ...(c.goodsCost !== undefined && c.tripCost !== undefined
       ? [
+          // Laid out like the expenses (owner 2026-11-20): heading, goods, each trip cost type,
+          // the trip total once after its types, then the total.
+          { label: "Cost of goods sold", kind: "head" as RowKind },
           { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true, hint: perPiece(c.itemsSold, c.goodsCost ?? 0) },
-          { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: `Share of trip costs in the goods sold · ${perPiece(c.itemsSold, c.tripCost ?? 0)}` },
           ...(c.tripByType || []).map((t) => ({
-            label: `    · ${t.label}`,
+            label: t.label,
             amount: -t.amount,
             indent: true,
-            hint: perPiece(c.itemsSold, t.amount),
+            hint: `Trip cost · ${perPiece(c.itemsSold, t.amount)}`,
           })),
-          { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind, hint: perPiece(c.itemsSold, c.costOfGoods) },
+          {
+            label: (c.tripByType || []).length ? `Trip costs (${(c.tripByType || []).map((t) => t.label).join(" + ")})` : "Trip costs (rent, builty, loading)",
+            amount: -(c.tripCost ?? 0),
+            prev: p && p.tripCost !== undefined ? -p.tripCost : undefined,
+            indent: true,
+            hint: `Share of trip costs in the goods sold · ${perPiece(c.itemsSold, c.tripCost ?? 0)}`,
+          },
+          { label: "Total cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind, hint: perPiece(c.itemsSold, c.costOfGoods) },
         ]
       : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: `Landed cost: price + trip costs · ${perPiece(c.itemsSold, c.costOfGoods)}` }]),
     { label: `Gross profit · margin ${pctText(c.grossMargin)}`, amount: c.grossProfit, prev: p?.grossProfit, kind: "sub", hint: perPiece(c.itemsSold, c.grossProfit) },
