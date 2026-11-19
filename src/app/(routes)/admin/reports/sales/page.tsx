@@ -172,7 +172,7 @@ export default function SalesReportPage() {
       ['POS Orders', `${s.posOrders} · ${fmt(s.posSales)}`],
       ['Total Sales', fmt(s.totalSales)],
       ['Total Cost', fmt(s.totalCost)],
-      ['Total Profit', `${fmt(s.totalProfit)} (${pct(s.totalProfit, s.totalSales) || '0%'})`],
+      ['Gross Profit', `${fmt(s.totalProfit)} (${pct(s.totalProfit, s.totalSales) || '0%'})`],
       ['Paid', fmt(s.totalPaid)],
       ['Pending', fmt(s.totalPending)],
       ['Cash', fmt(s.cashSales)],
@@ -193,7 +193,7 @@ export default function SalesReportPage() {
     y += 5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const header = ['Order #', 'Date', 'Customer', 'Method', 'Status', 'Items', 'Cost', 'Total', 'Profit'];
+    const header = ['Order #', 'Date', 'Customer', 'Method', 'Status', 'Items', 'Cost', 'Total', 'Gross profit'];
     const widths = [30, 20, 32, 16, 16, 12, 20, 20, 26];
     let x = margin;
     doc.setFillColor(243, 244, 246);
@@ -342,7 +342,7 @@ export default function SalesReportPage() {
             <Stat label="Total Sales" value={fmt(data.summary.totalSales)} />
             <Stat label="Total Cost" value={fmt(data.summary.totalCost)} />
             <Stat
-              label="Total Profit"
+              label="Gross Profit"
               value={`${fmt(data.summary.totalProfit)}${pct(data.summary.totalProfit, data.summary.totalSales) ? ` · ${pct(data.summary.totalProfit, data.summary.totalSales)}` : ''}`}
               accent={data.summary.totalProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}
             />
@@ -386,7 +386,7 @@ export default function SalesReportPage() {
                       <th className="px-3 py-2 text-right">Pending</th>
                       <th className="px-3 py-2 text-right">Items</th>
                       <th className="px-3 py-2 text-right">Cost</th>
-                      <th className="px-3 py-2 text-right">Profit · %</th>
+                      <th className="px-3 py-2 text-right">Gross profit · %</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -438,7 +438,7 @@ export default function SalesReportPage() {
                     <th className="px-3 py-2 text-right">Items</th>
                     <th className="px-3 py-2 text-right">Cost Price</th>
                     <th className="px-3 py-2 text-right">Total</th>
-                    <th className="px-3 py-2 text-right">Profit · %</th>
+                    <th className="px-3 py-2 text-right">Gross profit · %</th>
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
