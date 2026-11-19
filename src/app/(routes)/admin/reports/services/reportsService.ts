@@ -64,7 +64,12 @@ export interface SalesSummaryReport {
     totalPaid: number;
     totalPending: number;
     totalCost: number;
+    /** Gross profit = net sales - cost of goods (same as the financial statements). */
     totalProfit: number;
+    /** Bill lines after discounts, tax and refunded / cancelled bills left out, minus refunds paid (missing on an old server). */
+    netSales?: number;
+    /** Refunds paid back to customers (Refund expenses) in the window. */
+    refunds?: number;
     cashSales: number;
     cardSales: number;
     bankSales: number;
@@ -79,6 +84,7 @@ export interface SalesSummaryReport {
       name: string;
       orders: number;
       sales: number;
+      netSales?: number;
       paid: number;
       pending: number;
       cost: number;
@@ -98,6 +104,10 @@ export interface SalesSummaryReport {
     pendingAmount: number;
     costPrice: number;
     profit: number;
+    /** Bill's net sale (tax out); 0 for refunded / cancelled bills. */
+    netSale?: number;
+    /** false for refunded / cancelled bills (no profit). */
+    counted?: boolean;
     /** Pieces on the bill (sum of quantities). */
     itemCount?: number;
     /** Counter the bill was rung on ("Counter 1"), null when unknown. */

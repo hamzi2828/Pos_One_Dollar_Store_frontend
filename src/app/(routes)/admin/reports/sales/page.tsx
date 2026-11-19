@@ -172,7 +172,8 @@ export default function SalesReportPage() {
       ['POS Orders', `${s.posOrders} · ${fmt(s.posSales)}`],
       ['Total Sales', fmt(s.totalSales)],
       ['Total Cost', fmt(s.totalCost)],
-      ['Gross Profit', `${fmt(s.totalProfit)} (${pct(s.totalProfit, s.totalSales) || '0%'})`],
+      ['Net Sales (tax, refunds out)', fmt(s.netSales ?? s.totalSales)],
+      ['Gross Profit', `${fmt(s.totalProfit)} (${pct(s.totalProfit, s.netSales ?? s.totalSales) || '0%'})`],
       ['Paid', fmt(s.totalPaid)],
       ['Pending', fmt(s.totalPending)],
       ['Cash', fmt(s.cashSales)],
@@ -219,7 +220,7 @@ export default function SalesReportPage() {
         String(itemsOf(o)),
         o.costPrice > 0 ? fmt(o.costPrice) : '—',
         fmt(o.total),
-        o.costPrice > 0 ? `${fmt(o.profit)} ${pct(o.profit, o.total)}` : '—',
+        o.costPrice > 0 ? `${fmt(o.profit)} ${pct(o.profit, o.netSale ?? o.total)}` : '—',
       ];
       row.forEach((v, i) => {
         doc.text(String(v), x, y);
@@ -343,9 +344,15 @@ export default function SalesReportPage() {
             <Stat label="Total Cost" value={fmt(data.summary.totalCost)} />
             <Stat
               label="Gross Profit"
-              value={`${fmt(data.summary.totalProfit)}${pct(data.summary.totalProfit, data.summary.totalSales) ? ` · ${pct(data.summary.totalProfit, data.summary.totalSales)}` : ''}`}
+              value={`${fmt(data.summary.totalProfit)}${pct(data.summary.totalProfit, data.summary.netSales ?? data.summary.totalSales) ? ` · ${pct(data.summary.totalProfit, data.summary.netSales ?? data.summary.totalSales)}` : ''}`}
               accent={data.summary.totalProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}
             />
+            {data.summary.netSales != null && (
+              <Stat
+                label={data.summary.refunds ? `Net Sales · refunds −${fmt(data.summary.refunds)}` : 'Net Sales (tax out)'}
+                value={fmt(data.summary.netSales)}
+              />
+            )}
             <Stat label="Paid" value={fmt(data.summary.totalPaid)} />
             <Stat label="Pending" value={fmt(data.summary.totalPending)} />
             <Stat label="Avg Order" value={fmt(data.summary.avgOrderValue)} />
@@ -414,7 +421,7 @@ export default function SalesReportPage() {
                         <td className="px-3 py-2 text-right tabular-nums">{c.items}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmt(c.cost)}</td>
                         <td className={`px-3 py-2 text-right tabular-nums ${c.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                          {fmt(c.profit)} <span className="text-[10px] text-gray-500">{pct(c.profit, c.sales)}</span>
+                          {fmt(c.profit)} <span className="text-[10px] text-gray-500">{pct(c.profit, c.netSales ?? c.sales)}</span>
                         </td>
                       </tr>
                     ))}
@@ -493,7 +500,7 @@ export default function SalesReportPage() {
                             {o.costPrice > 0 ? (
                               <>
                                 {fmt(o.profit)}
-                                <span className="ml-1.5 text-xs font-medium opacity-80">{pct(o.profit, o.total)}</span>
+                                <span className="ml-1.5 text-xs font-medium opacity-80">{pct(o.profit, o.netSale ?? o.total)}</span>
                               </>
                             ) : (
                               <span className="text-gray-400">—</span>
