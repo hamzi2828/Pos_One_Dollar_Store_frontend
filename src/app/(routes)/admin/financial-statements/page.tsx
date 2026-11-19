@@ -34,6 +34,9 @@ interface IncomeNumbers {
   billDiscounts: number;
   taxCollected: number;
   refunds: number;
+  /** Bills refunded in full / part refunds (missing on an old server). */
+  refundsFull?: number;
+  refundsPartial?: number;
   netSales: number;
   costOfGoods: number;
   /** Cost of goods split (missing on an old server). */
@@ -247,8 +250,8 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
   const curExp = new Map(c.expenses.map((e) => [e.category, e.amount]));
   return [
     { label: "Revenue", kind: "head" },
-    { label: "Sales (after discounts, without tax)", amount: c.sales, prev: p?.sales, indent: true, hint: `${c.bills} bills · ${perPiece(c.itemsSold, c.sales)}` },
-    { label: "Refunds given", amount: -c.refunds, prev: p ? -p.refunds : undefined, indent: true },
+    { label: "Sales (after discounts, without tax)", amount: c.sales, prev: p?.sales, indent: true, hint: `${c.bills} bills · ${perPiece(c.itemsSold, c.sales - (c.refundsFull ?? 0))}${c.refundsFull ? ` · incl. refunded bills ${formatRs(c.refundsFull)}` : ""}` },
+    { label: "Refunds given", amount: -c.refunds, prev: p ? -p.refunds : undefined, indent: true, hint: c.refundsFull !== undefined ? `Whole bills ${formatRs(c.refundsFull)} + part refunds ${formatRs(c.refundsPartial ?? 0)} (same as Cash Flow)` : undefined },
     { label: "Net sales", amount: c.netSales, prev: p?.netSales, kind: "sub" },
     ...(c.goodsCost !== undefined && c.tripCost !== undefined
       ? [
