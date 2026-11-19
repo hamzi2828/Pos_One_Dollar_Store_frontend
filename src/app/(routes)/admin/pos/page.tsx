@@ -17,11 +17,8 @@ import { POSProduct, POSCart, CartItem, POSCustomer, POSVariant, PaymentMethodTy
 import ProductSearch from './components/ProductSearch';
 import ProductGrid from './components/ProductGrid';
 import CartPanel from './components/CartPanel';
-import CustomerSelector from './components/CustomerSelector';
-import VariantSelector from './components/VariantSelector';
-import PaymentModal from './components/PaymentModal';
-import HeldOrders from './components/HeldOrders';
-import PendingPaymentsTab from './components/PendingPaymentsTab';
+// Pop-ups and the Held / Pending tabs load after the main screen (components/lazyParts).
+import { CustomerSelector, VariantSelector, PaymentModal, HeldOrders, PendingPaymentsTab, ProductInsightPanel } from './components/lazyParts';
 import LastSaleBar from './components/LastSaleBar';
 import ScanAlertModal from './components/ScanAlertModal';
 import { getPOSProducts, getProductByBarcode, type ScanResult } from './services/posProductService';
@@ -52,7 +49,6 @@ import { logPos, type PosEventType } from './utils/activityLog';
 import { usePrintStation } from './hooks/usePrintStation';
 import { isTransferMethod, paymentMethodLabel } from './utils/paymentMethods';
 import TillStatusBar, { type TillStatus } from '@/components/store/TillStatusBar';
-import ProductInsightPanel from '@/components/store/ProductInsightPanel';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
