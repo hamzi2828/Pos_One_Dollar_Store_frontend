@@ -235,19 +235,25 @@ function Note({ tone = "info", children }: { tone?: "info" | "warn" | "good"; ch
 }
 
 // ---------------------------------------------------------------- rows
+/** "27,051 pieces × Rs 303.02 avg" (owner 2026-11-20). */
+const perPiece = (pieces: number, amount: number) => {
+  const n = Math.round(pieces || 0);
+  return n > 0 ? `${n.toLocaleString("en-PK")} pieces × ${formatRs(Math.round((amount / n) * 100) / 100)} avg` : `${n} pieces`;
+};
+
 function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
   const prevExp = new Map((p?.expenses || []).map((e) => [e.category, e.amount]));
   const cats = [...new Set([...c.expenses.map((e) => e.category), ...(p?.expenses || []).map((e) => e.category)])];
   const curExp = new Map(c.expenses.map((e) => [e.category, e.amount]));
   return [
     { label: "Revenue", kind: "head" },
-    { label: "Sales (after discounts, without tax)", amount: c.sales, prev: p?.sales, indent: true, hint: `${c.bills} bills · ${Math.round(c.itemsSold)} pieces` },
+    { label: "Sales (after discounts, without tax)", amount: c.sales, prev: p?.sales, indent: true, hint: `${c.bills} bills · ${perPiece(c.itemsSold, c.sales)}` },
     { label: "Refunds given", amount: -c.refunds, prev: p ? -p.refunds : undefined, indent: true },
     { label: "Net sales", amount: c.netSales, prev: p?.netSales, kind: "sub" },
     ...(c.goodsCost !== undefined && c.tripCost !== undefined
       ? [
-          { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true },
-          { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: "Share of trip costs in the goods sold" },
+          { label: "Goods (vendor price)", amount: -c.goodsCost, prev: p && p.goodsCost !== undefined ? -p.goodsCost : undefined, indent: true, hint: perPiece(c.itemsSold, c.goodsCost ?? 0) },
+          { label: "Trip costs (rent, builty, loading)", amount: -c.tripCost, prev: p && p.tripCost !== undefined ? -p.tripCost : undefined, indent: true, hint: `Share of trip costs in the goods sold · ${perPiece(c.itemsSold, c.tripCost ?? 0)}` },
           { label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind },
         ]
       : [{ label: "Cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, indent: true, hint: "Landed cost: price + trip costs" }]),
