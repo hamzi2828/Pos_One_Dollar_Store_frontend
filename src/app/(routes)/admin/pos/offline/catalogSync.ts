@@ -179,7 +179,12 @@ export async function syncCatalog(): Promise<boolean> {
     try {
       // 90 s limit: a stalled download must not block the next refresh forever.
       res = await fetchWithTimeout(`${BACKEND_URL}/api/pos/offline/catalog`, {
-        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+          // Unchanged since the last download -> server answers 304 with no body.
+          ...(current?.snapshot.etag ? { 'If-None-Match': current.snapshot.etag } : {}),
+        },
         cache: 'no-store',
       }, 90_000);
     } catch (e) {
@@ -188,6 +193,14 @@ export async function syncCatalog(): Promise<boolean> {
     }
     if (res.status === 502 || res.status === 503 || res.status === 504) throw Object.assign(new Error('Server not reachable'), { status: res.status });
     reportNetworkOk();
+    if (res.status === 304 && current) {
+      // Nothing changed: keep the saved list, just mark it as checked now.
+      perfEvent({ kind: 'catalog', ms: performance.now() - t0, serverMs: serverMsFrom(res), ok: true, outcome: 'not_modified', path: '/api/pos/offline/catalog' });
+      current.snapshot.savedAt = new Date().toISOString();
+      await idbPut('catalog', current.snapshot, SNAPSHOT_KEY).catch(() => undefined);
+      lastError = null;
+      return true;
+    }
     if (!res.ok) {
       lastError = res.status === 403 ? 'No permission to download the offline catalogue' : `Catalogue download failed (${res.status})`;
       return false;
@@ -220,6 +233,7 @@ export async function syncCatalog(): Promise<boolean> {
       shop: data.shop,
       till: data.till,
       savedAt: new Date().toISOString(),
+      etag: res.headers.get('ETag') || (data as { etag?: string }).etag || undefined,
     };
     await idbPut('catalog', snapshot, SNAPSHOT_KEY);
     current = buildIndex(snapshot);

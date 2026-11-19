@@ -122,6 +122,8 @@ export interface CatalogSnapshot {
   till?: { required?: boolean };
   /** Set on the PC when saved. */
   savedAt?: string;
+  /** Server ETag of this download: sent back as If-None-Match, 304 = still current. */
+  etag?: string;
 }
 
 /* ---------------- POST /api/pos/offline/orders ---------------- */
