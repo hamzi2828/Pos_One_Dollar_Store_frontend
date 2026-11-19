@@ -34,6 +34,9 @@ interface PartnersData {
   since: string;
   grossProfit?: number;
   grossMargin?: number | null;
+  /** Gross profit − totalExpenses − otherCosts = net profit. */
+  totalExpenses?: number;
+  otherCosts?: number;
   netMargin?: number | null;
   netProfit: number;
   totalShare: number;
@@ -105,11 +108,15 @@ export default function PartnersView() {
   const td = "px-3 py-2.5 text-right tabular-nums whitespace-nowrap";
   const stockOf = (pct: number) => (d.worth ? (d.worth.stock * pct) / 100 : 0);
   const equityOf = (pct: number) => (d.worth ? (d.worth.netWorth * pct) / 100 : 0);
+  // Everything between gross and net profit: expenses + damage / stock count / depreciation.
+  const costs = d.grossProfit !== undefined ? d.grossProfit - d.netProfit : null;
+  const other = d.otherCosts ?? 0;
 
   const exportPdf = () => {
     const rs = (n: number) => (n < 0 ? `(Rs ${Math.round(-n).toLocaleString("en-PK")})` : `Rs ${Math.round(n).toLocaleString("en-PK")}`);
     const summary: [string, string][] = [];
     if (d.grossProfit !== undefined) summary.push(["Gross profit", rs(d.grossProfit)]);
+    if (costs !== null) summary.push(["Expenses", rs(-costs)]);
     summary.push(["Net profit", rs(d.netProfit)], ["Taken by partners", rs(d.totals.taken)], ["Profit still in the company", rs(d.totals.profitLeft)]);
     if (d.worth)
       summary.push(
@@ -148,13 +155,25 @@ export default function PartnersView() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
         {d.grossProfit !== undefined && (
           <StatCard
             label="Gross profit"
             value={money(d.grossProfit)}
             hint={`Sales − cost of goods${d.grossMargin != null ? ` · ${d.grossMargin}%` : ""}`}
             tone="info"
+          />
+        )}
+        {costs !== null && (
+          <StatCard
+            label="Expenses"
+            value={money(-costs)}
+            hint={
+              other
+                ? `Expenses ${formatRs(d.totalExpenses ?? costs - other)} + damage / stock / depreciation ${formatRs(other)}`
+                : "Gross profit − expenses = net profit"
+            }
+            tone="bad"
           />
         )}
         <StatCard
