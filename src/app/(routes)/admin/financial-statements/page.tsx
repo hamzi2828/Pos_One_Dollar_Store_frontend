@@ -266,6 +266,27 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     ...cats.map((cat) => ({ label: cat, amount: -(curExp.get(cat) || 0), prev: p ? -(prevExp.get(cat) || 0) : undefined, indent: true })),
     { label: "Total expenses", amount: -c.totalExpenses, prev: p ? -p.totalExpenses : undefined, kind: "sub" as RowKind },
     { label: "Operating profit", amount: c.operatingProfit, prev: p?.operatingProfit, kind: "sub" as RowKind },
+    // Paid to each vendor in the period (owner 2026-11-20). For information only: paying a
+    // vendor is not an expense (the goods' cost is in Cost of goods), so profit does not change.
+    ...((c.byVendor || []).some((v) => v.paid)
+      ? [
+          { label: "Vendor payments (for information — not taken off profit)", kind: "head" as RowKind },
+          ...(c.byVendor || [])
+            .filter((v) => v.paid)
+            .sort((a, b) => b.paid - a.paid)
+            .map((v) => ({
+              label: v.name,
+              amount: v.paid,
+              indent: true,
+              hint: `${v.payments} payment${v.payments === 1 ? "" : "s"} · goods sold ${formatRs(v.goodsCost)}`,
+            })),
+          {
+            label: "Total paid to vendors",
+            amount: Math.round((c.byVendor || []).reduce((t, v) => t + v.paid, 0) * 100) / 100,
+            kind: "sub" as RowKind,
+          },
+        ]
+      : []),
     { label: "Other costs", kind: "head" as RowKind },
     { label: "Damaged stock", amount: -c.damage, prev: p ? -p.damage : undefined, indent: true, hint: c.damageCount ? `${c.damageCount} approved records` : undefined },
     { label: "Stock count differences", amount: -c.stockCount, prev: p ? -p.stockCount : undefined, indent: true },
