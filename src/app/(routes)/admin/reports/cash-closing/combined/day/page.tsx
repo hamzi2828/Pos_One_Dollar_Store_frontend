@@ -7,7 +7,7 @@
 import { Fragment, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { AlertCircle, Check, FileDown, Layers, Loader2, Pencil, X } from 'lucide-react';
+import { AlertCircle, BadgeCheck, Check, FileDown, Layers, Loader2, Pencil, X } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs, formatDate } from '@/lib/storeApi';
 import { useAccess } from '@/context/AccessContext';
 import { LoadingCard, NoAccessCard, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
@@ -70,6 +70,35 @@ function DayPage() {
     }
   };
 
+  // Verify every till of the day at once (owner 2026-11-20). Same call as the till
+  // page: a short till becomes a till-shortage deduction for its cashier.
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const toVerify = (tills || []).filter((t) => t.status === 'closed' || t.status === 'disputed');
+  const verifyAll = async () => {
+    if (verifyBusy || !toVerify.length) return;
+    const lines = toVerify.map((t) => {
+      const v = Number(t.variance) || 0;
+      const what = v <= -1 ? `Short ${formatRs(-v)} → salary deduction for ${t.cashierName}` : v >= 1 ? `Over ${formatRs(v)}` : 'OK';
+      return `${t.sessionNo} · ${t.counterName || 'No counter'} · ${t.cashierName}: ${what}`;
+    });
+    const card = settlement ? `\n\nPOS machine settlement: ${formatRs(settlement.amount)}` : '';
+    if (!window.confirm(`Verify ${toVerify.length} till${toVerify.length === 1 ? '' : 's'} of ${dayLabel(day)}?\n\n${lines.join('\n')}${card}\n\nAfter verifying, the tills can no longer be changed.`)) return;
+    setVerifyBusy(true);
+    let done = 0;
+    try {
+      for (const t of toVerify) {
+        await storeApi.post(`/till-sessions/${t._id}/verify`, { note: settlement ? `Day verified · POS machine settlement ${formatRs(settlement.amount)}` : 'Day verified' });
+        done += 1;
+      }
+      toast.success(`${done} till${done === 1 ? '' : 's'} verified`);
+    } catch (e) {
+      toast.error(`${done ? `${done} verified, then: ` : ''}${apiErrorMessage(e, 'Could not verify.')}`);
+    } finally {
+      setVerifyBusy(false);
+      load();
+    }
+  };
+
   const downloadPdf = async () => {
     if (!tills || pdfBusy) return;
     setPdfBusy(true);
@@ -129,8 +158,14 @@ function DayPage() {
             <h1 className="text-xl font-bold text-gray-900">{dayLabel(day)} — all counters together</h1>
             <p className="text-sm text-gray-500">{tills ? tills.map((t) => t.counterName || 'No counter').join(' + ') : 'Loading…'}</p>
           </div>
+          {tills && canEdit && toVerify.length > 0 && (
+            <button type="button" onClick={verifyAll} disabled={verifyBusy} className={`${primaryBtn} ml-auto`}>
+              {verifyBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+              Verify {toVerify.length === tills.length ? 'all' : toVerify.length} ({toVerify.length})
+            </button>
+          )}
           {tills && (
-            <button type="button" onClick={downloadPdf} disabled={pdfBusy} className={`${secondaryBtn} ml-auto`}>
+            <button type="button" onClick={downloadPdf} disabled={pdfBusy} className={`${secondaryBtn} ${canEdit && toVerify.length > 0 ? '' : 'ml-auto'}`}>
               {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
               Download PDF
             </button>
