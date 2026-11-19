@@ -113,3 +113,34 @@ function ensureStarted() {
   });
   window.addEventListener('offline', () => emit());
 }
+
+/**
+ * fetch() with a time limit. A slow or stalled connection (shop -> server) used
+ * to leave a scan waiting for minutes. After `ms` the request is cancelled and a
+ * TypeError('Network timeout') is thrown, which isNetworkError() treats as a
+ * network failure (so callers fall back to the saved catalogue). If the caller's
+ * own `signal` aborts, the normal AbortError is thrown instead.
+ */
+export async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 6000): Promise<Response> {
+  const ctl = new AbortController();
+  const outer = init.signal;
+  let timedOut = false;
+  const onOuterAbort = () => ctl.abort();
+  if (outer) {
+    if (outer.aborted) ctl.abort();
+    else outer.addEventListener('abort', onOuterAbort, { once: true });
+  }
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, ms);
+  try {
+    return await fetch(url, { ...init, signal: ctl.signal });
+  } catch (e) {
+    if (timedOut && !outer?.aborted) throw new TypeError('Network timeout');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener('abort', onOuterAbort);
+  }
+}

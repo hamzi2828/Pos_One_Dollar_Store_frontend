@@ -1,6 +1,12 @@
 // POS Product Service
 import { getAuthHeader } from "@/helper/helper";
 import { GetProductsResponse, POSProduct } from "../types";
+import { fetchWithTimeout, isNetworkError } from "../offline/connectivity";
+
+/** Scan: wait this long, retry once with the longer limit, then give up (offline catalogue takes over). */
+const SCAN_TIMEOUTS_MS = [6000, 9000];
+/** Product search box: one try. */
+const SEARCH_TIMEOUT_MS = 12000;
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -24,7 +30,7 @@ export async function getPOSProducts(
 
   const url = `${API_BASE_URL}/api/pos/products${params.toString() ? `?${params.toString()}` : ''}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -32,7 +38,7 @@ export async function getPOSProducts(
     },
     cache: 'no-store',
     signal,
-  });
+  }, SEARCH_TIMEOUT_MS);
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Failed to fetch products' }));
@@ -80,7 +86,7 @@ export async function getProductByBarcode(barcode: string, signal?: AbortSignal)
 
   const url = `${API_BASE_URL}/api/pos/products/barcode/${encodeURIComponent(barcode)}`;
 
-  const res = await fetch(url, {
+  const init: RequestInit = {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -88,7 +94,19 @@ export async function getProductByBarcode(barcode: string, signal?: AbortSignal)
     },
     cache: 'no-store',
     signal,
-  });
+  };
+  // A lookup only reads, so retrying is safe. Stalled connection -> retry once,
+  // then throw a network error (the POS page then uses the saved catalogue).
+  let res: Response | undefined;
+  for (let i = 0; i < SCAN_TIMEOUTS_MS.length; i++) {
+    try {
+      res = await fetchWithTimeout(url, init, SCAN_TIMEOUTS_MS[i]);
+      break;
+    } catch (e) {
+      if (i === SCAN_TIMEOUTS_MS.length - 1 || !isNetworkError(e) || signal?.aborted) throw e;
+    }
+  }
+  if (!res) throw new TypeError('Network timeout');
 
   const body = await res.json().catch(() => ({}));
   if (res.ok && body.data) return { ok: true, product: body.data, match: body.match, stockWarning: body.stockWarning };
