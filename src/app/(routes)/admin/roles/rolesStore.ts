@@ -134,6 +134,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'shifts', label: 'Shifts & Roster', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'hr_policies', label: 'HR Policies', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'attendance', label: 'Attendance', actions: ['view', 'create', 'edit', 'export'] },
+      { key: 'attendance_month', label: 'Attendance: Month sheet only', actions: ['view', 'export'] },
       { key: 'payroll', label: 'Payroll & Advances', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'category_assignments', label: 'Category Staff', actions: ['view', 'edit'] },
     ],

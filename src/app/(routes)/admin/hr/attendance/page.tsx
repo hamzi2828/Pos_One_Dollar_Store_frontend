@@ -26,11 +26,14 @@ const TABS: { key: Tab; label: string; Icon: typeof Clock3 }[] = [
 
 export default function AttendancePage() {
   const { can } = useAccess();
-  const canView = can('attendance', 'view');
-  const canEdit = can('attendance', 'edit');
-  const canExport = can('attendance', 'export');
+  const fullAccess = can('attendance', 'view');
+  // "Attendance: Month sheet only" (e.g. the Manager): just the Month tab, read-only.
+  const monthOnly = !fullAccess && can('attendance_month', 'view');
+  const canView = fullAccess || monthOnly;
+  const canEdit = fullAccess && can('attendance', 'edit');
+  const canExport = can(['attendance', 'attendance_month'], 'export');
   // Salary so far moved out (owner, 2026-11-17): it lives in Payroll.
-  const tabs = TABS;
+  const tabs = monthOnly ? TABS.filter((t) => t.key === 'month') : TABS;
   const [tab, setTab] = useState<Tab>('today');
   // The link this page was opened with (read once in the browser, then tabs mount).
   const [link, setLink] = useState<AttendanceLink | null>(null);
@@ -38,8 +41,8 @@ export default function AttendancePage() {
   useEffect(() => {
     const l = readAttendanceLink(window.location.search, window.location.hash);
     setLink(l);
-    setTab(l.tab === 'salary' ? 'today' : l.tab);
-  }, []);
+    setTab(monthOnly ? 'month' : l.tab === 'salary' ? 'today' : l.tab);
+  }, [monthOnly]);
   // Switching tabs by hand drops the Payroll filter and keeps the tab in the hash.
   const pick = (t: Tab) => {
     setTab(t);
