@@ -4,6 +4,7 @@
 // Cash Flow, worked out from sales, expenses, stock, vendors, loans, assets and
 // investments (server: services/reports/financialStatements.js).
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Scale, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { SearchSelect } from "@/components/ui/SearchSelect";
@@ -86,6 +87,7 @@ interface BalanceData {
   equity: Line[];
   totalEquity: number;
   consignmentStock: number;
+  fixedAssets?: { value: number; cost: number; depreciation: number; paidFromCash: number };
   cashMissing: boolean;
   gapReasons?: { overBills: number; overCount: number; placeholders: number; inBoxes: number; inBoxesCount: number } | null;
 }
@@ -325,7 +327,7 @@ function balanceRows(b: BalanceData): Row[] {
   b.liabilities.forEach((l) => rows.push({ label: l.label, amount: l.amount, indent: true, child: UNDER_VENDORS.has(l.key) }));
   rows.push({ label: "Total liabilities", amount: b.totalLiabilities, kind: "sub" });
   // Owner 2026-11-20: no Equity section here (partner money is on the Investments tab).
-  rows.push({ label: "Net worth (assets − liabilities)", amount: b.totalEquity, kind: "total" });
+  rows.push({ label: "Net worth (assets − liabilities, without fixed assets)", amount: b.totalEquity, kind: "total" });
   return rows;
 }
 
@@ -537,7 +539,7 @@ function BalanceView({ b }: { b: BalanceData }) {
         <StatCard
           label="Total assets"
           value={formatRs(b.totalAssets)}
-          hint={`Shop assets ${formatRs(fixed)} + stock ${formatRs(stock)} + cash & other ${formatRs(b.totalAssets - fixed - stock)}`}
+          hint={`Stock ${formatRs(stock)} + cash & other ${formatRs(b.totalAssets - fixed - stock)} · fixed assets on the Assets page`}
         />
         <StatCard label="Total liabilities" value={formatRs(b.totalLiabilities)} tone="warn" />
         <StatCard label="Equity (net worth)" value={money(b.totalEquity)} tone={b.totalEquity >= 0 ? "good" : "bad"} />
@@ -550,6 +552,16 @@ function BalanceView({ b }: { b: BalanceData }) {
       <Card title="Balance Sheet" subtitle={`As of ${fmtDate(b.asOf)} · stock is valued at today's cost`}>
         <Statement rows={balanceRows(b)} />
       </Card>
+      {/* Owner 2026-11-20: fixed assets are checked / printed on the Assets page, not listed here. */}
+      {b.fixedAssets && (
+        <Note>
+          Fixed assets are not in this sheet — see and print them on the{" "}
+          <Link href="/admin/assets" className="font-semibold underline">
+            Assets page
+          </Link>{" "}
+          ({formatRs(b.fixedAssets.cost)} cost).
+        </Note>
+      )}
       {/* Owner 2026-11-20: partner money spent on start-up costs that are not assets (already explained). */}
       {Math.abs(b.equity.find((e) => e.key === "startup")?.amount || 0) >= 1 && (
         <Note>
