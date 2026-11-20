@@ -95,6 +95,8 @@ interface CashFlowData {
   opening?: number;
   operating?: Line[];
   operatingTotal?: number;
+  investing?: Line[];
+  investingTotal?: number;
   financing?: Line[];
   financingTotal?: number;
   netChange?: number;
@@ -328,8 +330,8 @@ function cashRows(c: CashFlowData): Row[] {
     ...(c.operating || []).map((l) => ({ label: l.label, amount: l.amount, indent: true })),
     { label: "Net cash from operating", amount: c.operatingTotal, kind: "sub" as RowKind },
     { label: "Investing — assets", kind: "head" as RowKind },
-    { label: "Assets bought / sold from the till or bank", amount: 0, indent: true, hint: "Not recorded as cash yet — see note below" },
-    { label: "Net cash from investing", amount: 0, kind: "sub" as RowKind },
+    ...(c.investing || []).map((l) => ({ label: l.label, amount: l.amount, indent: true, hint: "Shop Setup / Equipment paid from the till or bank" })),
+    { label: "Net cash from investing", amount: c.investingTotal ?? 0, kind: "sub" as RowKind },
     { label: "Financing — loans", kind: "head" as RowKind },
     ...(c.financing || []).map((l) => ({ label: l.label, amount: l.amount, indent: true })),
     { label: "Net cash from financing", amount: c.financingTotal, kind: "sub" as RowKind },
@@ -562,9 +564,10 @@ function CashView({ c }: { c: CashFlowData }) {
     return <Note tone="warn">Cash flow needs a start balance. Set it in Cash in Hand → Money left, then come back.</Note>;
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
         <StatCard label="Opening" value={money(c.opening || 0)} />
         <StatCard label="From operating" value={money(c.operatingTotal || 0)} tone={(c.operatingTotal || 0) >= 0 ? "good" : "bad"} />
+        <StatCard label="Assets bought" value={money(c.investingTotal || 0)} tone="warn" />
         <StatCard label="From financing" value={money(c.financingTotal || 0)} tone="info" />
         <StatCard label="Closing" value={money(c.closing || 0)} />
       </div>
@@ -574,15 +577,6 @@ function CashView({ c }: { c: CashFlowData }) {
       <Card title="Cash Flow Statement" subtitle="Cash + bank together, same movements as Cash in Hand → Money left">
         <Statement rows={cashRows(c)} />
       </Card>
-      {c.jazzcash && (
-        <Card title="JazzCash wallet" subtitle="Already inside the cash flow above — shown here on its own">
-          <div className="grid grid-cols-3 gap-2 p-3 sm:p-4 max-w-3xl mx-auto">
-            <StatCard label="Received" value={formatRs(c.jazzcash.in)} hint={`${c.jazzcash.bills} bills`} tone="good" />
-            <StatCard label="Paid out" value={formatRs(c.jazzcash.out)} tone="bad" />
-            <StatCard label="Net" value={money(c.jazzcash.net)} tone={c.jazzcash.net >= 0 ? "good" : "bad"} />
-          </div>
-        </Card>
-      )}
       {c.nonCash && (c.nonCash.assetsBought > 0 || c.nonCash.partnerPaid > 0) && (
         <Note>
           Not in the cash above (paid outside the till / bank): assets bought {formatRs(c.nonCash.assetsBought)}, bills paid by partners{" "}
