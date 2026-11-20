@@ -89,6 +89,7 @@ export const BREAKDOWNS = [
 // What the hourly / daily graphs show.
 const CHART_METRICS: { value: keyof Stats; label: string; money?: boolean }[] = [
   { value: 'thruplays', label: '15-sec plays' },
+  { value: 'p100', label: 'Watched to end' },
   { value: 'plays3s', label: '3-sec plays' },
   { value: 'spend', label: 'Spent', money: true },
   { value: 'impressions', label: 'Impressions' },
@@ -192,17 +193,29 @@ export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
   const rows = useMemo(() => [...(data?.rows || [])].sort((a, b) => b.thruplays - a.thruplays || b.spend - a.spend), [data]);
   const m = CHART_METRICS.find((x) => x.value === metric) || CHART_METRICS[0];
   const fmt = m.money ? compactRs : (v: number) => n0(v);
+  // Meta's hourly breakdown leaves video-completion fields (15-sec plays,
+  // watched-to-end, …) at 0 but does give 3-sec plays. When a metric is
+  // missing by hour, spread the range total over the hours by 3-sec plays.
+  const hourly = data?.hourly || [];
+  const hourSum = (k: keyof Stats) => hourly.reduce((s, h) => s + (Number(h[k]) || 0), 0);
+  const hour3s = hourSum('plays3s');
+  const needsEstimate = (k: keyof Stats) => hourSum(k) === 0 && (Number(t?.[k]) || 0) > 0 && hour3s > 0;
+  const hourVal = (h: Stats, k: keyof Stats) =>
+    needsEstimate(k) ? Math.round(((Number(h.plays3s) || 0) * (Number(t?.[k]) || 0)) / hour3s) : Number(h[k]) || 0;
+  const hourEstimated = needsEstimate(metric);
   const hourCols = useMemo(
     () =>
-      (data?.hourly || []).map((h) => ({
+      hourly.map((h) => ({
         key: String(h.hour),
         label: hourLabel(h.hour),
-        value: Number(h[metric]) || 0,
+        value: hourVal(h, metric),
         extra: [
-          { label: '15-sec plays', value: n0(h.thruplays) },
+          { label: needsEstimate('thruplays') ? '15-sec plays (est.)' : '15-sec plays', value: n0(hourVal(h, 'thruplays')) },
+          { label: '3-sec plays', value: n0(h.plays3s) },
           { label: 'spent', value: rs(h.spend) },
         ],
       })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, metric]
   );
   const dayCols = useMemo(
@@ -213,6 +226,7 @@ export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
         value: Number(d[metric]) || 0,
         extra: [
           { label: '15-sec plays', value: n0(d.thruplays) },
+          { label: 'watched to end', value: n0(d.p100) },
           { label: 'spent', value: rs(d.spend) },
         ],
       })),
@@ -334,7 +348,7 @@ export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
           {hourCols.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-gray-700 mb-2 flex flex-wrap items-center gap-1">
-                <Clock className="h-3.5 w-3.5" /> By hour of day ({m.label})
+                <Clock className="h-3.5 w-3.5" /> By hour of day ({m.label}{hourEstimated ? ', estimated' : ''})
                 {peakHour && peakHour.value > 0 && (
                   <span className="font-normal text-gray-500">· best hour {peakHour.label} ({fmt(peakHour.value)})</span>
                 )}
@@ -349,7 +363,12 @@ export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
                 ariaLabel={`${m.label} by hour of day`}
                 emptyText="No results by hour in this period"
               />
-              <p className="mt-1 text-[11px] text-gray-400">Totals for each hour across the selected days, in the ad account&apos;s time zone.</p>
+              <p className="mt-1 text-[11px] text-gray-400">
+                Totals for each hour across the selected days, in the ad account&apos;s time zone.
+                {hourEstimated && (
+                  <> Meta doesn&apos;t give {m.label.toLowerCase()} by hour, so the total ({fmt(Number(t?.[metric]) || 0)}) is split across hours by each hour&apos;s 3-sec plays.</>
+                )}
+              </p>
             </div>
           )}
 
