@@ -284,12 +284,6 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     { label: `Gross profit · margin ${pctText(c.grossMargin)}`, amount: c.grossProfit, prev: p?.grossProfit, kind: "sub", hint: perPiece(c.itemsSold, c.grossProfit) },
     { label: "Operating expenses", kind: "head" },
     ...cats.map((cat) => ({ label: cat, amount: -(curExp.get(cat) || 0), prev: p ? -(prevExp.get(cat) || 0) : undefined, indent: true })),
-    { label: "Total expenses", amount: -c.totalExpenses, prev: p ? -p.totalExpenses : undefined, kind: "sub" as RowKind },
-    { label: "Operating profit", amount: c.operatingProfit, prev: p?.operatingProfit, kind: "sub" as RowKind },
-    { label: "Other costs", kind: "head" as RowKind },
-    { label: "Damaged stock", amount: -c.damage, prev: p ? -p.damage : undefined, indent: true, hint: c.damageCount ? `${c.damageCount} approved records` : undefined },
-    { label: "Stock count differences", amount: -c.stockCount, prev: p ? -p.stockCount : undefined, indent: true },
-    { label: "Depreciation of assets", amount: -c.depreciation, prev: p ? -p.depreciation : undefined, indent: true },
     {
       label: "Assets purchased",
       amount: -(c.equipmentBought ?? 0),
@@ -305,6 +299,17 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
       child: true,
       hint: it.date ? fmtDate(it.date) : undefined,
     })),
+    {
+      label: "Total expenses",
+      amount: -(c.totalExpenses + (c.equipmentBought ?? 0)),
+      prev: p ? -(p.totalExpenses + (p.equipmentBought ?? 0)) : undefined,
+      kind: "sub" as RowKind,
+    },
+    { label: "Operating profit", amount: c.operatingProfit, prev: p?.operatingProfit, kind: "sub" as RowKind },
+    { label: "Other costs", kind: "head" as RowKind },
+    { label: "Damaged stock", amount: -c.damage, prev: p ? -p.damage : undefined, indent: true, hint: c.damageCount ? `${c.damageCount} approved records` : undefined },
+    { label: "Stock count differences", amount: -c.stockCount, prev: p ? -p.stockCount : undefined, indent: true },
+    { label: "Depreciation of assets", amount: -c.depreciation, prev: p ? -p.depreciation : undefined, indent: true },
     { label: `Net profit · margin ${pctText(c.netMargin)}`, amount: c.netProfit, prev: p?.netProfit, kind: "total" as RowKind },
   ];
 }
@@ -506,7 +511,7 @@ function IncomeView({ d }: { d: IncomeData }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         <StatCard label="Net sales" value={formatRs(c.netSales)} hint={`${c.bills} bills`} />
         <StatCard label="Gross profit" value={formatRs(c.grossProfit)} hint={`Margin ${pctText(c.grossMargin)}`} tone="info" />
-        <StatCard label="Expenses + other costs" value={formatRs(c.totalExpenses + c.otherCosts)} tone="warn" />
+        <StatCard label="Expenses + other costs" value={formatRs(c.totalExpenses + (c.equipmentBought ?? 0) + c.otherCosts)} tone="warn" />
         <StatCard label="Net profit" value={money(c.netProfit)} hint={`Margin ${pctText(c.netMargin)}`} tone={c.netProfit >= 0 ? "good" : "bad"} />
       </div>
       <Card title="Income Statement (Profit & Loss)" subtitle={p ? `Compared with ${fmtDate(p.from)} – ${fmtDate(p.to)}` : undefined}>
