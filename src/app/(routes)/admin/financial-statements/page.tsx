@@ -550,6 +550,13 @@ function BalanceView({ b }: { b: BalanceData }) {
       <Card title="Balance Sheet" subtitle={`As of ${fmtDate(b.asOf)} · stock is valued at today's cost`}>
         <Statement rows={balanceRows(b)} />
       </Card>
+      {/* Owner 2026-11-20: partner money spent on start-up costs that are not assets (already explained). */}
+      {Math.abs(b.equity.find((e) => e.key === "startup")?.amount || 0) >= 1 && (
+        <Note>
+          Start-up costs paid by partners (not assets, e.g. AI tokens, registration, internet):{" "}
+          <b>{formatRs(Math.abs(b.equity.find((e) => e.key === "startup")?.amount || 0))}</b>. Mark these in Investments.
+        </Note>
+      )}
       <Note tone={Math.abs(diff) < 1 ? "good" : "warn"}>
         {Math.abs(diff) < 1 ? (
           <>Assets = Liabilities + Equity. Everything is explained.</>
