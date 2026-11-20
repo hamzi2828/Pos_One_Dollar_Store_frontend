@@ -1,9 +1,8 @@
 'use client';
 
 // Goods by Vendor (owner 2026-11-20): per vendor, for the picked period —
-//   goods received (goods receipts, vendor price) and billed (vendor bills),
-//   sold (vendor price), in store now, paid, still owed now, and goods received
-//   that have no vendor bill yet (since the start).
+//   goods received (goods receipts, vendor price), sold (vendor price), in store now,
+//   paid, still owed now, and goods received that have no vendor bill yet (since the start).
 
 import Link from 'next/link';
 import { Truck } from 'lucide-react';
@@ -79,8 +78,9 @@ export default function VendorGoodsPage() {
   const d = r.data;
   const s = d?.summary;
 
-  const head = ['Vendor', 'Goods received', 'Billed', 'Sold (vendor price)', 'In store now', 'Paid', 'Owed now', 'Not billed (since start)'];
-  const line = (v: VendorRow | Summary, name: string) => [name, v.received, v.billed, v.goodsCost, v.inStore, v.paid, 'owed' in v ? v.owed : 0, v.notBilled];
+  // Owner 2026-11-20: no "Billed this period" column — bills are often dated before the goods arrive.
+  const head = ['Vendor', 'Goods received', 'Sold (vendor price)', 'In store now', 'Paid', 'Owed now', 'Not billed (since start)'];
+  const line = (v: VendorRow | Summary, name: string) => [name, v.received, v.goodsCost, v.inStore, v.paid, v.owed, v.notBilled];
 
   const exportCsv = () => {
     if (!d || !s) return;
@@ -100,7 +100,6 @@ export default function VendorGoodsPage() {
       subtitle: range?.label,
       summary: [
         ['Goods received', formatRs(s.received)],
-        ['Billed by vendors', formatRs(s.billed)],
         ['In store now', formatRs(s.inStore)],
         ['Paid to vendors', `${formatRs(s.paid)} (${s.payments} payments)`],
         ['Owed to vendors now', formatRs(s.owed)],
@@ -110,7 +109,7 @@ export default function VendorGoodsPage() {
         {
           title: 'Vendors',
           head,
-          widths: [46, 22, 22, 22, 22, 22, 22, 22],
+          widths: [50, 24, 24, 24, 24, 24, 24],
           rows: d.rows.map((v) => line(v, v.name)),
         },
       ],
@@ -126,7 +125,7 @@ export default function VendorGoodsPage() {
       <PageHeader
         icon={<Truck className="h-6 w-6" />}
         title="Goods by Vendor"
-        subtitle="Per vendor: goods received, billed, sold, in store now, paid and still owed."
+        subtitle="Per vendor: goods received, sold, in store now, paid and still owed."
         actions={<ReportActions canExport={canExport} onCsv={exportCsv} onPdf={exportPdf} onRefresh={r.reload} loading={r.loading} disabled={!d} />}
       />
       <ReportsNav />
@@ -143,7 +142,7 @@ export default function VendorGoodsPage() {
       ) : d && s ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-            <StatCard label="Goods received" value={formatRs(s.received)} hint={`${fmtNum(s.receivedQty)} pieces · billed ${formatRs(s.billed)}`} tone="info" />
+            <StatCard label="Goods received" value={formatRs(s.received)} hint={`${fmtNum(s.receivedQty)} pieces`} tone="info" />
             <StatCard label="In store now" value={formatRs(s.inStore)} hint={`${fmtNum(s.inStoreQty)} pieces · at cost`} />
             <StatCard label="Paid to vendors" value={formatRs(s.paid)} hint={`${s.payments} payment${s.payments === 1 ? '' : 's'}`} tone="good" />
             <StatCard label="Still owed now" value={formatRs(s.owed)} hint={s.advance ? `Paid ahead ${formatRs(s.advance)}` : 'Same as the balance sheet'} tone="warn" />
@@ -169,7 +168,6 @@ export default function VendorGoodsPage() {
                     <tr>
                       <th className="px-3 py-2 text-left">Vendor</th>
                       <th className="px-3 py-2 text-right">Goods received</th>
-                      <th className="px-3 py-2 text-right">Billed</th>
                       <th className="px-3 py-2 text-right">Sold (vendor price)</th>
                       <th className="px-3 py-2 text-right">In store now</th>
                       <th className="px-3 py-2 text-right">Paid</th>
@@ -193,7 +191,6 @@ export default function VendorGoodsPage() {
                           {rs(v.received)}
                           {v.receivedQty > 0 && <span className="block text-[10px] text-gray-400">{fmtNum(v.receivedQty)} pcs</span>}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-gray-600">{rs(v.billed)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-600">
                           {rs(v.goodsCost)}
                           {v.qty > 0 && <span className="block text-[10px] text-gray-400">{fmtNum(v.qty)} pcs</span>}
@@ -219,7 +216,6 @@ export default function VendorGoodsPage() {
                     <tr>
                       <td className="px-3 py-2">All vendors ({s.vendors})</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatRs(s.received)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatRs(s.billed)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatRs(s.goodsCost)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatRs(s.inStore)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatRs(s.paid)}</td>
