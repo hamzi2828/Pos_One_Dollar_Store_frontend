@@ -336,7 +336,9 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
   };
   const typeCount = (k: string) => meta?.byType?.find((t) => t.key === k)?.count ?? 0;
   const allCount = (meta?.byType || []).reduce((n, t) => n + t.count, 0);
-  const typeTabs: ['all' | DeductionType, string][] = [['all', 'All'], ...DEDUCTION_TYPE_TABS];
+  // Only the kinds the server lists (Manager / Senior Cashier: damage / fine / other).
+  const shown = meta?.byType ? new Set(meta.byType.map((t) => t.key)) : null;
+  const typeTabs: ['all' | DeductionType, string][] = [['all', 'All'], ...DEDUCTION_TYPE_TABS.filter(([k]) => !shown || shown.has(k))];
 
   return (
     <>
