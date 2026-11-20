@@ -461,16 +461,23 @@ function Workspace() {
         )}
 
         {/* Totals */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+        {/* Paid now / Still owed only for the admin (owner, 2026-11-20). */}
+        <div
+          className={`grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 ${isSuperAdmin ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}
+        >
           <StatTile label="Vendor bills" value={po.bills.length} />
           <StatTile label="Boxes/packs" value={boxes} />
           <StatTile label="Bills total" value={formatRs(goods)} />
-          <StatTile label="Paid now" value={formatRs(paid)} tone="green" />
-          <StatTile
-            label="Still owed"
-            value={formatRs(Math.max(0, goods - paid))}
-            tone="amber"
-          />
+          {isSuperAdmin && (
+            <>
+              <StatTile label="Paid now" value={formatRs(paid)} tone="green" />
+              <StatTile
+                label="Still owed"
+                value={formatRs(Math.max(0, goods - paid))}
+                tone="amber"
+              />
+            </>
+          )}
           <StatTile
             label="Trip costs"
             value={formatRs(po.totals.charges)}
