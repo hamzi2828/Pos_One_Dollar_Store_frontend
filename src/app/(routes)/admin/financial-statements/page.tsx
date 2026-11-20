@@ -316,15 +316,8 @@ function balanceRows(b: BalanceData): Row[] {
   const UNDER_VENDORS = new Set(["loans", "salaries", "investBills"]);
   b.liabilities.forEach((l) => rows.push({ label: l.label, amount: l.amount, indent: true, child: UNDER_VENDORS.has(l.key) }));
   rows.push({ label: "Total liabilities", amount: b.totalLiabilities, kind: "sub" });
-  rows.push({ label: "Equity — owners' share", kind: "head" });
-  b.equity.forEach((e) => {
-    // Owner 2026-11-20: say which dates the "not explained" amount covers.
-    const hint = e.key === "difference" ? `From ${fmtDate(b.systemStart)} (POS start) to ${fmtDate(b.asOf)}` : undefined;
-    rows.push({ label: e.label, amount: e.amount, indent: true, hint });
-    (e.partners || []).forEach((p) => rows.push({ label: `· ${p.name}`, amount: p.amount, indent: true, child: true }));
-  });
-  rows.push({ label: "Total equity", amount: b.totalEquity, kind: "sub" });
-  rows.push({ label: "Liabilities + equity", amount: b.totalLiabilities + b.totalEquity, kind: "total" });
+  // Owner 2026-11-20: no Equity section here (partner money is on the Investments tab).
+  rows.push({ label: "Net worth (assets − liabilities)", amount: b.totalEquity, kind: "total" });
   return rows;
 }
 
