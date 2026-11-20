@@ -288,6 +288,8 @@ export interface PayrollDeduction {
   mine?: boolean;
   /** The signed-in user may approve / waive it (own-only users: only their own). */
   canDecide?: boolean;
+  /** Only the Admin (payroll edit) may waive. */
+  canWaive?: boolean;
 }
 
 export interface DeductionTypeCount {

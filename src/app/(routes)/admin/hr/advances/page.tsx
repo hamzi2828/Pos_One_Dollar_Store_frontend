@@ -455,7 +455,7 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-3">
                             <span className="text-base font-semibold tabular-nums text-red-700">{formatRs(d.amount)}</span>
-                            {(d.canDecide ?? canEdit) && (d.status === 'pending' || d.status === 'approved') && (
+                            {(d.canDecide ?? canEdit) && (d.status === 'pending' || (d.status === 'approved' && (d.canWaive ?? canEdit))) && (
                               <div className="flex items-center gap-1.5">
                                 {d.status === 'pending' && (
                                   <button
@@ -466,13 +466,16 @@ function DeductionsTab({ canEdit, reloadKey, initialStatus }: { canEdit: boolean
                                     <CheckCircle2 className="h-3.5 w-3.5" /> Approve
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => setWaiving(d)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                                >
-                                  <XCircle className="h-3.5 w-3.5" /> Waive
-                                </button>
+                                {/* Owner 2026-11-20: only the Admin may waive. */}
+                                {(d.canWaive ?? canEdit) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setWaiving(d)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                  >
+                                    <XCircle className="h-3.5 w-3.5" /> Waive
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
