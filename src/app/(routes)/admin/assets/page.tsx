@@ -168,22 +168,8 @@ export default function AssetsPage() {
           </p>
         )}
 
-        {/* Category tabs + filters */}
+        {/* Filters (the category is picked with the summary cards above; owner 2026-11-20: no second tab row) */}
         <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 mb-4">
-          <div className="flex gap-1 overflow-x-auto px-2 pt-2 border-b border-gray-100">
-            {[{ _id: '', name: 'All' }, ...categories.filter((c) => c.isActive || c._id === category)].map((c) => (
-              <button
-                key={c._id || 'all'}
-                type="button"
-                onClick={() => setCategory(c._id)}
-                className={`px-3 py-2 text-xs sm:text-sm whitespace-nowrap border-b-2 -mb-px ${
-                  category === c._id ? 'border-honey-500 text-honey-700 font-semibold' : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
           <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="relative sm:col-span-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />

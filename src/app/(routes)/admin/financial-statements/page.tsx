@@ -504,13 +504,20 @@ function IncomeView({ d }: { d: IncomeData }) {
 
 function BalanceView({ b }: { b: BalanceData }) {
   const diff = b.equity.find((e) => e.key === "difference")?.amount || 0;
+  const stock = b.assets.find((x) => x.key === "stock")?.amount || 0;
+  const fixed = b.assets.find((x) => x.key === "fixed")?.amount || 0;
   return (
     <>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-        <StatCard label="Total assets" value={formatRs(b.totalAssets)} />
+        {/* Owner 2026-11-20: show what the total is made of. */}
+        <StatCard
+          label="Total assets"
+          value={formatRs(b.totalAssets)}
+          hint={`Shop assets ${formatRs(fixed)} + stock ${formatRs(stock)} + cash & other ${formatRs(b.totalAssets - fixed - stock)}`}
+        />
         <StatCard label="Total liabilities" value={formatRs(b.totalLiabilities)} tone="warn" />
         <StatCard label="Equity (net worth)" value={money(b.totalEquity)} tone={b.totalEquity >= 0 ? "good" : "bad"} />
-        <StatCard label="In goods / stock" value={formatRs(b.assets.find((x) => x.key === "stock")?.amount || 0)} hint="At cost" tone="info" />
+        <StatCard label="In goods / stock" value={formatRs(stock)} hint="At cost" tone="info" />
         <StatCard label="Vendor stock on shelves" value={formatRs(b.consignmentStock)} hint="Consignment — not ours" />
       </div>
       {b.cashMissing && (
