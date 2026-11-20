@@ -87,6 +87,7 @@ interface BalanceData {
   totalEquity: number;
   consignmentStock: number;
   cashMissing: boolean;
+  gapReasons?: { overBills: number; overCount: number; placeholders: number; inBoxes: number; inBoxesCount: number } | null;
 }
 interface CashFlowData {
   range: { from: string; to: string };
@@ -553,11 +554,31 @@ function BalanceView({ b }: { b: BalanceData }) {
         {Math.abs(diff) < 1 ? (
           <>Assets = Liabilities + Equity. Everything is explained.</>
         ) : (
-          <>
-            <b>{money(diff)}</b> is not explained by partner money or profit. Usually this is the money and stock the shop had before 25 Oct 2026
-            (start balance, vendor opening balances), or something not entered yet — e.g. owner withdrawals, assets paid from the till, or stock
-            received without a vendor bill.
-          </>
+          <div className="text-red-700">
+            <b>{money(diff)}</b> is not explained. Why:
+            {/* Owner 2026-11-20: the reasons, from the data (the shop started from 0). */}
+            {b.gapReasons ? (
+              <ul className="mt-1 list-disc pl-4 space-y-0.5">
+                {Math.abs(b.gapReasons.overBills) >= 1 && (
+                  <li>
+                    <b>{money(b.gapReasons.overBills)}</b> — unpacked goods do not match {b.gapReasons.overCount} vendor bill
+                    {b.gapReasons.overCount === 1 ? "" : "s"}
+                    {b.gapReasons.placeholders ? ` (${b.gapReasons.placeholders} still Rs 1,000)` : ""}. Fix the bill amounts (red warning on each trip).
+                  </li>
+                )}
+                {Math.abs(b.gapReasons.inBoxes) >= 1 && (
+                  <li>
+                    <b>{money(b.gapReasons.inBoxes)}</b> — {b.gapReasons.inBoxesCount} bill{b.gapReasons.inBoxesCount === 1 ? "" : "s"} not unpacked yet (owed, not in stock yet).
+                  </li>
+                )}
+                <li>
+                  <b>{money(diff - b.gapReasons.overBills - b.gapReasons.inBoxes)}</b> — partner money not entered right (check Investments).
+                </li>
+              </ul>
+            ) : (
+              <> Check vendor bill amounts and partner money (Investments).</>
+            )}
+          </div>
         )}
       </Note>
     </>
