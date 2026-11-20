@@ -156,11 +156,7 @@ export default function VendorGoodsPage() {
           </div>
 
           <HelpBox>
-            <b>Goods received</b>: pieces put into stock from goods receipts in this period, at the vendor price typed when receiving. <b>Billed</b>: vendor bills
-            in this period (minus returns). <b>Sold</b>: vendor price of the pieces sold in this period. <b>In store now</b>: today&apos;s stock at cost (same as the
-            balance sheet), split by vendor — newest receipts first, as older pieces sell first. <b>Paid</b>: paid to the vendor in this period. <b>Owed now</b>:
-            the vendor&apos;s balance today. <b>Not billed</b>: goods received since the start minus their bills — a <b>+</b> means a vendor bill is missing or
-            lower than the goods received, so the shop may owe that vendor more.
+            <b>Not billed +</b> = goods received with no vendor bill (or a lower bill), so the shop may owe that vendor more.
           </HelpBox>
 
           <Card title="Vendors" subtitle="Most goods received first">
