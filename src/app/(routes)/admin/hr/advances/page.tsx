@@ -36,6 +36,7 @@ const ADV_STATUS = [
   ['all', 'All'],
 ] as const;
 // Owner 2026-11-19: "Approved (to cut)" and "Cut from pay" are one choice.
+// Owner 2026-11-20: the Deductions tab opens on "All".
 const DED_STATUS = [
   ['pending', 'Waiting approval'],
   ['approved,applied', 'Approved'],
@@ -43,7 +44,7 @@ const DED_STATUS = [
   ['all', 'All'],
 ] as const;
 type DedStatus = (typeof DED_STATUS)[number][0];
-const dedStatusOf = (s: string): DedStatus => (s === 'approved' || s === 'applied' ? 'approved,applied' : (DED_STATUS.find(([k]) => k === s)?.[0] || 'pending'));
+const dedStatusOf = (s: string): DedStatus => (s === 'approved' || s === 'applied' ? 'approved,applied' : (DED_STATUS.find(([k]) => k === s)?.[0] || 'all'));
 
 /** Badge colour per deduction type. */
 const DED_BADGE: Record<string, string> = {
@@ -704,7 +705,8 @@ function AdvancesPageInner() {
   const canCreate = can('payroll', 'create');
   const canEdit = can('payroll', 'edit');
   const canDelete = can('payroll', 'delete');
-  // "Deductions: add & approve own only" (Manager): the server limits the list and approvals to their own.
+  // "Deductions: own only" (Manager / Senior Cashier): sees every deduction, adds only damage / fine / other,
+  // approves / waives only their own (the server checks all of it).
   const ownView = can('payroll_own_deductions', 'view') || can('payroll_own_deductions', 'create') || can('payroll_own_deductions', 'edit');
   const onlyDeductions = !canView && ownView; // no payroll access: just the Deductions tab
   const canAddDeduction = canCreate || can('payroll_own_deductions', 'create');
@@ -793,14 +795,14 @@ function AdvancesPageInner() {
         {tab === 'advances' ? (
           <AdvancesTab canCreate={canCreate} canEdit={canEdit} reloadKey={reloadKey} />
         ) : tab === 'deductions' ? (
-          <DeductionsTab canEdit={canApproveDeduction} reloadKey={reloadKey} initialStatus={params.get('status') || 'pending'} />
+          <DeductionsTab canEdit={canApproveDeduction} reloadKey={reloadKey} initialStatus={params.get('status') || 'all'} />
         ) : (
           <TipsTab canCreate={canCreate} canDelete={canDelete} reloadKey={reloadKey} onGive={() => setModal('tip')} />
         )}
       </div>
 
       {modal === 'advance' && <GiveAdvanceModal onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'deduction' && <AddDeductionModal canApprove={canApproveDeduction}onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'deduction' && <AddDeductionModal canApprove={canApproveDeduction} limited={!canEdit} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'tip' && <GiveTipModal onClose={() => setModal(null)} onDone={done} />}
     </div>
   );

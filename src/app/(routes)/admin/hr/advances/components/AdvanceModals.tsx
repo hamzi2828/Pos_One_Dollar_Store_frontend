@@ -10,6 +10,7 @@ import { apiErrorMessage, formatRs } from '@/lib/storeApi';
 import MoneyInput from '@/components/ui/MoneyInput';
 import {
   MANUAL_DEDUCTION_TYPES,
+  LIMITED_DEDUCTION_TYPES,
   METHODS,
   METHOD_LABEL,
   payrollApi,
@@ -148,7 +149,8 @@ export function GiveAdvanceModal({ onClose, onDone }: { onClose: () => void; onD
   );
 }
 
-export function AddDeductionModal({ canApprove, onClose, onDone }: { canApprove: boolean; onClose: () => void; onDone: (d: PayrollDeduction) => void }) {
+export function AddDeductionModal({ canApprove, limited = false, onClose, onDone }: { canApprove: boolean; limited?: boolean; onClose: () => void; onDone: (d: PayrollDeduction) => void }) {
+  const typeOptions = limited ? MANUAL_DEDUCTION_TYPES.filter(([k]) => LIMITED_DEDUCTION_TYPES.includes(k)) : MANUAL_DEDUCTION_TYPES;
   const { busy, error, setError, run } = useSubmit();
   const [staff, setStaff] = useState<StaffOption | null>(null);
   const [type, setType] = useState<ManualDeductionType>('damage');
@@ -185,7 +187,7 @@ export function AddDeductionModal({ canApprove, onClose, onDone }: { canApprove:
         <div className="grid grid-cols-2 gap-3">
           <Field label="Type" required>
             <SearchSelect value={type} onChange={(e) => setType(e.target.value as ManualDeductionType)} className={inputClass}>
-              {MANUAL_DEDUCTION_TYPES.map(([k, l]) => (
+              {typeOptions.map(([k, l]) => (
                 <option key={k} value={k}>
                   {l}
                 </option>

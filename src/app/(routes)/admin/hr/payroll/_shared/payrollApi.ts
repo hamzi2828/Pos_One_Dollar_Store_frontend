@@ -17,6 +17,8 @@ export const MANUAL_DEDUCTION_TYPES: [ManualDeductionType, string][] = [
   ['fine', 'Fine / rule break'],
   ['other', 'Other'],
 ];
+/** Owner 2026-11-20: without payroll edit (Manager / Senior Cashier) only these can be added. */
+export const LIMITED_DEDUCTION_TYPES: ManualDeductionType[] = ['damage', 'fine', 'other'];
 /** Every type, in tab order (Deductions tab). */
 export const DEDUCTION_TYPE_TABS: [DeductionType, string][] = [
   ['till_shortage', 'Till shortage'],
