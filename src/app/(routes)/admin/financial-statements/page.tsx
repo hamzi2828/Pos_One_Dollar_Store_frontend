@@ -317,16 +317,16 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
 }
 
 function balanceRows(b: BalanceData): Row[] {
-  const rows: Row[] = [{ label: "Assets — what the shop owns", kind: "head" }];
+  const rows: Row[] = [{ label: "Stock & cash — what the shop has", kind: "head" }];
   b.assets.forEach((a) => rows.push({ label: a.label, amount: a.amount, hint: a.missing ? "Set a start balance in Cash in Hand → Money left" : a.hint, indent: true }));
-  rows.push({ label: "Total assets", amount: b.totalAssets, kind: "sub" });
+  rows.push({ label: "Total stock & cash", amount: b.totalAssets, kind: "sub" });
   rows.push({ label: "Liabilities — what the shop owes", kind: "head" });
   // Owner 2026-11-20: loans / salaries / investment bills sit under "Owed to vendors" as its children.
   const UNDER_VENDORS = new Set(["loans", "salaries", "investBills"]);
   b.liabilities.forEach((l) => rows.push({ label: l.label, amount: l.amount, indent: true, child: UNDER_VENDORS.has(l.key) }));
   rows.push({ label: "Total liabilities", amount: b.totalLiabilities, kind: "sub" });
   // Owner 2026-11-20: no Equity section here (partner money is on the Investments tab).
-  rows.push({ label: "Net worth (assets − liabilities, without fixed assets)", amount: b.totalEquity, kind: "total" });
+  rows.push({ label: "Net worth (stock & cash − liabilities)", amount: b.totalEquity, kind: "total" });
   return rows;
 }
 
@@ -421,7 +421,7 @@ export default function FinancialStatementsPage() {
         title: "Balance Sheet",
         subtitle: `As of ${fmtDate(b.asOf)}`,
         summary: [
-          ["Total assets", formatRs(b.totalAssets)],
+          ["Total stock & cash", formatRs(b.totalAssets)],
           ["Total liabilities", formatRs(b.totalLiabilities)],
           ["Equity", money(b.totalEquity)],
         ],
@@ -536,9 +536,9 @@ function BalanceView({ b }: { b: BalanceData }) {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
         {/* Owner 2026-11-20: show what the total is made of. */}
         <StatCard
-          label="Total assets"
+          label="Total stock & cash"
           value={formatRs(b.totalAssets)}
-          hint={`Stock ${formatRs(stock)} + cash & other ${formatRs(b.totalAssets - fixed - stock)} · fixed assets on the Assets page`}
+          hint={`Stock ${formatRs(stock)} + cash & other ${formatRs(b.totalAssets - fixed - stock)}`}
         />
         <StatCard label="Total liabilities" value={formatRs(b.totalLiabilities)} tone="warn" />
         <StatCard label="Equity (net worth)" value={money(b.totalEquity)} tone={b.totalEquity >= 0 ? "good" : "bad"} />
