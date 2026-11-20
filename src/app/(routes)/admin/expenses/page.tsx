@@ -17,7 +17,7 @@ const PkrIcon = ({ className }: { className?: string }) => (
 import { expenseService } from './service/expenseService';
 import { CounterTag } from './components/CounterSelect';
 import type { Expense, RawExpense, ExpenseCategory, PaymentMethod, ExpenseSummary, ExpenseCategoryItem, TillScope } from './types';
-import { receiptsOf } from './types';
+import { PAYMENT_METHODS, receiptsOf } from './types';
 import ReceiptThumbs from '../vendors/components/ReceiptThumbs';
 import { useAccess } from '@/context/AccessContext';
 
@@ -45,6 +45,10 @@ const ExpensesPage = () => {
     (searchParams.get('status') as 'all' | 'active' | 'inactive') || 'all'
   );
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get('category') || 'all');
+  // Paid by: Cash / Bank Transfer / JazzCash (owner 2026-11-20).
+  const [methodFilter, setMethodFilter] = useState<'all' | PaymentMethod>(
+    (searchParams.get('method') as PaymentMethod) || 'all'
+  );
   const [dateRange, setDateRange] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'custom'>(
     (searchParams.get('dateRange') as 'all' | 'daily' | 'weekly' | 'monthly' | 'custom') || 'monthly'
   );
@@ -101,6 +105,9 @@ const ExpensesPage = () => {
     if (categoryFilter && categoryFilter !== 'all') {
       params.set('category', categoryFilter);
     }
+    if (methodFilter !== 'all') {
+      params.set('method', methodFilter);
+    }
     if (dateRange && dateRange !== 'monthly') {
       params.set('dateRange', dateRange);
     }
@@ -115,7 +122,7 @@ const ExpensesPage = () => {
     const newUrl = queryString ? `/admin/expenses?${queryString}` : '/admin/expenses';
 
     router.replace(newUrl, { scroll: false });
-  }, [searchTerm, statusFilter, categoryFilter, dateRange, customStartDate, customEndDate, router]);
+  }, [searchTerm, statusFilter, categoryFilter, methodFilter, dateRange, customStartDate, customEndDate, router]);
 
   // Load categories once
   useEffect(() => {
@@ -126,7 +133,7 @@ const ExpensesPage = () => {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter, categoryFilter, dateRange, customStartDate, customEndDate, counterFilter, debouncedMin, debouncedMax]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter, categoryFilter, methodFilter, dateRange, customStartDate, customEndDate, counterFilter, debouncedMin, debouncedMax]);
 
   // Server-side date range (monthly/daily/weekly/custom). Returns ISO strings.
   const computeServerDateRange = useCallback((): { startDate?: string; endDate?: string } => {
@@ -169,6 +176,7 @@ const ExpensesPage = () => {
         search: debouncedSearch.trim() || undefined,
         isActive: statusFilter === 'all' ? undefined : statusFilter === 'active',
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        paymentMethod: methodFilter !== 'all' ? methodFilter : undefined,
         startDate,
         endDate,
         counter: counterFilter !== 'all' ? counterFilter : undefined,
@@ -212,7 +220,7 @@ const ExpensesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, debouncedSearch, statusFilter, categoryFilter, computeServerDateRange, counterFilter, debouncedMin, debouncedMax]);
+  }, [currentPage, debouncedSearch, statusFilter, categoryFilter, methodFilter, computeServerDateRange, counterFilter, debouncedMin, debouncedMax]);
 
   // Server-side summary scoped to same date range (isActive only, per backend)
   const fetchSummary = useCallback(async () => {
@@ -533,6 +541,19 @@ const ExpensesPage = () => {
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+        </SearchSelect>
+        <SearchSelect
+          value={methodFilter}
+          onChange={(e) => {
+            setCurrentPage(1);
+            setMethodFilter(e.target.value as 'all' | PaymentMethod);
+          }}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-honey-500 focus:border-transparent"
+        >
+          <option value="all">All Payment Types</option>
+          {PAYMENT_METHODS.map((m) => (
+            <option key={m} value={m}>{m === 'Bank Transfer' ? 'Bank' : m}</option>
+          ))}
         </SearchSelect>
       </div>
 
