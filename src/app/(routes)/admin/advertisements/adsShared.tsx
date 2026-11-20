@@ -3,9 +3,10 @@
 // Shared bits of the Advertisements pages: types, formatting, the per-ad analytics body.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Eye, Users, Clock } from 'lucide-react';
+import { Loader2, Eye, Users, Clock, CalendarDays } from 'lucide-react';
 import { storeApi, apiErrorMessage, formatRs } from '@/lib/storeApi';
 import { ErrorBox } from '@/components/admin/FormBits';
+import { ColumnChart, compactRs } from '../adminComponents/charts';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -60,6 +61,8 @@ export interface BreakdownRow extends Stats {
 export interface AdInsights {
   total: Stats | null;
   daily: (Stats & { date: string })[];
+  /** 24 rows (hour 0-23, ad account time zone), totals across the range. Empty if Meta gave none. */
+  hourly?: (Stats & { hour: number })[];
   breakdown: string;
   rows: BreakdownRow[];
 }
@@ -82,6 +85,17 @@ export const BREAKDOWNS = [
   { value: 'region', label: 'Region' },
   { value: 'device', label: 'Device' },
 ];
+
+// What the hourly / daily graphs show.
+const CHART_METRICS: { value: keyof Stats; label: string; money?: boolean }[] = [
+  { value: 'thruplays', label: '15-sec plays' },
+  { value: 'plays3s', label: '3-sec plays' },
+  { value: 'spend', label: 'Spent', money: true },
+  { value: 'impressions', label: 'Impressions' },
+  { value: 'linkClicks', label: 'Link clicks' },
+];
+
+const hourLabel = (h: number) => `${h % 12 || 12}${h < 12 ? 'am' : 'pm'}`;
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -155,6 +169,7 @@ export function sumStats(list: (Stats | null)[]): Stats {
 
 export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
   const [breakdown, setBreakdown] = useState('platform');
+  const [metric, setMetric] = useState<keyof Stats>('thruplays');
   const [data, setData] = useState<AdInsights | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -175,7 +190,35 @@ export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
 
   const t = data?.total;
   const rows = useMemo(() => [...(data?.rows || [])].sort((a, b) => b.thruplays - a.thruplays || b.spend - a.spend), [data]);
-  const maxDay = Math.max(1, ...(data?.daily || []).map((d) => d.thruplays));
+  const m = CHART_METRICS.find((x) => x.value === metric) || CHART_METRICS[0];
+  const fmt = m.money ? compactRs : (v: number) => n0(v);
+  const hourCols = useMemo(
+    () =>
+      (data?.hourly || []).map((h) => ({
+        key: String(h.hour),
+        label: hourLabel(h.hour),
+        value: Number(h[metric]) || 0,
+        extra: [
+          { label: '15-sec plays', value: n0(h.thruplays) },
+          { label: 'spent', value: rs(h.spend) },
+        ],
+      })),
+    [data, metric]
+  );
+  const dayCols = useMemo(
+    () =>
+      (data?.daily || []).map((d) => ({
+        key: d.date,
+        label: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+        value: Number(d[metric]) || 0,
+        extra: [
+          { label: '15-sec plays', value: n0(d.thruplays) },
+          { label: 'spent', value: rs(d.spend) },
+        ],
+      })),
+    [data, metric]
+  );
+  const peakHour = hourCols.reduce((best, c) => (c.value > (best?.value ?? 0) ? c : best), null as (typeof hourCols)[number] | null);
 
   return (
     <>
@@ -271,21 +314,58 @@ export function AdAnalytics({ adId, range }: { adId: string; range: string }) {
             </div>
           </div>
 
-          {/* Day by day */}
-          {data && data.daily.length > 1 && (
+          {/* Graphs: metric picker shared by hourly + daily */}
+          {(hourCols.length > 0 || dayCols.length > 1) && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-gray-600 mr-1">Graph:</span>
+              {CHART_METRICS.map((x) => (
+                <button
+                  key={x.value}
+                  onClick={() => setMetric(x.value)}
+                  className={`px-2.5 py-1 rounded-full text-xs border ${metric === x.value ? 'bg-honey-500 border-honey-500 text-gray-900 font-medium' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Hour of day */}
+          {hourCols.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Day by day (15-sec plays)</h3>
-              <div className="space-y-1">
-                {data.daily.map((d) => (
-                  <div key={d.date} className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-gray-600">{new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
-                    <div className="flex-1 h-3 bg-gray-100 rounded">
-                      <div className="h-3 bg-sage-500 rounded" style={{ width: `${(d.thruplays / maxDay) * 100}%` }} />
-                    </div>
-                    <span className="w-40 text-right tabular-nums">{n0(d.thruplays)} · {rs(d.spend)}</span>
-                  </div>
-                ))}
-              </div>
+              <h3 className="text-xs font-semibold text-gray-700 mb-2 flex flex-wrap items-center gap-1">
+                <Clock className="h-3.5 w-3.5" /> By hour of day ({m.label})
+                {peakHour && peakHour.value > 0 && (
+                  <span className="font-normal text-gray-500">· best hour {peakHour.label} ({fmt(peakHour.value)})</span>
+                )}
+              </h3>
+              <ColumnChart
+                data={hourCols}
+                format={fmt}
+                emphasis="peak"
+                maxLabels={8}
+                showAverage
+                averageLabel="Avg"
+                ariaLabel={`${m.label} by hour of day`}
+                emptyText="No results by hour in this period"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">Totals for each hour across the selected days, in the ad account&apos;s time zone.</p>
+            </div>
+          )}
+
+          {/* Day by day */}
+          {dayCols.length > 1 && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> Day by day ({m.label})</h3>
+              <ColumnChart
+                data={dayCols}
+                format={fmt}
+                maxLabels={10}
+                showAverage
+                averageLabel="Avg"
+                ariaLabel={`${m.label} day by day`}
+                emptyText="No results in this period"
+              />
             </div>
           )}
         </div>
