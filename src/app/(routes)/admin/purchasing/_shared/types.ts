@@ -109,6 +109,8 @@ export interface BillWarehouseStatus {
   received: number | null;
   boxesDone: number;
   items: number;
+  /** Vendor-price value of the unpacked items (qty × price). */
+  value?: number;
 }
 
 /** Vendor account around one bill: balance before it, the bill, paid since, left. */
@@ -154,6 +156,7 @@ export interface PurchaseOrder {
   history: HistoryEntry[];
   createdAt: string;
   vendors?: string[]; // list rows only
+  billsPending?: number; // list rows only: vendor bills with no bill photo yet
 }
 
 export interface POListMeta {
@@ -162,7 +165,7 @@ export interface POListMeta {
   total: number;
   pages: number;
   counts: Record<string, number>;
-  totals: { goods: number; charges: number; grand: number };
+  totals: { goods: number; charges: number; grand: number; bills?: number; billsPending?: number };
 }
 
 export type CostWarning = 'loss' | 'low_margin' | 'no_price' | null;

@@ -124,8 +124,10 @@ function OrdersList() {
           </HelpBox>
         )}
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <StatTile label="Vendor bills" value={formatRs(meta?.totals.goods)} sub={`${meta?.total ?? 0} trips`} />
+          {/* Owner 2026-11-20: how many vendor bills still have no bill photo. */}
+          <StatTile label="Bill pending" value={String(meta?.totals.billsPending ?? 0)} sub={`of ${meta?.totals.bills ?? 0} vendor bills`} tone={(meta?.totals.billsPending ?? 0) > 0 ? "amber" : "green"} />
           <StatTile label="Trip costs" value={formatRs(meta?.totals.charges)} sub="car rent, freight, labour…" />
           <StatTile label="All in" value={formatRs(meta?.totals.grand)} tone="honey" />
         </div>
@@ -214,6 +216,7 @@ function OrdersList() {
                     </td>
                     <td className="px-4 py-3 text-gray-700 max-w-xs">
                       <p className="truncate">{po.vendors?.length ? po.vendors.join(', ') : <span className="text-gray-400">No bills yet</span>}</p>
+                      {(po.billsPending ?? 0) > 0 && <p className="text-[11px] font-medium text-amber-700">{po.billsPending} bill pending</p>}
                     </td>
                     <td className="px-4 py-3 text-right">{po.totals.cartons}</td>
                     <td className="px-4 py-3 text-right">{formatRs(po.totals.goods)}</td>
@@ -233,6 +236,7 @@ function OrdersList() {
                     <POStatusBadge status={po.status} />
                   </div>
                   <p className="text-xs text-gray-600 truncate">{po.vendors?.length ? po.vendors.join(', ') : 'No bills yet'}</p>
+                  {(po.billsPending ?? 0) > 0 && <p className="text-[11px] font-medium text-amber-700">{po.billsPending} bill pending</p>}
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
                     <span>{formatDate(po.createdAt)} · {po.totals.cartons} box{po.totals.cartons === 1 ? '' : 'es'}/pack{po.totals.cartons === 1 ? '' : 's'}</span>
                     <span className="font-semibold text-gray-900">{formatRs(po.totals.grand)}</span>
