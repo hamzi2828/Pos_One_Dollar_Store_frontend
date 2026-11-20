@@ -7,7 +7,7 @@
 import React, { useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { AlertCircle, Loader2, Truck, HandCoins, Handshake, Undo2 } from 'lucide-react';
+import { AlertCircle, Loader2, Truck, HandCoins, Handshake, Undo2, PackageSearch } from 'lucide-react';
 import { useAccess } from '@/context/AccessContext';
 import { formatRs } from '@/lib/storeApi';
 import { apiErrorMessage } from '@/helper/access';
@@ -117,14 +117,16 @@ export function VendorsNav() {
   const { can } = useAccess();
   const tabs = [
     { href: '/admin/vendors', label: 'Vendors & Ledger', icon: Truck, perm: 'vendors' },
+    // Owner 2026-11-20: the Goods by Vendor report, also under Vendors.
+    { href: '/admin/vendors/goods', label: 'Goods by Vendor', icon: PackageSearch, perm: ['report_financial_statements', 'report_vendor_payments'] },
     { href: '/admin/vendors/payments', label: 'Payments', icon: HandCoins, perm: 'vendor_payments' },
     { href: '/admin/vendors/returns', label: 'Returns', icon: Undo2, perm: 'vendor_returns' },
     { href: '/admin/vendors/consignment', label: 'Consignment', icon: Handshake, perm: 'consignment' },
-  ].filter((t) => can(t.perm, 'view'));
+  ].filter((t) => (Array.isArray(t.perm) ? t.perm : [t.perm]).some((p) => can(p, 'view')));
   if (tabs.length < 2) return null;
   const isActive = (href: string) =>
     href === '/admin/vendors'
-      ? pathname === href || (/^\/admin\/vendors\/[^/]+$/.test(pathname) && !/(payments|returns|consignment)$/.test(pathname))
+      ? pathname === href || (/^\/admin\/vendors\/[^/]+$/.test(pathname) && !/(payments|returns|consignment|goods)$/.test(pathname))
       : pathname.startsWith(href);
   return (
     <div className="mb-4 sm:mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
