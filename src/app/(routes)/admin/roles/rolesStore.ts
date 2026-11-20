@@ -53,6 +53,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
       { key: 'goods_receiving', label: 'Goods Receiving', actions: ['view', 'create', 'edit'] },
       { key: 'vendors', label: 'Vendors & Ledger', actions: ['view', 'create', 'edit', 'delete', 'export'] },
       { key: 'vendor_payments', label: 'Vendor Payments', actions: ['view', 'create', 'edit', 'delete'] },
+      { key: 'purchase_money', label: 'Purchase Trip: paid / owed / vendor balance', actions: ['view'] },
       { key: 'consignment', label: 'Consignment', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'vendor_returns', label: 'Vendor Returns', actions: ['view', 'create', 'edit', 'delete'] },
       { key: 'purchasing_log', label: 'Purchasing Log', actions: ['view'] },

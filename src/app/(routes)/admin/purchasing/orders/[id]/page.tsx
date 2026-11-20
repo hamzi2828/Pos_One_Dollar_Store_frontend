@@ -107,7 +107,9 @@ export default function PurchaseTripPage() {
 function Workspace() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
-  const { can, isSuperAdmin } = useAccess();
+  const { can } = useAccess();
+  // Paid / owed / vendor balance: "purchase_money" permission in Roles & Permissions (owner, 2026-11-20).
+  const seesMoney = can("purchase_money", "view");
   const canView = can("purchase_orders", "view");
 
   const [po, setPo] = useState<PurchaseOrder | null>(null);
@@ -461,14 +463,14 @@ function Workspace() {
         )}
 
         {/* Totals */}
-        {/* Paid now / Still owed only for the admin (owner, 2026-11-20). */}
+        {/* Paid now / Still owed only with the purchase_money permission. */}
         <div
-          className={`grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 ${isSuperAdmin ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}
+          className={`grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 ${seesMoney ? "lg:grid-cols-6" : "lg:grid-cols-4"}`}
         >
           <StatTile label="Vendor bills" value={po.bills.length} />
           <StatTile label="Boxes/packs" value={boxes} />
           <StatTile label="Bills total" value={formatRs(goods)} />
-          {isSuperAdmin && (
+          {seesMoney && (
             <>
               <StatTile label="Paid now" value={formatRs(paid)} tone="green" />
               <StatTile
@@ -630,7 +632,7 @@ function Workspace() {
                     bill={bill}
                     warehouse={warehouseByBill.get(bill._id)}
                     account={po.billAccounts?.[bill._id]}
-                    billOnly={!isSuperAdmin}
+                    billOnly={!seesMoney}
                     editable={canBuy}
                     canSend={editable}
                     onChange={applyPO}
