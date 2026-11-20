@@ -218,6 +218,19 @@ export default function BillCard({
         </div>
         )}
 
+        {/* Bill amount vs what was unpacked (owner 2026-11-20): a wrong bill amount makes the vendor balance wrong. */}
+        {warehouse && (warehouse.value || 0) > 0 && Math.abs((warehouse.value || 0) - total) > Math.max(100, total * 0.02) && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <span className="font-semibold">Bill {formatRs(total)} but unpacked goods {formatRs(warehouse.value || 0)}</span>
+            {warehouse.status === 'done' ? '' : ' (still unpacking)'}. Check the bill amount or the unpacked prices.
+            {editable && (
+              <button type="button" onClick={onEdit} className="ml-2 underline font-semibold">
+                Edit bill
+              </button>
+            )}
+          </div>
+        )}
+
         {!hasBill && (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
             <span>No bill picture yet. Add the bill photo.</span>
