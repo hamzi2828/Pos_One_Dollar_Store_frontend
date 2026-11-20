@@ -52,6 +52,7 @@ interface IncomeNumbers {
   stockCount: number;
   depreciation: number;
   equipmentBought?: number;
+  equipmentItems?: { title: string; amount: number; date: string | null }[];
   otherCosts: number;
   netProfit: number;
   netMargin: number | null;
@@ -294,6 +295,14 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
       indent: true,
       hint: "Bought this period from shop money (Shop Setup / Equipment)",
     },
+    // Each asset bought, as a child of the line above (owner 2026-11-20).
+    ...(c.equipmentItems || []).map((it) => ({
+      label: `· ${it.title}`,
+      amount: -it.amount,
+      indent: true,
+      child: true,
+      hint: it.date ? fmtDate(it.date) : undefined,
+    })),
     { label: `Net profit · margin ${pctText(c.netMargin)}`, amount: c.netProfit, prev: p?.netProfit, kind: "total" as RowKind },
   ];
 }
