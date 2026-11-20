@@ -167,6 +167,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     iconKey: 'website',
     groups: [
       { key: 'website', label: 'Website', actions: ['view', 'edit'] },
+      { key: 'advertisements', label: 'Advertisements (Facebook / Instagram)', actions: ['view', 'edit'] },
     ],
   },
 ];
