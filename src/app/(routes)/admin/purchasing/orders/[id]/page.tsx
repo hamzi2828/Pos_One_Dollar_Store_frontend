@@ -41,6 +41,7 @@ import {
   StatTile,
   StepStrip,
   billTotalOf,
+  billAddedOf,
   paidOf,
 } from "../../_shared/ui";
 import type {
@@ -106,7 +107,7 @@ export default function PurchaseTripPage() {
 function Workspace() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
-  const { can } = useAccess();
+  const { can, isSuperAdmin } = useAccess();
   const canView = can("purchase_orders", "view");
 
   const [po, setPo] = useState<PurchaseOrder | null>(null);
@@ -115,6 +116,7 @@ function Workspace() {
   const [error, setError] = useState<string | null>(null);
   // Find a vendor bill on a long trip (owner, 2026-10-31).
   const [billSearch, setBillSearch] = useState("");
+  const [billFilter, setBillFilter] = useState<"all" | "added" | "pending">("all");
   const [costing, setCosting] = useState<Costing | null>(null);
   const [costLoading, setCostLoading] = useState(false);
   const [costError, setCostError] = useState<string | null>(null);
@@ -553,6 +555,30 @@ function Workspace() {
                 <Plus className="h-4 w-4" /> Add another vendor bill
               </button>
             )}
+            {po.bills.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["all", "All", po.bills.length],
+                    ["added", "Bill added", po.bills.filter(billAddedOf).length],
+                    ["pending", "Bill pending", po.bills.filter((b) => !billAddedOf(b)).length],
+                  ] as const
+                ).map(([key, label, n]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setBillFilter(key)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                      billFilter === key
+                        ? "border-honey-500 bg-honey-500 text-gray-900"
+                        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {label} ({n})
+                  </button>
+                ))}
+              </div>
+            )}
             {po.bills.length > 3 && (
               <input
                 value={billSearch}
@@ -580,6 +606,11 @@ function Workspace() {
               po.bills
                 .filter(
                   (b) =>
+                    billFilter === "all" ||
+                    (billFilter === "added") === billAddedOf(b),
+                )
+                .filter(
+                  (b) =>
                     !billSearch.trim() ||
                     `${b.vendorName || ""} ${b.billNo || ""}`
                       .toLowerCase()
@@ -592,7 +623,7 @@ function Workspace() {
                     bill={bill}
                     warehouse={warehouseByBill.get(bill._id)}
                     account={po.billAccounts?.[bill._id]}
-                    billOnly={!can("vendor_payments", "view")}
+                    billOnly={!isSuperAdmin}
                     editable={canBuy}
                     canSend={editable}
                     onChange={applyPO}

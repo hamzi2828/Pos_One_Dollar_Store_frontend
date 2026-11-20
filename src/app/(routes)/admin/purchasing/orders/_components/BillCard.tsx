@@ -125,6 +125,13 @@ export default function BillCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
               <h3 className="text-sm font-semibold text-gray-900 truncate">{bill.vendorName}</h3>
+              <span
+                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${
+                  missingAmount ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'
+                }`}
+              >
+                {missingAmount ? 'Bill pending' : 'Bill added'}
+              </span>
               {canSend && bill.sentAt && !warehouse && (
                 <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 whitespace-nowrap">
                   Sent to warehouse
