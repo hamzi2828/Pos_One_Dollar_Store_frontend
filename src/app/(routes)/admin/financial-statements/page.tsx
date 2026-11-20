@@ -156,6 +156,8 @@ interface Row {
   kind?: RowKind;
   hint?: string;
   indent?: boolean;
+  /** One level deeper (a child of the row above). */
+  child?: boolean;
 }
 
 function Statement({ rows, compare, prevLabel }: { rows: Row[]; compare?: boolean; prevLabel?: string }) {
@@ -195,7 +197,7 @@ function Statement({ rows, compare, prevLabel }: { rows: Row[]; compare?: boolea
                       : "border-t border-gray-100 even:bg-gray-50/60 hover:bg-honey-50/50"
                 }
               >
-                <td className={`px-3 sm:px-4 py-2 ${r.indent ? "pl-6 sm:pl-8" : ""} ${strong ? "font-semibold text-gray-900" : "text-gray-700"}`}>
+                <td className={`px-3 sm:px-4 py-2 ${r.child ? "pl-10 sm:pl-14" : r.indent ? "pl-6 sm:pl-8" : ""} ${strong ? "font-semibold text-gray-900" : "text-gray-700"}`}>
                   {r.label}
                   {r.hint && <div className="text-[11px] font-normal text-gray-400">{r.hint}</div>}
                 </td>
@@ -293,12 +295,14 @@ function balanceRows(b: BalanceData): Row[] {
   b.assets.forEach((a) => rows.push({ label: a.label, amount: a.amount, hint: a.missing ? "Set a start balance in Cash in Hand → Money left" : a.hint, indent: true }));
   rows.push({ label: "Total assets", amount: b.totalAssets, kind: "sub" });
   rows.push({ label: "Liabilities — what the shop owes", kind: "head" });
-  b.liabilities.forEach((l) => rows.push({ label: l.label, amount: l.amount, indent: true }));
+  // Owner 2026-11-20: loans / salaries / investment bills sit under "Owed to vendors" as its children.
+  const UNDER_VENDORS = new Set(["loans", "salaries", "investBills"]);
+  b.liabilities.forEach((l) => rows.push({ label: l.label, amount: l.amount, indent: true, child: UNDER_VENDORS.has(l.key) }));
   rows.push({ label: "Total liabilities", amount: b.totalLiabilities, kind: "sub" });
   rows.push({ label: "Equity — owners' share", kind: "head" });
   b.equity.forEach((e) => {
     rows.push({ label: e.label, amount: e.amount, indent: true });
-    (e.partners || []).forEach((p) => rows.push({ label: `· ${p.name}`, amount: p.amount, indent: true }));
+    (e.partners || []).forEach((p) => rows.push({ label: `· ${p.name}`, amount: p.amount, indent: true, child: true }));
   });
   rows.push({ label: "Total equity", amount: b.totalEquity, kind: "sub" });
   rows.push({ label: "Liabilities + equity", amount: b.totalLiabilities + b.totalEquity, kind: "total" });
