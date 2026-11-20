@@ -226,7 +226,7 @@ export default function AdminSidebar({ isOpen, onClose, isCollapsed = false, onT
     { name: 'Financial Statements', path: '/admin/financial-statements', icon: <Scale className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['report_financial_statements', 'investments'] },
     { name: 'Banks', path: '/admin/banks', icon: <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'banks' },
     { name: 'Expenses', path: '/admin/expenses', icon: <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />, perm: ['expenses', 'till_expenses'] },
-    { name: 'Assets', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
+    { name: 'Shop Setup', path: '/admin/assets', icon: <Landmark className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'assets' },
     { name: 'Loans', path: '/admin/loans', icon: <HandCoins className="w-4 h-4 sm:w-5 sm:h-5" />, perm: 'loans' },
   ];
 

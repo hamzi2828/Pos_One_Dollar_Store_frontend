@@ -30,6 +30,8 @@ export default function AssetsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [category, setCategory] = useState('');
+  // Owner 2026-11-20: two tabs — Assets (things the shop owns) and Startup cost.
+  const [tab, setTab] = useState<'assets' | 'startup'>('assets');
   const [status, setStatus] = useState<StatusFilter>('in_use');
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -45,9 +47,14 @@ export default function AssetsPage() {
     const t = setTimeout(() => setDebounced(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => setPage(1), [debounced, status, category]);
+  const startupCat = categories.find((c) => /start\s*-?\s*up/i.test(c.name));
+  const startupId = startupCat?._id || '';
+  // Tab → list filter: Startup tab = that category; Assets tab = a picked category, else all but Startup.
+  const listCategory = tab === 'startup' ? startupId || 'none' : category;
+  const notCategory = tab === 'assets' && !category && startupId ? startupId : undefined;
+  useEffect(() => setPage(1), [debounced, status, category, tab]);
 
-  const filters = { search: debounced, status, category };
+  const filters = { search: debounced, status, category: listCategory, notCategory };
 
   const loadOverview = useCallback(async () => {
     const [cats, sum] = await Promise.all([assetApi.categories(), assetApi.summary()]);
@@ -60,7 +67,7 @@ export default function AssetsPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await assetApi.list({ search: debounced, status, category, page, limit: 25, sort: '-purchaseDate' });
+      const res = await assetApi.list({ search: debounced, status, category: listCategory, notCategory, page, limit: 25, sort: '-purchaseDate' });
       if (id !== reqId.current) return;
       setRows(res.data);
       setMeta(res.meta || null);
@@ -69,7 +76,7 @@ export default function AssetsPage() {
     } finally {
       if (id === reqId.current) setLoading(false);
     }
-  }, [debounced, status, category, page]);
+  }, [debounced, status, listCategory, notCategory, page]);
 
   useEffect(() => {
     if (!canView) return;
@@ -103,7 +110,16 @@ export default function AssetsPage() {
     );
   }
 
-  const groups = summary?.categories || [];
+  const allGroups = summary?.categories || [];
+  const startupGroup = allGroups.find((g) => !!startupId && String(g.categoryId) === startupId);
+  const groups = allGroups.filter((g) => g !== startupGroup);
+  const assetTotals = summary
+    ? {
+        count: summary.totals.count - (startupGroup?.count || 0),
+        cost: summary.totals.cost - (startupGroup?.cost || 0),
+        currentValue: summary.totals.currentValue - (startupGroup?.currentValue || 0),
+      }
+    : null;
   const catName = (id: string) => categories.find((c) => c._id === id)?.name || '';
 
   return (
@@ -111,10 +127,8 @@ export default function AssetsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Assets</h1>
-            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">
-              Everything the shop owns — racks, counters, computers, AC, generator…
-            </p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Shop Setup</h1>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-gray-500">Assets the shop owns, and start-up costs.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {canManageCats && (
@@ -135,16 +149,45 @@ export default function AssetsPage() {
           </div>
         </div>
 
+        {/* Tabs: Assets / Startup cost (owner 2026-11-20) */}
+        <div className="mb-4 inline-flex gap-1 p-1 bg-white border border-gray-200 rounded-lg shadow-sm">
+          {(
+            [
+              ['assets', 'Assets', assetTotals?.cost],
+              ['startup', 'Startup cost', startupGroup?.cost],
+            ] as const
+          ).map(([k, label, cost]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => {
+                setTab(k);
+                setCategory('');
+              }}
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md whitespace-nowrap ${tab === k ? 'bg-honey-500 text-gray-900 shadow' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              {label}
+              {cost !== undefined && <span className="ml-1.5 text-[11px] opacity-75">{formatRs(cost)}</span>}
+            </button>
+          ))}
+        </div>
+
         {/* Summary cards (click = filter) */}
-        {summary ? (
+        {tab === 'startup' ? (
+          startupGroup ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
+              <SummaryCard active onClick={() => {}} title="Startup cost" count={startupGroup.count} cost={startupGroup.cost} value={startupGroup.currentValue} highlight />
+            </div>
+          ) : null
+        ) : summary && assetTotals ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-4">
             <SummaryCard
               active={!category}
               onClick={() => setCategory('')}
               title="All assets"
-              count={summary.totals.count}
-              cost={summary.totals.cost}
-              value={summary.totals.currentValue}
+              count={assetTotals.count}
+              cost={assetTotals.cost}
+              value={assetTotals.currentValue}
               highlight
             />
             {groups.map((g) => (
