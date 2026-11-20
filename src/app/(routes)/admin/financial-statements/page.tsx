@@ -51,6 +51,7 @@ interface IncomeNumbers {
   damageCount: number;
   stockCount: number;
   depreciation: number;
+  equipmentBought?: number;
   otherCosts: number;
   netProfit: number;
   netMargin: number | null;
@@ -286,6 +287,13 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
     { label: "Damaged stock", amount: -c.damage, prev: p ? -p.damage : undefined, indent: true, hint: c.damageCount ? `${c.damageCount} approved records` : undefined },
     { label: "Stock count differences", amount: -c.stockCount, prev: p ? -p.stockCount : undefined, indent: true },
     { label: "Depreciation of assets", amount: -c.depreciation, prev: p ? -p.depreciation : undefined, indent: true },
+    {
+      label: "Assets purchased",
+      amount: -(c.equipmentBought ?? 0),
+      prev: p ? -(p.equipmentBought ?? 0) : undefined,
+      indent: true,
+      hint: "Bought this period from shop money (Shop Setup / Equipment)",
+    },
     { label: `Net profit · margin ${pctText(c.netMargin)}`, amount: c.netProfit, prev: p?.netProfit, kind: "total" as RowKind },
   ];
 }
