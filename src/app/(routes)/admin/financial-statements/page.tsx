@@ -318,7 +318,9 @@ function balanceRows(b: BalanceData): Row[] {
   rows.push({ label: "Total liabilities", amount: b.totalLiabilities, kind: "sub" });
   rows.push({ label: "Equity — owners' share", kind: "head" });
   b.equity.forEach((e) => {
-    rows.push({ label: e.label, amount: e.amount, indent: true });
+    // Owner 2026-11-20: say which dates the "not explained" amount covers.
+    const hint = e.key === "difference" ? `From ${fmtDate(b.systemStart)} (POS start) to ${fmtDate(b.asOf)}` : undefined;
+    rows.push({ label: e.label, amount: e.amount, indent: true, hint });
     (e.partners || []).forEach((p) => rows.push({ label: `· ${p.name}`, amount: p.amount, indent: true, child: true }));
   });
   rows.push({ label: "Total equity", amount: b.totalEquity, kind: "sub" });
