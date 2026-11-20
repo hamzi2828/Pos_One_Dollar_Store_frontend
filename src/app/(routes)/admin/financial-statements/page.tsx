@@ -337,7 +337,7 @@ function cashRows(c: CashFlowData): Row[] {
     ...(c.operating || []).map((l) => ({ label: l.label, amount: l.amount, indent: true })),
     { label: "Net cash from operating", amount: c.operatingTotal, kind: "sub" as RowKind },
     { label: "Investing — assets", kind: "head" as RowKind },
-    ...(c.investing || []).map((l) => ({ label: l.label, amount: l.amount, indent: true, hint: "Shop Setup / Equipment paid from the till or bank" })),
+    ...(c.investing || []).map((l) => ({ label: l.label, amount: l.amount, indent: true, hint: "Shop Setup / Equipment and partner-bill payments, paid from the till or bank" })),
     { label: "Net cash from investing", amount: c.investingTotal ?? 0, kind: "sub" as RowKind },
     { label: "Financing — loans", kind: "head" as RowKind },
     ...(c.financing || []).map((l) => ({ label: l.label, amount: l.amount, indent: true })),
