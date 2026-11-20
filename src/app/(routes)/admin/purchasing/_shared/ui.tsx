@@ -27,8 +27,8 @@ const GRN_BADGE: Record<GRNStatus, { label: string; cls: string }> = {
 /** What we owe for a bill (server value, else the same rule as the server). */
 export const billTotalOf = (b: POBill) =>
   b.billTotal > 0 ? b.billTotal : (b.billAmount || 0) > 0 ? b.billAmount || 0 : Math.max(0, (b.subtotal || 0) - (b.discount || 0));
-/** Bill amount entered (owner, 2026-11-20: "Bill added" / "Bill pending" tag + filter). */
-export const billAddedOf = (b: POBill) => billTotalOf(b) > 0;
+/** Bill photo uploaded (owner, 2026-11-20: "Bill added" only with a picture of the paper bill). */
+export const billAddedOf = (b: POBill) => (b.photos?.length || 0) > 0;
 export const paidOf = (b: POBill) => Math.max(0, b.paidNow || 0);
 export const owedOf = (b: POBill) => Math.max(0, Math.round((billTotalOf(b) - paidOf(b)) * 100) / 100);
 

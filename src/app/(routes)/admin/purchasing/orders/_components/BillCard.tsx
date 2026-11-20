@@ -12,7 +12,7 @@ import MoneyInput from '@/components/ui/MoneyInput';
 import { PAYMENT_METHODS } from '@/app/(routes)/admin/vendors/services/vendorApi';
 import { purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { ProductSearch } from '../../_shared/Pickers';
-import { Disclosure, PhotoStrip, billTotalOf, owedOf, paidOf } from '../../_shared/ui';
+import { Disclosure, PhotoStrip, billAddedOf, billTotalOf, owedOf, paidOf } from '../../_shared/ui';
 import type { BillAccount, BillWarehouseStatus, POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
 
 const cellInput = `${inputClass} !px-2 !py-1 text-right`;
@@ -114,6 +114,7 @@ export default function BillCard({
   const owed = owedOf(bill);
   const missingAmount = !(total > 0);
   const noBoxes = !(bill.cartons > 0);
+  const hasBill = billAddedOf(bill);
 
   return (
     <section className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200">
@@ -127,10 +128,10 @@ export default function BillCard({
               <h3 className="text-sm font-semibold text-gray-900 truncate">{bill.vendorName}</h3>
               <span
                 className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${
-                  missingAmount ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-green-200 bg-green-50 text-green-700'
+                  hasBill ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'
                 }`}
               >
-                {missingAmount ? 'Bill pending' : 'Bill added'}
+                {hasBill ? 'Bill added' : 'Bill pending'}
               </span>
               {canSend && bill.sentAt && !warehouse && (
                 <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 whitespace-nowrap">
@@ -215,6 +216,17 @@ export default function BillCard({
             <p className="text-sm font-semibold text-gray-900">{formatRs(owed)}</p>
           </div>
         </div>
+        )}
+
+        {!hasBill && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            <span>No bill picture yet. Add the bill photo.</span>
+            {editable && (
+              <button type="button" onClick={onEdit} className="rounded-md bg-red-600 px-2.5 py-1 text-white font-semibold hover:bg-red-700 whitespace-nowrap">
+                Add bill
+              </button>
+            )}
+          </div>
         )}
 
         {(missingAmount || noBoxes) && editable && (
