@@ -40,14 +40,19 @@ const amountTone = (entered: number, total: number) =>
  */
 const gapText = (grn: GoodsReceipt, billId: string, entered: number, total: number) => {
   const gap = Math.round(entered) - Math.round(total);
-  if (!gap || !(total > 0) || !(entered > 0)) return '';
+  if (!(total > 0) || !(entered > 0)) return '';
   const live = (grn.entries || []).filter((e) => !e.undone && e.bill === billId);
   const pieces = live.reduce((n, e) => n + (e.qty || 0) * Math.max(1, e.piecesPerSale || 1), 0);
   const perPiece = live.map((e) => (e.costPrice || 0) / Math.max(1, e.piecesPerSale || 1));
   const same = perPiece.length > 0 && perPiece.every((c) => Math.abs(c - perPiece[0]) < 0.01);
   const cost = same ? perPiece[0] : pieces > 0 ? entered / pieces : 0;
   const n = cost > 0 ? Math.round(Math.abs(gap) / cost) : 0;
-  return `${formatRs(Math.abs(gap))} ${gap > 0 ? 'over' : 'short'}${n ? ` · ${same ? '' : 'about '}${n.toLocaleString()} article${n === 1 ? '' : 's'}${same ? ` at ${formatRs(cost)}` : ''}` : ''} · total ${pieces.toLocaleString()} article${pieces === 1 ? '' : 's'}`;
+  // Owner, 2026-11-21: also show the average price per article.
+  const avg = pieces > 0 ? ` · avg ${formatRs(entered / pieces)}` : '';
+  const head = gap
+    ? `${formatRs(Math.abs(gap))} ${gap > 0 ? 'over' : 'short'}${n ? ` · ${same ? '' : 'about '}${n.toLocaleString()} article${n === 1 ? '' : 's'}${same ? ` at ${formatRs(cost)}` : ''}` : ''}`
+    : 'Matches the bill';
+  return `${head} · total ${pieces.toLocaleString()} article${pieces === 1 ? '' : 's'}${avg}`;
 };
 const doneBoxesOf = (grn: GoodsReceipt, billId: string) => new Set((grn.boxesDone || []).filter((d) => d.bill === billId).map((d) => d.boxNo));
 /** First box of the bill not done yet (1 when all are done / no boxes). */

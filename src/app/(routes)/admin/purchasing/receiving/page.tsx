@@ -143,9 +143,16 @@ export default function ReceivingQueuePage() {
                   </div>
                   <p className="text-xs text-gray-600 truncate mt-0.5">{g.vendors.join(', ') || '—'}</p>
                   <div className="mt-2">
-                    <p className={`text-sm font-semibold tabular-nums ${tone}`}>
-                      {formatRs(done)} / {formatRs(total)}
-                    </p>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className={`text-sm font-semibold tabular-nums ${tone}`}>
+                        {formatRs(done)} / {formatRs(total)}
+                      </p>
+                      {articles > 0 && (
+                        <p className="text-xs text-gray-600 tabular-nums whitespace-nowrap">
+                          Avg <span className="font-semibold text-gray-900">{formatRs(Math.round(done / articles))}</span>/article
+                        </p>
+                      )}
+                    </div>
                     <p className={`text-xs ${tone}`}>{gapLine}</p>
                     <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
                       <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
