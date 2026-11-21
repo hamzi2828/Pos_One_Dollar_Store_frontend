@@ -124,7 +124,8 @@ export const purchasingApi = {
     storeApi.upload<PurchaseOrder>(`${PO}/${id}/bills`, toForm({ ...fields }, photos)).then((r) => r.data),
   updateBill: (id: string, billId: string, fields: BillFields & { removePhotos?: string[] }, photos: File[]) =>
     storeApi.upload<PurchaseOrder>(`${PO}/${id}/bills/${billId}`, toForm({ ...fields }, photos), 'put').then((r) => r.data),
-  removeBill: (id: string, billId: string) => storeApi.del<PurchaseOrder>(`${PO}/${id}/bills/${billId}`).then((r) => r.data),
+  removeBill: (id: string, billId: string, confirm = false) =>
+    storeApi.del<PurchaseOrder>(`${PO}/${id}/bills/${billId}`, confirm ? { confirm: 1 } : undefined).then((r) => r.data),
   /** One bill to the warehouse while the trip is still buying. */
   sendBill: (id: string, billId: string) => storeApi.post<PurchaseOrder>(`${PO}/${id}/bills/${billId}/send`, {}).then((r) => r.data),
   /** Take a sent bill back (only before the warehouse checks it). */

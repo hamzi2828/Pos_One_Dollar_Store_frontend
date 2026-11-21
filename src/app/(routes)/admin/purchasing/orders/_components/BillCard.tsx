@@ -10,7 +10,7 @@ import { apiErrorMessage, formatDate, formatRs } from '@/lib/storeApi';
 import { inputClass, primaryBtn, secondaryBtn } from '@/components/admin/FormBits';
 import MoneyInput from '@/components/ui/MoneyInput';
 import { PAYMENT_METHODS } from '@/app/(routes)/admin/vendors/services/vendorApi';
-import { purchasingApi, toNum } from '../../_shared/purchasingApi';
+import { apiErrorCode, purchasingApi, toNum } from '../../_shared/purchasingApi';
 import { ProductSearch } from '../../_shared/Pickers';
 import { Disclosure, PhotoStrip, billAddedOf, billTotalOf, owedOf, paidOf } from '../../_shared/ui';
 import type { BillAccount, BillWarehouseStatus, POBill, POItem, ProductUnit, PurchaseOrder } from '../../_shared/types';
@@ -100,7 +100,17 @@ export default function BillCard({
     if (!window.confirm(`Remove the bill from ${bill.vendorName}${bill.items.length ? ` with ${bill.items.length} items` : ''}?`)) return;
     setRemoving(true);
     try {
-      onChange(await purchasingApi.removeBill(poId, bill._id));
+      try {
+        onChange(await purchasingApi.removeBill(poId, bill._id));
+      } catch (e) {
+        // Warehouse already checked its boxes: ask once more, then remove (kept in the trip record).
+        if (apiErrorCode(e) !== 'BILL_BOXES_CHECKED') throw e;
+        if (!window.confirm(apiErrorMessage(e, 'The warehouse has already checked the boxes of this bill. Remove it anyway?'))) {
+          setRemoving(false);
+          return;
+        }
+        onChange(await purchasingApi.removeBill(poId, bill._id, true));
+      }
       toast.success('Bill removed');
     } catch (e) {
       toast.error(apiErrorMessage(e, 'Could not remove the bill.'));
