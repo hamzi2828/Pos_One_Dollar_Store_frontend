@@ -5,10 +5,11 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Activity, Loader2, Search, X, ChevronLeft, ChevronRight, RefreshCw,
   LogIn, Package, UserCog, Trash2, KeyRound, Shield, Eye, Globe, LayoutGrid,
-  Users, BarChart3, Zap, AlertTriangle, Clock, TrendingUp, Database,
+  Users, BarChart3, Zap, AlertTriangle, Clock, TrendingUp, Database, History,
 } from 'lucide-react';
 import { getAuthHeader } from '@/helper/helper';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import ChangesTab from './ChangesTab';
 
 const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
 
@@ -26,6 +27,8 @@ interface AuditLog {
   device: string | null;
   referer: string | null;
   queryParams: Record<string, unknown> | null;
+  requestBody?: unknown;
+  requestId?: string | null;
   resourceId: string | null;
   errorMessage: string | null;
   cacheStatus: string | null;
@@ -150,7 +153,7 @@ const RANGES: Array<{ id: Range; label: string }> = [
 ];
 
 type Range = '1h' | '24h' | '7d' | '30d';
-type Tab = 'feed' | 'users' | 'insights' | 'cache';
+type Tab = 'feed' | 'users' | 'insights' | 'cache' | 'changes';
 
 function timeAgo(dateStr: string) {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -283,7 +286,7 @@ function CacheBadge({ info }: { info: ReturnType<typeof getCacheInfo> }) {
   );
 }
 
-const VALID_TABS: Tab[] = ['users', 'feed', 'insights', 'cache'];
+const VALID_TABS: Tab[] = ['users', 'feed', 'insights', 'cache', 'changes'];
 
 export default function ActivityLogPage() {
   const router = useRouter();
@@ -339,9 +342,10 @@ export default function ActivityLogPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 mb-4 bg-white border border-gray-200 rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-1 mb-4 bg-white border border-gray-200 rounded-lg p-1 w-fit max-w-full overflow-x-auto">
           <TabButton icon={Users}     label="Users"     active={tab === 'users'}    onClick={() => setTab('users')} />
           <TabButton icon={Activity}  label="Live Feed" active={tab === 'feed'}     onClick={() => setTab('feed')} />
+          <TabButton icon={History}   label="Data Changes" active={tab === 'changes'} onClick={() => setTab('changes')} />
           <TabButton icon={BarChart3} label="Insights"  active={tab === 'insights'} onClick={() => setTab('insights')} />
           <TabButton icon={Database}  label="Cache"     active={tab === 'cache'}    onClick={() => setTab('cache')} />
         </div>
@@ -350,6 +354,7 @@ export default function ActivityLogPage() {
         {tab === 'users' && <UsersTab onUserClick={openUser} />}
         {tab === 'insights' && <InsightsTab />}
         {tab === 'cache' && <CacheTab />}
+        {tab === 'changes' && <ChangesTab />}
       </div>
     </div>
   );
@@ -617,6 +622,11 @@ function FeedTab() {
                             {failed && log.errorMessage && (
                               <p className="text-[11px] lg:text-xs text-red-600 truncate max-w-[220px]" title={log.errorMessage}>
                                 {log.errorMessage}
+                              </p>
+                            )}
+                            {log.requestBody != null && (
+                              <p className="text-[11px] text-gray-400 font-mono truncate max-w-[220px]" title={JSON.stringify(log.requestBody, null, 2)}>
+                                sent: {JSON.stringify(log.requestBody)}
                               </p>
                             )}
                           </div>
