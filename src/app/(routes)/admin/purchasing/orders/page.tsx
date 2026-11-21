@@ -198,7 +198,7 @@ function OrdersList() {
                 <tr>
                   <th className="text-left px-4 py-2.5">Trip</th>
                   <th className="text-left px-4 py-2.5">Vendors</th>
-                  <th className="text-right px-4 py-2.5">Boxes/packs</th>
+                  <th className="text-right px-4 py-2.5">Vendor count</th>
                   <th className="text-right px-4 py-2.5">Bills</th>
                   <th className="text-right px-4 py-2.5">Trip costs</th>
                   <th className="text-right px-4 py-2.5">All in</th>
@@ -218,7 +218,7 @@ function OrdersList() {
                       <p className="truncate">{po.vendors?.length ? po.vendors.join(', ') : <span className="text-gray-400">No bills yet</span>}</p>
                       {(po.billsPending ?? 0) > 0 && <p className="text-[11px] font-medium text-amber-700">{po.billsPending} bill pending</p>}
                     </td>
-                    <td className="px-4 py-3 text-right">{po.totals.cartons}</td>
+                    <td className="px-4 py-3 text-right">{new Set(po.vendors || []).size}</td>
                     <td className="px-4 py-3 text-right">{formatRs(po.totals.goods)}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{formatRs(po.totals.charges)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatRs(po.totals.grand)}</td>
@@ -238,7 +238,9 @@ function OrdersList() {
                   <p className="text-xs text-gray-600 truncate">{po.vendors?.length ? po.vendors.join(', ') : 'No bills yet'}</p>
                   {(po.billsPending ?? 0) > 0 && <p className="text-[11px] font-medium text-amber-700">{po.billsPending} bill pending</p>}
                   <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <span>{formatDate(po.createdAt)} · {po.totals.cartons} box{po.totals.cartons === 1 ? '' : 'es'}/pack{po.totals.cartons === 1 ? '' : 's'}</span>
+                    <span>
+                      {formatDate(po.createdAt)} · {new Set(po.vendors || []).size} vendor{new Set(po.vendors || []).size === 1 ? '' : 's'}
+                    </span>
                     <span className="font-semibold text-gray-900">{formatRs(po.totals.grand)}</span>
                   </div>
                 </Link>
