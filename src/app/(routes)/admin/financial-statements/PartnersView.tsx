@@ -125,6 +125,10 @@ export default function PartnersView() {
   const signTone = (n: number, pos = "text-gray-900") => (n >= 0 ? pos : "text-red-700");
 
   // Vertical table: one column per partner (+ Total), one row per figure.
+  // Owner, 2026-11-21: show a % with the figures.
+  const sales = d.grossProfit !== undefined && d.grossMargin ? d.grossProfit / (d.grossMargin / 100) : null;
+  const pctOf = (n: number | null | undefined, base: number | null | undefined, what: string) =>
+    n === null || n === undefined || !base ? "" : ` · ${Math.round((n / base) * 1000) / 10}% of ${what}`;
   const lines: Line[] = [
     { section: true, label: "Ownership" },
     {
@@ -133,25 +137,29 @@ export default function PartnersView() {
       cell: (p) => (isSuperAdmin ? <ShareEdit row={p} onSaved={(nd) => r.setData(nd)} /> : `${p.sharePercent}%`),
       total: `${d.totalShare}%`,
     },
-    { label: "In stock", cell: (p) => (d.worth ? formatRs(stockOf(p.sharePercent)) : "—"), total: d.worth ? formatRs(stockOf(d.totalShare)) : "—" },
     {
-      label: "In equity",
+      label: `In stock${d.worth ? pctOf(d.worth.stock, d.worth.totalAssets, "assets") : ""}`,
+      cell: (p) => (d.worth ? formatRs(stockOf(p.sharePercent)) : "—"),
+      total: d.worth ? formatRs(stockOf(d.totalShare)) : "—",
+    },
+    {
+      label: `In equity${d.worth ? pctOf(d.worth.netWorth, d.worth.totalAssets, "assets") : ""}`,
       strong: true,
       cell: (p) => (d.worth ? money(equityOf(p.sharePercent)) : "—"),
       total: d.worth ? money(equityOf(d.totalShare)) : "—",
     },
     { section: true, label: "Profit" },
-    { label: "Gross profit", cell: (p) => cell(grossOf(p.sharePercent)), total: cell(grossOf(d.totalShare)) },
-    { label: "Profit expense", cell: (p) => negCost(p.sharePercent), tone: () => "text-red-700", total: negCost(d.totalShare) },
+    { label: `Gross profit${pctOf(d.grossProfit, sales, "sales")}`, cell: (p) => cell(grossOf(p.sharePercent)), total: cell(grossOf(d.totalShare)) },
+    { label: `Profit expense${pctOf(costs, sales, "sales")}`, cell: (p) => negCost(p.sharePercent), tone: () => "text-red-700", total: negCost(d.totalShare) },
     {
-      label: "Net profit",
+      label: `Net profit${pctOf(d.netProfit, sales, "sales")}`,
       strong: true,
       cell: (p) => money(p.profitShare),
       tone: (p) => signTone(p.profitShare, "text-green-700"),
       total: money(d.totals.profitShare),
     },
-    { label: "Taken", cell: (p) => (p.taken ? `(${formatRs(p.taken)})` : "—"), tone: () => "text-red-700", total: d.totals.taken ? `(${formatRs(d.totals.taken)})` : "—" },
-    { label: "Left", strong: true, cell: (p) => money(p.profitLeft), tone: (p) => signTone(p.profitLeft), total: money(d.totals.profitLeft) },
+    { label: `Taken${pctOf(d.totals.taken, d.netProfit, "net profit")}`, cell: (p) => (p.taken ? `(${formatRs(p.taken)})` : "—"), tone: () => "text-red-700", total: d.totals.taken ? `(${formatRs(d.totals.taken)})` : "—" },
+    { label: `Left${pctOf(d.totals.profitLeft, d.netProfit, "net profit")}`, strong: true, cell: (p) => money(p.profitLeft), tone: (p) => signTone(p.profitLeft), total: money(d.totals.profitLeft) },
   ];
 
   const exportPdf = () => {
