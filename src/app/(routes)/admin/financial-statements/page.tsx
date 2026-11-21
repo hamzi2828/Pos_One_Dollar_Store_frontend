@@ -271,14 +271,15 @@ function incomeRows(c: IncomeNumbers, p?: IncomeNumbers | null): Row[] {
             label: t.label,
             amount: -t.amount,
             indent: true,
-            hint: `Trip cost · ${perPiece(c.itemsSold, t.amount)}`,
+            hint: "Trip cost paid in this period",
           })),
           {
             label: (c.tripByType || []).length ? `Trip costs (${(c.tripByType || []).map((t) => t.label).join(" + ")})` : "Trip costs (rent, builty, loading)",
             amount: -(c.tripCost ?? 0),
             prev: p && p.tripCost !== undefined ? -p.tripCost : undefined,
             indent: true,
-            hint: `Share of trip costs in the goods sold · ${perPiece(c.itemsSold, c.tripCost ?? 0)}`,
+            // Owner 2026-11-21: trip costs paid in the period, in full (not the sold goods' share).
+            hint: "All trip costs paid in this period (car rent, loading ...)",
           },
           { label: "Total cost of goods sold", amount: -c.costOfGoods, prev: p ? -p.costOfGoods : undefined, kind: "sub" as RowKind, hint: perPiece(c.itemsSold, c.costOfGoods) },
         ]
