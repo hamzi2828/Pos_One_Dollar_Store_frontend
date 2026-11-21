@@ -111,9 +111,14 @@ export default function PartnersView() {
   // Everything between gross and net profit: expenses + damage / stock count / depreciation.
   const costs = d.grossProfit !== undefined ? d.grossProfit - d.netProfit : null;
   const other = d.otherCosts ?? 0;
+  // Per partner (by share %): gross profit − profit expense = net profit.
+  const grossOf = (pct: number) => (d.grossProfit !== undefined ? (d.grossProfit * pct) / 100 : null);
+  const costOf = (pct: number) => (costs !== null ? (costs * pct) / 100 : null);
+  const cell = (n: number | null) => (n === null ? "—" : money(n));
 
   const exportPdf = () => {
     const rs = (n: number) => (n < 0 ? `(Rs ${Math.round(-n).toLocaleString("en-PK")})` : `Rs ${Math.round(n).toLocaleString("en-PK")}`);
+    const rsOr = (n: number | null) => (n === null ? "—" : rs(n));
     const summary: [string, string][] = [];
     if (d.grossProfit !== undefined) summary.push(["Gross profit", rs(d.grossProfit)]);
     if (costs !== null) summary.push(["Expenses", rs(-costs)]);
@@ -132,11 +137,33 @@ export default function PartnersView() {
       tables: [
         {
           title: "Who owns what",
-          head: ["Partner", "Share", "Put in", "In stock", "In equity", "Profit share", "Taken", "Left"],
-          widths: [44, 14, 30, 30, 30, 30, 26, 26],
+          head: ["Partner", "Share", "Put in", "In stock", "In equity", "Gross profit", "Profit expense", "Net profit", "Taken", "Left"],
+          widths: [40, 12, 27, 27, 27, 27, 27, 27, 24, 24],
           rows: [
-            ...d.rows.map((p) => [p.name, `${p.sharePercent}%`, rs(p.capital), rs(stockOf(p.sharePercent)), rs(equityOf(p.sharePercent)), rs(p.profitShare), rs(-p.taken), rs(p.profitLeft)]),
-            ["Total", `${d.totalShare}%`, rs(d.totals.capital), rs(stockOf(d.totalShare)), rs(equityOf(d.totalShare)), rs(d.totals.profitShare), rs(-d.totals.taken), rs(d.totals.profitLeft)],
+            ...d.rows.map((p) => [
+              p.name,
+              `${p.sharePercent}%`,
+              rs(p.capital),
+              rs(stockOf(p.sharePercent)),
+              rs(equityOf(p.sharePercent)),
+              rsOr(grossOf(p.sharePercent)),
+              rsOr(costOf(p.sharePercent) === null ? null : -(costOf(p.sharePercent) as number)),
+              rs(p.profitShare),
+              rs(-p.taken),
+              rs(p.profitLeft),
+            ]),
+            [
+              "Total",
+              `${d.totalShare}%`,
+              rs(d.totals.capital),
+              rs(stockOf(d.totalShare)),
+              rs(equityOf(d.totalShare)),
+              rsOr(grossOf(d.totalShare)),
+              rsOr(costOf(d.totalShare) === null ? null : -(costOf(d.totalShare) as number)),
+              rs(d.totals.profitShare),
+              rs(-d.totals.taken),
+              rs(d.totals.profitLeft),
+            ],
           ],
         },
         ...d.rows
@@ -206,7 +233,7 @@ export default function PartnersView() {
 
       <Card
         title="Who owns what"
-        subtitle="In equity = net worth (after vendors, loans… are paid) × share % · Left = profit share − taken"
+        subtitle="In equity = net worth (after vendors, loans… are paid) × share % · Gross profit − profit expense = net profit · Left = net profit − taken"
         actions={
           <button
             type="button"
@@ -225,7 +252,7 @@ export default function PartnersView() {
                 <th className="px-3 pt-2 text-center font-semibold text-gray-600 border-l border-gray-200" colSpan={3}>
                   Ownership
                 </th>
-                <th className="px-3 pt-2 text-center font-semibold text-gray-600 border-l border-gray-200" colSpan={3}>
+                <th className="px-3 pt-2 text-center font-semibold text-gray-600 border-l border-gray-200" colSpan={5}>
                   Profit
                 </th>
                 {canTake && <th />}
@@ -236,7 +263,9 @@ export default function PartnersView() {
                 <th className={`${th} border-l border-gray-200`}>Put in</th>
                 <th className={th}>In stock</th>
                 <th className={th}>In equity</th>
-                <th className={`${th} border-l border-gray-200`}>Profit share</th>
+                <th className={`${th} border-l border-gray-200`}>Gross profit</th>
+                <th className={th}>Profit expense</th>
+                <th className={th}>Net profit</th>
                 <th className={th}>Taken</th>
                 <th className={th}>Left</th>
                 {canTake && <th className="px-3 py-2" />}
@@ -250,7 +279,9 @@ export default function PartnersView() {
                   <td className={`${td} border-l border-gray-200`}>{formatRs(p.capital)}</td>
                   <td className={td}>{d.worth ? formatRs(stockOf(p.sharePercent)) : "—"}</td>
                   <td className={`${td} font-bold text-gray-900`}>{d.worth ? money(equityOf(p.sharePercent)) : "—"}</td>
-                  <td className={`${td} border-l border-gray-200 ${p.profitShare >= 0 ? "text-green-700" : "text-red-700"}`}>{money(p.profitShare)}</td>
+                  <td className={`${td} border-l border-gray-200`}>{cell(grossOf(p.sharePercent))}</td>
+                  <td className={`${td} text-red-700`}>{costOf(p.sharePercent) === null ? "—" : money(-(costOf(p.sharePercent) as number))}</td>
+                  <td className={`${td} font-semibold ${p.profitShare >= 0 ? "text-green-700" : "text-red-700"}`}>{money(p.profitShare)}</td>
                   <td className={`${td} text-red-700`}>{p.taken ? `(${formatRs(p.taken)})` : "—"}</td>
                   <td className={`${td} font-semibold ${p.profitLeft >= 0 ? "text-gray-900" : "text-red-700"}`}>{money(p.profitLeft)}</td>
                   {canTake && (
@@ -271,7 +302,9 @@ export default function PartnersView() {
                 <td className={`${td} border-l border-gray-200`}>{formatRs(d.totals.capital)}</td>
                 <td className={td}>{d.worth ? formatRs(stockOf(d.totalShare)) : "—"}</td>
                 <td className={td}>{d.worth ? money(equityOf(d.totalShare)) : "—"}</td>
-                <td className={`${td} border-l border-gray-200`}>{money(d.totals.profitShare)}</td>
+                <td className={`${td} border-l border-gray-200`}>{cell(grossOf(d.totalShare))}</td>
+                <td className={td}>{costOf(d.totalShare) === null ? "—" : money(-(costOf(d.totalShare) as number))}</td>
+                <td className={td}>{money(d.totals.profitShare)}</td>
                 <td className={td}>{d.totals.taken ? `(${formatRs(d.totals.taken)})` : "—"}</td>
                 <td className={td}>{money(d.totals.profitLeft)}</td>
                 {canTake && <td />}
