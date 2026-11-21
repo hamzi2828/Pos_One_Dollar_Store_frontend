@@ -328,6 +328,19 @@ function balanceRows(b: BalanceData): Row[] {
   rows.push({ label: "Total liabilities", amount: b.totalLiabilities, kind: "sub" });
   // Owner 2026-11-20: no Equity section here (partner money is on the Investments tab).
   rows.push({ label: "Net worth (stock & cash − liabilities)", amount: b.totalEquity, kind: "total" });
+  // Owner 2026-11-21: company-owned stock = stock − owed to vendors, then how net worth adds up from it.
+  const stock = b.assets.find((a) => a.key === "stock")?.amount ?? 0;
+  const owed = b.liabilities.find((l) => l.key === "payables")?.amount ?? 0;
+  const owned = stock - owed;
+  const otherAssets = b.totalAssets - stock;
+  const otherLiab = b.totalLiabilities - owed;
+  rows.push({ label: "How net worth adds up", kind: "head" });
+  rows.push({ label: "Stock", amount: stock, indent: true });
+  rows.push({ label: "− Owed to vendors", amount: -owed, indent: true });
+  rows.push({ label: "Company-owned stock (stock − owed to vendors)", amount: owned, kind: "sub", hint: owned < 0 ? "We owe vendors more than the stock is worth" : "Stock already paid for" });
+  rows.push({ label: "+ Cash & other", amount: otherAssets, indent: true });
+  rows.push({ label: "− Other liabilities (loans, salaries, bills)", amount: -otherLiab, indent: true });
+  rows.push({ label: "Net worth", amount: owned + otherAssets - otherLiab, kind: "total" });
   return rows;
 }
 
