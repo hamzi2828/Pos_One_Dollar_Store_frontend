@@ -120,10 +120,17 @@ export default function ReceivingQueuePage() {
         ) : (
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${loading ? 'opacity-60' : ''}`}>
             {rows.map((g) => {
-              // New flow: goods entered while unpacking (no typed list needed).
-              const simple = (g.entryCount ?? 0) > 0 || (!!g.boxesCheckedAt && !g.receivedPieces);
-              const entered = g.enteredPieces ?? g.receivedPieces;
-              const pct = g.expectedPieces ? Math.min(100, Math.round((entered / g.expectedPieces) * 100)) : g.status === 'in_progress' && entered ? 50 : 0;
+              // Money: what was bought vs what is entered (tags printed). Less = red, more = orange, equal = green.
+              const total = Math.round(g.billTotal || 0);
+              const done = Math.round(g.enteredValue || 0);
+              const gap = done - total;
+              const articles = g.enteredArticles || 0;
+              const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+              const tone = !done ? 'text-gray-500' : gap < 0 ? 'text-red-600' : gap > 0 ? 'text-orange-600' : 'text-green-600';
+              const bar = gap === 0 && done > 0 ? 'bg-green-500' : gap > 0 ? 'bg-orange-500' : 'bg-honey-500';
+              const gapLine = !done
+                ? 'Nothing entered yet'
+                : `${gap === 0 ? 'Matches the bill' : `${formatRs(Math.abs(gap))} ${gap > 0 ? 'over' : 'short'}`} · total ${articles.toLocaleString()} article${articles === 1 ? '' : 's'}`;
               return (
                 <Link
                   key={g._id}
@@ -135,32 +142,22 @@ export default function ReceivingQueuePage() {
                     <GRNStatusBadge status={g.status} />
                   </div>
                   <p className="text-xs text-gray-600 truncate mt-0.5">{g.vendors.join(', ') || '—'}</p>
-                  <div className="mt-2 flex flex-wrap justify-between gap-x-3 text-[11px] text-gray-500">
-                    <span>
-                      {g.status === 'pending'
-                        ? `${g.expectedCartons} box${g.expectedCartons === 1 ? '' : 'es'}/pack${g.expectedCartons === 1 ? '' : 's'} to check`
-                        : `${g.cartonsReceived || 0} of ${g.expectedCartons} boxes/packs came`}
-                    </span>
-                    {g.builty?.builtyNo && <span>Builty {g.builty.builtyNo}</span>}
-                  </div>
-                  {g.status !== 'pending' && (
-                    <div className="mt-2">
-                      <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                        <div className={`h-full ${g.status === 'completed' ? 'bg-green-500' : 'bg-honey-500'}`} style={{ width: `${g.status === 'completed' ? 100 : pct}%` }} />
-                      </div>
-                      <div className="mt-1 flex justify-between gap-2 text-[11px] text-gray-500">
-                        <span>
-                          {g.status === 'completed'
-                            ? `${g.totals?.accepted ?? entered} pcs into the warehouse${g.totals?.claimed ? ` · ${formatRs(g.totals.claimed)} claimed back` : ''}`
-                            : simple
-                              ? `${entered} pcs entered${g.entryCount ? ` · ${g.entryCount} entries` : ''}${g.expectedPieces ? ` (typed: ${g.expectedPieces})` : ''}`
-                              : `${g.receivedPieces} / ${g.expectedPieces} pcs`}
-                        </span>
-                        <span>{formatDate(g.completedAt || g.createdAt)}</span>
-                      </div>
+                  <div className="mt-2">
+                    <p className={`text-sm font-semibold tabular-nums ${tone}`}>
+                      {formatRs(done)} / {formatRs(total)}
+                    </p>
+                    <p className={`text-xs ${tone}`}>{gapLine}</p>
+                    <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                      <div className={`h-full ${bar}`} style={{ width: `${pct}%` }} />
                     </div>
-                  )}
-                  {g.status === 'pending' && <p className="mt-1 text-[11px] text-gray-500">Sent {formatDate(g.createdAt)}</p>}
+                    <div className="mt-1 flex flex-wrap justify-between gap-x-3 text-[11px] text-gray-500">
+                      <span>
+                        {g.status === 'completed' ? `Done ${formatDate(g.completedAt || g.createdAt)}` : `Sent ${formatDate(g.createdAt)}`}
+                        {g.totals?.claimed ? ` · ${formatRs(g.totals.claimed)} claimed back` : ''}
+                      </span>
+                      {g.builty?.builtyNo && <span>Builty {g.builty.builtyNo}</span>}
+                    </div>
+                  </div>
                   {(g.receiverName || g.buyerName) && (
                     <p className="mt-1 text-[11px] text-gray-400">
                       Bought by {g.buyerName || '—'}

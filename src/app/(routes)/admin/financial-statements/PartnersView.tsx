@@ -133,7 +133,6 @@ export default function PartnersView() {
       cell: (p) => (isSuperAdmin ? <ShareEdit row={p} onSaved={(nd) => r.setData(nd)} /> : `${p.sharePercent}%`),
       total: `${d.totalShare}%`,
     },
-    { label: "Put in", cell: (p) => formatRs(p.capital), total: formatRs(d.totals.capital) },
     { label: "In stock", cell: (p) => (d.worth ? formatRs(stockOf(p.sharePercent)) : "—"), total: d.worth ? formatRs(stockOf(d.totalShare)) : "—" },
     {
       label: "In equity",
@@ -176,13 +175,12 @@ export default function PartnersView() {
       tables: [
         {
           title: "Who owns what",
-          head: ["Partner", "Share", "Put in", "In stock", "In equity", "Gross profit", "Profit expense", "Net profit", "Taken", "Left"],
-          widths: [40, 12, 27, 27, 27, 27, 27, 27, 24, 24],
+          head: ["Partner", "Share", "In stock", "In equity", "Gross profit", "Profit expense", "Net profit", "Taken", "Left"],
+          widths: [44, 14, 30, 30, 30, 30, 30, 26, 26],
           rows: [
             ...d.rows.map((p) => [
               p.name,
               `${p.sharePercent}%`,
-              rs(p.capital),
               rs(stockOf(p.sharePercent)),
               rs(equityOf(p.sharePercent)),
               rsOr(grossOf(p.sharePercent)),
@@ -194,7 +192,6 @@ export default function PartnersView() {
             [
               "Total",
               `${d.totalShare}%`,
-              rs(d.totals.capital),
               rs(stockOf(d.totalShare)),
               rs(equityOf(d.totalShare)),
               rsOr(grossOf(d.totalShare)),

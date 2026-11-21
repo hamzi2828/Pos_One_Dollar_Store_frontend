@@ -526,4 +526,8 @@ export interface GRNListRow {
   boxesCheckedAt?: string | null;
   entryCount?: number;
   enteredPieces?: number;
+  /** Σ bill totals of the trip vs value of good pieces entered (tags printed). */
+  billTotal?: number;
+  enteredValue?: number;
+  enteredArticles?: number;
 }
