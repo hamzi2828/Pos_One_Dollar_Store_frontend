@@ -3,7 +3,7 @@
 // Financial Statements → Partners (owner, 2026-11-17): who owns what.
 //   Money put in + share of the profit (by share %) − money taken (Profit Distribution)
 //   = each partner's part of the company today.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Pencil, Check, X, Users, HandCoins, FileText } from "lucide-react";
 import toast from "react-hot-toast";
@@ -45,6 +45,10 @@ interface PartnersData {
   /** Where the owners' money is today (from the Balance Sheet). */
   worth?: { netWorth: number; totalAssets: number; totalLiabilities: number; stock: number; money: number; other: number } | null;
 }
+
+type Line =
+  | { section: true; label: string }
+  | { section?: false; label: string; strong?: boolean; center?: boolean; cell: (p: PartnerRow) => ReactNode; tone?: (p: PartnerRow) => string; total: ReactNode };
 
 const money = (n: number) => (n < 0 ? `(${formatRs(-n)})` : formatRs(n));
 
@@ -104,7 +108,6 @@ export default function PartnersView() {
   if (r.error) return <ErrorState message={r.error} onRetry={r.reload} />;
   if (!d) return <LoadingBlock />;
 
-  const th = "px-3 py-2 text-right font-medium";
   const td = "px-3 py-2.5 text-right tabular-nums whitespace-nowrap";
   const stockOf = (pct: number) => (d.worth ? (d.worth.stock * pct) / 100 : 0);
   const equityOf = (pct: number) => (d.worth ? (d.worth.netWorth * pct) / 100 : 0);
@@ -115,6 +118,42 @@ export default function PartnersView() {
   const grossOf = (pct: number) => (d.grossProfit !== undefined ? (d.grossProfit * pct) / 100 : null);
   const costOf = (pct: number) => (costs !== null ? (costs * pct) / 100 : null);
   const cell = (n: number | null) => (n === null ? "—" : money(n));
+  const negCost = (pct: number) => {
+    const c = costOf(pct);
+    return c === null ? "—" : money(-c);
+  };
+  const signTone = (n: number, pos = "text-gray-900") => (n >= 0 ? pos : "text-red-700");
+
+  // Vertical table: one column per partner (+ Total), one row per figure.
+  const lines: Line[] = [
+    { section: true, label: "Ownership" },
+    {
+      label: "Share",
+      center: true,
+      cell: (p) => (isSuperAdmin ? <ShareEdit row={p} onSaved={(nd) => r.setData(nd)} /> : `${p.sharePercent}%`),
+      total: `${d.totalShare}%`,
+    },
+    { label: "Put in", cell: (p) => formatRs(p.capital), total: formatRs(d.totals.capital) },
+    { label: "In stock", cell: (p) => (d.worth ? formatRs(stockOf(p.sharePercent)) : "—"), total: d.worth ? formatRs(stockOf(d.totalShare)) : "—" },
+    {
+      label: "In equity",
+      strong: true,
+      cell: (p) => (d.worth ? money(equityOf(p.sharePercent)) : "—"),
+      total: d.worth ? money(equityOf(d.totalShare)) : "—",
+    },
+    { section: true, label: "Profit" },
+    { label: "Gross profit", cell: (p) => cell(grossOf(p.sharePercent)), total: cell(grossOf(d.totalShare)) },
+    { label: "Profit expense", cell: (p) => negCost(p.sharePercent), tone: () => "text-red-700", total: negCost(d.totalShare) },
+    {
+      label: "Net profit",
+      strong: true,
+      cell: (p) => money(p.profitShare),
+      tone: (p) => signTone(p.profitShare, "text-green-700"),
+      total: money(d.totals.profitShare),
+    },
+    { label: "Taken", cell: (p) => (p.taken ? `(${formatRs(p.taken)})` : "—"), tone: () => "text-red-700", total: d.totals.taken ? `(${formatRs(d.totals.taken)})` : "—" },
+    { label: "Left", strong: true, cell: (p) => money(p.profitLeft), tone: (p) => signTone(p.profitLeft), total: money(d.totals.profitLeft) },
+  ];
 
   const exportPdf = () => {
     const rs = (n: number) => (n < 0 ? `(Rs ${Math.round(-n).toLocaleString("en-PK")})` : `Rs ${Math.round(n).toLocaleString("en-PK")}`);
@@ -246,46 +285,42 @@ export default function PartnersView() {
       >
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-[11px] uppercase tracking-wide text-gray-500">
-              <tr className="border-b border-gray-100">
-                <th className="px-3 pt-2" colSpan={2} />
-                <th className="px-3 pt-2 text-center font-semibold text-gray-600 border-l border-gray-200" colSpan={3}>
-                  Ownership
-                </th>
-                <th className="px-3 pt-2 text-center font-semibold text-gray-600 border-l border-gray-200" colSpan={5}>
-                  Profit
-                </th>
-                {canTake && <th />}
-              </tr>
+            <thead>
               <tr className="border-b border-gray-200">
-                <th className="px-3 py-2 text-left font-medium">Partner</th>
-                <th className={th}>Share</th>
-                <th className={`${th} border-l border-gray-200`}>Put in</th>
-                <th className={th}>In stock</th>
-                <th className={th}>In equity</th>
-                <th className={`${th} border-l border-gray-200`}>Gross profit</th>
-                <th className={th}>Profit expense</th>
-                <th className={th}>Net profit</th>
-                <th className={th}>Taken</th>
-                <th className={th}>Left</th>
-                {canTake && <th className="px-3 py-2" />}
+                <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-gray-500">Partner</th>
+                {d.rows.map((p) => (
+                  <th key={p._id} className="px-3 py-2.5 text-right font-semibold text-gray-900 capitalize">
+                    {p.name}
+                  </th>
+                ))}
+                <th className="px-3 py-2.5 text-right font-semibold text-gray-900 bg-honey-50">Total</th>
               </tr>
             </thead>
             <tbody>
-              {d.rows.map((p) => (
-                <tr key={p._id} className="border-t border-gray-100 even:bg-gray-50/60">
-                  <td className="px-3 py-2.5 font-medium text-gray-900 capitalize">{p.name}</td>
-                  <td className={td}>{isSuperAdmin ? <ShareEdit row={p} onSaved={(nd) => r.setData(nd)} /> : `${p.sharePercent}%`}</td>
-                  <td className={`${td} border-l border-gray-200`}>{formatRs(p.capital)}</td>
-                  <td className={td}>{d.worth ? formatRs(stockOf(p.sharePercent)) : "—"}</td>
-                  <td className={`${td} font-bold text-gray-900`}>{d.worth ? money(equityOf(p.sharePercent)) : "—"}</td>
-                  <td className={`${td} border-l border-gray-200`}>{cell(grossOf(p.sharePercent))}</td>
-                  <td className={`${td} text-red-700`}>{costOf(p.sharePercent) === null ? "—" : money(-(costOf(p.sharePercent) as number))}</td>
-                  <td className={`${td} font-semibold ${p.profitShare >= 0 ? "text-green-700" : "text-red-700"}`}>{money(p.profitShare)}</td>
-                  <td className={`${td} text-red-700`}>{p.taken ? `(${formatRs(p.taken)})` : "—"}</td>
-                  <td className={`${td} font-semibold ${p.profitLeft >= 0 ? "text-gray-900" : "text-red-700"}`}>{money(p.profitLeft)}</td>
-                  {canTake && (
-                    <td className="px-3 py-2.5 text-right">
+              {lines.map((l) =>
+                l.section ? (
+                  <tr key={l.label} className="bg-gray-50 border-t border-gray-200">
+                    <td colSpan={d.rows.length + 2} className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      {l.label}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={l.label} className="border-t border-gray-100">
+                    <td className={`px-3 py-2.5 whitespace-nowrap ${l.strong ? "font-semibold text-gray-900" : "text-gray-600"}`}>{l.label}</td>
+                    {d.rows.map((p) => (
+                      <td key={p._id} className={`${td} ${l.center ? "!text-center" : ""} ${l.strong ? "font-semibold" : ""} ${l.tone ? l.tone(p) : "text-gray-900"}`}>
+                        {l.cell(p)}
+                      </td>
+                    ))}
+                    <td className={`${td} ${l.center ? "!text-center" : ""} bg-honey-50 font-semibold text-gray-900`}>{l.total}</td>
+                  </tr>
+                )
+              )}
+              {canTake && (
+                <tr className="border-t border-gray-200">
+                  <td />
+                  {d.rows.map((p) => (
+                    <td key={p._id} className="px-3 py-2.5 text-right">
                       <Link
                         href={takeHref(p._id)}
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-honey-500 px-2.5 py-1.5 text-xs font-semibold text-gray-900 hover:bg-honey-600"
@@ -293,22 +328,10 @@ export default function PartnersView() {
                         <HandCoins className="h-3.5 w-3.5" /> Take profit
                       </Link>
                     </td>
-                  )}
+                  ))}
+                  <td className="bg-honey-50" />
                 </tr>
-              ))}
-              <tr className="bg-honey-50 border-y-2 border-honey-200 font-semibold">
-                <td className="px-3 py-2.5">Total</td>
-                <td className={td}>{d.totalShare}%</td>
-                <td className={`${td} border-l border-gray-200`}>{formatRs(d.totals.capital)}</td>
-                <td className={td}>{d.worth ? formatRs(stockOf(d.totalShare)) : "—"}</td>
-                <td className={td}>{d.worth ? money(equityOf(d.totalShare)) : "—"}</td>
-                <td className={`${td} border-l border-gray-200`}>{cell(grossOf(d.totalShare))}</td>
-                <td className={td}>{costOf(d.totalShare) === null ? "—" : money(-(costOf(d.totalShare) as number))}</td>
-                <td className={td}>{money(d.totals.profitShare)}</td>
-                <td className={td}>{d.totals.taken ? `(${formatRs(d.totals.taken)})` : "—"}</td>
-                <td className={td}>{money(d.totals.profitLeft)}</td>
-                {canTake && <td />}
-              </tr>
+              )}
             </tbody>
           </table>
         </div>
