@@ -314,8 +314,10 @@ export const productService = {
       usedBy: data?.usedBy,
     };
   },
-  async createProduct(formData: FormData): Promise<ProductUI> {
-    const res = await axios.post(`${API_BASE_URL}/products`, formData, {
+  // fromPurchasing: the form is open inside a PO / goods receipt. Warehouse staff
+  // have no Products menu, so these use their own routes (allowed by PO / GRN access).
+  async createProduct(formData: FormData, fromPurchasing = false): Promise<ProductUI> {
+    const res = await axios.post(`${API_BASE_URL}/products${fromPurchasing ? '/from-purchasing' : ''}`, formData, {
       headers: {
         ...getAuthHeader(),
         // Let axios set the correct multipart boundary automatically
@@ -326,8 +328,8 @@ export const productService = {
     if (!data || typeof data !== 'object') throw new Error('Unexpected createProduct response');
     return mapToUI(data as ProductDTO);
   },
-  async updateProduct(id: string, formData: FormData): Promise<ProductUI> {
-    const res = await axios.put(`${API_BASE_URL}/products/${id}`, formData, {
+  async updateProduct(id: string, formData: FormData, fromPurchasing = false): Promise<ProductUI> {
+    const res = await axios.put(`${API_BASE_URL}/products/${id}${fromPurchasing ? '/from-purchasing' : ''}`, formData, {
       headers: {
         ...getAuthHeader(),
         'Content-Type': 'multipart/form-data',

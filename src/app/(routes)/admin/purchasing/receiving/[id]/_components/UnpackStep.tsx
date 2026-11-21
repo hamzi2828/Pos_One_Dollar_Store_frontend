@@ -158,7 +158,9 @@ export default function UnpackStep({
   const [choices, setChoices] = useState<{ units: ReceivingUnit[]; cost: number | null } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
   const canEnter = mayEdit && grn.status === 'in_progress';
-  const canCreateProducts = useAccess().can('products', 'create');
+  // Receiving staff make new products here (no Products menu needed).
+  const access = useAccess();
+  const canCreateProducts = access.can('products', 'create') || access.can('goods_receiving', 'edit');
 
   const focusScan = () => setTimeout(() => scanRef.current?.focus(), 50);
   const pick = (u: ReceivingUnit, cost: number | null = null, pieces: number | null = null) => {

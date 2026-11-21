@@ -107,6 +107,7 @@ export default function FullProductModal({
         <ProductForm
           mode="create"
           noStock
+          viaPurchasing
           defaultName={looksLikeCode ? '' : initialName.trim()}
           defaultBarcode={looksLikeCode ? initialName.trim() : ''}
           defaultVendorId={vendorId || ''}

@@ -270,7 +270,8 @@ function Workspace() {
     (isOpen || (po.status === "closed" && grnPending));
   const canReopen =
     can("purchase_orders", "edit") && po.status === "closed" && grnPending;
-  const canCreateProduct = can("products", "create");
+  // Buying staff add new products to a bill here (no Products menu needed).
+  const canCreateProduct = can("products", "create") || can("purchase_orders", "edit");
   const step = tripStep(po);
   const goods = po.bills.reduce((s, b) => s + billTotalOf(b), 0);
   const paid = po.bills.reduce((s, b) => s + paidOf(b), 0);

@@ -78,6 +78,8 @@ interface ProductFormProps {
   noStock?: boolean;
   /** Receiving → edit entry: stock and cost follow the entry above (live), saved only by "Save entry". */
   fromEntry?: { stock: number; costPrice: number; stockNote?: string };
+  /** Open inside a PO / goods receipt: saves through the purchasing routes (no Products access needed). */
+  viaPurchasing?: boolean;
   /**
    * Receiving → edit entry: how many pieces came with each scanned barcode.
    * The total goes into the entry's Pieces (owner, 2026-11-04).
@@ -171,6 +173,7 @@ export default function ProductForm({
   onManageAttributes,
   noStock = false,
   fromEntry,
+  viaPurchasing = false,
   barcodeQty,
   defaultName = "",
   defaultBarcode = "",
@@ -874,9 +877,10 @@ export default function ProductForm({
 
       let saved: ProductUI;
       if (mode === "create") {
-        saved = await productService.createProduct(formData);
+        // noStock = the "New product" popup while receiving goods
+        saved = await productService.createProduct(formData, noStock || viaPurchasing);
       } else {
-        saved = await productService.updateProduct((initialData as Product).id, formData);
+        saved = await productService.updateProduct((initialData as Product).id, formData, viaPurchasing);
       }
       
       if (onSubmit) {

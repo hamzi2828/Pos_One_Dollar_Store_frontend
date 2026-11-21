@@ -669,6 +669,7 @@ function EditEntryModal({
             mode="edit"
             initialData={form.product as unknown as Product}
             fromEntry={fromEntry}
+            viaPurchasing
             barcodeQty={{ values: codeQty, onChange: setCodeQty, unit: perSale > 1 ? 'Sales' : 'Pieces' }}
             categories={form.categories}
             colorOptions={form.colorOptions}
